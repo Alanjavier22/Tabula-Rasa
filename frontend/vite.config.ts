@@ -35,17 +35,21 @@ export default defineConfig({
         // ]
       },
       workbox: {
-        globPatterns: [],
+        // 1. Restaurar precache del App Shell (vital para SPA)
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        
+        // 2. Fallback de navegación para React Router
+        navigateFallback: '/index.html',
+        
+        // Excluir explícitamente llamadas al backend del fallback HTML
+        navigateFallbackDenylist: [/^\/api/, /^\/snapshots/, /^\/config/],
+
         runtimeCaching: [
           // FASE 4: API Mutations - NetworkOnly to prevent cache interference
-          // POST/PUT/PATCH/DELETE must NEVER be cached - strict network only
           {
-            urlPattern: ({ request }) => {
-              const url = new URL(request.url);
-              // Match API endpoints (backend typically on :8001 or configured URL)
-              const isApiEndpoint = url.pathname.startsWith('/api') ||
-                                   url.port === '8001' ||
-                                   url.hostname.includes('localhost');
+            urlPattern: ({ request, url }) => {
+              // Validar estrictamente el puerto 8001 o prefijo /api
+              const isApiEndpoint = url.pathname.startsWith('/api') || url.port === '8001';
               const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
               return isApiEndpoint && isMutation;
             },
@@ -56,8 +60,7 @@ export default defineConfig({
           },
           // FASE 4: API Reads - NetworkFirst for offline support
           {
-            urlPattern: ({ request }) => {
-              const url = new URL(request.url);
+            urlPattern: ({ request, url }) => {
               // Solo cachear si es el puerto del backend y es un GET
               return url.port === '8001' && request.method === 'GET';
             },
@@ -70,6 +73,7 @@ export default defineConfig({
               }
             }
           },
+          // Rutas estáticas de la app
           {
             urlPattern: /^https?.*/,
             handler: 'NetworkFirst',
