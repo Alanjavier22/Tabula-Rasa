@@ -186,7 +186,23 @@ def execute_sync(
                     cleaned = normalize_record_for_model(model, record)
 
                     # FASE 2: Version-based upsert for transactions (Last-Write-Wins)
+                    # FASE 5: Hash-based idempotency check before INSERT
                     if table_name == "transactions":
+                        # FASE 5: Check for existing transaction by hash first (idempotency)
+                        tx_hash = cleaned.get("hash")
+                        if tx_hash:
+                            existing_by_hash = db.query(Transaction).filter(
+                                Transaction.hash == tx_hash,
+                                Transaction.is_deleted == False
+                            ).first()
+                            
+                            if existing_by_hash:
+                                # FASE 5: Idempotency - transaction already exists with same hash
+                                logger.info(f"[FASE-5] Transaction with hash {tx_hash} already exists, skipping (idempotent)")
+                                processed_records.append({"id": existing_by_hash.id, "hash": tx_hash})
+                                updated_records_in_this_tx.add(existing_by_hash.id)
+                                continue  # Skip to next record
+                        
                         existing = db.query(Transaction).filter(Transaction.id == record_id).first()
                         
                         if not existing:

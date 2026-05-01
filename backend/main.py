@@ -2,6 +2,46 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+import logging
+from logging.handlers import RotatingFileHandler
+
+# FASE 5: Configure rotating file handler for logs (10MB max, 5 backups)
+def setup_logging():
+    """Configure logging with rotation to prevent unlimited log growth."""
+    log_dir = os.path.dirname(os.path.abspath(__file__))
+    log_file = os.path.join(log_dir, 'backend.log')
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # Setup rotating file handler (10MB max, 5 backups)
+    file_handler = RotatingFileHandler(
+        log_file,
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=5,
+        encoding='utf-8'
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+    
+    # Setup console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.INFO)
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    
+    return root_logger
+
+# Initialize logging
+logger = setup_logging()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
@@ -18,6 +58,7 @@ from app.models.reminder import Reminder
 from app.models.subscription import Subscription
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.debt_share import DebtShare
+from app.models.authorized_device import AuthorizedDevice
 
 # Register event listeners for auto-increment version on UPDATE (OCC conflict resolution)
 @event.listens_for(Transaction, 'before_update')
@@ -35,7 +76,8 @@ def increment_version(mapper, connection, target):
     if hasattr(target, 'version'):
         target.version += 1
 
-from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, csv_import, config, ai_insights, subscriptions, ai_audio, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, sync
+from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, csv_import, config, ai_insights, subscriptions, ai_audio, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, sync, handshake
+from middleware.security import SecurityMiddleware
 from init_db import init_db
 
 # Schema bootstrap: idempotent create_all + optional Big Bang via DB_RESET=1.
@@ -52,6 +94,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security middleware for local handshake
+security_middleware = SecurityMiddleware()
+app.middleware("http")(security_middleware)
 
 # Include routers
 app.include_router(transactions.router)
@@ -73,6 +119,7 @@ app.include_router(net_worth_snapshots.router)
 app.include_router(ai_assistant.router)
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(sync.router)
+app.include_router(handshake.router, prefix="/handshake", tags=["Handshake"])
 
 @app.get("/")
 def read_root():
@@ -115,6 +162,16 @@ if __name__ == "__main__":
     import uvicorn
     import ssl_setup
     
+    # FASE 8: Check if TLS certificates exist, generate if needed
+    cert_dir = os.path.dirname(os.path.abspath(__file__))
+    cert_path = os.path.join(cert_dir, "cert.pem")
+    key_path = os.path.join(cert_dir, "key.pem")
+    
+    if not os.path.exists(cert_path) or not os.path.exists(key_path):
+        logger.info("[FASE-8] TLS certificates not found, generating...")
+        from scripts.generate_certs import generate_self_signed_cert
+        generate_self_signed_cert()
+    
     # 1. Asegurar CA y certificados para IP local
     local_ip = ssl_setup.ensure_certs()
     print(f"\n=======================================================")
@@ -122,12 +179,12 @@ if __name__ == "__main__":
     print(f"Descarga CA en el movil: https://{local_ip}:8001/auth/cert/download")
     print(f"=======================================================\n")
     
-    # 2. Iniciar Uvicorn con SSL
+    # 2. Iniciar Uvicorn con SSL (FASE 8: Use generated certificates)
     uvicorn.run(
         "main:app", 
         host="0.0.0.0", 
         port=8001,
-        ssl_keyfile="certs/server.key",
-        ssl_certfile="certs/server.pem",
+        ssl_keyfile=key_path,
+        ssl_certfile=cert_path,
         reload=True
     )

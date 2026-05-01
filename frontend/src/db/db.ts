@@ -223,6 +223,18 @@ export interface SnapshotRecalcQueue {
   priority: number; // Lower = higher priority (0 = immediate)
 }
 
+// FASE 4: AI Cache for categorization results (avoid redundant API calls)
+export interface AICacheEntry {
+  id: string; // Hash of sanitized description + amount
+  sanitized_description: string;
+  category_id: string;
+  confidence: number;
+  is_anomaly: boolean;
+  reasoning: string;
+  cached_at: string;
+  expires_at: string; // Cache entries expire after 30 days
+}
+
 export interface LocalAsset {
   id: string;
   name: string;
@@ -263,6 +275,19 @@ export class FinanceDatabase extends Dexie {
   assets!: Table<LocalAsset, string>;
   net_worth_snapshots!: Table<NetWorthSnapshot, string>;
   snapshot_recalc_queue!: Table<SnapshotRecalcQueue, string>; // FASE 3: Async snapshot recalc queue
+  ai_cache!: Table<AICacheEntry, string>; // FASE 4: AI categorization cache
+
+  /**
+   * FASE 5: Dexie trigger for ai_cache invalidation on Category delete
+   * When a category is deleted, clean all ai_cache entries pointing to it
+   */
+  private setupAIcacheTrigger(): void {
+    this.categories.hook('deleting', (primaryKey, _obj, trans) => {
+      // Delete all ai_cache entries with this category_id
+      trans.table('ai_cache').where('category_id').equals(primaryKey).delete();
+      console.debug(`[FASE-5] Cleared ai_cache for deleted category: ${primaryKey}`);
+    });
+  }
 
   /**
    * Tokenize description for indexed search
@@ -279,12 +304,16 @@ export class FinanceDatabase extends Dexie {
   constructor() {
     super('FinanceLocalFirstDB');
     
+    // FASE 5: Setup AI cache invalidation trigger before schema definition
+    this.setupAIcacheTrigger();
+    
     // We only index properties that we will use in .where() queries.
     // The '&id' means it's a primary key and must be unique.
     // FASE 7: Added version index to critical financial tables for OCC conflict resolution
     // FASE 8.1: Added sync_conflicts table for conflict stashing
     // FASE 3: Added snapshot_recalc_queue for async snapshot recalculation (prevents deadlocks)
-    this.version(6).stores({
+    // FASE 4: Added ai_cache for AI categorization caching (avoids redundant API calls)
+    this.version(7).stores({
       sync_metadata: '&key',
       config: '&id, key, is_deleted, updated_at',
       exchange_rates: '&id, from_currency, to_currency, is_deleted, updated_at',
@@ -307,7 +336,12 @@ export class FinanceDatabase extends Dexie {
       maintenance_logs: '&id, is_deleted, updated_at, vehicle_id, date',
       assets: '&id, is_deleted, updated_at, purchase_date, version',
       net_worth_snapshots: '&id, date, month, year, is_stale, updated_at', // FASE PHOENIX FIX: Added date and updated_at indexes
-      snapshot_recalc_queue: '&id, priority, enqueued_at' // FASE 3: Async snapshot recalc queue
+      snapshot_recalc_queue: '&id, priority, enqueued_at', // FASE 3: Async snapshot recalc queue
+      ai_cache: '&id, expires_at' // FASE 4: AI categorization cache with expiration index
+    }).upgrade(async () => {
+      // Migration from v6 to v7: add ai_cache table
+      console.log('[DB] Upgrading from v6 to v7 - adding ai_cache table...');
+      // Dexie automatically handles new table creation
     }).upgrade(async () => {
       // Migration from v5 to v6: add snapshot_recalc_queue table
       console.log('[DB] Upgrading from v5 to v6 - adding snapshot_recalc_queue table...');
@@ -359,6 +393,48 @@ export class FinanceDatabase extends Dexie {
     this.transactions.hook('updating', (_modifications, _primKey, obj, _trans) => {
       this.tokenizeDescription(obj);
     });
+
+    // FASE 2: Temporal Consistency Trigger - Invalidate snapshots on transaction changes
+    // When a transaction is created/updated/deleted, mark all snapshots >= transaction date as stale
+    const invalidateSnapshots = async (obj: any) => {
+      if (!obj.date) return;
+      
+      try {
+        // @ts-ignore
+        const staleSnapshots = await this.net_worth_snapshots
+          .where('date')
+          .aboveOrEqual(obj.date)
+          .toArray();
+        
+        if (staleSnapshots.length > 0) {
+          const snapshotIds = staleSnapshots.map((s: any) => s.id);
+          const now = new Date().toISOString();
+          
+          // @ts-ignore
+          await this.net_worth_snapshots.bulkUpdate(snapshotIds, {
+            is_stale: true,
+            updated_at: now
+          });
+          
+          console.debug(`[FASE-2] Invalidated ${staleSnapshots.length} snapshots for transaction date ${obj.date}`);
+        }
+      } catch (error) {
+        console.error('[FASE-2] Error invalidating snapshots:', error);
+      }
+    };
+
+    this.transactions.hook('creating', (_primKey, obj, _trans) => {
+      // Fire-and-forget invalidation (async, non-blocking)
+      invalidateSnapshots(obj).catch(err => console.error('[FASE-2] Snapshot invalidation error:', err));
+    });
+
+    this.transactions.hook('updating', (_modifications, _primKey, obj, _trans) => {
+      invalidateSnapshots(obj).catch(err => console.error('[FASE-2] Snapshot invalidation error:', err));
+    });
+
+    this.transactions.hook('deleting', (_primKey, obj, _trans) => {
+      invalidateSnapshots(obj).catch(err => console.error('[FASE-2] Snapshot invalidation error:', err));
+    });
   }
 }
 
@@ -393,6 +469,86 @@ function recordSchemaFailure(): void {
 
 export async function phoenixHardReset(): Promise<void> {
   console.warn('[Phoenix Local Healer] Iniciando hard reset de IndexedDB...');
+  
+  // FASE 5: Export emergency JSON to localStorage before deletion
+  // FASE 7: Fallback to Blob download if JSON exceeds 4MB (localStorage limit ~5MB)
+  try {
+    const tablesToExport = [
+      'transactions', 'accounts', 'categories', 'budgets', 
+      'subscriptions', 'ious', 'net_worth_snapshots'
+    ];
+    
+    const emergencyExport: any = {
+      timestamp: new Date().toISOString(),
+      version: '7',
+      tables: {}
+    };
+    
+    for (const tableName of tablesToExport) {
+      try {
+        // @ts-ignore
+        const data = await db.table(tableName).toArray();
+        emergencyExport.tables[tableName] = data;
+        console.debug(`[Phoenix Local Healer] Exported ${data.length} records from ${tableName}`);
+      } catch (error) {
+        console.warn(`[Phoenix Local Healer] Failed to export ${tableName}:`, error);
+      }
+    }
+    
+    const jsonString = JSON.stringify(emergencyExport);
+    const sizeInBytes = new Blob([jsonString]).size;
+    const sizeInMB = sizeInBytes / (1024 * 1024);
+    
+    console.log(`[Phoenix Local Healer] Emergency backup size: ${sizeInMB.toFixed(2)}MB (${sizeInBytes} bytes)`);
+    
+    // FASE 7: Fallback to Blob download if > 4MB (localStorage limit is ~5MB)
+    if (sizeInBytes > 4 * 1024 * 1024) {
+      console.warn(`[Phoenix Local Healer] Backup too large for localStorage (${sizeInMB.toFixed(2)}MB), triggering Blob download`);
+      
+      try {
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tabula_rasa_emergency_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('[Phoenix Local Healer] Emergency backup downloaded as file');
+      } catch (error) {
+        console.error('[Phoenix Local Healer] Failed to download Blob backup:', error);
+      }
+    } else {
+      // Store in localStorage as emergency backup
+      const exportKey = 'phoenix_emergency_backup';
+      try {
+        localStorage.setItem(exportKey, jsonString);
+        console.log(`[Phoenix Local Healer] Emergency backup saved to localStorage (${sizeInBytes} bytes)`);
+      } catch (error) {
+        console.error('[Phoenix Local Healer] Failed to save emergency backup to localStorage:', error);
+        // FASE 7: Fallback to Blob download if localStorage fails
+        try {
+          const blob = new Blob([jsonString], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `tabula_rasa_emergency_backup_${new Date().toISOString().slice(0, 10)}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          console.log('[Phoenix Local Healer] Fallback: Emergency backup downloaded as file');
+        } catch (blobError) {
+          console.error('[Phoenix Local Healer] Failed to download Blob backup as fallback:', blobError);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Phoenix Local Healer] Error during emergency export:', error);
+  }
+  
+  // Proceed with database deletion
   try {
     await db.delete();
     console.log('[Phoenix Local Healer] IndexedDB eliminada exitosamente');
