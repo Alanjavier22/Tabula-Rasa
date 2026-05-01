@@ -4,6 +4,7 @@ import { z } from 'zod';
 const CentsSchema = z.number().int('Amount must be in cents (integer)').nonnegative('Amount must be non-negative').brand<'Cents'>();
 
 // Transaction schema - amount must be integer cents
+// FASE 1: Added version and hash for immutable identity with OCC conflict resolution
 export const transactionSchema = z.object({
   id: z.string().uuid().optional(),
   account_id: z.string().uuid(),
@@ -16,6 +17,9 @@ export const transactionSchema = z.object({
   is_deleted: z.boolean().optional(),
   created_at: z.string().or(z.date()).optional(),
   updated_at: z.string().or(z.date()).optional(),
+  version: z.number().int().default(1), // FASE 1: Version for OCC - starts at 1
+  hash: z.string().optional(), // FASE 1: SHA-256 hash for deduplication/handshake
+  needs_review: z.boolean().optional(), // FASE 1: Conflict flag
 });
 
 // Account schema - balance must be integer cents

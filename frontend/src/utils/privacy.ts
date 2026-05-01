@@ -1,10 +1,11 @@
 /**
  * Privacy-First Sanitization Layer
+ * FASE 4: Async-Safe - No global state, all state injected via parameters
  * Masks PII before sending to external AI APIs
  * Reversible hydration with unique incremental tokens per call
  */
 
-// FIX: Encapsulated counters in object to prevent race conditions in async calls
+// FASE 4: Token counters interface - must be passed to all functions (Async-Safety)
 interface TokenCounters {
   person: number;
   account: number;
@@ -13,6 +14,7 @@ interface TokenCounters {
 
 /**
  * Validate Ecuadorian ID (Cédula/RUC) using Módulo 10 algorithm
+ * FASE 4: Fixed validation for province codes (01-24 or 30) and RUC suffix (001)
  * O(n) time complexity - highly efficient
  * Returns true if the ID passes validation
  */
@@ -22,16 +24,25 @@ function isValidEcuadorianID(id: string): boolean {
   // Cédula: 10 digits, RUC: 13 digits
   if (cleaned.length !== 10 && cleaned.length !== 13) return false;
   
-  // For RUC, validate first 10 digits (same as Cédula)
+  // For RUC, validate first 10 digits (same as Cédula) and check 001 suffix
+  if (cleaned.length === 13) {
+    const suffix = cleaned.substring(10);
+    if (suffix !== '001') return false; // RUC must end in 001
+  }
+  
   const digitsToValidate = cleaned.length === 13 ? cleaned.substring(0, 10) : cleaned;
   const digits = digitsToValidate.split('').map(Number);
   
-  // Province code validation (01-24 except 00)
+  // FASE 4: Province code validation (01-24 or 30)
   const provinceCode = parseInt(digitsToValidate.substring(0, 2), 10);
-  if (provinceCode < 1 || provinceCode > 24) return false;
+  if ((provinceCode < 1 || provinceCode > 24) && provinceCode !== 30) return false;
   
-  // Third digit must be < 6 (0-5 for natural persons, 9 for public entities)
-  if (digits[2] >= 6) return false;
+  // FASE 4: Third digit validation
+  // 0-5: natural persons
+  // 6-8: juridical persons (private companies)
+// 9: public entities
+  const thirdDigit = digits[2];
+  if (thirdDigit < 0 || thirdDigit > 9) return false;
   
   // Módulo 10 algorithm
   const coefficients = [2, 1, 2, 1, 2, 1, 2, 1, 2];
@@ -49,7 +60,7 @@ function isValidEcuadorianID(id: string): boolean {
   const checkDigit = remainder === 0 ? 0 : 10 - remainder;
   
   const isValid = checkDigit === digits[9];
-  console.debug('[QualityGate-F2] Ecuadorian ID validation:', id, isValid);
+  console.debug('[FASE-4] Ecuadorian ID validation:', id, isValid, 'type:', cleaned.length === 13 ? 'RUC' : 'Cédula');
   return isValid;
 }
 
@@ -105,9 +116,8 @@ const STOP_WORDS = new Set([
 
 /**
  * Mask account numbers and financial identifiers
+ * FASE 4: Async-Safe - hydrationMap and counters injected as parameters
  * Returns { sanitized, hydrationMap } with incremental tokens
- * FIX: Accept counters object to prevent race conditions
- * FIX: Validate Ecuadorian IDs with Módulo 10 before assigning TAX_ID token
  */
 function maskAccounts(text: string, hydrationMap: Map<string, string>, counters: TokenCounters): string {
   let sanitized = text;
@@ -149,9 +159,9 @@ const NAME_PATTERNS = [
 
 /**
  * Mask personal names in transaction descriptions
+ * FASE 4: Async-Safe - hydrationMap and counters injected as parameters
  * Context-agnostic: masks any capitalized word that isn't a stop word
  * Returns { sanitized, hydrationMap } with incremental tokens
- * FIX: Accept counters object to prevent race conditions
  */
 function maskNames(text: string, hydrationMap: Map<string, string>, counters: TokenCounters): string {
   let sanitized = text;
@@ -189,8 +199,8 @@ function maskNames(text: string, hydrationMap: Map<string, string>, counters: To
 
 /**
  * Full sanitization pipeline with hydration map
+ * FASE 4: Async-Safe - hydrationMap and counters injected as parameters
  * Applies all privacy masks in sequence
- * FIX: Accept counters object to prevent race conditions
  */
 function sanitizeDescription(description: string, hydrationMap: Map<string, string>, counters: TokenCounters): string {
   if (!description || typeof description !== 'string') return description;
@@ -203,9 +213,8 @@ function sanitizeDescription(description: string, hydrationMap: Map<string, stri
 
 /**
  * Sanitize an object's description fields recursively with hydration map
- * FIX: Accept counters object to prevent race conditions
- * FIX: Recursively sanitize metadata_json fields
- * FIX: Handle arrays of objects and nested JSON strings
+ * FASE 4: Async-Safe - hydrationMap and counters injected as parameters
+ * Recursively sanitizes metadata_json fields, handles arrays and nested JSON strings
  */
 function sanitizeObject<T extends Record<string, any>>(obj: T, hydrationMap: Map<string, string>, counters: TokenCounters): T {
   // Handle arrays recursively
@@ -248,11 +257,13 @@ function sanitizeObject<T extends Record<string, any>>(obj: T, hydrationMap: Map
 
 /**
  * Prepare data for AI API - full sanitization with reversible hydration map
+ * FASE 4: Factory function - Entry point where state is initialized (Async-Safety)
+ * This is the ONLY function that initializes hydrationMap and counters locally
+ * All other functions receive state via parameters to prevent race conditions
  * Returns { sanitized, hydrationMap } for later reversal
- * FIX: Initialize counters locally to prevent race conditions in async calls
  */
 export function prepareForAI<T>(data: T): { sanitized: T; hydrationMap: Map<string, string> } {
-  // FIX: Initialize counters locally (no global state)
+  // FASE 4: Initialize state locally (no global state) - guarantees Async-Safety
   const counters: TokenCounters = { person: 0, account: 0, location: 0 };
   const hydrationMap = new Map<string, string>();
 

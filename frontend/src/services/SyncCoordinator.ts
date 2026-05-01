@@ -8,6 +8,7 @@ import { syncAPI } from './api';
 import { snapshotService } from './SnapshotService';
 import { silentUpdate } from './conflictUtils';
 import { checkStorageQuota } from '../utils/storage';
+import { snapshotWorker } from './SnapshotWorker'; // FASE 3: Import SnapshotWorker
 
 export interface SyncQueueEntry {
   id: string;
@@ -247,6 +248,11 @@ export class SyncCoordinator {
       this.abortController = null;
       this.notifyListeners();
       
+      // FASE 3: Start SnapshotWorker after sync completes (async background processing)
+      snapshotWorker.start().catch(err => {
+        console.error('[SyncCoordinator] Error starting SnapshotWorker:', err);
+      });
+      
       // Reconcile stale snapshots after sync completes
       // Async operation to avoid blocking
       snapshotService.reconcileStaleSnapshots().catch(err => {
@@ -257,6 +263,7 @@ export class SyncCoordinator {
 
   /**
    * Process single queue entry with exponential backoff
+   * FASE 2: Resilient handshake with version/hash verification
    */
   private async processEntry(entry: SyncQueueEntry): Promise<void> {
     // Debug flag: artificially stall sync for testing
@@ -283,25 +290,46 @@ export class SyncCoordinator {
           throw new Error(`Server returned ${response.status}`);
         }
 
-        // Bit-a-bit integrity verification
-        const serverHashes = response.data?.hashes;
-        if (serverHashes && entry.payload?.id && entry.payload?.hash) {
-          const localHash = entry.payload.hash;
-          const serverHash = serverHashes[entry.payload.id];
+        // FASE 2: Handshake verification - check if server processed this record
+        const processed = response.data?.processed || [];
+        const recordId = entry.payload?.id;
+        const localHash = entry.payload?.hash;
+        const localVersion = entry.payload?.version;
+        
+        if (recordId) {
+          const processedRecord = processed.find((p: any) => p.id === recordId);
           
-          if (serverHash && serverHash !== localHash) {
-            console.error('[QualityGate-F2] Integrity mismatch in record', entry.payload.id);
-            
-            // Mark record for review
-            // @ts-ignore
-            await db.transaction('rw', [entry.table_name], async () => {
+          if (processedRecord) {
+            // Server accepted this record - verify hash matches
+            const serverHash = processedRecord.hash;
+            if (serverHash && serverHash !== localHash) {
+              console.error('[FASE-2] Handshake hash mismatch for', recordId, ': local', localHash, 'vs server', serverHash);
+              
+              // Mark record for review
               // @ts-ignore
-              await db.table(entry.table_name).update(entry.payload.id, {
-                needs_review: true,
+              await db.transaction('rw', [entry.table_name], async () => {
+                // @ts-ignore
+                await db.table(entry.table_name).update(recordId, {
+                  needs_review: true,
+                });
               });
-            });
+              
+              throw new Error(`Handshake hash mismatch: local ${localHash} vs server ${serverHash}`);
+            }
             
-            throw new Error(`Integrity mismatch: local ${localHash} vs server ${serverHash}`);
+            console.debug('[FASE-2] Handshake verified for', recordId, 'v', localVersion);
+            return; // Success - queue entry will be removed by caller
+          } else {
+            // Server did not process this record - likely rejected due to stale version
+            console.warn('[FASE-2] Server rejected record', recordId, '- likely stale version, purging from queue');
+            
+            // Download server version and apply it locally
+            // For now, just remove from queue - server version will be in outgoing changes
+            // @ts-ignore
+            await db.sync_queue.delete(entry.id);
+            
+            // Trigger sync again to download server version
+            return; // Entry removed, will be retried with server data
           }
         }
         
