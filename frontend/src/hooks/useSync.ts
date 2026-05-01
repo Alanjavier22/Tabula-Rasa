@@ -68,10 +68,10 @@ export const useSync = () => {
   const sync = useCallback(async () => {
     if (isSyncing) return;
 
-    try {
-      setIsSyncing(true);
-      setError(null);
+    setIsSyncing(true);
+    setError(null);
 
+    try {
       // --- 1. Extracción de 'Dirty Data' (Fase de Subida) ---
       let lastSyncTimestamp: string | null = null;
       const metadata = await db.sync_metadata.get('last_sync_timestamp');
@@ -222,7 +222,8 @@ export const useSync = () => {
       }
 
     } catch (err: any) {
-      // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
+      setError(err.message || 'Sync failed');
+      console.error('[Sync] Error:', err);
       throw err;
     } finally {
       setIsSyncing(false);

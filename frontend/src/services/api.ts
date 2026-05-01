@@ -354,16 +354,25 @@ const localDelete = async (tableName: string, id: string) => {
     let orphanCount = 0;
     let staleCount = 0;
     const txDate = existing.date;
-    
-    if (tableName === 'accounts' || tableName === 'categories') {
-      const foreignKey = tableName === 'accounts' ? 'account_id' : 'category_id';
-      // @ts-ignore
-      const relatedTransactions = await db.transactions.where(foreignKey).equals(id).toArray();
-      
-      if (relatedTransactions.length > 0) {
-        orphanCount = relatedTransactions.length;
+
+    // Build transaction scope based on table type
+    let txTables = [tableName, 'sync_queue'];
+    if (tableName === 'transactions') {
+      txTables.push('net_worth_snapshots');
+    } else if (tableName === 'accounts' || tableName === 'categories') {
+      txTables.push('transactions');
+    }
+
+    // @ts-ignore
+    await db.transaction('rw', txTables, async () => {
+      // Handle account/category orphan prevention
+      if (tableName === 'accounts' || tableName === 'categories') {
+        const foreignKey = tableName === 'accounts' ? 'account_id' : 'category_id';
         // @ts-ignore
-        await db.transaction('rw', ['transactions'], async () => {
+        const relatedTransactions = await db.transactions.where(foreignKey).equals(id).toArray();
+
+        if (relatedTransactions.length > 0) {
+          orphanCount = relatedTransactions.length;
           for (const txn of relatedTransactions) {
             // @ts-ignore
             await db.transactions.update(txn.id, {
@@ -372,20 +381,12 @@ const localDelete = async (tableName: string, id: string) => {
               updated_at: now,
             });
           }
-        });
-        console.debug(`[QualityGate-F3] Prevented orphans: ${orphanCount} records moved to review`);
+          console.debug(`[QualityGate-F3] Prevented orphans: ${orphanCount} records moved to review`);
+        }
       }
-    }
 
-    // Snapshot invalidation for deleted transactions
-    if (tableName === 'transactions' && txDate) {
-      // @ts-ignore
-      await db.transaction('rw', [tableName, 'sync_queue', 'net_worth_snapshots'], async () => {
-        // @ts-ignore
-        await db.table(tableName).put(updatedRecord);
-        // @ts-ignore
-        await db.sync_queue.add(syncQueueEntry);
-        
+      // Handle snapshot invalidation for transactions
+      if (tableName === 'transactions' && txDate) {
         // Invalidate snapshots >= transaction date
         // @ts-ignore
         const staleSnapshots = await db.net_worth_snapshots.where('date').aboveOrEqual(txDate).toArray();
@@ -396,16 +397,14 @@ const localDelete = async (tableName: string, id: string) => {
           await db.net_worth_snapshots.bulkUpdate(snapshotIds, { is_stale: true, needs_review: true });
           console.debug(`[QualityGate-F4] Marked ${staleCount} snapshots as stale due to retroactive transaction on ${txDate}`);
         }
-      });
-    } else {
+      }
+
+      // Perform the actual delete/update
       // @ts-ignore
-      await db.transaction('rw', [tableName, 'sync_queue'], async () => {
-        // @ts-ignore
-        await db.table(tableName).put(updatedRecord);
-        // @ts-ignore
-        await db.sync_queue.add(syncQueueEntry);
-      });
-    }
+      await db.table(tableName).put(updatedRecord);
+      // @ts-ignore
+      await db.sync_queue.add(syncQueueEntry);
+    });
     
     if (staleCount > 0) {
       window.dispatchEvent(new CustomEvent('snapshotsStale', { detail: { count: staleCount, transactionDate: txDate } }));
