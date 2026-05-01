@@ -61,7 +61,7 @@ export class FinanceDatabase extends Dexie {
    * When a category is deleted, clean all ai_cache entries pointing to it
    */
   private setupAIcacheTrigger(): void {
-    this.categories.hook('deleting', (primaryKey, _obj, trans) => {
+    this.table('categories').hook('deleting', (primaryKey, _obj, trans) => {
       // Delete all ai_cache entries with this category_id
       trans.table('ai_cache').where('category_id').equals(primaryKey).delete();
       console.debug(`[FASE-5] Cleared ai_cache for deleted category: ${primaryKey}`);
@@ -131,17 +131,14 @@ export class FinanceDatabase extends Dexie {
 
   constructor() {
     super('FinanceLocalFirstDB');
-    
-    // FASE 5: Setup AI cache invalidation trigger before schema definition
-    this.setupAIcacheTrigger();
-    
+
     // We only index properties that we will use in .where() queries.
     // The '&id' means it's a primary key and must be unique.
     // FASE 7: Added version index to critical financial tables for OCC conflict resolution
     // FASE 8.1: Added sync_conflicts table for conflict stashing
     // FASE 3: Added snapshot_recalc_queue for async snapshot recalculation (prevents deadlocks)
     // FASE 4: Added ai_cache for AI categorization caching (avoids redundant API calls)
-    this.version(7).stores({
+    this.version(8).stores({
       sync_metadata: '&key',
       config: '&id, key, is_deleted, updated_at',
       exchange_rates: '&id, from_currency, to_currency, is_deleted, updated_at',
@@ -167,6 +164,10 @@ export class FinanceDatabase extends Dexie {
       snapshot_recalc_queue: '&id, priority, enqueued_at', // FASE 3: Async snapshot recalc queue
       ai_cache: '&id, expires_at' // FASE 4: AI categorization cache with expiration index
     }).upgrade(async () => {
+      // Migration from v7 to v8: fix hook initialization order
+      console.log('[DB] Upgrading from v7 to v8 - ensuring hooks initialized after schema...');
+      // No schema changes, just ensuring proper initialization order
+    }).upgrade(async () => {
       // Migration from v6 to v7: add ai_cache table
       console.log('[DB] Upgrading from v6 to v7 - adding ai_cache table...');
       // Dexie automatically handles new table creation
@@ -190,6 +191,9 @@ export class FinanceDatabase extends Dexie {
       // Migration from v1 to v2: ensure credit_card_statements has proper indexes
       console.log('[DB] Upgrading from v1 to v2...');
     });
+
+    // FASE 5: Setup AI cache invalidation trigger AFTER schema definition
+    this.setupAIcacheTrigger();
 
     // Error recovery: if critical failure, delete and reinitialize
     this.on('populate', () => {
