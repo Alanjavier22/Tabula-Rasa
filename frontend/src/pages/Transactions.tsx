@@ -1,4 +1,4 @@
-import { useState, memo, useEffect, useDeferredValue } from 'react';
+import { useState, memo, useDeferredValue } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { reportingService } from '../services/ReportingService';
@@ -6,13 +6,13 @@ import type { LocalTransaction } from '../db/db';
 import type { TransactionType, PaymentMethod, ExpenseType } from '../types';
 import { formatMoney, toCents } from '../utils/money';
 import { Plus, Trash2, Edit, Upload, Mic, MicOff, FileImage, Search, Calendar } from 'lucide-react';
+import { aiAPI } from '../services/api';
 import CSVImportModal from '../components/CSVImportModal';
 import DocumentImportModal from '../components/DocumentImportModal';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TransactionForm from '../components/TransactionForm';
 import { VirtualTransactionList } from '../components/transactions/VirtualTransactionList';
-import { IntegrityBadge } from '../components/common/IntegrityBadge';
 
 const emptyForm = {
   description: '',
@@ -25,7 +25,7 @@ const emptyForm = {
   expense_type: 'variable' as ExpenseType,
 };
 
-const TransactionRow = memo(({ transaction, onEdit, onDelete }: { transaction: Transaction; onEdit: (t: Transaction) => void; onDelete: (id: string) => void }) => (
+const TransactionRow = memo(({ transaction, onEdit, onDelete }: { transaction: LocalTransaction & { category?: any }; onEdit: (t: LocalTransaction & { category?: any }) => void; onDelete: (id: string) => void }) => (
   <tr key={transaction.id} className="hover:bg-slate-700/30 transition-colors">
     <td className="px-3 lg:px-6 py-3 lg:py-4">
       <div className="text-sm font-medium text-white break-words">

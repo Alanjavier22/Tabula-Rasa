@@ -13,7 +13,7 @@ export const transactionSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   date: z.string().or(z.date()),
   transaction_type: z.enum(['income', 'expense']),
-  payment_method: z.enum(['cash', 'card', 'transfer', 'other']),
+  payment_method: z.enum(['cash', 'credit_card', 'debit_card', 'transfer', 'other']),
   is_deleted: z.boolean().optional(),
   created_at: z.string().or(z.date()).optional(),
   updated_at: z.string().or(z.date()).optional(),
@@ -114,6 +114,7 @@ export interface LocalTransaction {
   transaction_type: 'income' | 'expense';
   amount: number;
   description?: string;
+  payment_method?: 'cash' | 'credit_card' | 'debit_card' | 'transfer' | 'other'; // FASE 5: Payment method for UI display
   hash?: string; // SHA-256 for deduplication
   subscription_id?: string;
   metadata_json?: string; // FASE 4: JSON metadata for RUC, establishment, etc.

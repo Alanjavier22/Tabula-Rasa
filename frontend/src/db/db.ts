@@ -27,6 +27,9 @@ import type {
   LocalAsset
 } from '../types/schemas';
 
+// Re-export LocalTransaction for convenience in components
+export type { LocalTransaction } from '../types/schemas';
+
 export class FinanceDatabase extends Dexie {
   // Sync metadata
   sync_metadata!: Table<SyncMetadata, string>;
