@@ -137,18 +137,20 @@ function App() {
       <Router>
         <AuthGuard>
           <Layout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/transactions" element={<Transactions />} />
-              <Route path="/categories" element={<Categories />} />
-              <Route path="/accounts" element={<Accounts />} />
-              <Route path="/budgets" element={<Budgets />} />
-              <Route path="/goals" element={<Goals />} />
-              <Route path="/reminders" element={<Reminders />} />
-              <Route path="/subscriptions" element={<Subscriptions />} />
-              <Route path="/snapshots" element={<Snapshots />} />
-              <Route path="/settings" element={<Settings />} />
-            </Routes>
+            <AnimatePresence mode="wait">
+              <Routes>
+                <Route path="/" element={<PageTransition><Dashboard /></PageTransition>} />
+                <Route path="/transactions" element={<PageTransition><Transactions /></PageTransition>} />
+                <Route path="/categories" element={<PageTransition><Categories /></PageTransition>} />
+                <Route path="/accounts" element={<PageTransition><Accounts /></PageTransition>} />
+                <Route path="/budgets" element={<PageTransition><Budgets /></PageTransition>} />
+                <Route path="/goals" element={<PageTransition><Goals /></PageTransition>} />
+                <Route path="/reminders" element={<PageTransition><Reminders /></PageTransition>} />
+                <Route path="/subscriptions" element={<PageTransition><Subscriptions /></PageTransition>} />
+                <Route path="/snapshots" element={<PageTransition><Snapshots /></PageTransition>} />
+                <Route path="/settings" element={<PageTransition><Settings /></PageTransition>} />
+              </Routes>
+            </AnimatePresence>
           </Layout>
         </AuthGuard>
       </Router>
