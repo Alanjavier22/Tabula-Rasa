@@ -251,16 +251,30 @@ export class FinanceDatabase extends Dexie {
     };
 
     this.transactions.hook('creating', (_primKey, obj, _trans) => {
-      // Fire-and-forget invalidation (async, non-blocking)
-      invalidateSnapshots(obj).catch(err => console.error('[FASE-2] Snapshot invalidation error:', err));
+      // Desacoplamos la invalidación para evitar SubTransactionError
+      setTimeout(() => {
+        invalidateSnapshots(obj).catch(err => {
+          console.error('[FASE-2] Background snapshot invalidation error:', err);
+        });
+      }, 0);
     });
 
     this.transactions.hook('updating', (_modifications, _primKey, obj, _trans) => {
-      invalidateSnapshots(obj).catch(err => console.error('[FASE-2] Snapshot invalidation error:', err));
+      // Desacoplamos la invalidación para evitar SubTransactionError
+      setTimeout(() => {
+        invalidateSnapshots(obj).catch(err => {
+          console.error('[FASE-2] Background snapshot invalidation error:', err);
+        });
+      }, 0);
     });
 
     this.transactions.hook('deleting', (_primKey, obj, _trans) => {
-      invalidateSnapshots(obj).catch(err => console.error('[FASE-2] Snapshot invalidation error:', err));
+      // Desacoplamos la invalidación para evitar SubTransactionError
+      setTimeout(() => {
+        invalidateSnapshots(obj).catch(err => {
+          console.error('[FASE-2] Background snapshot invalidation error:', err);
+        });
+      }, 0);
     });
   }
 }
