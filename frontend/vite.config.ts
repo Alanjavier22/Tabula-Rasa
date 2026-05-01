@@ -35,7 +35,7 @@ export default defineConfig({
         // ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: [],
         runtimeCaching: [
           // FASE 4: API Mutations - NetworkOnly to prevent cache interference
           // POST/PUT/PATCH/DELETE must NEVER be cached - strict network only
