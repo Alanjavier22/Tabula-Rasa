@@ -364,24 +364,33 @@ Es para usuarios que valoran la soberanía de sus datos tanto como la funcionali
   - FiscalDashboard mobile-first vertical stacking
   - Y-axis cap agresivo móvil (85th percentile vs 95th desktop)
   - PWA aggressive caching Recharts + decimal.js-light (30 días)
+  - **OPTIMIZACIÓN**: Eliminar índice multi-entry description_words (50k+ transacciones)
+  - **OPTIMIZACIÓN**: Búsqueda in-memory con matchesSearch (sin saturar RAM)
+  - **OPTIMIZACIÓN**: bulkUpdateTransactions con bulkPut (transacción atómica)
 - [x] **FASE 6**: Migración Crítica Local-First
   - Transactions.tsx refactor: useLiveQuery Dexie en lugar de API
   - Mutaciones optimistas: create/update/delete inmediato en IndexedDB
   - Búsqueda indexada usando description_words de Dexie
   - Filtros fecha rango + búsqueda combinados
   - getPendingMutationCount() para sync status
+  - **OPTIMIZACIÓN**: TransactionRow con React.memo (previene re-renders innecesarios)
+  - **OPTIMIZACIÓN**: Framer Motion layout="position" (reciclaje seguro nodos virtualizados)
 - [x] **FASE 7**: Integridad por Lotes y Auditoría IA
   - bulkUpdateTransactions() con transacción atómica Dexie RW
   - Previene corrupción datos si PWA cierra mid-operation
   - prepareAuditContext() para detección anomalías categoría
   - Sanitización PII con prepareForAI() antes de enviar a Gemini
   - DataHydrationOverlay para carga inicial masiva
+  - **OPTIMIZACIÓN**: OCC estricto con needs_review=true (previene last-write-wins)
+  - **OPTIMIZACIÓN**: Interfaces Local* movidas a types/schemas.ts (romper dependencias circulares)
 - [x] **FASE 8**: Pulido de Grado Industrial
   - Framer Motion AnimatePresence para transiciones página suaves
   - AIAssistantDrawer conversacional para auditoría IA
   - PWA standalone mode con meta tags inmersivos
   - Cache framer-motion para transiciones suaves
   - Prevención flash blanco inicial con CSS body background
+  - **OPTIMIZACIÓN**: Sellado de tipos monetarios (decimal.js-light exclusivo)
+  - **OPTIMIZACIÓN**: toNumber() en límite Recharts (coordenadas seguras)
 
 ### Backend Roadmap
 - [x] **FASE 5**: Sincronización idempotente y recolección de basura (hash SHA-256, rotación de logs)
