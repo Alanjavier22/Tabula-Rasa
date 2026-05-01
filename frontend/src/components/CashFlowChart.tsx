@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../db/db';
 import { cashFlowService } from '../services/CashFlowService';
+import { formatMoney, toDecimal } from '../utils/money';
 
 interface ChartDataPoint {
   date: string;
@@ -114,31 +115,31 @@ export const CashFlowChart: React.FC = () => {
           <div className="bg-slate-700/50 p-3 rounded-lg">
             <div className="text-slate-400 text-xs mb-1">30 días</div>
             <div className="text-white font-bold">
-              ${Math.round(forecast.day30.projected_balance / 100)}
+              ${formatMoney(forecast.day30.projected_balance)}
             </div>
             <div className="text-xs text-emerald-400">
-              {forecast.day30.projected_balance > forecast.day30.current_balance ? '+' : ''}
-              {Math.round((forecast.day30.projected_balance - forecast.day30.current_balance) / 100)}
+              {toDecimal(forecast.day30.projected_balance).gt(forecast.day30.current_balance) ? '+' : ''}
+              {formatMoney(toDecimal(forecast.day30.projected_balance).minus(forecast.day30.current_balance))}
             </div>
           </div>
           <div className="bg-slate-700/50 p-3 rounded-lg">
             <div className="text-slate-400 text-xs mb-1">60 días</div>
             <div className="text-white font-bold">
-              ${Math.round(forecast.day60.projected_balance / 100)}
+              ${formatMoney(forecast.day60.projected_balance)}
             </div>
             <div className="text-xs text-emerald-400">
-              {forecast.day60.projected_balance > forecast.day60.current_balance ? '+' : ''}
-              {Math.round((forecast.day60.projected_balance - forecast.day60.current_balance) / 100)}
+              {toDecimal(forecast.day60.projected_balance).gt(forecast.day60.current_balance) ? '+' : ''}
+              {formatMoney(toDecimal(forecast.day60.projected_balance).minus(forecast.day60.current_balance))}
             </div>
           </div>
           <div className="bg-slate-700/50 p-3 rounded-lg">
             <div className="text-slate-400 text-xs mb-1">90 días</div>
             <div className="text-white font-bold">
-              ${Math.round(forecast.day90.projected_balance / 100)}
+              ${formatMoney(forecast.day90.projected_balance)}
             </div>
             <div className="text-xs text-emerald-400">
-              {forecast.day90.projected_balance > forecast.day90.current_balance ? '+' : ''}
-              {Math.round((forecast.day90.projected_balance - forecast.day90.current_balance) / 100)}
+              {toDecimal(forecast.day90.projected_balance).gt(forecast.day90.current_balance) ? '+' : ''}
+              {formatMoney(toDecimal(forecast.day90.projected_balance).minus(forecast.day90.current_balance))}
             </div>
           </div>
         </div>

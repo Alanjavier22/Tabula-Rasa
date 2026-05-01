@@ -19,7 +19,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { formatMoney } from '../../utils/money';
+import { formatMoney, toDecimal, toNumber } from '../../utils/money';
 import { reportingService } from '../../services/ReportingService';
 import { StreamedExporter, streamedExporter } from '../../utils/StreamedExporter';
 import type { ReportResult } from '../../services/ReportingService';
@@ -167,21 +167,21 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   const taxBreakdown = useMemo(() => {
     if (!report) return [];
     
-    // Estimate breakdown based on category totals
+    // Estimate breakdown based on category totals using Decimal-safe operations
     const iva15 = report.category_breakdown
       .filter(cat => cat.category_id.includes('vestimenta') || cat.category_id.includes('general'))
-      .reduce((sum, cat) => sum + cat.amount_cents, 0);
+      .reduce((sum, cat) => sum.plus(toDecimal(cat.amount_cents)), toDecimal(0));
     
     const iva0 = report.category_breakdown
       .filter(cat => cat.category_id.includes('alimentacion') || 
                    cat.category_id.includes('salud') || 
                    cat.category_id.includes('educacion') ||
                    cat.category_id.includes('vivienda'))
-      .reduce((sum, cat) => sum + cat.amount_cents, 0);
+      .reduce((sum, cat) => sum.plus(toDecimal(cat.amount_cents)), toDecimal(0));
 
     return [
-      { name: 'IVA 15%', value: iva15, color: COLORS.iva15 },
-      { name: 'IVA 0%', value: iva0, color: COLORS.iva0 },
+      { name: 'IVA 15%', value: toNumber(iva15), color: COLORS.iva15 },
+      { name: 'IVA 0%', value: toNumber(iva0), color: COLORS.iva0 },
     ].filter(item => item.value > 0);
   }, [report]);
 
