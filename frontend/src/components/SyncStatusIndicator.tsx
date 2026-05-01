@@ -8,7 +8,8 @@ export const SyncStatusIndicator: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [error, setError] = useState<string | null>(null);
-  const { historicalSyncStatus } = useSync();
+  // FIX: Removed historicalSyncStatus - not returned by useSync hook
+  useSync();
 
   // Subscribe to SyncCoordinator state changes (observer pattern)
   useEffect(() => {
@@ -70,18 +71,6 @@ export const SyncStatusIndicator: React.FC = () => {
           >
             <CloudOff className="w-4 h-4" />
             <span className="text-xs font-medium hidden sm:inline">Offline</span>
-          </motion.div>
-        ) : historicalSyncStatus.isSyncing ? (
-          <motion.div
-            key="historical"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="flex items-center gap-2 text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-full border border-purple-500/30"
-            title={`Reconstruyendo historial: Bloque ${historicalSyncStatus.blocksProcessed}`}
-          >
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            <span className="text-xs font-medium hidden sm:inline">Historial: {historicalSyncStatus.blocksProcessed}</span>
           </motion.div>
         ) : isSyncing ? (
           <motion.div

@@ -1,6 +1,6 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
-import { db } from '../../db/db';
+import { phoenixHardReset } from '../../db/db';
 
 interface Props {
   children: ReactNode;
@@ -8,7 +8,7 @@ interface Props {
 
 interface State {
   hasError: boolean;
-  countdown: number;
+  error: Error | null;
   errorType: 'general' | 'database' | 'config';
 }
 
@@ -17,10 +17,29 @@ export class GlobalErrorBoundary extends Component<Props, State> {
     super(props);
     this.state = {
       hasError: false,
-      countdown: 3,
+      error: null,
       errorType: 'general'
     };
   }
+
+  componentDidMount() {
+    // FASE PHOENIX GLOBAL: Listen for external fatal error events from background services
+    window.addEventListener('phoenix-fatal-error', this.handleExternalFatalError);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('phoenix-fatal-error', this.handleExternalFatalError);
+  }
+
+  handleExternalFatalError = (event: Event) => {
+    const customEvent = event as CustomEvent<Error>;
+    console.error('[Phoenix Global] External fatal error received:', customEvent.detail);
+    this.setState({
+      hasError: true,
+      error: customEvent.detail,
+      errorType: 'database'
+    });
+  };
 
   static getDerivedStateFromError(error: Error): State {
     const errorStr = error.message.toLowerCase();
@@ -32,55 +51,26 @@ export class GlobalErrorBoundary extends Component<Props, State> {
       errorType = 'config';
     }
 
-    return { hasError: true, countdown: 3, errorType };
+    return { hasError: true, error, errorType };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[Phoenix] Error caught:', error, errorInfo);
-    this.executeEmergencySanitization(error);
+    console.error('[Phoenix Local Healer] Error caught:', error, errorInfo);
   }
 
-  executeEmergencySanitization = (error: Error) => {
-    const errorStr = error.message.toLowerCase();
-
-    // Clear orphaned port config
-    const baseUrl = localStorage.getItem('finance_base_url');
-    if (baseUrl && baseUrl.includes(':8000')) {
-      console.warn('[Phoenix] Clearing orphaned :8000 config');
-      localStorage.removeItem('finance_base_url');
-    }
-
-    // Database corruption recovery
-    if (errorStr.includes('dexie') || errorStr.includes('database')) {
-      console.warn('[Phoenix] Database corruption detected, initiating recovery...');
-      db.delete().then(() => {
-        console.log('[Phoenix] Database deleted, reloading...');
-        this.startCountdown();
-      }).catch(() => {
-        this.startCountdown();
-      });
-    } else {
-      this.startCountdown();
-    }
+  handleRepairDatabase = async () => {
+    console.warn('[Phoenix Local Healer] Usuario solicitó reparación manual de IndexedDB');
+    await phoenixHardReset();
   };
 
-  startCountdown = () => {
-    let count = 3;
-    this.setState({ countdown: count });
-
-    const interval = setInterval(() => {
-      count--;
-      this.setState({ countdown: count });
-
-      if (count <= 0) {
-        clearInterval(interval)
-        window.location.reload(true);
-      }
-    }, 1000);
+  handleReload = () => {
+    window.location.reload();
   };
 
   render() {
     if (this.state.hasError) {
+      const isDexieError = this.state.error?.message.toLowerCase().includes('dexie');
+      
       return (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
           <div className="max-w-md w-full bg-slate-800 rounded-2xl p-8 border border-slate-700 text-center">
@@ -93,22 +83,37 @@ export class GlobalErrorBoundary extends Component<Props, State> {
             </div>
 
             <h1 className="text-2xl font-bold text-white mb-2">
-              Reparando sistema automáticamente...
+              {isDexieError ? 'Error en Base de Datos Local' : 'Error del Sistema'}
             </h1>
 
             <p className="text-slate-400 mb-6">
-              {this.state.errorType === 'database' && 'Detectamos corrupción en la base de datos local. Recuperando...'}
+              {this.state.errorType === 'database' && !isDexieError && 'Detectamos corrupción en la base de datos local. Recuperando...'}
               {this.state.errorType === 'config' && 'Corrigiendo configuración de red...'}
               {this.state.errorType === 'general' && 'Restaurando estabilidad del sistema...'}
+              {isDexieError && 'Detectamos un error crítico en IndexedDB (Dexie). Esto puede ocurrir por cambios de esquema o corrupción de caché.'}
             </p>
 
-            <div className="text-4xl font-bold text-purple-400 mb-2">
-              {this.state.countdown}
-            </div>
+            {isDexieError ? (
+              <button
+                onClick={this.handleRepairDatabase}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors mb-3"
+              >
+                Reparar Base de Datos Local
+              </button>
+            ) : (
+              <button
+                onClick={this.handleReload}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+              >
+                Recargar Página
+              </button>
+            )}
 
-            <p className="text-slate-500 text-sm">
-              Recargando en {this.state.countdown} segundo{this.state.countdown !== 1 ? 's' : ''}
-            </p>
+            {isDexieError && (
+              <p className="text-slate-500 text-xs mt-3">
+                ⚠️ Esto eliminará todos los datos locales no sincronizados
+              </p>
+            )}
           </div>
         </div>
       );

@@ -181,11 +181,8 @@ const hydrateRelations = async (tableName: string, parents: any[]): Promise<any[
         parent[rule.attachAs] = childrenByParent.get(parent.id) ?? [];
       }
     } catch (err) {
-      console.error(`hydrateRelations(${tableName} → ${rule.childTable}) failed:`, err);
-      // Garantía: siempre dejar la propiedad como array vacío
-      for (const parent of parents) {
-        if (parent[rule.attachAs] === undefined) parent[rule.attachAs] = [];
-      }
+      // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
+      throw err;
     }
   }
 
@@ -215,8 +212,8 @@ const localGet = async (tableName: string, options?: { limit?: number; offset?: 
 
     return { data: hydrated };
   } catch (err) {
-    console.error(`localGet(${tableName}) failed, returning empty array:`, err);
-    return { data: [] as any[] };
+    // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
+    throw err;
   }
 };
 
@@ -227,6 +224,30 @@ const localGetById = async (tableName: string, id: string) => {
   if (record.is_deleted) throw new Error(`Record deleted: ${tableName}/${id}`);
   return { data: record };
 };
+
+// FASE 3: Helper to enqueue snapshot recalculation (prevents deadlocks)
+async function enqueueSnapshotRecalc(date: string): Promise<void> {
+  try {
+    const dateObj = new Date(date);
+    const month = dateObj.getMonth() + 1;
+    const year = dateObj.getFullYear();
+    const queueId = `${year}-${month.toString().padStart(2, '0')}`; // Format: "YYYY-MM"
+    const now = new Date().toISOString();
+    
+    // @ts-ignore
+    await db.snapshot_recalc_queue.put({
+      id: queueId,
+      month,
+      year,
+      enqueued_at: now,
+      priority: 1, // Normal priority
+    });
+    console.debug(`[FASE-3] Enqueued snapshot recalc for ${queueId}`);
+  } catch (error) {
+    // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
+    throw error;
+  }
+}
 
 const localCreate = async (tableName: string, data: any) => {
   const now = new Date().toISOString();
@@ -243,7 +264,7 @@ const localCreate = async (tableName: string, data: any) => {
     id = uuidv4(); // Keep uuidv4 for other tables (backward compatibility)
   }
 
-  const newRecord = { ...data, id, is_deleted: false, created_at: now, updated_at: now, hash };
+  const newRecord = { ...data, id, is_deleted: false, created_at: now, updated_at: now, hash, version: 1 }; // FASE 1: Initialize version=1 for new transactions
   const syncQueueEntry = {
     id: uuidv4(),
     table_name: tableName,
@@ -252,40 +273,18 @@ const localCreate = async (tableName: string, data: any) => {
     timestamp: now,
   };
 
-  // Snapshot invalidation for retroactive transactions
-  let staleCount = 0;
+  // FASE 3: Enqueue snapshot recalc instead of synchronous invalidation (prevents deadlocks)
   if (tableName === 'transactions' && data.date) {
-    // @ts-ignore
-    await db.transaction('rw', [tableName, 'sync_queue', 'net_worth_snapshots'], async () => {
-      // @ts-ignore
-      await db.table(tableName).put(newRecord);
-      // @ts-ignore
-      await db.sync_queue.add(syncQueueEntry);
-      
-      // Invalidate snapshots >= transaction date
-      // @ts-ignore
-      const staleSnapshots = await db.net_worth_snapshots.where('date').aboveOrEqual(data.date).toArray();
-      if (staleSnapshots.length > 0) {
-        staleCount = staleSnapshots.length;
-        const snapshotIds = staleSnapshots.map((s: any) => s.id);
-        // @ts-ignore
-        await db.net_worth_snapshots.bulkUpdate(snapshotIds, { is_stale: true, needs_review: true });
-        console.debug(`[QualityGate-F4] Marked ${staleCount} snapshots as stale due to retroactive transaction on ${data.date}`);
-      }
-    });
-  } else {
-    // @ts-ignore
-    await db.transaction('rw', [tableName, 'sync_queue'], async () => {
-      // @ts-ignore
-      await db.table(tableName).put(newRecord);
-      // @ts-ignore
-      await db.sync_queue.add(syncQueueEntry);
-    });
+    await enqueueSnapshotRecalc(data.date);
   }
-  
-  if (staleCount > 0) {
-    window.dispatchEvent(new CustomEvent('snapshotsStale', { detail: { count: staleCount, transactionDate: data.date } }));
-  }
+
+  // @ts-ignore
+  await db.transaction('rw', [tableName, 'sync_queue'], async () => {
+    // @ts-ignore
+    await db.table(tableName).put(newRecord);
+    // @ts-ignore
+    await db.sync_queue.add(syncQueueEntry);
+  });
   
   triggerLocalMutation();
   return { data: newRecord };
@@ -297,9 +296,13 @@ export const localUpdate = async (tableName: string, id: string, data: any) => {
   const existing = await db.table(tableName).get(id);
   if (!existing) throw new Error(`Record not found for update: ${tableName}/${id}`);
   
-  // Regenerate SHA-256 hash for transactions (idempotency: keep original UUID)
+  // FASE 1: Immutable identity - keep original UUID, increment version, recalculate hash
   let updatedRecord = { ...existing, ...data, updated_at: now };
   if (tableName === 'transactions' && updatedRecord.date && updatedRecord.description && updatedRecord.account_id) {
+    // Keep original id immutable (UUIDv5 from creation)
+    // Increment version for OCC conflict resolution
+    updatedRecord.version = (existing.version || 1) + 1;
+    // Recalculate SHA-256 hash to reflect new data (vital for server handshake)
     updatedRecord.hash = await generateTransactionHash(
       updatedRecord.date,
       updatedRecord.amount,
@@ -316,41 +319,19 @@ export const localUpdate = async (tableName: string, id: string, data: any) => {
     timestamp: now,
   };
 
-  // Snapshot invalidation for retroactive transactions
-  let staleCount = 0;
+  // FASE 3: Enqueue snapshot recalc instead of synchronous invalidation (prevents deadlocks)
   const txDate = data.date || existing.date;
   if (tableName === 'transactions' && txDate) {
-    // @ts-ignore
-    await db.transaction('rw', [tableName, 'sync_queue', 'net_worth_snapshots'], async () => {
-      // @ts-ignore
-      await db.table(tableName).put(updatedRecord);
-      // @ts-ignore
-      await db.sync_queue.add(syncQueueEntry);
-      
-      // Invalidate snapshots >= transaction date
-      // @ts-ignore
-      const staleSnapshots = await db.net_worth_snapshots.where('date').aboveOrEqual(txDate).toArray();
-      if (staleSnapshots.length > 0) {
-        staleCount = staleSnapshots.length;
-        const snapshotIds = staleSnapshots.map((s: any) => s.id);
-        // @ts-ignore
-        await db.net_worth_snapshots.bulkUpdate(snapshotIds, { is_stale: true, needs_review: true });
-        console.debug(`[QualityGate-F4] Marked ${staleCount} snapshots as stale due to retroactive transaction on ${txDate}`);
-      }
-    });
-  } else {
-    // @ts-ignore
-    await db.transaction('rw', [tableName, 'sync_queue'], async () => {
-      // @ts-ignore
-      await db.table(tableName).put(updatedRecord);
-      // @ts-ignore
-      await db.sync_queue.add(syncQueueEntry);
-    });
+    await enqueueSnapshotRecalc(txDate);
   }
-  
-  if (staleCount > 0) {
-    window.dispatchEvent(new CustomEvent('snapshotsStale', { detail: { count: staleCount, transactionDate: txDate } }));
-  }
+
+  // @ts-ignore
+  await db.transaction('rw', [tableName, 'sync_queue'], async () => {
+    // @ts-ignore
+    await db.table(tableName).put(updatedRecord);
+    // @ts-ignore
+    await db.sync_queue.add(syncQueueEntry);
+  });
   
   triggerLocalMutation();
   return { data: updatedRecord };
@@ -636,7 +617,8 @@ export const metricsAPI = {
         };
       }
     } catch (err) {
-      console.error('Dexie error in getDashboardSummary, falling back to API:', err);
+      // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
+      throw err;
     }
 
     // Fallback to API if no snapshots or Dexie error

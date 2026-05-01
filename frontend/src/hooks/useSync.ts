@@ -58,7 +58,8 @@ export const useSync = () => {
           setConflictsResolved(Number(conflicts.value) || 0);
         }
       } catch (err) {
-        console.error("Error reading sync metadata on mount:", err);
+        // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
+        throw err;
       }
     };
     loadMetadata();
@@ -161,13 +162,8 @@ export const useSync = () => {
       }
 
     } catch (err: any) {
-      console.error("Error en la sincronización LWW:", err);
-      // Se detecta si es error de red (no hay wifi, servidor caído)
-      if (err.message === 'Network Error' || err.code === 'ERR_NETWORK') {
-         setError("No hay conexión con el servidor local. Sincronización pausada.");
-      } else {
-         setError(err.response?.data?.detail || "Error desconocido al sincronizar.");
-      }
+      // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
+      throw err;
     } finally {
       setIsSyncing(false);
     }
@@ -216,7 +212,8 @@ export const useSync = () => {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     } catch (error) {
-      console.error('[useSync] Background historical sync error:', error);
+      // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
+      throw error;
     }
   }, []);
 

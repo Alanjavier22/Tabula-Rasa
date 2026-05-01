@@ -1,5 +1,4 @@
 import Dexie, { type Table } from 'dexie';
-import { v4 as uuidv4 } from 'uuid';
 import { tokenizeDescription as tokenizeDesc } from '../utils/searchUtils';
 
 // --- Interfaces for Dexie Tables ---
@@ -56,8 +55,8 @@ export interface LocalTransaction {
   hash?: string; // SHA-256 for deduplication
   needs_reindex?: boolean; // Flag for background re-index
   subscription_id?: string;
-  version?: number; // FASE 7: OCC versioning for conflict resolution
-  needs_review?: boolean; // FASE 7: Conflict flag
+  version: number; // FASE 1: Required version field for OCC - starts at 1
+  needs_review?: boolean; // FASE 1: Conflict flag
 }
 
 export interface LocalTransactionSplit {
@@ -215,6 +214,15 @@ export interface NetWorthSnapshot {
   updated_at: string;
 }
 
+// FASE 3: Queue for async snapshot recalculation (prevents deadlocks during mass imports)
+export interface SnapshotRecalcQueue {
+  id: string; // Format: "YYYY-MM" for deduplication
+  month: number;
+  year: number;
+  enqueued_at: string;
+  priority: number; // Lower = higher priority (0 = immediate)
+}
+
 export interface LocalAsset {
   id: string;
   name: string;
@@ -254,6 +262,7 @@ export class FinanceDatabase extends Dexie {
   maintenance_logs!: Table<LocalMaintenanceLog, string>;
   assets!: Table<LocalAsset, string>;
   net_worth_snapshots!: Table<NetWorthSnapshot, string>;
+  snapshot_recalc_queue!: Table<SnapshotRecalcQueue, string>; // FASE 3: Async snapshot recalc queue
 
   /**
    * Tokenize description for indexed search
@@ -274,7 +283,8 @@ export class FinanceDatabase extends Dexie {
     // The '&id' means it's a primary key and must be unique.
     // FASE 7: Added version index to critical financial tables for OCC conflict resolution
     // FASE 8.1: Added sync_conflicts table for conflict stashing
-    this.version(5).stores({
+    // FASE 3: Added snapshot_recalc_queue for async snapshot recalculation (prevents deadlocks)
+    this.version(6).stores({
       sync_metadata: '&key',
       config: '&id, key, is_deleted, updated_at',
       exchange_rates: '&id, from_currency, to_currency, is_deleted, updated_at',
@@ -296,7 +306,12 @@ export class FinanceDatabase extends Dexie {
       fuel_logs: '&id, is_deleted, updated_at, vehicle_id, date',
       maintenance_logs: '&id, is_deleted, updated_at, vehicle_id, date',
       assets: '&id, is_deleted, updated_at, purchase_date, version',
-      net_worth_snapshots: '&id, month, year, is_stale'
+      net_worth_snapshots: '&id, date, month, year, is_stale, updated_at', // FASE PHOENIX FIX: Added date and updated_at indexes
+      snapshot_recalc_queue: '&id, priority, enqueued_at' // FASE 3: Async snapshot recalc queue
+    }).upgrade(async () => {
+      // Migration from v5 to v6: add snapshot_recalc_queue table
+      console.log('[DB] Upgrading from v5 to v6 - adding snapshot_recalc_queue table...');
+      // Dexie automatically handles new table creation
     }).upgrade(async () => {
       // Migration from v4 to v5: add error_type/error_message indexes to sync_conflicts
       console.log('[DB] Upgrading from v4 to v5 - adding error_type index to sync_conflicts...');
@@ -333,160 +348,83 @@ export class FinanceDatabase extends Dexie {
       console.warn('[DB] Version change detected - closing connection');
     });
 
-    // Hook: Mark snapshot as stale when transaction changes
-    this.transactions.hook('creating', (_primKey, obj, trans) => {
-      this.markSnapshotStale(obj.date, trans);
+    // FASE 3: Removed snapshot invalidation hooks - now handled by async SnapshotWorker
+    // This prevents deadlocks during mass imports by decoupling snapshot recalculation
+
+    // Hook: Tokenize descriptions for search (lightweight operation)
+    this.transactions.hook('creating', (_primKey, obj, _trans) => {
       this.tokenizeDescription(obj);
     });
 
-    this.transactions.hook('updating', (_modifications, _primKey, obj, trans) => {
-      this.markSnapshotStale(obj.date, trans);
+    this.transactions.hook('updating', (_modifications, _primKey, obj, _trans) => {
       this.tokenizeDescription(obj);
     });
-
-    this.transactions.hook('deleting', (_primKey, obj, trans) => {
-      this.markSnapshotStale(obj.date, trans);
-    });
-
-    // Hook: Mark snapshots as stale when asset changes (range: purchase_date → current)
-    this.assets.hook('creating', (_primKey, obj, trans) => {
-      this.markAssetSnapshotsStale(obj.purchase_date, trans);
-    });
-
-    this.assets.hook('updating', (_modifications, _primKey, obj, trans) => {
-      this.markAssetSnapshotsStale(obj.purchase_date, trans);
-    });
-
-    this.assets.hook('deleting', (_primKey, obj, trans) => {
-      this.markAssetSnapshotsStale(obj.purchase_date, trans);
-    });
-  }
-
-  /**
-   * Mark snapshot as stale for a given transaction date
-   * Atomic operation within the same transaction
-   * Creates snapshot with zero values if missing
-   */
-  private async markSnapshotStale(transactionDate: string, trans: any): Promise<void> {
-    try {
-      const date = new Date(transactionDate);
-      const month = date.getMonth() + 1;
-      const year = date.getFullYear();
-      const now = new Date().toISOString();
-      const snapshotDate = new Date(year, month - 1, 1).toISOString();
-
-      // Find snapshot for this month/year
-      // @ts-ignore
-      const snapshot = await trans.table('net_worth_snapshots')
-        .where('[month+year]')
-        .equals([month, year])
-        .first();
-
-      if (snapshot) {
-        // Mark as stale atomically
-        // @ts-ignore
-        await trans.table('net_worth_snapshots').update(snapshot.id, {
-          is_stale: true,
-          updated_at: now
-        });
-      } else {
-        // Create snapshot with zero values if missing (edge case: new month)
-        // @ts-ignore
-        await trans.table('net_worth_snapshots').add({
-          id: uuidv4(),
-          date: snapshotDate,
-          month,
-          year,
-          total_assets_cents: 0,
-          total_liabilities_cents: 0,
-          net_worth_cents: 0,
-          income_cents: 0,
-          expense_cents: 0,
-          transaction_count: 0,
-          is_stale: true,
-          updated_at: now
-        });
-      }
-    } catch (error) {
-      console.error('Error marking snapshot stale:', error);
-    }
-  }
-
-  /**
-   * Mark snapshots as stale for asset changes (range: purchase_date → current month)
-   * Atomic operation within the same transaction
-   */
-  private async markAssetSnapshotsStale(purchaseDate: string, trans: any): Promise<void> {
-    try {
-      const purchase = new Date(purchaseDate);
-      const current = new Date();
-      const now = current.toISOString();
-
-      const startMonth = purchase.getMonth() + 1;
-      const startYear = purchase.getFullYear();
-      const endMonth = current.getMonth() + 1;
-      const endYear = current.getFullYear();
-
-      // Iterate through all months from purchase_date to current
-      for (let year = startYear; year <= endYear; year++) {
-        const monthStart = (year === startYear) ? startMonth : 1;
-        const monthEnd = (year === endYear) ? endMonth : 12;
-
-        for (let month = monthStart; month <= monthEnd; month++) {
-          // Find snapshot for this month/year
-          // @ts-ignore
-          const snapshot = await trans.table('net_worth_snapshots')
-            .where('[month+year]')
-            .equals([month, year])
-            .first();
-
-          if (snapshot) {
-            // Mark as stale atomically
-            // @ts-ignore
-            await trans.table('net_worth_snapshots').update(snapshot.id, {
-              is_stale: true,
-              updated_at: now
-            });
-          } else {
-            // Create snapshot with zero values if missing
-            const snapshotDate = new Date(year, month - 1, 1).toISOString();
-            // @ts-ignore
-            await trans.table('net_worth_snapshots').add({
-              id: uuidv4(),
-              date: snapshotDate,
-              month,
-              year,
-              total_assets_cents: 0,
-              total_liabilities_cents: 0,
-              net_worth_cents: 0,
-              income_cents: 0,
-              expense_cents: 0,
-              transaction_count: 0,
-              is_stale: true,
-              updated_at: now
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error marking asset snapshots stale:', error);
-    }
   }
 }
 
-// Error recovery function for critical database failures
-export async function recoverFromCriticalError(): Promise<void> {
+// Phoenix Local Healer: Hard reset for irrecoverable schema corruption
+// WARNING: This deletes ALL local data including sync_queue (offline changes)
+// Only use when schema is corrupted beyond repair
+
+// Panic counter for consecutive schema failures
+let panicFailureCount = 0;
+let panicFirstFailureTime: number | null = null;
+const PANIC_THRESHOLD = 3; // 3 consecutive failures
+const PANIC_WINDOW_MS = 60000; // 1 minute window
+
+function recordSchemaFailure(): void {
+  const now = Date.now();
+  
+  if (panicFirstFailureTime === null || now - panicFirstFailureTime > PANIC_WINDOW_MS) {
+    // Reset counter if outside window or first failure
+    panicFailureCount = 1;
+    panicFirstFailureTime = now;
+  } else {
+    panicFailureCount++;
+  }
+  
+  console.error(`[Phoenix Panic Counter] Schema failure ${panicFailureCount}/${PANIC_THRESHOLD} in window`);
+  
+  if (panicFailureCount >= PANIC_THRESHOLD) {
+    console.error('[Phoenix Panic Counter] PANIC THRESHOLD REACHED - Triggering hard reset');
+    phoenixHardReset();
+  }
+}
+
+export async function phoenixHardReset(): Promise<void> {
+  console.warn('[Phoenix Local Healer] Iniciando hard reset de IndexedDB...');
   try {
-    console.warn('[DB] Attempting error recovery...');
     await db.delete();
-    console.log('[DB] Database deleted, reinitializing...');
-    // The db instance will be recreated on next access
-    window.location.reload(); // Force reload to reinitialize
+    console.log('[Phoenix Local Healer] IndexedDB eliminada exitosamente');
   } catch (error) {
-    console.error('[DB] Error recovery failed:', error);
-    // If recovery fails, clear localStorage as last resort
-    localStorage.clear();
+    console.error('[Phoenix Local Healer] Error al eliminar IndexedDB:', error);
+  } finally {
+    // Always reload after attempting deletion
+    console.log('[Phoenix Local Healer] Recargando página...');
     window.location.reload();
+  }
+}
+
+// Handle database opening errors with Phoenix auto-heal
+function handleDbError(error: any): void {
+  const errorName = error?.name || '';
+  const errorMessage = error?.message || '';
+  
+  // Check for schema corruption errors that require hard reset
+  const isSchemaError = 
+    errorName === 'UpgradeError' ||
+    errorName === 'SchemaError' ||
+    errorName === 'VersionError' ||
+    errorMessage.includes('DatabaseClosed') ||
+    errorMessage.includes('schema') ||
+    errorMessage.includes('version');
+  
+  if (isSchemaError) {
+    console.error('[Phoenix Local Healer] Corrupción de esquema detectada, registrando fallo...');
+    console.error('[Phoenix Local Healer] Error:', errorName, errorMessage);
+    recordSchemaFailure(); // Record failure for panic counter
+  } else {
+    console.error('[DB] Error opening database (non-critical):', error);
   }
 }
 
@@ -495,15 +433,19 @@ export async function safeOpenDB(): Promise<void> {
   try {
     await db.open();
     console.log('[DB] Database opened successfully');
+    
+    // FASE PHOENIX PROACTIVE: Health check - verify database is functional
+    try {
+      // Test read from transactions table to verify schema is valid
+      await db.transactions.limit(1).toArray();
+      console.log('[DB] Health check passed - database is functional');
+    } catch (healthError) {
+      console.error('[DB] Health check failed - database may be corrupted:', healthError);
+      handleDbError(healthError);
+    }
   } catch (error) {
     console.error('[DB] Critical error opening database:', error);
-    // Check if it's a schema error (e.g., missing table)
-    if ((error as any).name === 'NotFoundError' || (error as any).message?.includes('credit_card_statements')) {
-      console.warn('[DB] Schema error detected, initiating recovery...');
-      await recoverFromCriticalError();
-    } else {
-      throw error; // Re-throw non-recoverable errors
-    }
+    handleDbError(error);
   }
 }
 
