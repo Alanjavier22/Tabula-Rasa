@@ -134,9 +134,6 @@ export class RecurringTransactionService {
               timestamp: nowIso,
               retry_count: 0
             });
-
-            // Trigger sync
-            window.dispatchEvent(new CustomEvent('localMutation'));
           });
 
           createdCount++;

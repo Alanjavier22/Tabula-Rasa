@@ -38,12 +38,6 @@ export function HealthIndicator() {
 
     // Schedule background check
     integrityService.scheduleBackgroundCheck();
-
-    // Re-check on localMutation events
-    const handleMutation = () => loadStatus();
-    window.addEventListener('localMutation', handleMutation);
-
-    return () => window.removeEventListener('localMutation', handleMutation);
   }, []);
 
   if (loading || !status) {
@@ -125,11 +119,6 @@ export function useHealthStatus() {
     };
 
     loadStatus();
-
-    const handleMutation = () => loadStatus();
-    window.addEventListener('localMutation', handleMutation);
-
-    return () => window.removeEventListener('localMutation', handleMutation);
   }, []);
 
   return status;

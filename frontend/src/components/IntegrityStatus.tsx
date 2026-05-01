@@ -25,11 +25,6 @@ export const IntegrityStatus = () => {
     };
 
     checkStaleSnapshots();
-
-    // Listen for sync events to refresh
-    const handleSync = () => checkStaleSnapshots();
-    window.addEventListener('localMutation', handleSync);
-    return () => window.removeEventListener('localMutation', handleSync);
   }, []);
 
   // Don't show anything if no stale snapshots

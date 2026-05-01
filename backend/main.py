@@ -46,6 +46,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 from sqlalchemy import event
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 # Import models explicitly to register them with Base (fixes circular import)
 from app.models.transaction import Transaction
@@ -76,7 +78,7 @@ def increment_version(mapper, connection, target):
     if hasattr(target, 'version'):
         target.version += 1
 
-from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, csv_import, config, ai_insights, subscriptions, ai_audio, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, sync, handshake
+from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, csv_import, config, subscriptions, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, ai
 from middleware.security import SecurityMiddleware
 from init_db import init_db
 
@@ -110,16 +112,76 @@ app.include_router(statements.router)
 app.include_router(metrics.router)
 app.include_router(csv_import.router)
 app.include_router(config.router)
-app.include_router(ai_insights.router)
 app.include_router(subscriptions.router)
-app.include_router(ai_audio.router)
 app.include_router(transaction_splits.router)
 app.include_router(ious.router)
 app.include_router(net_worth_snapshots.router)
 app.include_router(ai_assistant.router)
+app.include_router(ai.router)
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
-app.include_router(sync.router)
-app.include_router(handshake.router, prefix="/handshake", tags=["Handshake"])
+
+# FASE 3: Configure background scheduler for daily external backups
+scheduler = BackgroundScheduler()
+
+def scheduled_external_backup():
+    """
+    Scheduled task to create external backup of the database.
+    Runs daily at the time specified in BACKUP_SCHEDULE environment variable.
+    Default: Daily at 2:00 AM
+    """
+    try:
+        from app.utils.backup import create_external_backup
+        logger.info("[SCHEDULED_BACKUP] Starting scheduled external backup...")
+        backup_path = create_external_backup()
+        if backup_path:
+            logger.info(f"[SCHEDULED_BACKUP] External backup completed successfully: {backup_path}")
+        else:
+            logger.warning("[SCHEDULED_BACKUP] External backup skipped (path not configured or failed)")
+    except Exception as e:
+        logger.error(f"[SCHEDULED_BACKUP] Error during scheduled backup: {e}")
+
+# Parse backup schedule from environment variable (default: 0 2 * * * = daily at 2:00 AM)
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+backup_schedule = os.getenv('BACKUP_SCHEDULE', '0 2 * * *')
+schedule_parts = backup_schedule.split()
+
+# Validate schedule format (5 parts: minute hour day month day_of_week)
+if len(schedule_parts) == 5:
+    minute, hour, day, month, day_of_week = schedule_parts
+    try:
+        # Convert to integers for validation
+        int(minute)
+        int(hour)
+        int(day)
+        int(month)
+        int(day_of_week)
+        
+        # Add scheduled job
+        scheduler.add_job(
+            scheduled_external_backup,
+            trigger=CronTrigger(
+                minute=int(minute),
+                hour=int(hour),
+                day=int(day),
+                month=int(month),
+                day_of_week=int(day_of_week)
+            ),
+            id='external_backup',
+            name='Daily External Database Backup',
+            replace_existing=True
+        )
+        logger.info(f"[SCHEDULED_BACKUP] Scheduled daily external backup at: {backup_schedule}")
+    except ValueError as e:
+        logger.warning(f"[SCHEDULED_BACKUP] Invalid BACKUP_SCHEDULE format: {backup_schedule}. Error: {e}")
+else:
+    logger.warning(f"[SCHEDULED_BACKUP] Invalid BACKUP_SCHEDULE format: {backup_schedule}. Expected 5 parts (minute hour day month day_of_week)")
+
+# Start the scheduler
+scheduler.start()
+logger.info("[SCHEDULED_BACKUP] Background scheduler started")
 
 @app.get("/")
 def read_root():

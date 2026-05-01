@@ -46,9 +46,6 @@ export class CurrencyService {
           updated_at: now
         });
       }
-
-      // Trigger sync
-      window.dispatchEvent(new CustomEvent('localMutation'));
     } catch (error) {
       console.error('[CurrencyService] Error setting base currency:', error);
     }
@@ -159,9 +156,6 @@ export class CurrencyService {
           updated_at: now
         });
       }
-
-      // Trigger sync
-      window.dispatchEvent(new CustomEvent('localMutation'));
 
       // Mark snapshots as stale (currency change affects net worth)
       // This is handled by the transaction hooks when rates are updated

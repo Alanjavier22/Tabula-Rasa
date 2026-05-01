@@ -2,9 +2,10 @@
  * AI Cash Flow Service
  * Bridge between CashFlowService and AI Assistant
  * Prepares Safe-to-Spend context with privacy sanitization
+ * NOW: Thin client - uses refactored services that call backend APIs
  */
 
-import { cashFlowService, type ProjectedBalanceResult } from './CashFlowService';
+import { cashFlowService } from './CashFlowService';
 import { prepareForAI } from '../utils/privacy';
 import { assetDepreciationService } from './AssetDepreciationService';
 
@@ -32,11 +33,12 @@ export class AICashFlowService {
   /**
    * Get AI-ready context for Cash Flow queries
    * Returns sanitized data + hydration map for response reversal
+   * Uses backend APIs for all calculations
    */
   async getAIContext(): Promise<AICashFlowContext> {
     const forecast = await cashFlowService.getCashFlowForecast();
 
-    // Get assets with current values
+    // Get assets with current values from backend
     const assetsWithValues = await assetDepreciationService.getAllAssetsWithValues();
     const assetsTotalValueCents = assetsWithValues.reduce((sum, asset) => sum + asset.current_value_cents, 0);
 
@@ -70,6 +72,7 @@ export class AICashFlowService {
 
   /**
    * Get specific Safe-to-Spend calculation for N days
+   * Uses backend API for calculation
    */
   async getSafeToSpend(days: 30 | 60 | 90): Promise<{ safe_to_spend_cents: number; hydrationMap: Map<string, string> }> {
     const projection = await cashFlowService.getProjectedBalance(days);

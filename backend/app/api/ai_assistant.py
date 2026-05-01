@@ -151,84 +151,19 @@ def get_assets_context(assets_data: dict) -> dict:
         return {"error": f"Error obteniendo contexto assets: {str(e)}"}
 
 
-def create_expense_transaction(db: Session, description: str, amount: float, category_id: str, account_id: str, payment_method: str, splits: Optional[List[dict]] = None) -> dict:
-    """Create a new expense transaction, optionally with splits."""
-    try:
-        int_amount = int(amount)
-        transaction_data = {
-            "description": description,
-            "amount": int_amount,
-            "transaction_type": "expense",
-            "expense_type": "variable",  # Defaulting to variable for AI-created ones
-            "payment_method": payment_method,
-            "date": datetime.now(timezone.utc),
-            "category_id": category_id,
-            "account_id": account_id
-        }
-        
-        formatted_splits = None
-        if splits:
-            formatted_splits = []
-            for s in splits:
-                formatted_splits.append({
-                    "amount": int(s["amount"]),
-                    "category_id": s.get("category_id"),
-                    "description": s.get("description")
-                })
-        
-        # Use the hardened transaction_service to ensure all invariants are respected
-        txn = create_transaction_with_splits(db, transaction_data, formatted_splits)
-        db.commit()
-        
-        return {
-            "success": True,
-            "message": f"Transacción de ${amount} por '{description}' registrada correctamente.",
-            "transaction_id": txn.id
-        }
-    except Exception as e:
-        db.rollback()
-        return {"error": f"Error al crear transacción: {str(e)}"}
-
-
-def create_iou(db: Session, person_name: str, amount: float, description: str, iou_type_str: str) -> dict:
-    """Create a new IOU record"""
-    try:
-        int_amount = int(amount)
-        
-        if iou_type_str == "owed_to_me":
-            db_type = IOUType.THEY_OWE
-        elif iou_type_str == "i_owe_them":
-            db_type = IOUType.I_OWE
-        else:
-            return {"error": f"Tipo de IOU inválido: {iou_type_str}. Debe ser 'owed_to_me' o 'i_owe_them'."}
-            
-        new_iou = IOU(
-            person_name=person_name,
-            amount=int_amount,
-            description=description,
-            iou_type=db_type,
-            status=IOUStatus.PENDING,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
-        )
-        db.add(new_iou)
-        db.commit()
-        
-        return {
-            "success": True,
-            "message": f"IOU registrado: {person_name} ({iou_type_str}) por ${amount}.",
-            "iou_id": new_iou.id
-        }
-    except Exception as e:
-        db.rollback()
-        return {"error": f"Error al crear IOU: {str(e)}"}
+# FAIL-FAST: Write capabilities removed from AI. AI is now read-only auditor.
+# The following functions were removed:
+# - create_expense_transaction (lines 154-191)
+# - create_iou (lines 193-224)
+# AI can only query and analyze data, not modify it.
 
 
 @router.post("/chat")
 async def chat_with_assistant(request: ChatRequest):
     """
     Chat with AI assistant using function calling.
-    The assistant can call local functions to get real data or perform actions.
+    The assistant can call local functions to QUERY data only (READ-ONLY).
+    NO WRITE OPERATIONS ALLOWED - AI is a financial auditor, not an executor.
     Bypassed during cold load migration (AI_ENABLED=false).
     """
     # Bypass AI during cold load migration
@@ -245,7 +180,7 @@ async def chat_with_assistant(request: ChatRequest):
     try:
         genai.configure(api_key=api_key)
         
-        # Define the tools/functions available to the AI
+        # Define the tools/functions available to the AI (READ-ONLY ONLY)
         tools = [
             {
                 "function_declarations": [
@@ -314,77 +249,6 @@ async def chat_with_assistant(request: ChatRequest):
                         }
                     },
                     {
-                        "name": "create_expense_transaction",
-                        "description": "Create a new expense transaction. IF YOU DO NOT KNOW THE category_id OR account_id, YOU MUST CALL search_categories AND search_accounts FIRST. Never invent IDs.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "description": {
-                                    "type": "string",
-                                    "description": "A brief description of the expense"
-                                },
-                                "amount": {
-                                    "type": "number",
-                                    "description": "The cost or amount of the expense, must be positive"
-                                },
-                                "category_id": {
-                                    "type": "integer",
-                                    "description": "The exact integer ID of the category"
-                                },
-                                "account_id": {
-                                    "type": "integer",
-                                    "description": "The exact integer ID of the account"
-                                },
-                                "payment_method": {
-                                    "type": "string",
-                                    "description": "Payment method used",
-                                    "enum": ["cash", "credit_card", "debit_card", "transfer", "other"]
-                                },
-                                "splits": {
-                                    "type": "array",
-                                    "description": "Optional list of splits if the transaction is divided.",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "amount": {"type": "number", "description": "Amount for this split"},
-                                            "category_id": {"type": "integer", "description": "Optional category ID for this split"},
-                                            "description": {"type": "string", "description": "Optional description for this split"}
-                                        },
-                                        "required": ["amount"]
-                                    }
-                                }
-                            },
-                            "required": ["description", "amount", "category_id", "account_id", "payment_method"]
-                        }
-                    },
-                    {
-                        "name": "create_iou",
-                        "description": "Create an IOU (debt) record. Use this when money is owed by or to a person.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "person_name": {
-                                    "type": "string",
-                                    "description": "Name of the person involved"
-                                },
-                                "amount": {
-                                    "type": "number",
-                                    "description": "Amount of the debt"
-                                },
-                                "description": {
-                                    "type": "string",
-                                    "description": "Description of what the debt is for"
-                                },
-                                "type": {
-                                    "type": "string",
-                                    "description": "Direction of the debt",
-                                    "enum": ["owed_to_me", "i_owe_them"]
-                                }
-                            },
-                            "required": ["person_name", "amount", "description", "type"]
-                        }
-                    },
-                    {
                         "name": "get_cash_flow_context",
                         "description": "Get Safe-to-Spend context including current balance and 30/60/90 day projections. All values in cents.",
                         "parameters": {
@@ -405,15 +269,14 @@ async def chat_with_assistant(request: ChatRequest):
         ]
         
         system_instruction = (
-            "Eres un asistente financiero avanzado. Si el usuario pide registrar un gasto o transacción, "
-            "DEBES obtener primero los IDs correctos usando `search_categories` y `search_accounts`. "
-            "NUNCA inventes o asumas `category_id` o `account_id`. "
-            "Si el usuario pide buscar información, usa las herramientas provistas. "
-            "Si el usuario reporta un gasto compartido (ej. 'Pagué $100 y Carlos me debe la mitad'), debes ejecutar DOS acciones en el mismo turno de pensamiento si es necesario: "
-            "1. Llamar a create_expense_transaction por el monto total ($100) asignado a la categoría correcta. "
-            "2. Llamar a create_iou por la porción que te deben ($50) a nombre de esa persona. "
+            "Eres un AUDITOR FINANCIERO READ-ONLY. Tu función es CONSULTAR y ANALIZAR información financiera, "
+            "NO tienes permiso para CREAR, MODIFICAR o ELIMINAR ningún registro (transacciones, cuentas, presupuestos, IOUs). "
+            "Si el usuario te pide registrar un gasto o crear una transacción, debes NEGARTE EDUCADAMENTE y explicarle que "
+            "como auditor solo puedes analizar datos existentes. "
+            "Si el usuario pide buscar información, usa las herramientas de consulta provistas. "
             "Para consultas sobre Safe-to-Spend, flujo de caja o proyecciones, usa `get_cash_flow_context`. "
-            "Para consultas sobre activos físicos (vehículos, equipos), usa `get_assets_context`."
+            "Para consultas sobre activos físicos (vehículos, equipos), usa `get_assets_context`. "
+            "TU ROL: Auditor Financiero - SOLO LECTURA."
         )
 
         model = genai.GenerativeModel(
@@ -422,12 +285,12 @@ async def chat_with_assistant(request: ChatRequest):
             system_instruction=system_instruction
         )
         
-        # Function to execute tool calls
+        # Function to execute tool calls (READ-ONLY ONLY)
         def execute_function_call(function_call: dict) -> dict:
             function_name = function_call.name
             args = function_call.args
             
-            # Context manager ensures session is closed/returned to pool instantly after query/mutation
+            # Context manager ensures session is closed/returned to pool instantly after query
             with SessionLocal() as db:
                 if function_name == "get_budget_status":
                     return get_budget_status(db, args["category_name"])
@@ -439,24 +302,6 @@ async def chat_with_assistant(request: ChatRequest):
                     return search_categories(db, args["keyword"])
                 elif function_name == "search_accounts":
                     return search_accounts(db, args["keyword"])
-                elif function_name == "create_expense_transaction":
-                    return create_expense_transaction(
-                        db, 
-                        args["description"], 
-                        args["amount"], 
-                        args["category_id"], 
-                        args["account_id"], 
-                        args["payment_method"],
-                        args.get("splits")
-                    )
-                elif function_name == "create_iou":
-                    return create_iou(
-                        db,
-                        args["person_name"],
-                        args["amount"],
-                        args["description"],
-                        args["type"]
-                    )
                 elif function_name == "get_cash_flow_context":
                     return get_cash_flow_context(request.cash_flow_context or {})
                 elif function_name == "get_assets_context":
@@ -499,14 +344,11 @@ async def chat_with_assistant(request: ChatRequest):
             )
             turn += 1
             
-        # Determine if any mutations happened
-        mutation_functions = {"create_expense_transaction", "create_iou"}
-        has_mutations = any(call.get("name") in mutation_functions for call in function_calls_made)
-            
+        # FAIL-FAST: No mutation tracking needed since AI is read-only
         return {
             "response": response.text,
             "function_calls": function_calls_made if function_calls_made else None,
-            "has_mutations": has_mutations
+            "has_mutations": False  # Always false - AI is read-only
         }
 
     except Exception as e:

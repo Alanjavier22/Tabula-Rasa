@@ -129,9 +129,6 @@ export class SnapshotService {
         retry_count: 0
       });
 
-      // Trigger sync
-      window.dispatchEvent(new CustomEvent('localMutation'));
-
       return snapshotId;
     });
   }

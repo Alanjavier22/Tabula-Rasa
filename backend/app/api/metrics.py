@@ -17,6 +17,9 @@ from app.models.iou import IOU, IOUType, IOUStatus
 from app.models.debt_share import DebtShare
 from app.services.anomaly_detector import detect_anomalies, calculate_anomaly_leak_total
 from app.services.forecaster import get_financial_projection
+from app.services.asset_depreciation import asset_depreciation_service
+from app.services.balance_sheet import balance_sheet_service
+from app.services.cash_flow import cash_flow_service
 
 router = APIRouter(prefix="/metrics", tags=["Metrics"], redirect_slashes=False)
 
@@ -488,3 +491,122 @@ def simulate_projection(req: SimulationRequest, db: Session = Depends(get_db)):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error in simulation: {str(e)}")
+
+
+# ============================================================================
+# NEW ENDPOINTS: Asset Depreciation, Balance Sheet, Cash Flow
+# ============================================================================
+
+class AssetValueResponse(BaseModel):
+    asset_id: str
+    asset_name: str
+    purchase_price_cents: int
+    current_value_cents: int
+    depreciation_accumulated_cents: int
+    months_elapsed: int
+    is_fully_depreciated: bool
+
+
+@router.get("/assets/{asset_id}/value", response_model=AssetValueResponse)
+def get_asset_value(asset_id: str, db: Session = Depends(get_db)):
+    """Get current value of a specific asset with depreciation calculation"""
+    try:
+        result = asset_depreciation_service.calculate_current_value(db, asset_id)
+        return AssetValueResponse(**result.to_dict())
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error calculating asset value: {str(e)}")
+
+
+class AssetsTotalResponse(BaseModel):
+    total_value_cents: int
+    assets: list[dict]
+
+
+@router.get("/assets/total", response_model=AssetsTotalResponse)
+def get_total_assets_value(db: Session = Depends(get_db)):
+    """Get total current value of all assets"""
+    try:
+        total_value = asset_depreciation_service.get_total_assets_value(db)
+        assets_with_values = asset_depreciation_service.get_all_assets_with_values(db)
+        return AssetsTotalResponse(
+            total_value_cents=total_value,
+            assets=assets_with_values
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error calculating total assets: {str(e)}")
+
+
+class BalanceSheetResponse(BaseModel):
+    month: int
+    year: int
+    date: str
+    assets: dict
+    liabilities: dict
+    equity_cents: int
+    is_stale: bool
+
+
+@router.get("/balance-sheet", response_model=BalanceSheetResponse)
+def get_current_balance_sheet(db: Session = Depends(get_db)):
+    """Get balance sheet for current month"""
+    try:
+        result = balance_sheet_service.get_current_balance_sheet(db)
+        if not result:
+            raise HTTPException(status_code=404, detail="No balance sheet found for current month")
+        return BalanceSheetResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting balance sheet: {str(e)}")
+
+
+@router.get("/balance-sheet/{month}/{year}", response_model=BalanceSheetResponse)
+def get_balance_sheet_by_month(month: int, year: int, db: Session = Depends(get_db)):
+    """Get balance sheet for specific month/year"""
+    try:
+        result = balance_sheet_service.get_balance_sheet(db, month, year)
+        if not result:
+            raise HTTPException(status_code=404, detail=f"No balance sheet found for {month}/{year}")
+        return BalanceSheetResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting balance sheet: {str(e)}")
+
+
+@router.get("/balance-sheet/history")
+def get_balance_sheet_history(limit: int = 12, db: Session = Depends(get_db)):
+    """Get balance sheet history (last N months)"""
+    try:
+        results = balance_sheet_service.get_balance_sheet_history(db, limit)
+        return {"history": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting balance sheet history: {str(e)}")
+
+
+class CashFlowProjectionResponse(BaseModel):
+    day30: dict
+    day60: dict
+    day90: dict
+
+
+@router.get("/cash-flow-projection", response_model=CashFlowProjectionResponse)
+def get_cash_flow_projection(db: Session = Depends(get_db)):
+    """Get cash flow projection for 30, 60, and 90 days"""
+    try:
+        forecast = cash_flow_service.get_cash_flow_forecast(db)
+        return CashFlowProjectionResponse(**forecast)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting cash flow projection: {str(e)}")
+
+
+@router.get("/cash-flow-projection/{days}")
+def get_cash_flow_projection_days(days: int, db: Session = Depends(get_db)):
+    """Get cash flow projection for specific number of days"""
+    try:
+        projection = cash_flow_service.get_projected_balance(db, days)
+        return projection.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting cash flow projection: {str(e)}")

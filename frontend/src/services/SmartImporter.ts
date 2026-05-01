@@ -160,11 +160,6 @@ export class SmartImporter {
       }
     }
 
-    // Trigger sync
-    if (result.imported > 0) {
-      window.dispatchEvent(new CustomEvent('localMutation'));
-    }
-
     return result;
   }
 

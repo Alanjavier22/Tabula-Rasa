@@ -15,7 +15,6 @@ import Snapshots from './pages/Snapshots';
 import { AuthGuard } from './components/AuthGuard';
 import { GlobalErrorBoundary } from './components/common/GlobalErrorBoundary';
 import { db } from './db/db';
-import { v4 as uuidv4 } from 'uuid';
 import { validateCacheIntegrity } from './services/AICategorizationService';
 import { checkStorageQuota } from './utils/storage';
 import { snapshotsAPI } from './services/api';
@@ -99,39 +98,6 @@ function App() {
       document.body.classList.remove('dark');
     }
   }, [theme]);
-
-  const toggleTheme = async () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-
-    try {
-      const now = new Date().toISOString();
-      // @ts-ignore
-      const existing = await db.config.where('key').equals('ui_theme').first();
-
-      if (existing) {
-        // @ts-ignore
-        await db.config.update(existing.id, {
-          value: newTheme,
-          updated_at: now
-        });
-      } else {
-        // @ts-ignore
-        await db.config.add({
-          id: uuidv4(),
-          key: 'ui_theme',
-          value: newTheme,
-          is_deleted: false,
-          updated_at: now
-        });
-      }
-
-      // Trigger sync
-      window.dispatchEvent(new CustomEvent('localMutation'));
-    } catch (error) {
-      console.error('[App] Error saving theme:', error);
-    }
-  };
 
   return (
     <GlobalErrorBoundary>

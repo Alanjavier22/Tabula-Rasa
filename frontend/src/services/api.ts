@@ -6,7 +6,6 @@ import { parseCSVAsync } from '../utils/csvParsers';
 import { generateTransactionHash } from '../utils/crypto';
 // import { metricsService } from './MetricsService'; // Temporarily unused - using backend API
 import { aiCashFlowService } from './AICashFlowService';
-import { syncCoordinator } from './SyncCoordinator';
 
 // UUIDv5 Namespace for Tabula Rasa (deterministic IDs)
 const TABULA_RASA_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // DNS namespace
@@ -35,32 +34,7 @@ export const getTokenKey = (): string => {
   return `finance_token_${port}`;
 };
 
-/**
- * Phoenix Protocol: Environment Health Verification
- * Auto-corrects misconfigured API URLs at startup
- */
-export const verifyEnvironmentHealth = (): void => {
-  const storedBaseUrl = localStorage.getItem('finance_base_url');
-  
-  if (storedBaseUrl) {
-    // Auto-correct :8000 to :8001
-    if (storedBaseUrl.includes(':8000')) {
-      console.warn('[Phoenix] Detected :8000 in localStorage, autocorrecting to :8001');
-      const correctedUrl = storedBaseUrl.replace(':8000', ':8001');
-      localStorage.setItem('finance_base_url', correctedUrl);
-    }
-    // Auto-correct empty or invalid URLs
-    else if (!storedBaseUrl.startsWith('http')) {
-      console.warn('[Phoenix] Invalid base URL detected, clearing');
-      localStorage.removeItem('finance_base_url');
-    }
-  }
-};
-
-// Run health check on module load
-if (typeof window !== 'undefined') {
-  verifyEnvironmentHealth();
-}
+// FAIL-FAST: No auto-correction of environment. Misconfigured URLs will cause visible errors.
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -104,9 +78,6 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       console.warn('[API] 401 Unauthorized - logging out');
       
-      // Stop sync coordinator to prevent infinite 401 loops
-      syncCoordinator.stop();
-      
       // Clear auth (port-aware)
       const tokenKey = getTokenKey();
       localStorage.removeItem(tokenKey);
@@ -120,10 +91,6 @@ api.interceptors.response.use(
 );
 
 // --- OFFLINE-FIRST LOCAL ADAPTERS (DEXIE) ---
-
-const triggerLocalMutation = () => {
-  window.dispatchEvent(new CustomEvent('localMutation'));
-};
 
 /**
  * FASE 2: Mutation Collapsing - Prevent OCC Thrashing
@@ -367,7 +334,6 @@ const localCreate = async (tableName: string, data: any) => {
     await db.sync_queue.add(syncQueueEntry);
   });
   
-  triggerLocalMutation();
   return { data: newRecord };
 };
 
@@ -404,7 +370,6 @@ export const localUpdate = async (tableName: string, id: string, data: any) => {
   // FASE 2: Use mutation collapsing for sync queue (prevents OCC thrashing)
   await enqueueUpdateWithCollapsing(tableName, id, updatedRecord, now);
   
-  triggerLocalMutation();
   return { data: updatedRecord };
 };
 
@@ -480,8 +445,6 @@ const localDelete = async (tableName: string, id: string) => {
     if (staleCount > 0) {
       window.dispatchEvent(new CustomEvent('snapshotsStale', { detail: { count: staleCount, transactionDate: txDate } }));
     }
-    
-    triggerLocalMutation();
   }
   return { data: { success: true } };
 };
@@ -645,7 +608,6 @@ export const iousAPI = {
         });
       }
 
-      triggerLocalMutation();
       return { data: updatedIou };
     });
   },
@@ -933,11 +895,6 @@ export const authAPI = {
   consumePairingCode: (pin: string, deviceName: string) => api.post('/auth/pair/consume', { pin, device_name: deviceName }),
   getPairingStatus: (pin: string) => api.get(`/auth/pair/status?pin=${pin}`),
   pairLocalhost: () => axios.post('http://127.0.0.1:8001/auth/pair/localhost'),
-};
-
-export const syncAPI = {
-  syncChanges: (payload: any) => api.post('/sync', payload),
-  getStatus: () => api.get('/sync/status'),
 };
 
 export default api;

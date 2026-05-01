@@ -138,9 +138,6 @@ export class VehicleService {
       }
     });
 
-    // Dispatch localMutation event to trigger sync
-    window.dispatchEvent(new CustomEvent('localMutation'));
-
     return logId;
   }
 
@@ -212,9 +209,6 @@ export class VehicleService {
         });
       }
     });
-
-    // Dispatch localMutation event to trigger sync
-    window.dispatchEvent(new CustomEvent('localMutation'));
 
     return logId;
   }
