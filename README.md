@@ -17,9 +17,10 @@
 Tabula Rasa rechaza el modelo SaaS donde tus datos financieros viven en servidores de terceros. En su lugar, implementamos una arquitectura **Local-First** donde:
 
 - **IndexedDB** es tu base de datos en el navegador (ningún dato sale sin tu consentimiento explícito)
-- **Sincronización Reactiva** con FastAPI + SQLite en modo WAL para concurrencia sin bloqueos
-- **Offline-First**: Trabaja sin internet, sincroniza cuando reconectes
+- **Backend como Fuente de Verdad**: FastAPI + SQLite en modo WAL para concurrencia sin bloqueos
+- **Offline-Ready**: Carga inicial desde backend, luego trabaja con datos cacheados
 - **Zero-Knowledge AI**: La IA solo ve datos sanitizados (Cédulas/RUCs enmascarados antes del envío)
+- **Google Drive Backup**: Backups automáticos en la nube con rotación inteligente
 
 ---
 
@@ -167,12 +168,17 @@ Soporte nativo para los principales bancos ecuatorianos:
 ### Búsqueda Avanzada con Normalización Unicode
 Búsqueda insensible a tildes y diacríticos. "pago" coincide con "págó", "pagó", "PÁGO" — todas las variaciones funcionan gracias a la normalización Unicode NFD.
 
-### Gestión de Conflictos Offline-First
-- **FIFO Queue**: Sincronización en orden cronológico
-- **Conflict Stashing**: Conflictos se archivan para resolución manual
-- **Server Wins Policy**: El servidor prevalece para estado, pero el usuario decide qué datos mantener
-- **Bit-a-bit Integrity Verification**: Hashes SHA-256 para detectar corrupción en tránsito
-- **FASE 5**: Idempotencia basada en hash SHA-256 (evita duplicados en reintentos de sync)
+### Presupuestos Recurrentes Dinámicos
+- **Generación por API**: Crea presupuestos recurrentes para cualquier mes/año vía POST /api/budgets/generate-recurring
+- **Actualización Inteligente**: PUT /api/budgets/update-recurring para modificar presupuestos existentes
+- **Rotación Automática**: Sistema elimina presupuestos del mes anterior al generar nuevos
+- **UI Integrada**: Botón "Generar Recurrente" en página de Presupuestos con selección de mes/año
+
+### Importación de Transacciones por Lote
+- **API de Importación**: POST /api/transactions/import-batch para importar múltiples transacciones
+- **Detección de Duplicados**: Opción para omitir transacciones duplicadas basándose en descripción, monto y fecha
+- **Validación Robusta**: Valida categorías, cuentas y formato de fechas antes de importar
+- **Reporte de Resultados**: Retorna conteo de importadas, omitidas y fallidas con mensajes de error
 
 ---
 
@@ -184,9 +190,9 @@ Tabula Rasa utiliza una arquitectura híbrida que combina lo mejor de dos mundos
 flowchart TB
     subgraph Frontend["Frontend (React + TypeScript)"]
         A[UI Components<br/>Dashboards & Forms]
-        B[IndexedDB<br/>Dexie.js - Local Storage]
+        B[IndexedDB<br/>Dexie.js - Local Cache]
         C[Privacy Layer<br/>Sanitización PII]
-        D[Sync Coordinator<br/>Offline-First Queue]
+        D[API Client<br/>HTTP Requests]
     end
 
     subgraph Backend["Backend (FastAPI + Python)"]
@@ -194,6 +200,7 @@ flowchart TB
         F[SQLite WAL<br/>Base de datos local]
         G[AI Integration<br/>gemini-3.1-flash-lite-preview]
         H[Analytics Engine<br/>Cash Flow Forecast]
+        I[Backup Service<br/>Google Drive API]
     end
 
     A --> B
@@ -204,20 +211,47 @@ flowchart TB
     E --> F
     E --> G
     E --> H
+    E --> I
 
     style Frontend fill:#e1f5ff
     style Backend fill:#fff4e1
     style B fill:#e8f5e9
     style F fill:#e8f5e9
     style G fill:#fce4ec
+    style I fill:#fff3cd
 ```
 
 **Flujo de datos:**
 1. **Frontend** maneja toda la lógica de UI y almacenamiento local en IndexedDB
 2. **Privacy Layer** sanitiza datos antes de cualquier comunicación externa
-3. **Sync Coordinator** gestiona la cola offline y resuelve conflictos
+3. **API Client** realiza peticiones HTTP directas al backend (sin cola de sincronización)
 4. **Backend** proporciona API REST, análisis avanzado e integración con IA
 5. **SQLite WAL** asegura concurrencia sin bloqueos para múltiples operaciones
+6. **Google Drive Backup** sube dumps de base de datos a la nube con rotación automática
+
+---
+
+## 💾 Google Drive Backup Integration
+
+**Backups automáticos en la nube con rotación inteligente.**
+
+Tabula Rasa incluye integración nativa con Google Drive para backups automáticos de la base de datos:
+
+- **Configuración OAuth**: Gestión de credenciales (client_id, client_secret, refresh_token) vía API
+- **Subida Automática**: Backups programados via APScheduler
+- **Rotación Inteligente**: Mantiene solo los últimos 30 backups en Google Drive
+- **Folder Específico**: Backups se almacenan en carpeta "tabula_rasa_backup"
+- **Fail-Soft**: Si las credenciales no están configuradas, el sistema logga advertencia y continúa sin interrumpir la aplicación
+- **Nombre de Archivo**: Formato `tabula_rasa_backup_YYYYMMDD_HHMMSS.sqlite3`
+
+**Flujo de Backup:**
+1. Sistema genera dump local de SQLite
+2. Autentica con Google Drive usando OAuth refresh token
+3. Crea/verifica carpeta "tabula_rasa_backup" en Drive
+4. Sube archivo con subida reanudable
+5. Lista backups existentes y elimina los más antiguos (mantiene 30)
+6. Limpia dump local
+7. Registra todas las operaciones con prefijo [GOOGLE_DRIVE]
 
 ---
 
@@ -296,10 +330,10 @@ npm run dev
 | Característica | Apps SaaS Comunes | Tabula Rasa |
 |---------------|------------------|-------------|
 | **Propiedad de datos** | Servidores de terceros | Tu navegador (IndexedDB) |
-| **Offline** | Requiere internet | Offline-first completo |
+| **Offline** | Requiere internet | Offline-ready (carga desde backend) |
 | **Privacidad IA** | Datos crudos a la nube | Zero-Knowledge (sanitizado) |
 | **Precisión monetaria** | Float IEEE 754 (errores) | Branded Types + Decimal.js |
-| **Conflictos offline** | Sobrescritura silenciosa | FIFO queue + resolución manual |
+| **Backup** | En la nube (sin control) | Google Drive (control total) |
 | **Importación masiva** | Crash >10k registros | Streaming 50k+ sin freeze |
 | **Auto-reparación** | Manual | Protocolo Phoenix automático |
 
@@ -351,6 +385,27 @@ Es para usuarios que valoran la soberanía de sus datos tanto como la funcionali
 
 ## 📊 Roadmap
 
+### Refactorización Arquitectónica (Fases 3.5-5)
+- [x] **FASE 3.5**: Google Drive Backup Integration
+  - Integración con Google Drive API v3 para backups automáticos
+  - Endpoints /api/config/drive para gestión de credenciales OAuth
+  - Rotación inteligente de backups (mantiene últimos 30)
+  - Folder "tabula_rasa_backup" en Google Drive
+  - Fail-soft: sistema continúa si credenciales no configuradas
+- [x] **FASE 4**: Dinamización de Scripts Hardcodeados
+  - Eliminación de scripts rígidos con fechas/meses/años hardcodeados
+  - Servicio budget_automation.py para generación dinámica de presupuestos recurrentes
+  - Servicio transaction_importer.py para importación de transacciones por lote
+  - Endpoints POST /api/budgets/generate-recurring y PUT /api/budgets/update-recurring
+  - Endpoint POST /api/transactions/import-batch
+  - Validaciones HTTP 400 para mes/año inválidos y presupuestos existentes
+- [x] **FASE 5**: Cierre Funcional (Conexión UI y Carga de Datos)
+  - Botón "Generar Recurrente" en Budgets.tsx con modal para seleccionar mes/año
+  - UI conectada a endpoints dinámicos de presupuestos
+  - AIAssistantDrawer en modo Read-Only (sin operaciones de escritura)
+  - AISuggestionsInbox con botón approve deshabilitado
+  - Mecanismo de carga de datos por página (patrón Thin Client existente)
+
 ### Motor de Reportes Tabula Rasa (FASE 4-8)
 - [x] **FASE 4**: Inteligencia de Establecimientos y Exportación SRI
   - getEstablishmentIntelligence() para ranking de establecimientos por gasto
@@ -400,7 +455,7 @@ Es para usuarios que valoran la soberanía de sus datos tanto como la funcionali
 
 ### Features Futuros
 - [ ] **Multi-currency**: Soporte para USD, EUR con conversión en tiempo real
-- [ ] **Recurring Transactions**: Automatización de gastos recurrentes
+- [x] **Recurring Transactions**: Automatización de gastos recurrentes (implementado vía API dinámica)
 - [ ] **Advanced Analytics**: Plotly integrado para visualizaciones interactivas
 - [ ] **Mobile PWA**: Progressive Web App para acceso móvil
 - [ ] **Dark Mode**: Toggle de tema claro/oscuro
