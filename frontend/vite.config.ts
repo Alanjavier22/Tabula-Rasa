@@ -51,19 +51,15 @@ export default defineConfig({
             },
             handler: 'NetworkOnly',
             options: {
-              cacheName: 'api-mutations-v1',
-              networkTimeoutSeconds: 10 // Fail fast for mutations
+              cacheName: 'api-mutations-v1'
             }
           },
           // FASE 4: API Reads - NetworkFirst for offline support
           {
             urlPattern: ({ request }) => {
               const url = new URL(request.url);
-              const isApiEndpoint = url.pathname.startsWith('/api') ||
-                                   url.port === '8001' ||
-                                   url.hostname.includes('localhost');
-              const isRead = request.method === 'GET';
-              return isApiEndpoint && isRead;
+              // Solo cachear si es el puerto del backend y es un GET
+              return url.port === '8001' && request.method === 'GET';
             },
             handler: 'NetworkFirst',
             options: {
