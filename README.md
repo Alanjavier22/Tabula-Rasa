@@ -351,10 +351,45 @@ Es para usuarios que valoran la soberanía de sus datos tanto como la funcionali
 
 ## 📊 Roadmap
 
+### Motor de Reportes Tabula Rasa (FASE 4-8)
+- [x] **FASE 4**: Inteligencia de Establecimientos y Exportación SRI
+  - getEstablishmentIntelligence() para ranking de establecimientos por gasto
+  - Exportación Anexo SRI con streaming CSV (evita crashes memoria 50k+ registros)
+  - Cálculo reverso IVA (15%) para exportación fiscal Ecuador
+  - FiscalDashboard con KPIs IVA acumulado, deducibilidad SRI, eficiencia neta
+  - Gráficos Recharts: gastos deducibles mensuales, breakdown impositivo
+- [x] **FASE 5**: Virtualización y PWA Optimization
+  - VirtualTransactionList con windowing (max 20 DOM nodes, 60fps scroll)
+  - IntegrityBadge reactivo a mutations pendientes (check cada 5s)
+  - FiscalDashboard mobile-first vertical stacking
+  - Y-axis cap agresivo móvil (85th percentile vs 95th desktop)
+  - PWA aggressive caching Recharts + decimal.js-light (30 días)
+- [x] **FASE 6**: Migración Crítica Local-First
+  - Transactions.tsx refactor: useLiveQuery Dexie en lugar de API
+  - Mutaciones optimistas: create/update/delete inmediato en IndexedDB
+  - Búsqueda indexada usando description_words de Dexie
+  - Filtros fecha rango + búsqueda combinados
+  - getPendingMutationCount() para sync status
+- [x] **FASE 7**: Integridad por Lotes y Auditoría IA
+  - bulkUpdateTransactions() con transacción atómica Dexie RW
+  - Previene corrupción datos si PWA cierra mid-operation
+  - prepareAuditContext() para detección anomalías categoría
+  - Sanitización PII con prepareForAI() antes de enviar a Gemini
+  - DataHydrationOverlay para carga inicial masiva
+- [x] **FASE 8**: Pulido de Grado Industrial
+  - Framer Motion AnimatePresence para transiciones página suaves
+  - AIAssistantDrawer conversacional para auditoría IA
+  - PWA standalone mode con meta tags inmersivos
+  - Cache framer-motion para transiciones suaves
+  - Prevención flash blanco inicial con CSS body background
+
+### Backend Roadmap
 - [x] **FASE 5**: Sincronización idempotente y recolección de basura (hash SHA-256, rotación de logs)
 - [x] **FASE 6**: Dashboard de observabilidad y control Phoenix (diagnóstico de datos, Storage Guardian)
 - [x] **FASE 7**: Cierre de vulnerabilidades físicas y lógicas (backup seguro, versioning de protocolo)
 - [x] **FASE 8**: Optimización de tránsito y mantenimiento autónomo (TLS local, heartbeat, stress test)
+
+### Features Futuros
 - [ ] **Multi-currency**: Soporte para USD, EUR con conversión en tiempo real
 - [ ] **Recurring Transactions**: Automatización de gastos recurrentes
 - [ ] **Advanced Analytics**: Plotly integrado para visualizaciones interactivas
