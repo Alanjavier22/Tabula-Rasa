@@ -135,6 +135,7 @@ export class ReportingService {
    * Async aggregation using .each() - no .toArray() for memory safety
    * FASE 2: Enhanced with SRI tax logic per category
    * Processes 50k+ records without blocking main thread
+   * QUALITY-GATE: Optimizado para O(n) sobre volúmenes masivos - categoryTaxMap para O(1) lookups
    */
   private async aggregateTransactions(
     transactionIds: Set<string>,
@@ -337,6 +338,7 @@ export class ReportingService {
    * FASE 3: Generate time series data for Recharts visualization
    * Buckets transactions by month to avoid sending individual records to UI
    * Format: Array<{ date: string, income: number, expense: number, tax: number }>
+   * QUALITY-GATE: Optimizado para O(n) sobre volúmenes masivos - categoryTaxMap + monthlyBuckets Map para O(1) lookups
    */
   async getTrendData(
     startDate: string,
@@ -440,6 +442,7 @@ export class ReportingService {
    * FASE 4: Generate establishment intelligence ranking
    * Extracts RUC/establishment data from metadata_json
    * Handles empty metadata_json by using description as fallback
+   * QUALITY-GATE: Optimizado para O(n) sobre volúmenes masivos - establishmentMap para O(1) lookups
    */
   async getEstablishmentIntelligence(
     startDate: string,
