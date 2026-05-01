@@ -1,4 +1,4 @@
-import { useState, memo, useEffect } from 'react';
+import { useState, memo, useEffect, useDeferredValue } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { reportingService } from '../services/ReportingService';
@@ -94,12 +94,13 @@ const Transactions = () => {
   
   // FASE 6.2: Search and date range filters
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
   // FASE 6.2: Live query for transactions with categories
   const transactions = useLiveQuery(
-    () => reportingService.getTransactionsWithCategories(undefined, undefined, startDate, endDate, searchQuery),
+    () => reportingService.getTransactionsWithCategories(undefined, undefined, startDate, endDate, deferredSearchQuery),
     [],
     []
   );
@@ -374,7 +375,7 @@ const Transactions = () => {
       </div>
 
       {/* FASE 6.2: Virtual Transaction List */}
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50">
+      <div className={`bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 transition-opacity duration-200 ${searchQuery !== deferredSearchQuery ? 'opacity-70' : ''}`}>
         {transactions && transactions.length > 0 ? (
           <VirtualTransactionList
             transactions={transactions}
