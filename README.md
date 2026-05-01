@@ -114,6 +114,8 @@ Tabula Rasa incluye un sistema de auto-curación multicapa:
 - **Health Check Proactivo**: Verifica funcionalidad de base de datos tras apertura
 - **Interceptador Global**: Captura promesas Dexie no manejadas para evitar errores silenciosos
 - **Evento phoenix-fatal-error**: Permite activación externa desde servicios de fondo
+- **FASE 5**: Exportación de JSON de emergencia a localStorage antes de hard reset
+- **FASE 7**: Fallback a descarga Blob si backup > 4MB (evita overflow de localStorage)
 
 **Flujo de auto-curación:**
 1. Al arrancar, detecta y limpia puertos zombies (8001, 5173)
@@ -170,6 +172,7 @@ Búsqueda insensible a tildes y diacríticos. "pago" coincide con "págó", "pag
 - **Conflict Stashing**: Conflictos se archivan para resolución manual
 - **Server Wins Policy**: El servidor prevalece para estado, pero el usuario decide qué datos mantener
 - **Bit-a-bit Integrity Verification**: Hashes SHA-256 para detectar corrupción en tránsito
+- **FASE 5**: Idempotencia basada en hash SHA-256 (evita duplicados en reintentos de sync)
 
 ---
 
@@ -274,6 +277,8 @@ npm run dev
 - **SQLAlchemy** ORM con Alembic migrations (gestión de esquema robusta)
 - **UUIDv5** para identidad determinista (mismo input = mismo UUID siempre)
 - **Cryptography** para hashing SHA-256 (integridad de datos)
+- **FASE 8**: TLS local con certificados auto-firmados (HTTPS en LAN)
+- **FASE 8**: RotatingFileHandler para logs (10MB max, 5 backups)
 
 ### Frontend
 - **React 18** con TypeScript (tipado estático para seguridad)
@@ -345,6 +350,10 @@ Es para usuarios que valoran la soberanía de sus datos tanto como la funcionali
 
 ## 📊 Roadmap
 
+- [x] **FASE 5**: Sincronización idempotente y recolección de basura (hash SHA-256, rotación de logs)
+- [x] **FASE 6**: Dashboard de observabilidad y control Phoenix (diagnóstico de datos, Storage Guardian)
+- [x] **FASE 7**: Cierre de vulnerabilidades físicas y lógicas (backup seguro, versioning de protocolo)
+- [x] **FASE 8**: Optimización de tránsito y mantenimiento autónomo (TLS local, heartbeat, stress test)
 - [ ] **Multi-currency**: Soporte para USD, EUR con conversión en tiempo real
 - [ ] **Recurring Transactions**: Automatización de gastos recurrentes
 - [ ] **Advanced Analytics**: Plotly integrado para visualizaciones interactivas
