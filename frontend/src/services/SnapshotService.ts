@@ -31,6 +31,7 @@ export class SnapshotService {
       const baseCurrency = await currencyService.getBaseCurrency();
 
       // Get all non-deleted accounts
+      // FASE 3: Se incluyen registros en conflicto para mantener integridad del balance
       // @ts-ignore
       const accounts = await db.accounts.filter(a => !a.is_deleted).toArray();
       
@@ -67,6 +68,7 @@ export class SnapshotService {
       const monthStart = new Date(year, month - 1, 1).toISOString();
       const monthEnd = new Date(year, month, 0).toISOString();
       
+      // FASE 3: Se incluyen registros en conflicto para mantener integridad del balance
       // @ts-ignore
       const monthTransactions = await db.transactions
         .filter(t => !t.is_deleted && t.date >= monthStart && t.date <= monthEnd)
@@ -221,6 +223,7 @@ export class SnapshotService {
       const snapshotDate = new Date(year, month - 1, 1).toISOString();
 
       // Get all non-deleted accounts
+      // FASE 3: Se incluyen registros en conflicto para mantener integridad del balance
       // @ts-ignore
       const accounts = await db.accounts.filter(a => !a.is_deleted).toArray();
       
@@ -257,6 +260,7 @@ export class SnapshotService {
       const monthStart = new Date(year, month - 1, 1).toISOString();
       const monthEnd = new Date(year, month, 0).toISOString();
       
+      // FASE 3: Se incluyen registros en conflicto para mantener integridad del balance
       // @ts-ignore
       const monthTransactions = await db.transactions
         .filter(t => !t.is_deleted && t.date >= monthStart && t.date <= monthEnd)

@@ -556,6 +556,7 @@ export class ReportingService {
       query = query.offset(offset);
     }
 
+    // FASE 3: Se incluyen registros en conflicto para mantener integridad del balance
     await query.filter(txn => !txn.is_deleted).each((txn) => {
       transactions.push({
         ...txn,
