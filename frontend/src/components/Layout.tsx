@@ -17,6 +17,7 @@ import {
 import CommandPalette from './CommandPalette';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { ConflictBadge } from './ConflictBadge';
+import { IntegrityBadge } from './common/IntegrityBadge';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
@@ -115,7 +116,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           </div>
         </div>
         <div className="px-6 py-2 border-b border-slate-700/50 flex items-center gap-2">
-          <IntegrityStatus />
+          <IntegrityBadge />
           <ConflictBadge />
           <SyncStatusIndicator />
         </div>
