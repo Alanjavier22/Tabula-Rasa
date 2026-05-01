@@ -287,6 +287,7 @@ npm run dev
 - **Decimal.js-light** (precisión monetaria arbitraria)
 - **TailwindCSS** (styling utility-first para desarrollo rápido)
 - **Lucide React** (iconos modernos y consistentes)
+- **FASE 8**: Heartbeat de integridad automático (ejecuta cada 24h con requestIdleCallback)
 
 ---
 
