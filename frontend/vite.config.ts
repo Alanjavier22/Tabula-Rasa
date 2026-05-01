@@ -37,6 +37,43 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
+          // FASE 4: API Mutations - NetworkOnly to prevent cache interference
+          // POST/PUT/PATCH/DELETE must NEVER be cached - strict network only
+          {
+            urlPattern: ({ request }) => {
+              const url = new URL(request.url);
+              // Match API endpoints (backend typically on :8001 or configured URL)
+              const isApiEndpoint = url.pathname.startsWith('/api') ||
+                                   url.port === '8001' ||
+                                   url.hostname.includes('localhost');
+              const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
+              return isApiEndpoint && isMutation;
+            },
+            handler: 'NetworkOnly',
+            options: {
+              cacheName: 'api-mutations-v1',
+              networkTimeoutSeconds: 10 // Fail fast for mutations
+            }
+          },
+          // FASE 4: API Reads - NetworkFirst for offline support
+          {
+            urlPattern: ({ request }) => {
+              const url = new URL(request.url);
+              const isApiEndpoint = url.pathname.startsWith('/api') ||
+                                   url.port === '8001' ||
+                                   url.hostname.includes('localhost');
+              const isRead = request.method === 'GET';
+              return isApiEndpoint && isRead;
+            },
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-reads-v1',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 5 * 60 // 5 minutes - short cache for fresh data
+              }
+            }
+          },
           {
             urlPattern: /^https?.*/,
             handler: 'NetworkFirst',
