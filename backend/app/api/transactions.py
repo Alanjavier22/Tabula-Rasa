@@ -12,6 +12,7 @@ from app.services.transaction_service import (
     update_transaction_with_splits,
     delete_transaction_with_balance
 )
+from app.services.transaction_importer import import_transactions
 from pydantic import BaseModel, StrictInt
 
 router = APIRouter(prefix="/transactions", tags=["transactions"], redirect_slashes=False)
@@ -60,6 +61,11 @@ class TransactionUpdate(BaseModel):
     category_id: Optional[str] = None
     account_id: Optional[str] = None
     splits: Optional[List[TransactionSplitCreate]] = None
+
+
+class ImportTransactionsRequest(BaseModel):
+    transactions: List[dict]
+    skip_duplicates: bool = True
 
 
 class TransactionResponse(BaseModel):
@@ -124,3 +130,34 @@ def update_transaction(
 @router.delete("/{transaction_id}")
 def delete_transaction(transaction_id: str, db: Session = Depends(get_db)):
     return delete_transaction_with_balance(db, transaction_id)
+
+
+# FASE 4: Import transactions endpoint
+@router.post("/import-batch")
+def import_transactions_endpoint(
+    request: ImportTransactionsRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Import a batch of transactions from a list.
+    
+    Args:
+        request: ImportTransactionsRequest with transactions list and skip_duplicates flag
+        
+    Returns:
+        Dictionary with imported_count, skipped_count, failed_count, and errors
+        
+    Raises:
+        HTTPException 400: If transactions list is empty or validation fails
+    """
+    try:
+        result = import_transactions(
+            db=db,
+            transactions=request.transactions,
+            skip_duplicates=request.skip_duplicates
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error importing transactions: {str(e)}")

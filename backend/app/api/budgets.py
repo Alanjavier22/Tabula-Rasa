@@ -6,6 +6,7 @@ import calendar
 from database import get_db
 from app.models.budget import Budget
 from app.services.budget_service import enrich_budget_response
+from app.services.budget_automation import generate_recurring_budgets, update_recurring_budgets
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/budgets", tags=["budgets"], redirect_slashes=False)
@@ -35,6 +36,13 @@ class BudgetUpdate(BaseModel):
     month: Optional[int] = None
     year: Optional[int] = None
     category_id: Optional[str] = None
+
+
+class GenerateRecurringBudgetsRequest(BaseModel):
+    month: int
+    year: int
+    delete_previous: bool = True
+    budget_items: Optional[List[dict]] = None
 
 
 class BudgetResponse(BaseModel):
@@ -136,3 +144,74 @@ def delete_budget(budget_id: int, db: Session = Depends(get_db)):
     db.delete(db_budget)
     db.commit()
     return {"message": "Budget deleted successfully"}
+
+
+# FASE 4: Generate recurring budgets endpoint
+@router.post("/generate-recurring", response_model=List[BudgetResponse])
+def generate_recurring_budgets_endpoint(
+    request: GenerateRecurringBudgetsRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate recurring budgets for a specific month and year.
+    
+    Args:
+        request: GenerateRecurringBudgetsRequest with month, year, delete_previous, and optional budget_items
+        
+    Returns:
+        List of created BudgetResponse objects
+        
+    Raises:
+        HTTPException 400: If month/year is invalid or budgets already exist
+    """
+    try:
+        budgets = generate_recurring_budgets(
+            db=db,
+            month=request.month,
+            year=request.year,
+            delete_previous=request.delete_previous,
+            budget_items=request.budget_items
+        )
+        
+        now = datetime.now(timezone.utc)
+        return [enrich_budget_response(b, now) for b in budgets]
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating recurring budgets: {str(e)}")
+
+
+@router.put("/update-recurring", response_model=List[BudgetResponse])
+def update_recurring_budgets_endpoint(
+    request: GenerateRecurringBudgetsRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Update existing recurring budgets for a specific month and year.
+    Creates new budgets if they don't exist.
+    
+    Args:
+        request: GenerateRecurringBudgetsRequest with month, year, and optional budget_items
+        
+    Returns:
+        List of created/updated BudgetResponse objects
+        
+    Raises:
+        HTTPException 400: If month/year is invalid
+    """
+    try:
+        budgets = update_recurring_budgets(
+            db=db,
+            month=request.month,
+            year=request.year,
+            budget_items=request.budget_items
+        )
+        
+        now = datetime.now(timezone.utc)
+        return [enrich_budget_response(b, now) for b in budgets]
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating recurring budgets: {str(e)}")
