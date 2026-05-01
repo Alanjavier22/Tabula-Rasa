@@ -2,11 +2,11 @@
 
 **La soberanía absoluta de tus finanzas. Privacidad blindada, integridad matemática y latencia cero.**
 
-![Local-First](https://img.shields.io/badge/Architecture-Local--First-blue)
-![Offline-Ready](https://img.shields.io/badge/Status-Offline--Ready-green)
-![Zero-Knowledge](https://img.shields.io/badge/AI-Zero--Knowledge-purple)
-![Ecuador-Ready](https://img.shields.io/badge/Region-Ecuador--Ready-red)
-![Gemini-AI](https://img.shields.io/badge/AI-gemini--3.1-flash-lite-preview-orange)
+![Local-First](https://img.shields.io/badge/🏠-Local--First-blue)
+![Offline-Ready](https://img.shields.io/badge/📡-Offline--Ready-green)
+![Zero-Knowledge](https://img.shields.io/badge/🔒-Zero--Knowledge-purple)
+![Ecuador-Ready](https://img.shields.io/badge/🇪🇨-Ecuador--Ready-red)
+![Gemini-AI](https://img.shields.io/badge/🤖-_gemini--3.1-orange)
 
 ---
 
