@@ -15,9 +15,64 @@ import { AuthGuard } from './components/AuthGuard';
 import { GlobalErrorBoundary } from './components/common/GlobalErrorBoundary';
 import { db } from './db/db';
 import { v4 as uuidv4 } from 'uuid';
+import { validateCacheIntegrity } from './services/AICategorizationService';
+import { checkStorageQuota } from './utils/storage';
+import { snapshotsAPI } from './services/api';
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  // FASE 8: Integrity Heartbeat - Runs every 24 hours or on startup
+  useEffect(() => {
+    const runIntegrityHeartbeat = async () => {
+      try {
+        console.log('[FASE-8] Integrity Heartbeat: Starting...');
+        
+        // 1. Validate AI cache integrity
+        const integrityResult = await validateCacheIntegrity();
+        console.log(`[FASE-8] AI cache integrity: ${integrityResult.deleted} orphaned entries deleted`);
+        
+        // 2. Check storage health
+        const storage = await checkStorageQuota();
+        console.log(`[FASE-8] Storage health: ${storage.usagePercent.toFixed(2)}% (${storage.status})`);
+        
+        // 3. Check stale snapshots and reconcile if >5
+        // @ts-ignore
+        const staleCount = await db.net_worth_snapshots.where('is_stale').equals(true).count();
+        if (staleCount > 5) {
+          console.log(`[FASE-8] Found ${staleCount} stale snapshots, triggering reconciliation...`);
+          await snapshotsAPI.reconcile();
+          console.log('[FASE-8] Reconciliation completed');
+        } else {
+          console.log(`[FASE-8] Snapshot integrity: ${staleCount} stale snapshots (OK)`);
+        }
+        
+        console.log('[FASE-8] Integrity Heartbeat: Completed');
+      } catch (error) {
+        console.error('[FASE-8] Integrity Heartbeat: Error:', error);
+      }
+    };
+
+    // Run heartbeat on startup
+    const heartbeatKey = 'last_integrity_heartbeat';
+    const runHeartbeat = async () => {
+      const now = Date.now();
+      const lastHeartbeat = localStorage.getItem(heartbeatKey);
+      const heartbeatInterval = 24 * 60 * 60 * 1000; // 24 hours
+      
+      if (!lastHeartbeat || now - parseInt(lastHeartbeat) > heartbeatInterval) {
+        // Use requestIdleCallback if available, otherwise run immediately
+        if ('requestIdleCallback' in window) {
+          (window as any).requestIdleCallback(() => runIntegrityHeartbeat());
+        } else {
+          setTimeout(() => runIntegrityHeartbeat(), 1000);
+        }
+        localStorage.setItem(heartbeatKey, now.toString());
+      }
+    };
+    
+    runHeartbeat();
+  }, []);
 
   useEffect(() => {
     // Load theme from config on startup
