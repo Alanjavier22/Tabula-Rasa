@@ -4,8 +4,37 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import engine
-from app.models import *
+from database import engine, Base
+from sqlalchemy import event
+
+# Import models explicitly to register them with Base (fixes circular import)
+from app.models.transaction import Transaction
+from app.models.account import Account
+from app.models.asset import Asset
+from app.models.iou import IOU
+from app.models.category import Category
+from app.models.budget import Budget
+from app.models.reminder import Reminder
+from app.models.subscription import Subscription
+from app.models.credit_card_statement import CreditCardStatement
+from app.models.debt_share import DebtShare
+
+# Register event listeners for auto-increment version on UPDATE (OCC conflict resolution)
+@event.listens_for(Transaction, 'before_update')
+@event.listens_for(Account, 'before_update')
+@event.listens_for(Asset, 'before_update')
+@event.listens_for(IOU, 'before_update')
+@event.listens_for(Category, 'before_update')
+@event.listens_for(Budget, 'before_update')
+@event.listens_for(Reminder, 'before_update')
+@event.listens_for(Subscription, 'before_update')
+@event.listens_for(CreditCardStatement, 'before_update')
+@event.listens_for(DebtShare, 'before_update')
+def increment_version(mapper, connection, target):
+    """Auto-increment version field on UPDATE for conflict resolution (OCC)"""
+    if hasattr(target, 'version'):
+        target.version += 1
+
 from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, csv_import, config, ai_insights, subscriptions, ai_audio, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, sync
 from init_db import init_db
 

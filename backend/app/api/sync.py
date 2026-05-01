@@ -8,6 +8,9 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 import uuid
 import dateutil.parser
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Batch size for mass migration processing
 BATCH_SIZE = 100
@@ -38,6 +41,7 @@ class SyncRequest(BaseModel):
 class SyncResponse(BaseModel):
     server_timestamp: datetime
     changes: Dict[str, List[Dict[str, Any]]]
+    processed: List[Dict[str, str]] = Field(default_factory=list)  # FASE 2: Array of {id, hash} for handshake
 
 
 class BatchSyncRequest(BaseModel):
@@ -155,10 +159,13 @@ def execute_sync(
     db: Session = Depends(get_db)
 ):
     try:
+        # FASE 2: Track processed records for handshake verification
+        processed_records: List[Dict[str, str]] = []
         # IDs que acabamos de upsertear en esta misma transacción → no los echo back.
         updated_records_in_this_tx = set()
 
         # 1. PROCESS INCOMING CHANGES (UPSERT with LWW)
+        # FASE 2: Version-based conflict resolution for transactions
         # Track accounts that need balance recalculation
         affected_accounts = set()
         
@@ -178,25 +185,78 @@ def execute_sync(
                     incoming_updated_at = parse_utc(record["updated_at"])
                     cleaned = normalize_record_for_model(model, record)
 
-                    # Atomic UPSERT using ON CONFLICT DO UPDATE
-                    stmt = insert(model).values(**cleaned)
-                    
-                    # Build update dict for ON CONFLICT (exclude 'id')
-                    update_dict = {k: v for k, v in cleaned.items() if k != "id"}
-                    
-                    # For accounts, exclude 'balance' from update (backend recalc)
-                    if table_name == "accounts":
-                        update_dict.pop("balance", None)
-                    
-                    # Apply ON CONFLICT with LWW logic via WHERE clause
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=['id'],
-                        set_=update_dict,
-                        where=(model.updated_at < incoming_updated_at)
-                    )
-                    
-                    db.execute(stmt)
-                    updated_records_in_this_tx.add(record_id)
+                    # FASE 2: Version-based upsert for transactions (Last-Write-Wins)
+                    if table_name == "transactions":
+                        existing = db.query(Transaction).filter(Transaction.id == record_id).first()
+                        
+                        if not existing:
+                            # Case 1: Transaction doesn't exist → INSERT
+                            logger.info(f"[FASE-2] New transaction {record_id}, inserting")
+                            new_txn = Transaction(**cleaned)
+                            db.add(new_txn)
+                            processed_records.append({"id": record_id, "hash": cleaned.get("hash", "")})
+                            updated_records_in_this_tx.add(record_id)
+                        else:
+                            # Case 2: Transaction exists → version comparison
+                            incoming_version = cleaned.get("version", 1)
+                            existing_version = existing.version or 1
+                            incoming_hash = cleaned.get("hash", "")
+                            existing_hash = existing.hash or ""
+                            
+                            logger.info(f"[FASE-2] Conflict check for {record_id}: incoming v{incoming_version} vs existing v{existing_version}")
+                            
+                            if incoming_version > existing_version:
+                                # Last-Write-Wins: Server accepts client's newer version
+                                logger.info(f"[FASE-2] Accepting newer version v{incoming_version} for {record_id}")
+                                for key, value in cleaned.items():
+                                    if key != "id":
+                                        setattr(existing, key, value)
+                                processed_records.append({"id": record_id, "hash": incoming_hash})
+                                updated_records_in_this_tx.add(record_id)
+                            elif incoming_version == existing_version:
+                                # Version tie → hash comparison for idempotency
+                                if incoming_hash == existing_hash:
+                                    # Idempotent retry: safe to ignore
+                                    logger.info(f"[FASE-2] Idempotent retry for {record_id} (hash match), skipping")
+                                    processed_records.append({"id": record_id, "hash": incoming_hash})
+                                else:
+                                    # Hash mismatch at same version → conflict
+                                    logger.warning(f"[FASE-2] Hash mismatch at v{incoming_version} for {record_id}, marking needs_review")
+                                    # Move to Uncategorized (set category_id to null)
+                                    existing.category_id = None
+                                    existing.needs_review = True
+                                    # Apply server data as fallback
+                                    for key, value in cleaned.items():
+                                        if key != "id":
+                                            setattr(existing, key, value)
+                                    processed_records.append({"id": record_id, "hash": incoming_hash})
+                                    updated_records_in_this_tx.add(record_id)
+                            else:
+                                # Server has newer version → reject client mutation
+                                logger.warning(f"[FASE-2] Rejecting stale version v{incoming_version} for {record_id} (server has v{existing_version})")
+                                # Client will download server version in response
+                                continue
+                    else:
+                        # Non-transaction tables: use original LWW logic
+                        # Atomic UPSERT using ON CONFLICT DO UPDATE
+                        stmt = insert(model).values(**cleaned)
+                        
+                        # Build update dict for ON CONFLICT (exclude 'id')
+                        update_dict = {k: v for k, v in cleaned.items() if k != "id"}
+                        
+                        # For accounts, exclude 'balance' from update (backend recalc)
+                        if table_name == "accounts":
+                            update_dict.pop("balance", None)
+                        
+                        # Apply ON CONFLICT with LWW logic via WHERE clause
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=['id'],
+                            set_=update_dict,
+                            where=(model.updated_at < incoming_updated_at)
+                        )
+                        
+                        db.execute(stmt)
+                        updated_records_in_this_tx.add(record_id)
                     
                     # TAREA 2: Initial Balance Bug - Create initial transaction for new accounts with non-zero balance
                     if table_name == "accounts":
@@ -286,9 +346,11 @@ def execute_sync(
         device.last_sync = server_timestamp
         db.commit()
 
+        logger.info(f"[FASE-2] Sync complete: processed {len(processed_records)} records")
         return SyncResponse(
             server_timestamp=server_timestamp,
             changes=outgoing_changes,
+            processed=processed_records,  # FASE 2: Return handshake verification
         )
 
     except Exception as e:

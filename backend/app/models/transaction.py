@@ -44,7 +44,9 @@ class Transaction(Base):
     is_deleted = Column(Boolean, default=False, server_default="0", nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    version = Column(Integer, default=1, nullable=False)  # FASE 7: Versioning para resolución de conflictos (auto-increment via onupdate)
+    version = Column(Integer, default=1, nullable=False)  # FASE 1: Versioning para OCC conflict resolution
+    hash = Column(String(64), nullable=True)  # FASE 1: SHA-256 hash for deduplication/handshake
+    needs_review = Column(Boolean, default=False, nullable=False)  # FASE 1: Conflict flag
 
     # Relationships
     category = relationship("Category", back_populates="transactions")
