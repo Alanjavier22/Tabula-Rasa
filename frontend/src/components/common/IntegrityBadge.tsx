@@ -6,7 +6,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Shield, AlertTriangle, CheckCircle } from 'lucide-react';
-import { reportingService } from '../../services/ReportingService';
+import { db } from '../../db/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 type IntegrityStatus = 'immune' | 'syncing' | 'error';
 
@@ -19,33 +20,19 @@ export const IntegrityBadge: React.FC<IntegrityBadgeProps> = ({
   status = 'immune',
   lastCheck,
 }) => {
+  // FASE 7: Use useLiveQuery for reactive counting from sync_queue
+  const pendingCount = useLiveQuery(() => db.sync_queue.count()) || 0;
+  
   const [currentStatus, setCurrentStatus] = useState<IntegrityStatus>(status);
-  const [pendingCount, setPendingCount] = useState(0);
 
-  // FASE 6: Check for pending mutations periodically
+  // Update status based on pending count (reactive)
   useEffect(() => {
-    const checkPending = async () => {
-      try {
-        const count = await reportingService.getPendingMutationCount();
-        setPendingCount(count);
-        
-        // Show syncing if there are pending mutations
-        if (count > 0) {
-          setCurrentStatus('syncing');
-        } else {
-          setCurrentStatus('immune');
-        }
-      } catch (error) {
-        console.error('[IntegrityBadge] Error checking pending mutations:', error);
-        setCurrentStatus('error');
-      }
-    };
-
-    checkPending();
-    const interval = setInterval(checkPending, 5000); // Check every 5 seconds
-
-    return () => clearInterval(interval);
-  }, []);
+    if (pendingCount > 0) {
+      setCurrentStatus('syncing');
+    } else {
+      setCurrentStatus('immune');
+    }
+  }, [pendingCount]);
 
   const config = {
     immune: {
