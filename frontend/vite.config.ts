@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      devOptions: { enabled: true },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Finance Local-First',
@@ -18,20 +19,20 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: '/',
         scope: '/',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
+        // icons: [
+        //   {
+        //     src: 'pwa-192x192.png',
+        //     sizes: '192x192',
+        //     type: 'image/png',
+        //     purpose: 'any maskable'
+        //   },
+        //   {
+        //     src: 'pwa-512x512.png',
+        //     sizes: '512x512',
+        //     type: 'image/png',
+        //     purpose: 'any maskable'
+        //   }
+        // ]
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
