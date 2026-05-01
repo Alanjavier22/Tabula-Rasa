@@ -11,7 +11,7 @@ import { syncCoordinator } from './SyncCoordinator';
 // UUIDv5 Namespace for Tabula Rasa (deterministic IDs)
 const TABULA_RASA_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // DNS namespace
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:8001';
 
 /**
  * Extract port from URL for port-aware token storage
@@ -633,36 +633,11 @@ export const aiAPI = {
   documentToTransactions: (documentData: { document_base64: string; document_type?: string }) => 
     api.post('/ai/document-to-txns', documentData),
   batchCategoryMapping: (descriptions: { descriptions: string[] }) => {
-    const sanitizedDescriptions = descriptions.descriptions.map(d => prepareForAI(d));
-    
-    // Ecuador-specific system prompt for categorization
-    const systemPrompt = `You are a financial transaction categorizer for Ecuador. 
-Your task is to categorize transaction descriptions into appropriate financial categories.
-
-Ecuador Context Rules:
-- If description contains "Supermaxi", "Mi Comisariato", "Akí", "La Favorita", "Tía", "Mega", "Kywi" → Category: "Alimentos"
-- If description contains "Primax", "Shell", "Repsol", "Petroecuador" → Category: "Transporte"
-- If description contains "Pichincha", "Guayaquil", "Pacífico", "Bolivariano", "Produbanco" → Category: "Servicios Bancarios"
-- If description contains "Netflix", "Spotify", "YouTube" → Category: "Entretenimiento"
-- If description contains "CEC", "Claro", "CNT" → Category: "Servicios"
-- If description contains "Farmacias", "Cruz Azul", "Fybeca" → Category: "Salud"
-- If description contains "Restaurante", "Café", "Comida" → Category: "Comidas Fuera"
-- If description contains "Transferencia", "Pago" → Category: "Transferencias"
-- Default category for unknown transactions: "Otros"
-
-Return a JSON object with the following structure:
-{
-  "mappings": {
-    "description_1": "category_id_or_name",
-    "description_2": "category_id_or_name"
-  }
-}`;
-
-    return api.post('/ai/batch-category-mapping', {
-      descriptions: sanitizedDescriptions,
-      system_prompt: systemPrompt,
-    });
+    const { sanitized } = prepareForAI(descriptions);
+    return api.post('/ai/batch-category-mapping', { descriptions: sanitized });
   },
+  suggestCategories: (data: { transactions: any[]; categories: any[] }) => 
+    api.post('/ai/suggest-categories', data),
 };
 
 export const snapshotsAPI = {
@@ -672,6 +647,7 @@ export const snapshotsAPI = {
   getByMonthYear: (month: number, year: number) => api.get(`/snapshots/month/${month}/year/${year}`),
   delete: (id: string) => api.delete(`/snapshots/${id}`),
   analyze: (id: string) => api.post(`/snapshots/${id}/analyze`),
+  reconcile: () => api.post('/snapshots/reconcile'), // FASE 6: Manual reconciliation endpoint
 };
 
 export const aiAssistantAPI = {
@@ -886,7 +862,7 @@ export const authAPI = {
   generatePairingCode: () => api.post('/auth/pair/generate'),
   consumePairingCode: (pin: string, deviceName: string) => api.post('/auth/pair/consume', { pin, device_name: deviceName }),
   getPairingStatus: (pin: string) => api.get(`/auth/pair/status?pin=${pin}`),
-  pairLocalhost: () => axios.post('http://127.0.0.1:8001/auth/pair/localhost'),
+  pairLocalhost: () => axios.post('https://127.0.0.1:8001/auth/pair/localhost'),
 };
 
 export const syncAPI = {

@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
-import { configAPI, categoriesAPI, getTokenKey } from '../services/api';
-import { Save, RefreshCw, LogOut, Download, Upload, FileSpreadsheet, Shield, Clock, AlertTriangle } from 'lucide-react';
+import { configAPI, categoriesAPI, snapshotsAPI, getTokenKey } from '../services/api';
+import { Save, RefreshCw, LogOut, Download, Upload, FileSpreadsheet, Shield, Clock, AlertTriangle, HardDrive, Database, Trash2, AlertCircle } from 'lucide-react';
 import Toast from '../components/Toast';
 import { SyncManager } from '../components/SyncManager';
 import { db } from '../db/db';
 import { formatMoney } from '../utils/money';
+import { checkStorageQuota } from '../utils/storage';
+import { validateCacheIntegrity } from '../services/AICategorizationService';
 import type { Category } from '../types';
 
 interface ConfigData {
@@ -24,9 +26,72 @@ const Settings = () => {
     gemini_api_key: '',
   });
 
+  // FASE 6: Diagnostics state
+  const [storageUsage, setStorageUsage] = useState<{ usagePercent: number; status: 'healthy' | 'warning' | 'critical' }>({ usagePercent: 0, status: 'healthy' });
+  const [aiCacheCount, setAiCacheCount] = useState(0);
+  const [staleSnapshotsCount, setStaleSnapshotsCount] = useState(0);
+  const [reconciling, setReconciling] = useState(false);
+  const [phoenixBackup, setPhoenixBackup] = useState<{ timestamp: string; data: any } | null>(null);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
+
+  // FASE 6: Load diagnostics data when diagnostics section is shown
+  useEffect(() => {
+    if (showDiagnostics) {
+      loadDiagnostics();
+    }
+  }, [showDiagnostics]);
+
+  // FASE 6: Check for Phoenix emergency backup on mount
+  useEffect(() => {
+    const checkPhoenixBackup = () => {
+      try {
+        const backupStr = localStorage.getItem('phoenix_emergency_backup');
+        if (backupStr) {
+          const backup = JSON.parse(backupStr);
+          setPhoenixBackup({ timestamp: backup.timestamp, data: backup });
+        }
+      } catch (error) {
+        console.error('Error checking Phoenix backup:', error);
+      }
+    };
+    checkPhoenixBackup();
+  }, []);
+
+  const loadDiagnostics = async () => {
+    try {
+      // Check storage quota
+      const storage = await checkStorageQuota();
+      setStorageUsage({ usagePercent: storage.usagePercent * 100, status: storage.status });
+
+      // Count ai_cache entries
+      // @ts-ignore
+      const cacheCount = await db.ai_cache.count();
+      setAiCacheCount(cacheCount);
+
+      // Count stale snapshots
+      // @ts-ignore
+      const staleCount = await db.net_worth_snapshots.where('is_stale').equals(true).count();
+      setStaleSnapshotsCount(staleCount);
+
+      // FASE 7: Validate AI cache integrity (cross-reference with categories)
+      const integrityResult = await validateCacheIntegrity();
+      if (integrityResult.deleted > 0) {
+        setToast({ 
+          message: `Integridad de caché: ${integrityResult.deleted} entradas huérfanas eliminadas`, 
+          type: 'success' 
+        });
+        // Update cache count after cleanup
+        setAiCacheCount(integrityResult.checked - integrityResult.deleted);
+      }
+    } catch (error) {
+      console.error('Error loading diagnostics:', error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -181,6 +246,7 @@ const Settings = () => {
   };
 
   // --- Import: Restore Dexie from JSON backup ---
+  // FASE 6: Add progress bar and spinner for import
   const handleImportBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -194,6 +260,7 @@ const Settings = () => {
     }
 
     setImporting(true);
+    setImportProgress({ current: 0, total: 0 });
     try {
       const text = await file.text();
       const backup = JSON.parse(text);
@@ -209,11 +276,23 @@ const Settings = () => {
         'goals', 'reminders', 'subscriptions'
       ];
 
+      // Calculate total records for progress
+      let totalRecords = 0;
+      for (const tableName of TABLES_TO_IMPORT) {
+        if (backup[tableName] && Array.isArray(backup[tableName])) {
+          totalRecords += backup[tableName].length;
+        }
+      }
+      setImportProgress({ current: 0, total: totalRecords });
+
+      let currentRecord = 0;
       await db.transaction('rw', db.tables, async () => {
         for (const tableName of TABLES_TO_IMPORT) {
           if (backup[tableName] && Array.isArray(backup[tableName])) {
             await db.table(tableName).clear();
             await db.table(tableName).bulkPut(backup[tableName]);
+            currentRecord += backup[tableName].length;
+            setImportProgress({ current: currentRecord, total: totalRecords });
           }
         }
         // Reset sync timestamp to force full re-sync with backend
@@ -231,11 +310,13 @@ const Settings = () => {
       setToast({ message: 'Error al importar: archivo corrupto o formato inválido', type: 'error' });
     } finally {
       setImporting(false);
+      setImportProgress({ current: 0, total: 0 });
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   // --- Export CSV: Current month transactions ---
+  // FASE 3: Use StreamedExporter for large datasets (>10,000 records)
   const handleExportCSV = async () => {
     try {
       const now = new Date();
@@ -247,31 +328,40 @@ const Settings = () => {
         .filter((t: any) => !t.is_deleted && typeof t.date === 'string' && t.date.startsWith(yearMonth))
         .toArray();
 
-      // Load categories for name resolution
-      const allCats = await db.table('categories').toArray();
-      const catMap = new Map(allCats.map((c: any) => [c.id, c.name]));
+      // FASE 3: Use StreamedExporter for large datasets to avoid blocking main thread
+      const { StreamedExporter, streamedExporter } = await import('../utils/StreamedExporter');
+      
+      if (allTxns.length > 10000) {
+        console.log(`[FASE-3] Large export detected (${allTxns.length} records), using StreamedExporter`);
+        const blob = await streamedExporter.exportTransactions();
+        StreamedExporter.downloadBlob(blob, `transactions_${yearMonth}.csv`);
+      } else {
+        // Small dataset: use direct export with formatting (faster for small files)
+        const allCats = await db.table('categories').toArray();
+        const catMap = new Map(allCats.map((c: any) => [c.id, c.name]));
 
-      const header = 'Fecha,Tipo,Categoría,Descripción,Monto,Método de Pago';
-      const rows = allTxns.map((t: any) => {
-        const date = t.date ? t.date.slice(0, 10) : '';
-        const type = t.transaction_type === 'income' ? 'Ingreso' : 'Gasto';
-        const category = catMap.get(t.category_id) || 'Sin Categoría';
-        const desc = `"${(t.description || '').replace(/"/g, '""')}"`;
-        const amount = formatMoney(t.amount);
-        const method = t.payment_method || '';
-        return `${date},${type},${category},${desc},${amount},${method}`;
-      });
+        const header = 'Fecha,Tipo,Categoría,Descripción,Monto,Método de Pago';
+        const rows = allTxns.map((t: any) => {
+          const date = t.date ? t.date.slice(0, 10) : '';
+          const type = t.transaction_type === 'income' ? 'Ingreso' : 'Gasto';
+          const category = catMap.get(t.category_id) || 'Sin Categoría';
+          const desc = `"${(t.description || '').replace(/"/g, '""')}"`;
+          const amount = formatMoney(t.amount);
+          const method = t.payment_method || '';
+          return `${date},${type},${category},${desc},${amount},${method}`;
+        });
 
-      const csv = [header, ...rows].join('\n');
-      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `transacciones_${yearMonth}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+        const csv = [header, ...rows].join('\n');
+        const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `transacciones_${yearMonth}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
 
       setToast({ message: `${allTxns.length} transacciones exportadas a CSV`, type: 'success' });
     } catch (e) {
@@ -304,6 +394,81 @@ const Settings = () => {
       } catch (e) {
         console.error("Error al desvincular", e);
       }
+    }
+  };
+
+  // FASE 6: Purge AI cache
+  const handlePurgeCache = async () => {
+    if (!window.confirm("¿Estás seguro de purgar la caché de IA? Esto forzará recálculos de categorización en próximas sincronizaciones.")) {
+      return;
+    }
+
+    try {
+      // @ts-ignore
+      await db.ai_cache.clear();
+      setAiCacheCount(0);
+      setToast({ message: 'Caché de IA purgada exitosamente', type: 'success' });
+    } catch (error) {
+      console.error('Error purging AI cache:', error);
+      setToast({ message: 'Error al purgar caché de IA', type: 'error' });
+    }
+  };
+
+  // FASE 6: Manual snapshot reconciliation
+  const handleReconcileSnapshots = async () => {
+    if (!window.confirm("¿Deseas ejecutar reconciliación manual de snapshots? Esto puede tomar varios segundos.")) {
+      return;
+    }
+
+    setReconciling(true);
+    try {
+      await snapshotsAPI.reconcile();
+      setStaleSnapshotsCount(0);
+      setToast({ message: 'Reconciliación completada exitosamente', type: 'success' });
+      // Reload diagnostics
+      await loadDiagnostics();
+    } catch (error) {
+      console.error('Error reconciling snapshots:', error);
+      setToast({ message: 'Error al reconciliar snapshots', type: 'error' });
+    } finally {
+      setReconciling(false);
+    }
+  };
+
+  // FASE 6: Download Phoenix backup JSON
+  const handleDownloadPhoenixBackup = () => {
+    if (!phoenixBackup) return;
+
+    try {
+      const blob = new Blob([JSON.stringify(phoenixBackup.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `phoenix_emergency_backup_${phoenixBackup.timestamp.slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setToast({ message: 'Backup de Phoenix descargado', type: 'success' });
+    } catch (error) {
+      console.error('Error downloading Phoenix backup:', error);
+      setToast({ message: 'Error al descargar backup', type: 'error' });
+    }
+  };
+
+  // FASE 6: Clear Phoenix alert
+  const handleClearPhoenixAlert = () => {
+    if (!window.confirm("¿Estás seguro de limpiar la alerta de backup de emergencia? Esto eliminará el respaldo de localStorage.")) {
+      return;
+    }
+
+    try {
+      localStorage.removeItem('phoenix_emergency_backup');
+      setPhoenixBackup(null);
+      setToast({ message: 'Alerta de Phoenix limpiada', type: 'success' });
+    } catch (error) {
+      console.error('Error clearing Phoenix alert:', error);
+      setToast({ message: 'Error al limpiar alerta', type: 'error' });
     }
   };
 
@@ -445,11 +610,29 @@ const Settings = () => {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
-            className="flex flex-col items-center gap-3 p-5 rounded-xl border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-amber-400 disabled:opacity-50"
+            className="flex flex-col items-center gap-3 p-5 rounded-xl border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-amber-400 disabled:opacity-50 relative"
           >
-            <Upload className="w-8 h-8" />
+            {importing ? (
+              <RefreshCw className="w-8 h-8 animate-spin" />
+            ) : (
+              <Upload className="w-8 h-8" />
+            )}
             <span className="text-sm font-medium">{importing ? 'Importando...' : 'Importar Backup (JSON)'}</span>
             <span className="text-xs text-slate-500">Restaura desde archivo .json</span>
+            {importing && importProgress.total > 0 && (
+              <div className="w-full mt-2">
+                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                  <span>Progreso</span>
+                  <span>{importProgress.current} / {importProgress.total}</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-1">
+                  <div
+                    className="h-1 rounded-full bg-amber-500 transition-all"
+                    style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </button>
           <input
             ref={fileInputRef}
@@ -510,6 +693,116 @@ const Settings = () => {
             <span className="text-xs text-slate-500 ml-1">(conserva datos locales)</span>
           </button>
         </div>
+      </div>
+
+      {/* FASE 6: Phoenix Emergency Backup Alert */}
+      {phoenixBackup && (
+        <div className="bg-red-900/20 backdrop-blur-xl rounded-2xl border border-red-500/50 p-6 mt-6">
+          <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            Backup de Emergencia Detectado
+          </h2>
+          <p className="text-slate-400 text-sm mb-4">
+            Un backup de Phoenix fue creado el {new Date(phoenixBackup.timestamp).toLocaleString('es-MX')} debido a una corrupción de esquema.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={handleDownloadPhoenixBackup}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 text-sm"
+            >
+              <Download className="w-4 h-4" />
+              Descargar Backup JSON
+            </button>
+            <button
+              onClick={handleClearPhoenixAlert}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm"
+            >
+              <Trash2 className="w-4 h-4" />
+              Limpiar Alerta
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* FASE 6: Data Diagnostics */}
+      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Database className="w-5 h-5 text-purple-400" />
+            Diagnóstico de Datos
+          </h2>
+          <button
+            onClick={() => setShowDiagnostics(!showDiagnostics)}
+            className="text-sm text-purple-400 hover:text-purple-300"
+          >
+            {showDiagnostics ? 'Ocultar' : 'Mostrar'}
+          </button>
+        </div>
+
+        {showDiagnostics && (
+          <div className="space-y-6">
+            {/* Storage Guardian */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+                <HardDrive className="w-4 h-4" />
+                Uso de Disco (Storage Guardian)
+              </h3>
+              <div className="mb-2">
+                <div className="flex justify-between text-xs text-slate-400 mb-1">
+                  <span>Uso actual</span>
+                  <span className={storageUsage.status === 'critical' ? 'text-red-400' : storageUsage.status === 'warning' ? 'text-amber-400' : 'text-emerald-400'}>
+                    {storageUsage.usagePercent.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all ${
+                      storageUsage.status === 'critical' ? 'bg-red-500' : storageUsage.status === 'warning' ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${Math.min(storageUsage.usagePercent, 100)}%` }}
+                  />
+                </div>
+              </div>
+              {storageUsage.status === 'warning' && (
+                <p className="text-xs text-amber-400">⚠️ Almacenamiento bajo: considera limpiar datos antiguos</p>
+              )}
+              {storageUsage.status === 'critical' && (
+                <p className="text-xs text-red-400">🚨 Almacenamiento crítico: las importaciones masivas están bloqueadas</p>
+              )}
+            </div>
+
+            {/* AI Cache */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/50">
+              <div>
+                <h3 className="text-sm font-medium text-slate-300">Caché de IA</h3>
+                <p className="text-xs text-slate-500">{aiCacheCount} entradas almacenadas</p>
+              </div>
+              <button
+                onClick={handlePurgeCache}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 text-xs"
+              >
+                <Trash2 className="w-4 h-4" />
+                Purgar Caché
+              </button>
+            </div>
+
+            {/* Stale Snapshots */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/50">
+              <div>
+                <h3 className="text-sm font-medium text-slate-300">Snapshots Stale</h3>
+                <p className="text-xs text-slate-500">{staleSnapshotsCount} snapshots marcados como obsoletos</p>
+              </div>
+              <button
+                onClick={handleReconcileSnapshots}
+                disabled={reconciling}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-500/50 text-blue-400 hover:bg-blue-500/10 text-xs disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${reconciling ? 'animate-spin' : ''}`} />
+                Reconciliación Manual
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {toast && (
