@@ -13,8 +13,9 @@ import { v5 as uuidv5 } from 'uuid';
 import Decimal from 'decimal.js-light';
 import { toDecimal, toCents, formatMoney } from '../utils/money';
 import { prepareForAI, hydrateAIResponse, clearHydrationMap, isValidEcuadorianID } from '../utils/privacy';
+import { tokenizeDescription, matchesSearch } from '../utils/searchUtils';
 import type { Cents } from '../types';
-import type { LocalTransaction } from '../db/db';
+import type { LocalTransaction } from '../types/schemas';
 
 // Ecuador Fiscal Context
 interface EcuadorFiscalRules {
@@ -544,14 +545,8 @@ export class ReportingService {
       query = query.and(txn => txn.date >= startDate && txn.date <= endDate);
     }
     
-    // FASE 6.2: Search using description_words index
-    if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase();
-      query = query.filter(txn => 
-        txn.description_words?.some((word: string) => word.includes(searchLower)) ||
-        txn.description?.toLowerCase().includes(searchLower)
-      );
-    }
+    // FASE 6.2: Search using in-memory filtering (no multi-entry index)
+    // Fetch first, then filter in-memory using matchesSearch
     
     if (limit) {
       query = query.limit(limit);
@@ -567,6 +562,14 @@ export class ReportingService {
         category: categoryMap.get(txn.category_id || ''),
       });
     });
+
+    // In-memory search filter using matchesSearch
+    if (searchQuery) {
+      return transactions.filter(txn => {
+        const words = tokenizeDescription(txn.description || '');
+        return matchesSearch(searchQuery, words);
+      });
+    }
 
     return transactions;
   }
@@ -639,8 +642,9 @@ export class ReportingService {
   }
 
   /**
-   * FASE 7: Bulk update transactions with atomic transaction
+   * FASE 7: Bulk update transactions with atomic transaction + OCC version conflict detection
    * Prevents data corruption if PWA closes mid-operation
+   * STRICT OCC RULE: If incoming version != current version, trigger needs_review=true
    * All updates succeed or none succeed - no partial state
    */
   async bulkUpdateTransactions(
@@ -650,22 +654,35 @@ export class ReportingService {
     const now = new Date().toISOString();
     
     return await db.transaction('rw', db.transactions, async () => {
-      let updatedCount = 0;
+      // Fetch all existing records first
+      const existingRecords = await db.transactions
+        .where('id')
+        .anyOf(ids)
+        .toArray();
       
-      for (const id of ids) {
-        const existing = await db.transactions.get(id);
-        if (existing && !existing.is_deleted) {
-          await db.transactions.update(id, {
+      // Prepare bulk updates with strict OCC version checking
+      const updates = existingRecords
+        .filter(r => !r.is_deleted)
+        .map(r => {
+          const incomingVersion = changes.version ?? r.version;
+          const currentVersion = r.version || 0;
+          
+          // STRICT OCC: Version conflict detection
+          const hasConflict = incomingVersion !== currentVersion;
+          
+          return {
+            ...r,
             ...changes,
             updated_at: now,
-            version: (existing.version || 0) + 1,
-            needs_review: true, // Mark for sync review
-          });
-          updatedCount++;
-        }
-      }
+            version: Math.max(currentVersion, incomingVersion) + 1, // Force version increment on conflict
+            needs_review: hasConflict, // Trigger manual review on version mismatch
+          };
+        });
       
-      return updatedCount;
+      // Bulk put all updates in single operation
+      await db.transactions.bulkPut(updates);
+      
+      return updates.length;
     });
   }
 

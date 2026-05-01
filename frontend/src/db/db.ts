@@ -1,259 +1,31 @@
 import Dexie, { type Table } from 'dexie';
-import { tokenizeDescription as tokenizeDesc } from '../utils/searchUtils';
 import { v5 as uuidv5 } from 'uuid';
-
-// --- Interfaces for Dexie Tables ---
-// We only need to define the properties that are explicitly indexed by Dexie
-export interface SyncMetadata {
-  key: string;
-  value: any;
-}
-
-export interface LocalConfig {
-  id: string;
-  key: string;
-  value: string;
-  is_deleted: boolean;
-  updated_at: string;
-}
-
-export interface ExchangeRate {
-  id: string;
-  pair: string; // e.g., "USD-EUR"
-  rate: number; // multiplier to convert from first to second
-  timestamp: string;
-  is_deleted: boolean;
-  updated_at: string;
-}
-
-export interface LocalCategory {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  tax_type?: 'iva_15' | 'iva_0' | 'exempt'; // FASE 2: SRI tax classification
-  is_deductible?: boolean; // FASE 2: SRI deductible
-  withholding_rate?: number | null; // FASE 2: Withholding rate in base 100
-  version?: number; // FASE 7: OCC versioning
-  needs_review?: boolean; // FASE 7: Conflict flag
-}
-
-export interface LocalAccount {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  linked_account_id?: string | null;
-  balance: number;
-  name?: string;
-  currency?: string;
-}
-
-export interface LocalTransaction {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  account_id?: string | null;
-  category_id?: string | null;
-  date: string;
-  transaction_type: 'income' | 'expense';
-  amount: number;
-  description?: string;
-  description_words?: string[]; // Tokenized words for indexed search
-  hash?: string; // SHA-256 for deduplication
-  needs_reindex?: boolean; // Flag for background re-index
-  subscription_id?: string;
-  metadata_json?: string; // FASE 4: JSON metadata for RUC, establishment, etc.
-  version: number; // FASE 1: Required version field for OCC - starts at 1
-  needs_review?: boolean; // FASE 1: Conflict flag
-}
-
-export interface LocalTransactionSplit {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  transaction_id: string;
-  category_id?: string | null;
-}
-
-export interface LocalCreditCardStatement {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  account_id: string;
-  status: string;
-  version?: number; // FASE 7: OCC versioning for conflict resolution
-  needs_review?: boolean; // FASE 7: Conflict flag
-}
-
-export interface LocalDebtShare {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  statement_id: string;
-}
-
-export interface LocalIOU {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  transaction_id?: string | null;
-  amount: number;
-  amount_paid: number;
-  description?: string;
-}
-
-export interface LocalBudget {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  category_id: string;
-  month: number;
-  year: number;
-  amount: number;
-  version?: number; // FASE 7: OCC versioning for conflict resolution
-  needs_review?: boolean; // FASE 7: Conflict flag
-}
-
-export interface LocalGoal {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-}
-
-export interface LocalReminder {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-}
-
-export interface LocalSubscription {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  account_id?: string | null;
-  category_id?: string | null;
-  name?: string;
-  amount_cents?: number;
-  next_billing_date?: string;
-  frequency?: string;
-  payment_method?: string;
-  version?: number; // FASE 7: OCC versioning for conflict resolution
-  needs_review?: boolean; // FASE 7: Conflict flag
-}
-
-export interface SyncQueueEntry {
-  id: string;
-  table_name: string;
-  action: 'create' | 'update' | 'delete';
-  payload: any;
-  timestamp: string;
-  retry_count: number;
-}
-
-export interface SyncErrorEntry {
-  id: string;
-  table_name: string;
-  action: 'create' | 'update' | 'delete';
-  payload: any;
-  timestamp: string;
-  retry_count: number;
-  error_message: string;
-  failed_at: string;
-}
-
-export interface SyncConflictEntry {
-  id: string;
-  table_name: string;
-  record_id: string;
-  local_data: any;
-  server_data: any;
-  resolved: boolean;
-  created_at: string;
-  resolved_at?: string;
-  error_type?: string; // 'network_exhausted' or 'version_conflict'
-  error_message?: string;
-}
-
-export interface LocalVehicle {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  make: string;
-  model: string;
-  year: number;
-  current_odometer: number;
-  fuel_type: string;
-}
-
-export interface LocalFuelLog {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  vehicle_id: string;
-  date: string;
-  odometer_reading: number;
-  cost_cents: number;
-  gallons_or_liters: number;
-}
-
-export interface LocalMaintenanceLog {
-  id: string;
-  is_deleted: boolean;
-  updated_at: string;
-  vehicle_id: string;
-  date: string;
-  odometer_reading: number;
-  cost_cents: number;
-  description?: string;
-}
-
-export interface NetWorthSnapshot {
-  id: string;
-  date: string;
-  month: number;
-  year: number;
-  total_assets_cents: number;
-  total_liabilities_cents: number;
-  net_worth_cents: number;
-  income_cents: number;
-  expense_cents: number;
-  transaction_count: number;
-  is_stale: boolean;
-  updated_at: string;
-}
-
-// FASE 3: Queue for async snapshot recalculation (prevents deadlocks during mass imports)
-export interface SnapshotRecalcQueue {
-  id: string; // Format: "YYYY-MM" for deduplication
-  month: number;
-  year: number;
-  enqueued_at: string;
-  priority: number; // Lower = higher priority (0 = immediate)
-}
-
-// FASE 4: AI Cache for categorization results (avoid redundant API calls)
-export interface AICacheEntry {
-  id: string; // Hash of sanitized description + amount
-  sanitized_description: string;
-  category_id: string;
-  confidence: number;
-  is_anomaly: boolean;
-  reasoning: string;
-  cached_at: string;
-  expires_at: string; // Cache entries expire after 30 days
-}
-
-export interface LocalAsset {
-  id: string;
-  name: string;
-  purchase_price_cents: number;
-  purchase_date: string;
-  estimated_life_months: number;
-  residual_value_cents: number;
-  is_deleted: boolean;
-  updated_at: string;
-  version?: number; // FASE 7: OCC versioning for conflict resolution
-  needs_review?: boolean; // FASE 7: Conflict flag
-}
+import type {
+  SyncMetadata,
+  LocalConfig,
+  ExchangeRate,
+  LocalCategory,
+  LocalAccount,
+  LocalTransaction,
+  LocalTransactionSplit,
+  LocalCreditCardStatement,
+  LocalDebtShare,
+  LocalIOU,
+  LocalBudget,
+  LocalGoal,
+  LocalReminder,
+  LocalSubscription,
+  SyncQueueEntry,
+  SyncErrorEntry,
+  SyncConflictEntry,
+  LocalVehicle,
+  LocalFuelLog,
+  LocalMaintenanceLog,
+  NetWorthSnapshot,
+  SnapshotRecalcQueue,
+  AICacheEntry,
+  LocalAsset
+} from '../types/schemas';
 
 export class FinanceDatabase extends Dexie {
   // Sync metadata
@@ -296,17 +68,6 @@ export class FinanceDatabase extends Dexie {
     });
   }
 
-  /**
-   * Tokenize description for indexed search
-   * Uses Unicode NFD normalization for accent-insensitive search
-   */
-  private tokenizeDescription(obj: any): void {
-    if (obj.description && typeof obj.description === 'string') {
-      obj.description_words = tokenizeDesc(obj.description);
-    } else {
-      obj.description_words = [];
-    }
-  }
 
   /**
    * FASE 2: Seed SRI Ecuador categories with deterministic UUIDv5
@@ -386,7 +147,7 @@ export class FinanceDatabase extends Dexie {
       exchange_rates: '&id, from_currency, to_currency, is_deleted, updated_at',
       categories: '&id, name, is_deleted, updated_at, version',
       accounts: '&id, name, is_deleted, updated_at, version',
-      transactions: '&id, date, is_deleted, updated_at, description_words, version, hash, needs_review',
+      transactions: '&id, date, account_id, category_id, is_deleted, updated_at, version, hash, needs_review',
       transaction_splits: '&id, transaction_id, category_id, is_deleted, updated_at',
       credit_card_statements: '&id, is_deleted, updated_at, account_id, status, version',
       debt_shares: '&id, is_deleted, updated_at, statement_id, version',
@@ -452,14 +213,6 @@ export class FinanceDatabase extends Dexie {
     // FASE 3: Removed snapshot invalidation hooks - now handled by async SnapshotWorker
     // This prevents deadlocks during mass imports by decoupling snapshot recalculation
 
-    // Hook: Tokenize descriptions for search (lightweight operation)
-    this.transactions.hook('creating', (_primKey, obj, _trans) => {
-      this.tokenizeDescription(obj);
-    });
-
-    this.transactions.hook('updating', (_modifications, _primKey, obj, _trans) => {
-      this.tokenizeDescription(obj);
-    });
 
     // FASE 2: Temporal Consistency Trigger - Invalidate snapshots on transaction changes
     // When a transaction is created/updated/deleted, mark all snapshots >= transaction date as stale
