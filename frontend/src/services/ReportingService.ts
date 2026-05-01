@@ -637,12 +637,10 @@ export class ReportingService {
 
   /**
    * FASE 6: Check for pending mutations
-   * Returns count of transactions marked for sync
+   * Returns count of sync_queue entries (actual pending sync operations)
    */
   async getPendingMutationCount(): Promise<number> {
-    return await db.transactions
-      .filter(txn => txn.needs_review === true && !txn.is_deleted)
-      .count();
+    return await db.sync_queue.count();
   }
 
   /**
