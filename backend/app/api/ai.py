@@ -90,7 +90,7 @@ async def call_gemini_json(prompt: str, api_key: str) -> dict:
     """
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3.1-flash-lite-preview')
+        model = genai.GenerativeModel('gemini-3-flash')  # FASE 4: Updated to gemini-3-flash
         
         response = await model.generate_content_async(
             prompt,

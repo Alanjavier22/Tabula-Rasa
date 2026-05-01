@@ -129,12 +129,72 @@ export const useSync = () => {
             
             // table.bulkPut hace un UPSERT masivo basado en la llave primaria (&id)
             if (records && records.length > 0) {
-              // Count LWW conflicts: records that we also uploaded (both sides modified)
-              if (changes[tableName]) {
-                const uploadedIds = new Set(changes[tableName].map((r: any) => r.id));
-                sessionConflicts += records.filter((r: any) => uploadedIds.has(r.id)).length;
+              // FASE 2: Clock drift handling for snapshots
+              // If local snapshot is stale and incoming is older, prioritize recalculation
+              if (tableName === 'net_worth_snapshots') {
+                const filteredRecords = [];
+                const staleIds = [];
+                
+                for (const record of records) {
+                  const local = await table.get(record.id);
+                  
+                  if (local && local.is_stale) {
+                    // Local is stale - check clock drift
+                    const localTime = new Date(local.updated_at).getTime();
+                    const incomingTime = new Date(record.updated_at).getTime();
+                    
+                    if (incomingTime < localTime) {
+                      // Incoming is older than local stale snapshot
+                      // Skip this record and trigger recalculation instead
+                      staleIds.push(record.id);
+                      console.debug(`[FASE-2] Clock drift detected for snapshot ${record.id}: local is stale, incoming is older - prioritizing recalculation`);
+                    } else {
+                      // Incoming is newer or equal - apply it
+                      filteredRecords.push(record);
+                    }
+                  } else {
+                    // Local is not stale - apply incoming normally
+                    filteredRecords.push(record);
+                  }
+                }
+                
+                // Apply filtered records
+                if (filteredRecords.length > 0) {
+                  if (changes[tableName]) {
+                    const uploadedIds = new Set(changes[tableName].map((r: any) => r.id));
+                    sessionConflicts += filteredRecords.filter((r: any) => uploadedIds.has(r.id)).length;
+                  }
+                  await table.bulkPut(filteredRecords);
+                }
+                
+                // Trigger recalculation for stale snapshots that were skipped
+                if (staleIds.length > 0) {
+                  // Add to snapshot_recalc_queue for async processing
+                  for (const id of staleIds) {
+                    const local = await table.get(id);
+                    if (local) {
+                      // @ts-ignore
+                      await db.snapshot_recalc_queue.put({
+                        id: `${local.month}-${local.year}`,
+                        month: local.month,
+                        year: local.year,
+                        enqueued_at: new Date().toISOString(),
+                        priority: 0, // High priority for clock drift cases
+                      });
+                    }
+                  }
+                  // Trigger snapshot worker
+                  const { snapshotWorker } = await import('../services/SnapshotWorker');
+                  snapshotWorker.start();
+                }
+              } else {
+                // Normal handling for non-snapshot tables
+                if (changes[tableName]) {
+                  const uploadedIds = new Set(changes[tableName].map((r: any) => r.id));
+                  sessionConflicts += records.filter((r: any) => uploadedIds.has(r.id)).length;
+                }
+                await table.bulkPut(records);
               }
-              await table.bulkPut(records);
             }
           }
         }

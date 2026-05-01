@@ -6,6 +6,7 @@
 
 import { db } from '../db/db';
 import { v4 as uuidv4 } from 'uuid';
+import Decimal from 'decimal.js-light'; // FASE 2: IEEE 754-safe arithmetic
 
 const BATCH_SIZE = 1; // Process one month at a time to avoid blocking
 const YIELD_DELAY_MS = 0; // Use setTimeout(0) for yielding
@@ -94,6 +95,7 @@ export class SnapshotWorker {
   /**
    * Process a single month's snapshot recalculation
    * Calculates assets, liabilities, net worth, income, and expense for the given month
+   * FASE 2: Uses Decimal for IEEE 754-safe arithmetic
    */
   private async processMonth(month: number, year: number): Promise<void> {
     const snapshotDate = new Date(year, month - 1, 1).toISOString();
@@ -109,17 +111,19 @@ export class SnapshotWorker {
       )
       .toArray();
 
-    let income_cents = 0;
-    let expense_cents = 0;
+    let income_cents = new Decimal(0);
+    let expense_cents = new Decimal(0);
     const transaction_count = transactions.length;
 
     for (const txn of transactions) {
       if (txn.is_deleted) continue;
       
+      const amount = new Decimal(txn.amount);
+      
       if (txn.transaction_type === 'income') {
-        income_cents += txn.amount;
+        income_cents = income_cents.plus(amount);
       } else {
-        expense_cents += txn.amount;
+        expense_cents = expense_cents.plus(amount);
       }
     }
 
@@ -127,23 +131,25 @@ export class SnapshotWorker {
     // @ts-ignore
     const accounts = await db.accounts.toArray();
 
-    let total_assets_cents = 0;
-    let total_liabilities_cents = 0;
+    let total_assets_cents = new Decimal(0);
+    let total_liabilities_cents = new Decimal(0);
 
     for (const account of accounts) {
       if (account.is_deleted) continue;
       
+      const balance = new Decimal(account.balance);
+      
       // FASE 3: Simplified asset/liability calculation
       // TODO: Add account_type to LocalAccount interface for proper classification
       // For now, treat positive balances as assets, negative as liabilities
-      if (account.balance >= 0) {
-        total_assets_cents += account.balance;
+      if (balance.greaterThanOrEqualTo(0)) {
+        total_assets_cents = total_assets_cents.plus(balance);
       } else {
-        total_liabilities_cents += Math.abs(account.balance);
+        total_liabilities_cents = total_liabilities_cents.plus(balance.abs());
       }
     }
 
-    const net_worth_cents = total_assets_cents - total_liabilities_cents;
+    const net_worth_cents = total_assets_cents.minus(total_liabilities_cents);
 
     // Update or insert snapshot
     // @ts-ignore
@@ -155,11 +161,11 @@ export class SnapshotWorker {
     if (existing) {
       // @ts-ignore
       await db.net_worth_snapshots.update(existing.id, {
-        total_assets_cents,
-        total_liabilities_cents,
-        net_worth_cents,
-        income_cents,
-        expense_cents,
+        total_assets_cents: total_assets_cents.toNumber(),
+        total_liabilities_cents: total_liabilities_cents.toNumber(),
+        net_worth_cents: net_worth_cents.toNumber(),
+        income_cents: income_cents.toNumber(),
+        expense_cents: expense_cents.toNumber(),
         transaction_count,
         is_stale: false,
         updated_at: now,
@@ -171,11 +177,11 @@ export class SnapshotWorker {
         date: snapshotDate,
         month,
         year,
-        total_assets_cents,
-        total_liabilities_cents,
-        net_worth_cents,
-        income_cents,
-        expense_cents,
+        total_assets_cents: total_assets_cents.toNumber(),
+        total_liabilities_cents: total_liabilities_cents.toNumber(),
+        net_worth_cents: net_worth_cents.toNumber(),
+        income_cents: income_cents.toNumber(),
+        expense_cents: expense_cents.toNumber(),
         transaction_count,
         is_stale: false,
         updated_at: now,

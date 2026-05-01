@@ -18,7 +18,7 @@ interface TokenCounters {
  * O(n) time complexity - highly efficient
  * Returns true if the ID passes validation
  */
-function isValidEcuadorianID(id: string): boolean {
+export function isValidEcuadorianID(id: string): boolean {
   const cleaned = id.replace(/\D/g, '');
   
   // Cédula: 10 digits, RUC: 13 digits

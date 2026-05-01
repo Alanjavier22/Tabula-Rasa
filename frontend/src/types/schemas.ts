@@ -35,5 +35,24 @@ export const accountSchema = z.object({
   updated_at: z.string().or(z.date()).optional(),
 });
 
+// Category schema - FASE 2: SRI Ecuador tax classification
+export const categorySchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1, 'Category name is required'),
+  description: z.string().optional(),
+  color: z.string().optional(),
+  icon: z.string().optional(),
+  is_default: z.boolean().default(false),
+  tax_type: z.enum(['iva_15', 'iva_0', 'exempt']).optional(), // FASE 2: SRI tax type
+  is_deductible: z.boolean().optional(), // FASE 2: SRI deductible
+  withholding_rate: z.number().optional(), // FASE 2: Withholding rate in base 100
+  is_deleted: z.boolean().optional(),
+  created_at: z.string().or(z.date()).optional(),
+  updated_at: z.string().or(z.date()).optional(),
+  version: z.number().int().default(1), // FASE 7: OCC versioning
+  needs_review: z.boolean().optional(), // FASE 7: Conflict flag
+});
+
 export type TransactionInput = z.infer<typeof transactionSchema>;
 export type AccountInput = z.infer<typeof accountSchema>;
+export type CategoryInput = z.infer<typeof categorySchema>;

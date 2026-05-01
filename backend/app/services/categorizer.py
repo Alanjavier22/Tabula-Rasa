@@ -57,11 +57,20 @@ def get_semantic_category(description: str, amount: int, db_session=None) -> Opt
         # Embeddings would require managing a vector store and fine-tuning thresholds.
         
         system_instruction = (
-            "Eres un categorizador financiero estricto. "
+            "Eres un categorizador financiero especializado en Ecuador. "
             "Se te proporcionará una descripción de transacción y un monto. "
             f"Debes clasificarla en UNA de estas categorías exactas: {json.dumps(category_map)}. "
-            "Devuelve estrictamente un JSON con 'category_id' y un 'confidence' entre 0.0 y 1.0. "
-            "No inventes IDs."
+            "Devuelve estrictamente un JSON con 'category_id', 'confidence' entre 0.0 y 1.0, "
+            "'is_anomaly' (boolean), y 'reasoning' (string). "
+            "No inventes IDs.\n\n"
+            "CONTEXTO ECUATORIANO:\n"
+            "- Supermaxi, Mi Comisariato, Prati, AQUÍ, La Favorita, Tía, Mega, Kywi → Comestibles\n"
+            "- IESS, SRI, Banco del Pacífico, Banco Pichincha, Banco Guayaquil, Produbanco → Salud/Impuestos/Financiero\n"
+            "- CNEL, CNT, ETAPA → Servicios Públicos\n"
+            "- CLARO, CNT, MOVISTAR → Telecomunicaciones\n"
+            "- Uber, Cabify → Transporte\n"
+            "- Netflix, Spotify, Disney+, Amazon Prime → Entretenimiento/Suscripciones\n"
+            "- Tokens [PERSON_N], [ACCOUNT_N], [TAX_ID_N] representan datos anonimizados - no intentes deducir valores reales."
         )
         
         # Sanitize description to remove PII before sending to AI
@@ -69,13 +78,15 @@ def get_semantic_category(description: str, amount: int, db_session=None) -> Opt
         prompt = f"Descripción: '{sanitized_description}' | Monto: ${amount / 100:.2f}"
         
         model = genai.GenerativeModel(
-            "gemini-3.1-flash-lite-preview",
+            "gemini-3-flash",  # FASE 4: Updated to gemini-3-flash
             system_instruction=system_instruction
         )
         
         class CategoryPrediction(BaseModel):
             category_id: str
             confidence: float
+            is_anomaly: bool = False
+            reasoning: str = ""
             
         response = model.generate_content(
             prompt,
@@ -89,6 +100,12 @@ def get_semantic_category(description: str, amount: int, db_session=None) -> Opt
             result = json.loads(response.text)
             pred_id = result.get("category_id")
             confidence = result.get("confidence", 0.0)
+            is_anomaly = result.get("is_anomaly", False)
+            reasoning = result.get("reasoning", "")
+            
+            # FASE 4: Log anomaly detection
+            if is_anomaly:
+                print(f"[FASE-4] Anomaly detected: {reasoning}")
             
             # 4. Fallback for low confidence
             if confidence < 0.70:

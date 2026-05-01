@@ -9,6 +9,7 @@ from database import get_db
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.account import Account
 from app.models.iou import IOU, IOUType, IOUStatus
+from app.services.snapshot_reconciler import SnapshotReconciler
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/snapshots", tags=["snapshots"], redirect_slashes=False)
@@ -249,3 +250,32 @@ Responde en español, máximo 100 palabras."""
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analyzing month: {str(e)}")
+
+
+@router.post("/reconcile")
+def reconcile_stale_snapshots(db: Session = Depends(get_db)):
+    """
+    FASE 2: Reconcile all stale snapshots using verified transaction history.
+    Recalculates balances cents-to-cents with Decimal precision and SHA-256 validation.
+    """
+    try:
+        result = SnapshotReconciler.reconcile_stale_snapshots(db)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reconciling snapshots: {str(e)}")
+
+
+@router.post("/{snapshot_id}/reconcile")
+def reconcile_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
+    """
+    FASE 2: Reconcile a specific snapshot by ID.
+    """
+    try:
+        result = SnapshotReconciler.reconcile_snapshot_by_id(db, snapshot_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        return {"message": "Snapshot reconciled successfully", "totals": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reconciling snapshot: {str(e)}")

@@ -44,6 +44,8 @@ export interface Transaction {
   splits?: TransactionSplit[];
 }
 
+export type TaxType = 'iva_15' | 'iva_0' | 'exempt';
+
 export interface Category {
   id: string;
   name: string;
@@ -51,6 +53,9 @@ export interface Category {
   color?: string;
   icon?: string;
   is_default: boolean;
+  tax_type?: TaxType; // FASE 2: SRI Ecuador tax classification
+  is_deductible?: boolean; // FASE 2: SRI deductible for personal expenses
+  withholding_rate?: number; // FASE 2: Withholding rate in base 100 (e.g., 175 for 1.75%)
   version: number;  // FASE 7: OCC versioning
   needs_review?: boolean;  // FASE 7: Conflict flag
 }
