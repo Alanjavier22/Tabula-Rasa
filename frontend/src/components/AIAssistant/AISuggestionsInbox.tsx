@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import type { AICategorySuggestion } from '../../services/AIAgentService';
-import { transactionsAPI } from '../../services/api';
 
 interface AISuggestionsInboxProps {
   suggestions: AICategorySuggestion[];
@@ -28,35 +27,13 @@ export const AISuggestionsInbox: React.FC<AISuggestionsInboxProps> = ({
     setSelectedIds(newSelected);
   };
 
-  const handleApprove = async () => {
-    setIsApproving(true);
-    const approvedIds: string[] = [];
-
-    try {
-      for (const suggestion of suggestions) {
-        if (selectedIds.has(suggestion.transaction_id)) {
-          await transactionsAPI.update(suggestion.transaction_id, {
-            category_id: suggestion.suggested_category_id,
-          });
-          approvedIds.push(suggestion.transaction_id);
-        }
-      }
-      onApproved(approvedIds);
-      setSelectedIds(new Set());
-    } catch (error) {
-      console.error('Error approving suggestions:', error);
-    } finally {
-      setIsApproving(false);
-    }
-  };
-
   const getTransaction = (id: string) => transactions.find(t => t.id === id);
   const getCategory = (id: string) => categories.find(c => c.id === id);
 
   return (
     <div className="ai-suggestions-inbox">
       <h2>AI Category Suggestions</h2>
-      <p>Review and approve AI-suggested categorizations</p>
+      <p>Review AI-suggested categorizations (Read-Only)</p>
 
       {suggestions.length === 0 ? (
         <p>No suggestions available</p>
@@ -99,10 +76,10 @@ export const AISuggestionsInbox: React.FC<AISuggestionsInboxProps> = ({
 
           <div className="actions">
             <button
-              onClick={handleApprove}
-              disabled={selectedIds.size === 0 || isApproving}
+              disabled={true}
+              title="AI suggestions are read-only. Apply changes manually."
             >
-              {isApproving ? 'Approving...' : `Approve Selected (${selectedIds.size})`}
+              Approve Disabled (Read-Only)
             </button>
           </div>
         </>

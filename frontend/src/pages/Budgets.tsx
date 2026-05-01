@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { budgetsAPI, categoriesAPI, transactionsAPI, accountsAPI } from '../services/api';
 import type { Budget, Category, Account, TransactionType, PaymentMethod, ExpenseType } from '../types';
 import { formatMoney, toCents } from '../utils/money';
-import { Plus, Trash2, Edit, PieChart, X, Check } from 'lucide-react';
+import { Plus, Trash2, Edit, PieChart, X, Check, RefreshCw } from 'lucide-react';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TransactionForm from '../components/TransactionForm';
@@ -23,8 +23,14 @@ const Budgets = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showRecurringModal, setShowRecurringModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyForm);
+  const [recurringForm, setRecurringForm] = useState({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    delete_previous: true,
+  });
   const [paymentForm, setPaymentForm] = useState({
     description: '',
     amount: '',
@@ -200,6 +206,32 @@ const Budgets = () => {
     }
   };
 
+  const handleGenerateRecurring = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const response = await fetch('/api/budgets/generate-recurring', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recurringForm),
+      });
+
+      if (response.ok) {
+        setToast({ message: 'Presupuestos recurrentes generados exitosamente', type: 'success' });
+        setShowRecurringModal(false);
+        fetchBudgets();
+      } else {
+        const error = await response.json();
+        setToast({ message: error.detail || 'Error al generar presupuestos recurrentes', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error generating recurring budgets:', error);
+      setToast({ message: 'Error al generar presupuestos recurrentes', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-white">Cargando...</div>;
   }
@@ -211,10 +243,16 @@ const Budgets = () => {
           <h1 className="text-2xl lg:text-4xl font-bold text-white mb-2">Presupuestos</h1>
           <p className="text-slate-300 text-sm lg:text-base">Configura y rastrea tus presupuestos mensuales</p>
         </div>
-        <button onClick={() => setShowCreateModal(true)} className="flex items-center bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 text-sm lg:text-base whitespace-nowrap">
-          <Plus className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
-          Agregar Presupuesto
-        </button>
+        <div className="flex gap-3">
+          <button onClick={() => setShowRecurringModal(true)} className="flex items-center bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all duration-300 text-sm lg:text-base whitespace-nowrap">
+            <RefreshCw className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
+            Generar Recurrente
+          </button>
+          <button onClick={() => setShowCreateModal(true)} className="flex items-center bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 text-sm lg:text-base whitespace-nowrap">
+            <Plus className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
+            Agregar Presupuesto
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -514,6 +552,76 @@ const Budgets = () => {
           saving={saving}
           title="Registrar Pago de Presupuesto"
         />
+      )}
+
+      {/* Recurring Budget Modal */}
+      {showRecurringModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-slate-700">
+              <h2 className="text-xl font-bold text-white">Generar Presupuestos Recurrentes</h2>
+              <button onClick={() => setShowRecurringModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleGenerateRecurring} className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-300 mb-1">Mes *</label>
+                  <select
+                    value={recurringForm.month}
+                    onChange={e => setRecurringForm({...recurringForm, month: parseInt(e.target.value)})}
+                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
+                  >
+                    {Array.from({length: 12}, (_, i) => (
+                      <option key={i + 1} value={i + 1}>{i + 1}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-300 mb-1">Año *</label>
+                  <select
+                    value={recurringForm.year}
+                    onChange={e => setRecurringForm({...recurringForm, year: parseInt(e.target.value)})}
+                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
+                  >
+                    {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="delete_previous"
+                  checked={recurringForm.delete_previous}
+                  onChange={e => setRecurringForm({...recurringForm, delete_previous: e.target.checked})}
+                  className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500"
+                />
+                <label htmlFor="delete_previous" className="text-sm text-slate-300">
+                  Eliminar presupuestos del mes anterior
+                </label>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRecurringModal(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 text-sm disabled:opacity-50"
+                >
+                  {saving ? 'Generando...' : 'Generar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
