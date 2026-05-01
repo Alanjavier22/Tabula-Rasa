@@ -15,6 +15,7 @@ env/
 # --- Caché y Builds ---
 dist/
 build/
+dev-dist/
 __pycache__/
 .pytest_cache/
 .vite/
