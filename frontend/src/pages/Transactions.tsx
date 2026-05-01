@@ -1,14 +1,18 @@
-import { useState, memo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { transactionsAPI, categoriesAPI, accountsAPI, aiAPI } from '../services/api';
-import type { Transaction, TransactionType, PaymentMethod, ExpenseType } from '../types';
+import { useState, memo, useEffect } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../db/db';
+import { reportingService } from '../services/ReportingService';
+import type { LocalTransaction } from '../db/db';
+import type { TransactionType, PaymentMethod, ExpenseType } from '../types';
 import { formatMoney, toCents } from '../utils/money';
-import { Plus, Trash2, Edit, Upload, Mic, MicOff, FileImage } from 'lucide-react';
+import { Plus, Trash2, Edit, Upload, Mic, MicOff, FileImage, Search, Calendar } from 'lucide-react';
 import CSVImportModal from '../components/CSVImportModal';
 import DocumentImportModal from '../components/DocumentImportModal';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TransactionForm from '../components/TransactionForm';
+import { VirtualTransactionList } from '../components/transactions/VirtualTransactionList';
+import { IntegrityBadge } from '../components/common/IntegrityBadge';
 
 const emptyForm = {
   description: '',
@@ -77,150 +81,114 @@ const TransactionRow = memo(({ transaction, onEdit, onDelete }: { transaction: T
 TransactionRow.displayName = 'TransactionRow';
 
 const Transactions = () => {
-  const queryClient = useQueryClient();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [showModal, setShowModal] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<LocalTransaction | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
   const [showImportModal, setShowImportModal] = useState(false);
   const [showDocumentImportModal, setShowDocumentImportModal] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [processingAudio, setProcessingAudio] = useState(false);
+  
+  // FASE 6.2: Search and date range filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  const { data: transactions = [], isLoading: loadingTxns } = useQuery({
-    queryKey: ['transactions'],
-    queryFn: async () => {
-      const res = await transactionsAPI.getAll();
-      return res.data;
-    }
-  });
+  // FASE 6.2: Live query for transactions with categories
+  const transactions = useLiveQuery(
+    () => reportingService.getTransactionsWithCategories(undefined, undefined, startDate, endDate, searchQuery),
+    [],
+    []
+  );
 
-  const { data: categories = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      const res = await categoriesAPI.getAll();
-      return res.data;
-    }
-  });
+  // FASE 6.2: Live query for categories
+  const categories = useLiveQuery(
+    () => db.categories.filter(cat => !cat.is_deleted).toArray(),
+    [],
+    []
+  );
 
-  const { data: accounts = [] } = useQuery({
-    queryKey: ['accounts'],
-    queryFn: async () => {
-      const res = await accountsAPI.getAll();
-      return res.data;
-    }
-  });
+  // FASE 6.2: Live query for accounts
+  const accounts = useLiveQuery(
+    () => db.accounts.filter(acc => !acc.is_deleted).toArray(),
+    [],
+    []
+  );
 
-  const loading = loadingTxns;
+  const loading = !transactions && !categories && !accounts;
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => transactionsAPI.delete(id),
-    onSuccess: () => {
-      setToast({ message: 'Transacción eliminada', type: 'success' });
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
-      setDeleteConfirm({ isOpen: false, id: null });
-    },
-    onError: (error: any) => {
-      console.error('Error deleting transaction:', error);
-      setToast({ 
-        message: error.response?.data?.detail || 'Error al eliminar transacción', 
-        type: 'error' 
-      });
-      setDeleteConfirm({ isOpen: false, id: null });
-    }
-  });
-
+  // FASE 6.2: Optimistic delete handler
   const handleDelete = (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteConfirm.id === null) return;
-    deleteMutation.mutate(deleteConfirm.id);
+    
+    try {
+      await reportingService.deleteTransactionOptimistic(deleteConfirm.id);
+      setToast({ message: 'Transacción eliminada', type: 'success' });
+      setDeleteConfirm({ isOpen: false, id: null });
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+      setToast({ message: 'Error al eliminar transacción', type: 'error' });
+      setDeleteConfirm({ isOpen: false, id: null });
+    }
   };
 
-  const handleEdit = (transaction: Transaction) => {
+  const handleEdit = (transaction: LocalTransaction) => {
     setEditingTransaction(transaction);
     setForm({
-      description: transaction.description,
-      // Backend returns cents, use formatMoney for display
+      description: transaction.description || '',
       amount: formatMoney(transaction.amount),
-      transaction_type: transaction.transaction_type,
-      payment_method: transaction.payment_method,
-      date: transaction.date.split('T')[0],
-      category_id: transaction.category_id?.toString() || '',
-      account_id: transaction.account_id?.toString() || '',
-      expense_type: (transaction.expense_type || 'variable') as ExpenseType,
+      transaction_type: transaction.transaction_type as TransactionType,
+      payment_method: (transaction as any).payment_method || 'transfer' as PaymentMethod,
+      date: transaction.date,
+      category_id: transaction.category_id || '',
+      account_id: (transaction as any).account_id || '',
+      expense_type: 'variable' as ExpenseType,
     });
     setShowModal(true);
   };
 
-  const createMutation = useMutation({
-    mutationFn: (payload: any) => transactionsAPI.create(payload),
-    onSuccess: () => {
-      setToast({ message: 'Transacción creada', type: 'success' });
-      setShowModal(false);
-      setForm(emptyForm);
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
-    },
-    onError: (error: any) => {
-      console.error('Error creating transaction:', error);
-      setToast({ 
-        message: error.response?.data?.detail || 'Error al crear transacción', 
-        type: 'error' 
-      });
-    }
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string, payload: any }) => transactionsAPI.update(id, payload),
-    onSuccess: () => {
-      setToast({ message: 'Transacción actualizada', type: 'success' });
+  // FASE 6.2: Optimistic create/update handler
+  const handleSubmit = async (formData: any) => {
+    try {
+      if (editingTransaction) {
+        // Update existing transaction
+        const amountCents = toCents(parseFloat(formData.amount.replace(/[^0-9.-]/g, '')));
+        await reportingService.updateTransactionOptimistic(editingTransaction.id, {
+          description: formData.description,
+          amount: amountCents,
+          transaction_type: formData.transaction_type,
+          date: formData.date,
+          category_id: formData.category_id || null,
+          account_id: formData.account_id || null,
+        });
+        setToast({ message: 'Transacción actualizada', type: 'success' });
+      } else {
+        // Create new transaction
+        const amountCents = toCents(parseFloat(formData.amount.replace(/[^0-9.-]/g, '')));
+        await reportingService.createTransactionOptimistic({
+          description: formData.description,
+          amount: amountCents,
+          transaction_type: formData.transaction_type,
+          date: formData.date,
+          category_id: formData.category_id || null,
+          account_id: formData.account_id || null,
+        });
+        setToast({ message: 'Transacción creada', type: 'success' });
+      }
+      
       setShowModal(false);
       setEditingTransaction(null);
       setForm(emptyForm);
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
-    },
-    onError: (error: any) => {
-      console.error('Error updating transaction:', error);
-      setToast({ 
-        message: error.response?.data?.detail || 'Error al actualizar transacción', 
-        type: 'error' 
-      });
-    }
-  });
-
-  const handleSubmit = async (data: any, splits?: any[]) => {
-    const payload = {
-      description: data.description,
-      // Convert user input (dollars) to cents for backend
-      amount: toCents(data.amount),
-      transaction_type: data.transaction_type,
-      payment_method: data.payment_method,
-      date: data.date + 'T00:00:00',
-      category_id: data.category_id ? parseInt(data.category_id) : null,
-      account_id: data.account_id ? parseInt(data.account_id) : null,
-      expense_type: data.transaction_type === 'expense' ? data.expense_type : null,
-      splits: splits && splits.length > 0 ? splits.map(s => ({
-        // Convert split amounts to cents
-        amount: toCents(s.amount),
-        category_id: s.category_id ? parseInt(s.category_id) : null,
-        description: s.description || null
-      })) : undefined
-    };
-
-    if (editingTransaction) {
-      updateMutation.mutate({ id: editingTransaction.id, payload });
-    } else {
-      createMutation.mutate(payload);
+    } catch (error) {
+      console.error('Error saving transaction:', error);
+      setToast({ message: 'Error al guardar transacción', type: 'error' });
     }
   };
 
@@ -353,76 +321,86 @@ const Transactions = () => {
       {showModal && (
         <TransactionForm
           initialData={form}
-          initialSplits={editingTransaction?.splits}
-          categories={categories}
-          accounts={accounts}
+          initialSplits={undefined}
+          categories={categories || []}
+          accounts={accounts || []}
           onSubmit={handleSubmit}
           onCancel={() => {
             setShowModal(false);
             setEditingTransaction(null);
             setForm(emptyForm);
           }}
-          saving={createMutation.isPending || updateMutation.isPending}
+          saving={false}
           title={editingTransaction ? 'Editar Transacción' : 'Nueva Transacción'}
         />
       )}
 
+      {/* FASE 6.2: Search and Date Range Filters */}
+      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 mb-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Buscar por descripción..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* FASE 6.2: Virtual Transaction List */}
       <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50">
-        {transactions.length === 0 ? (
+        {transactions && transactions.length > 0 ? (
+          <VirtualTransactionList
+            transactions={transactions}
+            rowHeight={60}
+            visibleRowCount={20}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        ) : (
           <div className="text-center py-12">
             <p className="text-slate-400 text-lg">No hay transacciones aún</p>
             <p className="text-slate-500 text-sm mt-2">Agrega tu primera transacción para comenzar</p>
-          </div>
-        ) : (
-          <div>
-            <table className="w-full table-fixed">
-              <thead className="bg-slate-700/50">
-                <tr>
-                  <th className="w-[40%] md:w-[35%] px-3 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Descripción
-                  </th>
-                  <th className="w-[12%] px-3 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Tipo
-                  </th>
-                  <th className="w-[14%] px-3 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Monto
-                  </th>
-                  <th className="w-[14%] px-3 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Fecha
-                  </th>
-                  <th className="w-[12%] px-3 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider hidden md:table-cell">
-                    Método
-                  </th>
-                  <th className="w-[10%] md:w-[13%] px-3 lg:px-6 py-3 lg:py-4 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-slate-800/30 divide-y divide-slate-700/50">
-                {transactions.map((transaction) => (
-                  <TransactionRow
-                    key={transaction.id}
-                    transaction={transaction}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </tbody>
-            </table>
           </div>
         )}
       </div>
       {showImportModal && (
         <CSVImportModal
           onClose={() => setShowImportModal(false)}
-          onSuccess={() => queryClient.invalidateQueries()}
+          onSuccess={() => {}}
         />
       )}
 
       {showDocumentImportModal && (
         <DocumentImportModal
           onClose={() => setShowDocumentImportModal(false)}
-          onSuccess={() => queryClient.invalidateQueries()}
+          onSuccess={() => {}}
         />
       )}
 
