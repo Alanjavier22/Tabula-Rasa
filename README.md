@@ -97,19 +97,32 @@ Lo más importante: tus datos reales nunca salen de tu máquina. El sistema sani
 
 **Caso de uso real**: Estás planeando comprar un vehículo a fin de año usando tus bonos o décimos. El Cash Flow Forecast analiza tus patrones de gastos históricos, proyecta tu flujo de caja futuro y te dice exactamente cuánto capital podrás abonar a la deuda vehicular en diciembre, todo esto sin que tus datos financieros reales salgan de tu computadora.
 
-### Protocolo Phoenix: Autocorrección de Entorno
+### Protocolo Phoenix: Autocorrección de Entorno y Base de Datos
 
-**El sistema se cura solo al arrancar.**
+**El sistema se cura solo al arrancar y durante la operación.**
 
-Tabula Rasa incluye un sistema de auto-curación. Si tu entorno virtual se corrompe o un puerto se queda "zombie", el sistema lo detecta al arrancar, purga los procesos estancados y reinstala las dependencias silenciosamente usando uv para levantar la interfaz en segundos.
+Tabula Rasa incluye un sistema de auto-curación multicapa:
 
-No necesitas saber Python ni Node.js. El script de inicio maneja todo:
+#### Backend: Phoenix DB Healer
+- **Auto-cura de esquema**: Detecta columnas faltantes en SQLite y las agrega automáticamente
+- **Mapeo de tipos**: Convierte tipos SQLAlchemy a tipos SQLite automáticamente
+- **Logging transparente**: Registra todas las acciones de curación con prefijo [Phoenix DB Healer]
 
-1. Detecta y limpia puertos zombies (8001, 5173)
-2. Valida la integridad del entorno virtual
+#### Frontend: Phoenix Local Healer
+- **Hard Reset de IndexedDB**: Elimina base de datos corrupta y recarga página
+- **Contador de Pánico**: Dispara reset automático tras 3 fallos consecutivos de esquema en 1 minuto
+- **Health Check Proactivo**: Verifica funcionalidad de base de datos tras apertura
+- **Interceptador Global**: Captura promesas Dexie no manejadas para evitar errores silenciosos
+- **Evento phoenix-fatal-error**: Permite activación externa desde servicios de fondo
+
+**Flujo de auto-curación:**
+1. Al arrancar, detecta y limpia puertos zombies (8001, 5173)
+2. Valida integridad del entorno virtual
 3. Reinstala dependencias automáticamente si están corruptas
 4. Inicia backend y frontend en el orden correcto
-5. Espera hasta que el backend esté saludable antes de abrir el navegador
+5. Ejecuta health check de base de datos
+6. Si detecta corrupción, activa Phoenix Local Healer
+7. Espera hasta que el backend esté saludable antes de abrir el navegador
 
 ### Storage Guardian: Monitoreo Proactivo de Cuota
 
