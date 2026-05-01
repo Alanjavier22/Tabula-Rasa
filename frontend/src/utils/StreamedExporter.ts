@@ -5,6 +5,9 @@
  */
 
 import { db } from '../db/db';
+import Decimal from 'decimal.js-light';
+import { toDecimal, toCents, formatMoney } from './money';
+import type { Cents } from '../types';
 
 export class StreamedExporter {
   private readonly BUFFER_SIZE = 500;
@@ -154,6 +157,120 @@ export class StreamedExporter {
     link.click();
     document.body.removeChild(link);
     setTimeout(() => URL.revokeObjectURL(url), 100);
+  }
+
+  /**
+   * FASE 4: Export SRI Annex (Anexo de Gastos Personales)
+   * Generates CSV with RUC, establishment name, expense type, base, IVA
+   * Uses chunking for 50k+ records without browser crash
+   */
+  async exportSRIAnnex(
+    year: number,
+    progressCallback?: (processed: number, total: number) => void
+  ): Promise<Blob> {
+    const HEADER = 'RUC Emisor,Nombre Establecimiento,Tipo de Gasto,Base Imponible,Valor IVA\n';
+    const chunks: string[] = [];
+    let buffer = HEADER;
+    let rowCount = 0;
+
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+
+    // Get all expense transactions for the year
+    await db.transactions
+      .where('date')
+      .between(startDate, endDate, true, true)
+      .and(txn => txn.transaction_type === 'expense' && !txn.is_deleted)
+      .each(async (txn) => {
+        // Extract establishment data
+        let ruc = '';
+        let name = 'Desconocido';
+        
+        if (txn.metadata_json) {
+          try {
+            const metadata = JSON.parse(txn.metadata_json);
+            ruc = metadata.ruc || metadata.emisor_ruc || metadata.ruc_emisor || '';
+            name = metadata.establecimiento || metadata.nombre_comercial || metadata.merchant || name;
+          } catch {
+            name = txn.description || 'Desconocido';
+          }
+        } else {
+          name = txn.description || 'Desconocido';
+        }
+
+        // Get category for expense type mapping
+        const categoryId = txn.category_id || '';
+        const expenseType = this.getSRIExpenseCode(categoryId);
+
+        // Calculate IVA using reverse calculation (amount includes tax)
+        const amountCents = txn.amount as Cents;
+        const { iva, base } = this.calculateIVAReverse(amountCents, categoryId);
+
+        // Format values for CSV
+        const rucEscaped = this.escapeCSV(ruc);
+        const nameEscaped = this.escapeCSV(name);
+        const baseFormatted = formatMoney(base);
+        const ivaFormatted = formatMoney(iva);
+
+        // CSV row
+        buffer += `${rucEscaped},${nameEscaped},${expenseType},${baseFormatted},${ivaFormatted}\n`;
+        rowCount++;
+
+        // Flush buffer every BUFFER_SIZE rows
+        if (rowCount % this.BUFFER_SIZE === 0) {
+          chunks.push(buffer);
+          buffer = '';
+          
+          if (progressCallback) {
+            progressCallback(rowCount, 0); // Total unknown until completion
+          }
+          
+          return new Promise<void>(resolve => setTimeout(resolve, 0));
+        }
+      });
+
+    // Flush final buffer
+    if (buffer) {
+      chunks.push(buffer);
+    }
+
+    if (progressCallback) {
+      progressCallback(rowCount, rowCount);
+    }
+
+    return new Blob(chunks, { type: 'text/csv;charset=utf-8;' });
+  }
+
+  /**
+   * FASE 4: IVA reverse calculation (duplicate from ReportingService for standalone use)
+   */
+  private calculateIVAReverse(amountCents: Cents, categoryId: string): { iva: Cents; base: Cents } {
+    const amountDecimal = toDecimal(amountCents);
+    
+    // Check if category is IVA 15%
+    if (categoryId.includes('vestimenta') || categoryId.includes('general')) {
+      const divisor = new Decimal(1.15);
+      const baseDecimal = amountDecimal.div(divisor);
+      const ivaDecimal = amountDecimal.minus(baseDecimal);
+      return {
+        iva: toCents(ivaDecimal) as Cents,
+        base: toCents(baseDecimal) as Cents,
+      };
+    }
+    
+    return { iva: 0 as Cents, base: amountCents };
+  }
+
+  /**
+   * FASE 4: Get SRI expense code for category
+   */
+  private getSRIExpenseCode(categoryId: string): string {
+    if (categoryId.includes('alimentacion')) return '001';
+    if (categoryId.includes('salud')) return '002';
+    if (categoryId.includes('educacion')) return '003';
+    if (categoryId.includes('vivienda')) return '004';
+    if (categoryId.includes('vestimenta')) return '005';
+    return '999';
   }
 }
 

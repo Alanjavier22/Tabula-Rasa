@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import { tokenizeDescription as tokenizeDesc } from '../utils/searchUtils';
+import { v5 as uuidv5 } from 'uuid';
 
 // --- Interfaces for Dexie Tables ---
 // We only need to define the properties that are explicitly indexed by Dexie
@@ -29,6 +30,11 @@ export interface LocalCategory {
   id: string;
   is_deleted: boolean;
   updated_at: string;
+  tax_type?: 'iva_15' | 'iva_0' | 'exempt'; // FASE 2: SRI tax classification
+  is_deductible?: boolean; // FASE 2: SRI deductible
+  withholding_rate?: number | null; // FASE 2: Withholding rate in base 100
+  version?: number; // FASE 7: OCC versioning
+  needs_review?: boolean; // FASE 7: Conflict flag
 }
 
 export interface LocalAccount {
@@ -55,6 +61,7 @@ export interface LocalTransaction {
   hash?: string; // SHA-256 for deduplication
   needs_reindex?: boolean; // Flag for background re-index
   subscription_id?: string;
+  metadata_json?: string; // FASE 4: JSON metadata for RUC, establishment, etc.
   version: number; // FASE 1: Required version field for OCC - starts at 1
   needs_review?: boolean; // FASE 1: Conflict flag
 }
@@ -301,6 +308,66 @@ export class FinanceDatabase extends Dexie {
     }
   }
 
+  /**
+   * FASE 2: Seed SRI Ecuador categories with deterministic UUIDv5
+   * Ensures default categories exist with proper tax classification
+   */
+  async seedSRICategories(): Promise<void> {
+    const sriCategories = [
+      {
+        id: uuidv5('category_alimentacion', uuidv5.URL),
+        tax_type: 'iva_0' as const,
+        is_deductible: true,
+        withholding_rate: null,
+      },
+      {
+        id: uuidv5('category_salud', uuidv5.URL),
+        tax_type: 'iva_0' as const,
+        is_deductible: true,
+        withholding_rate: null,
+      },
+      {
+        id: uuidv5('category_educacion', uuidv5.URL),
+        tax_type: 'iva_0' as const,
+        is_deductible: true,
+        withholding_rate: null,
+      },
+      {
+        id: uuidv5('category_vivienda', uuidv5.URL),
+        tax_type: 'iva_0' as const,
+        is_deductible: true,
+        withholding_rate: null,
+      },
+      {
+        id: uuidv5('category_vestimenta', uuidv5.URL),
+        tax_type: 'iva_15' as const,
+        is_deductible: true,
+        withholding_rate: null,
+      },
+      {
+        id: uuidv5('category_general', uuidv5.URL),
+        tax_type: 'iva_15' as const,
+        is_deductible: false,
+        withholding_rate: null,
+      },
+    ];
+
+    const now = new Date().toISOString();
+
+    for (const category of sriCategories) {
+      const existing = await this.categories.where('id').equals(category.id).first();
+      if (!existing) {
+        await this.categories.add({
+          ...category,
+          is_deleted: false,
+          updated_at: now,
+          version: 1,
+        });
+        console.debug(`[FASE-2] Seeded SRI category: ${category.id}`);
+      }
+    }
+  }
+
   constructor() {
     super('FinanceLocalFirstDB');
     
@@ -319,7 +386,7 @@ export class FinanceDatabase extends Dexie {
       exchange_rates: '&id, from_currency, to_currency, is_deleted, updated_at',
       categories: '&id, name, is_deleted, updated_at, version',
       accounts: '&id, name, is_deleted, updated_at, version',
-      transactions: '&id, date, is_deleted, updated_at, description_words, version, hash',
+      transactions: '&id, date, is_deleted, updated_at, description_words, version, hash, needs_review',
       transaction_splits: '&id, transaction_id, category_id, is_deleted, updated_at',
       credit_card_statements: '&id, is_deleted, updated_at, account_id, status, version',
       debt_shares: '&id, is_deleted, updated_at, statement_id, version',

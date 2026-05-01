@@ -19,6 +19,7 @@ import IOUWidget from '../components/IOUWidget';
 import SkeletonCard from '../components/dashboard/SkeletonCard';
 import SkeletonChart from '../components/dashboard/SkeletonChart';
 import SkeletonRow from '../components/dashboard/SkeletonRow';
+import { FiscalDashboard } from '../components/dashboard/FiscalDashboard';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -33,6 +34,18 @@ const Dashboard = () => {
   const [aiPatterns, setAiPatterns] = useState<string[]>([]);
   const [creatingSnapshot, setCreatingSnapshot] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
+  
+  // FASE 3: Date range for fiscal dashboard
+  const [fiscalStartDate, setFiscalStartDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 11);
+    d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [fiscalEndDate, setFiscalEndDate] = useState(() => {
+    const d = new Date();
+    return d.toISOString().split('T')[0];
+  });
   
   // Guards to prevent infinite loops and concurrent operations
   const isRefetchingRef = useRef(false);
@@ -176,9 +189,11 @@ const Dashboard = () => {
   const dailySpending = useMemo(() => dashboardSummary?.daily_spending ?? [], [dashboardSummary]);
 
   // Income vs Expense by month - use snapshots if available, otherwise use dashboard summary
+  // FASE 3: Filter out stale snapshots to ensure data integrity
   const monthlyComparison = useMemo(() => {
     if (snapshots.length > 0) {
       return [...snapshots]
+        .filter(snap => !snap.is_stale) // FASE 3: Exclude stale snapshots
         .sort((a, b) => {
           if (a.year !== b.year) return b.year - a.year;
           return b.month - a.month;
@@ -659,6 +674,32 @@ const Dashboard = () => {
             </>
           )}
         </div>
+      </div>
+
+      {/* FASE 3: Fiscal Dashboard */}
+      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-white">Dashboard Fiscal SRI</h3>
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={fiscalStartDate}
+              onChange={(e) => setFiscalStartDate(e.target.value)}
+              className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white"
+            />
+            <span className="text-slate-400 self-center">-</span>
+            <input
+              type="date"
+              value={fiscalEndDate}
+              onChange={(e) => setFiscalEndDate(e.target.value)}
+              className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white"
+            />
+          </div>
+        </div>
+        <FiscalDashboard
+          startDate={fiscalStartDate}
+          endDate={fiscalEndDate}
+        />
       </div>
 
       {toast && (
