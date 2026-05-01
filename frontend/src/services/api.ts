@@ -64,6 +64,7 @@ if (typeof window !== 'undefined') {
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 15000, // 15 second timeout to prevent indefinite hangs
   headers: {
     'Content-Type': 'application/json',
   },
@@ -148,6 +149,10 @@ async function enqueueUpdateWithCollapsing(
       .where('table_name')
       .equals(tableName)
       .filter((entry: any) => {
+        // Skip entries currently being processed to prevent interference
+        if (entry.is_processing === true) {
+          return false;
+        }
         // Extract entity_id from payload based on action type
         if (entry.action === 'create') {
           return entry.payload?.id === entityId;
@@ -706,13 +711,13 @@ export const aiAPI = {
 };
 
 export const snapshotsAPI = {
-  create: (data: { month: number; year: number }) => api.post('/snapshots/create', data),
-  getAll: (params?: any) => api.get('/snapshots', { params }),
-  getById: (id: string) => api.get(`/snapshots/${id}`),
-  getByMonthYear: (month: number, year: number) => api.get(`/snapshots/month/${month}/year/${year}`),
-  delete: (id: string) => api.delete(`/snapshots/${id}`),
-  analyze: (id: string) => api.post(`/snapshots/${id}/analyze`),
-  reconcile: () => api.post('/snapshots/reconcile'), // FASE 6: Manual reconciliation endpoint
+  create: (data: { month: number; year: number }) => api.post('/snapshots/create/', data),
+  getAll: (params?: any) => api.get('/snapshots/', { params }),
+  getById: (id: string) => api.get(`/snapshots/${id}/`),
+  getByMonthYear: (month: number, year: number) => api.get(`/snapshots/month/${month}/year/${year}/`),
+  delete: (id: string) => api.delete(`/snapshots/${id}/`),
+  analyze: (id: string) => api.post(`/snapshots/${id}/analyze/`),
+  reconcile: () => api.post('/snapshots/reconcile/'), // FASE 6: Manual reconciliation endpoint
 };
 
 export const aiAssistantAPI = {
@@ -916,11 +921,11 @@ export const importAPI = {
 };
 
 export const configAPI = {
-  getAll: (params?: any) => api.get('/config', { params }),
-  getByKey: (key: string) => api.get(`/config/${key}`),
-  create: (data: any) => api.post('/config', data),
-  update: (key: string, data: any) => api.put(`/config/${key}`, data),
-  delete: (key: string) => api.delete(`/config/${key}`),
+  getAll: (params?: any) => api.get('/config/', { params }),
+  getByKey: (key: string) => api.get(`/config/${key}/`),
+  create: (data: any) => api.post('/config/', data),
+  update: (key: string, data: any) => api.put(`/config/${key}/`, data),
+  delete: (key: string) => api.delete(`/config/${key}/`),
 };
 
 export const authAPI = {
