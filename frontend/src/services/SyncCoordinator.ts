@@ -131,13 +131,25 @@ export class SyncCoordinator {
         for (let i = 0; i < filteredEntries.length; i++) {
           const entry = filteredEntries[i] as SyncQueueEntry;
           try {
+            // Mark as processing to prevent collapsing interference
+            // @ts-ignore
+            await db.sync_queue.update(entry.id, { is_processing: true });
+            console.debug('[Sync] Marked entry as processing:', entry.id);
+
             await this.processEntry(entry);
+            
             // Remove successfully processed entry
             // @ts-ignore
             await db.sync_queue.delete(entry.id);
+            console.debug('[Sync] Deleted entry from queue:', entry.id);
             dedupLog('[SyncCoordinator]', `Processed entry ${entry.id}`);
             this.consecutiveErrors = 0; // Reset error counter on success
           } catch (error) {
+            // Clear is_processing flag on error to allow retry
+            // @ts-ignore
+            await db.sync_queue.update(entry.id, { is_processing: false });
+            console.debug('[Sync] Cleared is_processing flag for entry:', entry.id);
+            
             dedupLog('[SyncCoordinator]', `Failed to process entry ${entry.id}:`, error);
             this.consecutiveErrors++; // Increment error counter
             
