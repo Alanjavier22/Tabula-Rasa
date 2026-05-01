@@ -67,12 +67,14 @@ temp.pem
 
 # --- Certificados (mantener estructura, ignorar claves privadas) ---
 # certs/ directory structure should be kept, but sensitive keys ignored
-certs/*.key
-certs/*.pem
-certs/*.crt
+**/*.key
+**/*.pem
+**/*.crt
 !certs/.gitkeep
 
 # --- Backups de Base de Datos ---
 backups/
 *.backup
-pre_*
+*pre_*
+*_backup
+*_migration
