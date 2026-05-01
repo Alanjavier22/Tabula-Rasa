@@ -103,3 +103,77 @@ def delete_config(config_key: str, db: Session = Depends(get_db)):
     db.delete(db_config)
     db.commit()
     return {"message": "Config deleted successfully"}
+
+
+# --- FASE 3.5: Google Drive Configuration Endpoints ---
+
+class GoogleDriveCredentials(BaseModel):
+    client_id: str
+    client_secret: str
+    refresh_token: str
+
+
+@router.get("/drive", response_model=GoogleDriveCredentials)
+def get_google_drive_credentials(db: Session = Depends(get_db)):
+    """Get Google Drive OAuth credentials from database."""
+    client_id_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_ID").first()
+    client_secret_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_SECRET").first()
+    refresh_token_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
+    
+    return GoogleDriveCredentials(
+        client_id=client_id_config.value if client_id_config else "",
+        client_secret=client_secret_config.value if client_secret_config else "",
+        refresh_token=refresh_token_config.value if refresh_token_config else ""
+    )
+
+
+@router.post("/drive")
+def set_google_drive_credentials(credentials: GoogleDriveCredentials, db: Session = Depends(get_db)):
+    """Save Google Drive OAuth credentials to database."""
+    # Client ID
+    client_id_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_ID").first()
+    if client_id_config:
+        client_id_config.value = credentials.client_id
+        client_id_config.updated_at = datetime.now()
+    else:
+        client_id_config = Config(
+            key="GOOGLE_DRIVE_CLIENT_ID",
+            value=credentials.client_id,
+            value_type="string",
+            description="Google Drive OAuth Client ID",
+            is_public=False
+        )
+        db.add(client_id_config)
+    
+    # Client Secret
+    client_secret_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_SECRET").first()
+    if client_secret_config:
+        client_secret_config.value = credentials.client_secret
+        client_secret_config.updated_at = datetime.now()
+    else:
+        client_secret_config = Config(
+            key="GOOGLE_DRIVE_CLIENT_SECRET",
+            value=credentials.client_secret,
+            value_type="string",
+            description="Google Drive OAuth Client Secret",
+            is_public=False
+        )
+        db.add(client_secret_config)
+    
+    # Refresh Token
+    refresh_token_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
+    if refresh_token_config:
+        refresh_token_config.value = credentials.refresh_token
+        refresh_token_config.updated_at = datetime.now()
+    else:
+        refresh_token_config = Config(
+            key="GOOGLE_DRIVE_REFRESH_TOKEN",
+            value=credentials.refresh_token,
+            value_type="string",
+            description="Google Drive OAuth Refresh Token",
+            is_public=False
+        )
+        db.add(refresh_token_config)
+    
+    db.commit()
+    return {"message": "Google Drive credentials saved successfully"}

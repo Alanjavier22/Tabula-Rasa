@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { configAPI, categoriesAPI, snapshotsAPI, getTokenKey } from '../services/api';
-import { Save, RefreshCw, LogOut, Download, Upload, FileSpreadsheet, Shield, Clock, AlertTriangle, HardDrive, Database, Trash2, AlertCircle } from 'lucide-react';
+import { Save, RefreshCw, LogOut, Download, Upload, FileSpreadsheet, Shield, AlertTriangle, HardDrive, Database, Trash2, AlertCircle, Cloud } from 'lucide-react';
 import Toast from '../components/Toast';
-import { SyncManager } from '../components/SyncManager';
 import { db } from '../db/db';
 import { formatMoney } from '../utils/money';
 import { checkStorageQuota } from '../utils/storage';
@@ -13,6 +12,12 @@ interface ConfigData {
   vehicle_categories: string[];
   safe_to_spend_buffer: number;
   gemini_api_key: string;
+}
+
+interface GoogleDriveCredentials {
+  client_id: string;
+  client_secret: string;
+  refresh_token: string;
 }
 
 const Settings = () => {
@@ -35,9 +40,13 @@ const Settings = () => {
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [showDiagnostics, setShowDiagnostics] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // FASE 3.5: Google Drive credentials state
+  const [driveCredentials, setDriveCredentials] = useState<GoogleDriveCredentials>({
+    client_id: '',
+    client_secret: '',
+    refresh_token: ''
+  });
+  const [savingDriveCredentials, setSavingDriveCredentials] = useState(false);
 
   // FASE 6: Load diagnostics data when diagnostics section is shown
   useEffect(() => {
@@ -126,6 +135,47 @@ const Settings = () => {
     }
   };
 
+  // FASE 3.5: Load Google Drive credentials
+  const loadDriveCredentials = async () => {
+    try {
+      const response = await fetch('/api/config/drive');
+      if (response.ok) {
+        const data = await response.json();
+        setDriveCredentials(data);
+      }
+    } catch (error) {
+      console.error('Error loading Google Drive credentials:', error);
+    }
+  };
+
+  // FASE 3.5: Save Google Drive credentials
+  const handleSaveDriveCredentials = async () => {
+    setSavingDriveCredentials(true);
+    try {
+      const response = await fetch('/api/config/drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(driveCredentials),
+      });
+
+      if (response.ok) {
+        setToast({ message: 'Credenciales de Google Drive guardadas exitosamente', type: 'success' });
+      } else {
+        setToast({ message: 'Error al guardar credenciales de Google Drive', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error saving Google Drive credentials:', error);
+      setToast({ message: 'Error al guardar credenciales de Google Drive', type: 'error' });
+    } finally {
+      setSavingDriveCredentials(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    loadDriveCredentials();
+  }, []);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -187,22 +237,6 @@ const Settings = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [lastSyncInfo, setLastSyncInfo] = useState<{ timestamp: string | null; conflicts: number }>({ timestamp: null, conflicts: 0 });
-
-  // Load sync metadata on mount
-  useEffect(() => {
-    const loadSyncInfo = async () => {
-      try {
-        const meta = await db.sync_metadata.get('last_sync_timestamp');
-        const conflicts = await db.sync_metadata.get('conflicts_resolved');
-        setLastSyncInfo({
-          timestamp: meta?.value || null,
-          conflicts: Number(conflicts?.value) || 0,
-        });
-      } catch { /* ignore */ }
-    };
-    loadSyncInfo();
-  }, []);
 
   // --- Export: Dump all Dexie tables to JSON ---
   const handleExportBackup = async () => {
@@ -295,14 +329,9 @@ const Settings = () => {
             setImportProgress({ current: currentRecord, total: totalRecords });
           }
         }
-        // Reset sync timestamp to force full re-sync with backend
-        await db.sync_metadata.put({ key: 'last_sync_timestamp', value: null });
       });
 
-      // Trigger sync after import
-      window.dispatchEvent(new Event('localMutation'));
-
-      setToast({ message: `Backup restaurado: ${backup._meta.exported_at}. Sincronizando...`, type: 'success' });
+      setToast({ message: `Backup restaurado: ${backup._meta.exported_at}`, type: 'success' });
       // Reload to reflect imported data
       setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
@@ -483,10 +512,6 @@ const Settings = () => {
         <p className="text-slate-300 text-sm lg:text-base">Configura las categorías de vehículo y el buffer de gasto seguro</p>
       </div>
 
-      <div className="mb-8">
-        <SyncManager />
-      </div>
-
       <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
         {/* Safe to Spend Buffer */}
         <div className="mb-8">
@@ -654,29 +679,6 @@ const Settings = () => {
         </div>
       </div>
 
-      {/* Sync Integrity Log */}
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mt-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <Clock className="w-5 h-5 text-blue-400" />
-          Estado de Sincronización
-        </h2>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/50">
-            <span className="text-sm text-slate-400">Última sincronización exitosa</span>
-            <span className="text-sm font-mono text-slate-200">
-              {lastSyncInfo.timestamp
-                ? new Date(lastSyncInfo.timestamp).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
-                : 'Nunca'
-              }
-            </span>
-          </div>
-          <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/50">
-            <span className="text-sm text-slate-400">Conflictos resueltos (LWW)</span>
-            <span className="text-sm font-mono text-slate-200">{lastSyncInfo.conflicts}</span>
-          </div>
-        </div>
-      </div>
-
       {/* Session Management */}
       <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mt-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -691,6 +693,66 @@ const Settings = () => {
             <LogOut className="w-4 h-4" />
             Cerrar Sesión
             <span className="text-xs text-slate-500 ml-1">(conserva datos locales)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* FASE 3.5: Google Drive Configuration */}
+      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mt-6">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <Cloud className="w-5 h-5 text-blue-400" />
+          Google Drive Backup
+        </h2>
+        <p className="text-slate-400 text-sm mb-4">
+          Configura las credenciales de OAuth para respaldos automáticos en Google Drive.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">Client ID</label>
+            <input
+              type="text"
+              value={driveCredentials.client_id}
+              onChange={(e) => setDriveCredentials({ ...driveCredentials, client_id: e.target.value })}
+              className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              placeholder=".apps.googleusercontent.com"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">Client Secret</label>
+            <input
+              type="password"
+              value={driveCredentials.client_secret}
+              onChange={(e) => setDriveCredentials({ ...driveCredentials, client_secret: e.target.value })}
+              className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              placeholder="GOCSPX-..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">Refresh Token</label>
+            <input
+              type="password"
+              value={driveCredentials.refresh_token}
+              onChange={(e) => setDriveCredentials({ ...driveCredentials, refresh_token: e.target.value })}
+              className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              placeholder="//..."
+            />
+          </div>
+          <button
+            onClick={handleSaveDriveCredentials}
+            disabled={savingDriveCredentials}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition-colors text-sm disabled:opacity-50"
+          >
+            {savingDriveCredentials ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Guardar Credenciales
+              </>
+            )}
           </button>
         </div>
       </div>
