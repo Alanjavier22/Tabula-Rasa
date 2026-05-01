@@ -124,6 +124,82 @@ const triggerLocalMutation = () => {
   window.dispatchEvent(new CustomEvent('localMutation'));
 };
 
+/**
+ * FASE 2: Mutation Collapsing - Prevent OCC Thrashing
+ * Collapses rapid successive updates to the same record into a single sync queue entry.
+ * Wrapped in ACID transaction to prevent race conditions.
+ *
+ * Logic:
+ * - Case A: Existing CREATE → update payload with new record state
+ * - Case B: Existing UPDATE → deep merge payload data
+ * - Case C: No existing → enqueue new UPDATE
+ */
+async function enqueueUpdateWithCollapsing(
+  tableName: string,
+  entityId: string,
+  updatedRecord: any,
+  timestamp: string
+): Promise<void> {
+  // @ts-ignore - ACID transaction prevents race conditions
+  await db.transaction('rw', ['sync_queue'], async () => {
+    // Search for pending operations on same entity/table
+    // @ts-ignore
+    const existingEntries = await db.sync_queue
+      .where('table_name')
+      .equals(tableName)
+      .filter((entry: any) => {
+        // Extract entity_id from payload based on action type
+        if (entry.action === 'create') {
+          return entry.payload?.id === entityId;
+        } else if (entry.action === 'update') {
+          return entry.payload?.id === entityId;
+        }
+        return false;
+      })
+      .toArray();
+
+    if (existingEntries.length === 0) {
+      // Case C: No existing entry → enqueue new UPDATE
+      const syncQueueEntry = {
+        id: uuidv4(),
+        table_name: tableName,
+        action: 'update' as const,
+        payload: { id: entityId, data: updatedRecord },
+        timestamp,
+      };
+      // @ts-ignore
+      await db.sync_queue.add(syncQueueEntry);
+      return;
+    }
+
+    // Get the most recent entry (highest timestamp)
+    const mostRecent = existingEntries.sort((a: any, b: any) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )[0];
+
+    if (mostRecent.action === 'create') {
+      // Case A: Existing CREATE → update payload with new record state
+      // @ts-ignore
+      await db.sync_queue.update(mostRecent.id, {
+        payload: updatedRecord, // Replace entire payload with new record state
+        timestamp, // Update timestamp to reflect latest change
+      });
+    } else if (mostRecent.action === 'update') {
+      // Case B: Existing UPDATE → deep merge payload data
+      // Merge the new data into existing payload.data
+      const mergedPayload = {
+        id: entityId,
+        data: { ...mostRecent.payload.data, ...updatedRecord },
+      };
+      // @ts-ignore
+      await db.sync_queue.update(mostRecent.id, {
+        payload: mergedPayload,
+        timestamp,
+      });
+    }
+  });
+}
+
 // --- HYDRATION MAP ---
 // Define relaciones one-to-many que deben hidratarse al hacer localGet.
 // Esto replica el `JOIN` que haría el backend, evitando que la UI reciba
@@ -310,14 +386,6 @@ export const localUpdate = async (tableName: string, id: string, data: any) => {
       updatedRecord.account_id
     );
   }
-  
-  const syncQueueEntry = {
-    id: uuidv4(),
-    table_name: tableName,
-    action: 'update' as const,
-    payload: { id, data: updatedRecord },
-    timestamp: now,
-  };
 
   // FASE 3: Enqueue snapshot recalc instead of synchronous invalidation (prevents deadlocks)
   const txDate = data.date || existing.date;
@@ -325,13 +393,11 @@ export const localUpdate = async (tableName: string, id: string, data: any) => {
     await enqueueSnapshotRecalc(txDate);
   }
 
-  // @ts-ignore
-  await db.transaction('rw', [tableName, 'sync_queue'], async () => {
-    // @ts-ignore
-    await db.table(tableName).put(updatedRecord);
-    // @ts-ignore
-    await db.sync_queue.add(syncQueueEntry);
-  });
+  // @ts-ignore - Update local record
+  await db.table(tableName).put(updatedRecord);
+  
+  // FASE 2: Use mutation collapsing for sync queue (prevents OCC thrashing)
+  await enqueueUpdateWithCollapsing(tableName, id, updatedRecord, now);
   
   triggerLocalMutation();
   return { data: updatedRecord };
