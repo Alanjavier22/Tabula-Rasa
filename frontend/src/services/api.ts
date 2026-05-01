@@ -11,7 +11,7 @@ import { syncCoordinator } from './SyncCoordinator';
 // UUIDv5 Namespace for Tabula Rasa (deterministic IDs)
 const TABULA_RASA_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // DNS namespace
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:8001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
 
 /**
  * Extract port from URL for port-aware token storage
@@ -927,7 +927,7 @@ export const authAPI = {
   generatePairingCode: () => api.post('/auth/pair/generate'),
   consumePairingCode: (pin: string, deviceName: string) => api.post('/auth/pair/consume', { pin, device_name: deviceName }),
   getPairingStatus: (pin: string) => api.get(`/auth/pair/status?pin=${pin}`),
-  pairLocalhost: () => axios.post('https://127.0.0.1:8001/auth/pair/localhost'),
+  pairLocalhost: () => axios.post('http://127.0.0.1:8001/auth/pair/localhost'),
 };
 
 export const syncAPI = {
