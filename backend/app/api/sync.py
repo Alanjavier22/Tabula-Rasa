@@ -41,7 +41,7 @@ class SyncRequest(BaseModel):
 class SyncResponse(BaseModel):
     server_timestamp: datetime
     changes: Dict[str, List[Dict[str, Any]]]
-    processed: List[Dict[str, str]] = Field(default_factory=list)  # FASE 2: Array of {id, hash} for handshake
+    processed: List[Dict[str, Optional[str]]] = Field(default_factory=list)  # FASE 2: Array of {id, hash} for handshake
 
 
 class BatchSyncRequest(BaseModel):
