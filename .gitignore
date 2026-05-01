@@ -1,0 +1,78 @@
+# ==========================================
+# .gitignore de Grado Industrial
+# Stack Local-First: Vite/React + FastAPI/SQLite
+# Proyecto: Tabula Rasa
+# ==========================================
+
+# --- Dependencias ---
+node_modules/
+venv/
+env/
+.env/
+.env.local
+.env.*.local
+
+# --- Caché y Builds ---
+dist/
+build/
+__pycache__/
+.pytest_cache/
+.vite/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# --- Datos Sensibles y Base de Datos ---
+# CRÍTICO: No fugamos la base de datos financiera del usuario
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+
+# --- Logs del Sistema ---
+*.log
+backend.log
+frontend.log
+backend_error.log
+frontend_error.log
+
+# --- Variables de Entorno ---
+.env
+.env.local
+.env.*.local
+
+# --- Archivos de Sistema Operativo ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- IDE y Editores ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# --- Archivos Temporales ---
+*.tmp
+*.temp
+*.bak
+*.backup
+temp.pem
+
+# --- Certificados (mantener estructura, ignorar claves privadas) ---
+# certs/ directory structure should be kept, but sensitive keys ignored
+certs/*.key
+certs/*.pem
+certs/*.crt
+!certs/.gitkeep
+
+# --- Backups de Base de Datos ---
+backups/
+*.backup
+pre_*
