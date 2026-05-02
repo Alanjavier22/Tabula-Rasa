@@ -104,11 +104,6 @@ Lo más importante: tus datos reales nunca salen de tu máquina. El sistema sani
 
 Tabula Rasa incluye un sistema de auto-curación multicapa:
 
-#### Backend: Phoenix DB Healer
-- **Auto-cura de esquema**: Detecta columnas faltantes en SQLite y las agrega automáticamente
-- **Mapeo de tipos**: Convierte tipos SQLAlchemy a tipos SQLite automáticamente
-- **Logging transparente**: Registra todas las acciones de curación con prefijo [Phoenix DB Healer]
-
 #### Frontend: Phoenix Local Healer
 - **Hard Reset de IndexedDB**: Elimina base de datos corrupta y recarga página
 - **Contador de Pánico**: Dispara reset automático tras 3 fallos consecutivos de esquema en 1 minuto
@@ -197,7 +192,7 @@ flowchart TB
 
     subgraph Backend["Backend (FastAPI + Python)"]
         E[REST API<br/>Endpoints seguros]
-        F[SQLite WAL<br/>Base de datos local (SSOT)]
+        F[SQLite WAL<br/>Base de datos local]
         G[AI Integration<br/>gemini-3.1-flash-lite-preview]
         H[Analytics Engine<br/>Cash Flow Forecast]
         I[Backup Service<br/>Google Drive API]
@@ -328,10 +323,10 @@ npm run dev
 
 | Característica | Apps SaaS Comunes | Tabula Rasa |
 |---------------|------------------|-------------|
-| **Propiedad de datos** | Servidores de terceros | Backend local (SQLite) |
+| **Propiedad de datos** | Servidores de terceros | Tu navegador (IndexedDB) |
 | **Offline** | Requiere internet | Offline-ready (carga desde backend) |
 | **Privacidad IA** | Datos crudos a la nube | Zero-Knowledge (sanitizado) |
-| **Precisión monetaria** | Float IEEE 754 (errores) | Decimal (precisión bancaria) |
+| **Precisión monetaria** | Float IEEE 754 (errores) | Branded Types + Decimal.js |
 | **Backup** | En la nube (sin control) | Google Drive (control total) |
 | **Importación masiva** | Crash >10k registros | Streaming 50k+ sin freeze |
 | **Auto-reparación** | Manual | Protocolo Phoenix automático |
@@ -456,7 +451,7 @@ Es para usuarios que valoran la soberanía de sus datos tanto como la funcionali
 - [ ] **Multi-currency**: Soporte para USD, EUR con conversión en tiempo real
 - [x] **Recurring Transactions**: Automatización de gastos recurrentes (implementado vía API dinámica)
 - [ ] **Advanced Analytics**: Plotly integrado para visualizaciones interactivas
-- [ ] **Mobile PWA**: Progressive Web App para acceso móvil
+- [x] **Mobile PWA**: Progressive Web App con modo standalone (implementado en FASE 8)
 - [ ] **Dark Mode**: Toggle de tema claro/oscuro
 - [ ] **Export PDF**: Reportes en PDF para contadores
 
