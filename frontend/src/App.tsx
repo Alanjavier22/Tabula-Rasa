@@ -14,7 +14,6 @@ import Subscriptions from './pages/Subscriptions';
 import Snapshots from './pages/Snapshots';
 import { AuthGuard } from './components/AuthGuard';
 import { GlobalErrorBoundary } from './components/common/GlobalErrorBoundary';
-import { db } from './db/db';
 import { validateCacheIntegrity } from './services/AICategorizationService';
 import { checkStorageQuota } from './utils/storage';
 import { snapshotsAPI } from './services/api';
@@ -37,14 +36,19 @@ function App() {
         console.log(`[FASE-8] Storage health: ${storage.usagePercent.toFixed(2)}% (${storage.status})`);
         
         // 3. Check stale snapshots and reconcile if >5
-        // @ts-ignore
-        const staleCount = await db.net_worth_snapshots.where('is_stale').equals(true).count();
-        if (staleCount > 5) {
-          console.log(`[FASE-8] Found ${staleCount} stale snapshots, triggering reconciliation...`);
-          await snapshotsAPI.reconcile();
-          console.log('[FASE-8] Reconciliation completed');
-        } else {
-          console.log(`[FASE-8] Snapshot integrity: ${staleCount} stale snapshots (OK)`);
+        // Thin Client: Use backend API instead of IndexedDB
+        try {
+          const snapshots = await snapshotsAPI.getAll();
+          const staleCount = snapshots.data.filter((s: any) => s.is_stale).length;
+          if (staleCount > 5) {
+            console.log(`[FASE-8] Found ${staleCount} stale snapshots, triggering reconciliation...`);
+            await snapshotsAPI.reconcile();
+            console.log('[FASE-8] Reconciliation completed');
+          } else {
+            console.log(`[FASE-8] Snapshot integrity: ${staleCount} stale snapshots (OK)`);
+          }
+        } catch (error) {
+          console.warn('[FASE-8] Could not check snapshot integrity via API:', error);
         }
         
         console.log('[FASE-8] Integrity Heartbeat: Completed');
@@ -75,19 +79,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Load theme from config on startup
-    const loadTheme = async () => {
-      try {
-        // @ts-ignore
-        const config = await db.config.where('key').equals('ui_theme').first();
-        if (config && config.value) {
-          setTheme(config.value as 'light' | 'dark');
-        }
-      } catch (error) {
-        console.error('[App] Error loading theme:', error);
-      }
-    };
-    loadTheme();
+    // Load theme from localStorage (Thin Client: no IndexedDB)
+    const savedTheme = localStorage.getItem('ui_theme') as 'light' | 'dark' | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
   }, []);
 
   useEffect(() => {

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from typing import List, Optional
 import json
-import google.generativeai as genai
+import google.genai as genai
 
 router = APIRouter()
 
@@ -82,23 +82,22 @@ async def call_gemini_json(prompt: str, api_key: str) -> dict:
     - Temperature: 0.1 (deterministic, analytical)
     - Response MIME type: application/json (native JSON)
     - Timeout: 15 seconds (prevent server hangs)
-    - Model: gemini-1.5-flash
+    - Model: gemini-3-flash
     
     Error handling:
     - Timeout → 504 Gateway Timeout
     - JSON parse error → 500 Internal Server Error
     """
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash')  # FASE 4: Updated to gemini-3-flash
+        client = genai.Client(api_key=api_key)
         
-        response = await model.generate_content_async(
-            prompt,
-            generation_config={
-                "temperature": 0.1,
-                "response_mime_type": "application/json",
-            },
-            timeout=15.0
+        response = client.models.generate_content(
+            model='gemini-3-flash',
+            contents=prompt,
+            config=genai.GenerateContentConfig(
+                temperature=0.1,
+                response_mime_type="application/json",
+            )
         )
         
         return json.loads(response.text)

@@ -1,15 +1,13 @@
 /**
- * IntegrityBadge - FASE 5: Heartbeat status indicator
- * FASE 6: Reactive to pending mutations
- * Verde = Inmune, Amarillo = Sincronizando, Rojo = Error Esquema
+ * IntegrityBadge - Heartbeat status indicator
+ * Thin Client: Always shows immune status (no sync queue)
+ * Verde = Inmune, Rojo = Error
  */
 
-import React, { useState, useEffect } from 'react';
-import { Shield, AlertTriangle, CheckCircle } from 'lucide-react';
-import { db } from '../../db/db';
-import { useLiveQuery } from 'dexie-react-hooks';
+import React from 'react';
+import { Shield, CheckCircle } from 'lucide-react';
 
-type IntegrityStatus = 'immune' | 'syncing' | 'error';
+type IntegrityStatus = 'immune' | 'error';
 
 interface IntegrityBadgeProps {
   status?: IntegrityStatus;
@@ -20,20 +18,6 @@ export const IntegrityBadge: React.FC<IntegrityBadgeProps> = ({
   status = 'immune',
   lastCheck,
 }) => {
-  // FASE 7: Use useLiveQuery for reactive counting from sync_queue
-  const pendingCount = useLiveQuery(() => db.sync_queue.count()) || 0;
-  
-  const [currentStatus, setCurrentStatus] = useState<IntegrityStatus>(status);
-
-  // Update status based on pending count (reactive)
-  useEffect(() => {
-    if (pendingCount > 0) {
-      setCurrentStatus('syncing');
-    } else {
-      setCurrentStatus('immune');
-    }
-  }, [pendingCount]);
-
   const config = {
     immune: {
       icon: CheckCircle,
@@ -41,19 +25,13 @@ export const IntegrityBadge: React.FC<IntegrityBadgeProps> = ({
       bg: 'bg-green-100',
       label: 'Inmune',
     },
-    syncing: {
-      icon: AlertTriangle,
-      color: 'text-yellow-600',
-      bg: 'bg-yellow-100',
-      label: `Sincronizando (${pendingCount})`,
-    },
     error: {
       icon: Shield,
       color: 'text-red-600',
       bg: 'bg-red-100',
       label: 'Error Esquema',
     },
-  }[currentStatus];
+  }[status];
 
   const Icon = config.icon;
 

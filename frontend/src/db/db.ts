@@ -31,15 +31,11 @@ import type {
 export type { LocalTransaction } from '../types/schemas';
 
 export class FinanceDatabase extends Dexie {
-  // Sync metadata
-  sync_metadata!: Table<SyncMetadata, string>;
-  
   // App data tables
   config!: Table<LocalConfig, string>;
   exchange_rates!: Table<ExchangeRate, string>;
   categories!: Table<LocalCategory, string>;
   accounts!: Table<LocalAccount, string>;
-  sync_conflicts!: Table<SyncConflictEntry, string>;
   transactions!: Table<LocalTransaction, string>;
   transaction_splits!: Table<LocalTransactionSplit, string>;
   credit_card_statements!: Table<LocalCreditCardStatement, string>;
@@ -49,8 +45,6 @@ export class FinanceDatabase extends Dexie {
   goals!: Table<LocalGoal, string>;
   reminders!: Table<LocalReminder, string>;
   subscriptions!: Table<LocalSubscription, string>;
-  sync_queue!: Table<SyncQueueEntry, string>;
-  sync_errors!: Table<SyncErrorEntry, string>;
   vehicles!: Table<LocalVehicle, string>;
   fuel_logs!: Table<LocalFuelLog, string>;
   maintenance_logs!: Table<LocalMaintenanceLog, string>;
@@ -177,14 +171,6 @@ export class FinanceDatabase extends Dexie {
     }).upgrade(async () => {
       // Migration from v5 to v6: add snapshot_recalc_queue table
       console.log('[DB] Upgrading from v5 to v6 - adding snapshot_recalc_queue table...');
-      // Dexie automatically handles new table creation
-    }).upgrade(async () => {
-      // Migration from v4 to v5: add error_type/error_message indexes to sync_conflicts
-      console.log('[DB] Upgrading from v4 to v5 - adding error_type index to sync_conflicts...');
-      // Dexie automatically handles index additions for existing data
-    }).upgrade(async () => {
-      // Migration from v3 to v4: add sync_conflicts table
-      console.log('[DB] Upgrading from v3 to v4 - adding sync_conflicts table...');
       // Dexie automatically handles new table creation
     }).upgrade(async () => {
       // Migration from v2 to v3: add version index for OCC

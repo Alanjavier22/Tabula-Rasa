@@ -48,8 +48,6 @@ def get_semantic_category(description: str, amount: int, db_session=None) -> Opt
             otros_cat = next((c for c in categories if c.name.lower() == "otros"), None)
             return otros_cat.id if otros_cat else categories[0].id
             
-        genai.configure(api_key=api_key)
-        
         # 3. Direct Classification approach vs Embeddings:
         # For a local system with <100 categories, Direct Classification via Prompt 
         # is vastly superior in development speed, requires no vector DB infrastructure,
@@ -77,22 +75,13 @@ def get_semantic_category(description: str, amount: int, db_session=None) -> Opt
         sanitized_description = mask_description(description)
         prompt = f"Descripción: '{sanitized_description}' | Monto: ${amount / 100:.2f}"
         
-        model = genai.GenerativeModel(
-            "gemini-3-flash",  # FASE 4: Updated to gemini-3-flash
-            system_instruction=system_instruction
-        )
+        client = genai.Client(api_key=api_key)
         
-        class CategoryPrediction(BaseModel):
-            category_id: str
-            confidence: float
-            is_anomaly: bool = False
-            reasoning: str = ""
-            
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
+        response = client.models.generate_content(
+            model='gemini-3-flash',
+            contents=system_instruction + "\n\n" + prompt,
+            config=genai.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=CategoryPrediction
             )
         )
         
@@ -109,6 +98,7 @@ def get_semantic_category(description: str, amount: int, db_session=None) -> Opt
             
             # 4. Fallback for low confidence
             if confidence < 0.70:
+                print(f"[CATEGORIZER] Low confidence ({confidence:.2f}) for '{sanitized_description}', falling back to 'Otros'")
                 otros_cat = next((c for c in categories if c.name.lower() == "otros"), None)
                 return otros_cat.id if otros_cat else categories[0].id
                 
@@ -116,11 +106,18 @@ def get_semantic_category(description: str, amount: int, db_session=None) -> Opt
             if any(c.id == pred_id for c in categories):
                 return pred_id
             else:
+                print(f"[CATEGORIZER] Invalid category_id {pred_id} returned by AI, falling back to 'Otros'")
                 otros_cat = next((c for c in categories if c.name.lower() == "otros"), None)
                 return otros_cat.id if otros_cat else categories[0].id
                 
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as json_error:
+            # FAIL-FAST: LLM hallucinated or returned invalid JSON - log and fallback
+            print(f"[CATEGORIZER] JSON parsing failed (LLM hallucination): {json_error}")
+            print(f"[CATEGORIZER] AI response: {response.text[:200]}")  # Log first 200 chars for debugging
+        except (KeyError, TypeError) as schema_error:
+            # FAIL-FAST: JSON structure doesn't match expected schema - log and fallback
+            print(f"[CATEGORIZER] Schema validation failed: {schema_error}")
+            print(f"[CATEGORIZER] AI response: {response.text[:200]}")
             
         # Absolute fallback
         otros_cat = next((c for c in categories if c.name.lower() == "otros"), None)

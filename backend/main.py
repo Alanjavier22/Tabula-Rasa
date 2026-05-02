@@ -150,31 +150,17 @@ schedule_parts = backup_schedule.split()
 
 # Validate schedule format (5 parts: minute hour day month day_of_week)
 if len(schedule_parts) == 5:
-    minute, hour, day, month, day_of_week = schedule_parts
     try:
-        # Convert to integers for validation
-        int(minute)
-        int(hour)
-        int(day)
-        int(month)
-        int(day_of_week)
-        
-        # Add scheduled job
+        # Use CronTrigger.from_crontab() to handle wildcard (*) characters properly
         scheduler.add_job(
             scheduled_external_backup,
-            trigger=CronTrigger(
-                minute=int(minute),
-                hour=int(hour),
-                day=int(day),
-                month=int(month),
-                day_of_week=int(day_of_week)
-            ),
+            trigger=CronTrigger.from_crontab(backup_schedule),
             id='external_backup',
             name='Daily External Database Backup',
             replace_existing=True
         )
         logger.info(f"[SCHEDULED_BACKUP] Scheduled daily external backup at: {backup_schedule}")
-    except ValueError as e:
+    except Exception as e:
         logger.warning(f"[SCHEDULED_BACKUP] Invalid BACKUP_SCHEDULE format: {backup_schedule}. Error: {e}")
 else:
     logger.warning(f"[SCHEDULED_BACKUP] Invalid BACKUP_SCHEDULE format: {backup_schedule}. Expected 5 parts (minute hour day month day_of_week)")

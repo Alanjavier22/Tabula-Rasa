@@ -56,22 +56,24 @@ const Dashboard = () => {
     queryFn: async () => {
       const res = await snapshotsAPI.getAll();
       return res.data;
-    }
+    },
+    refetchOnWindowFocus: true,
+    refetchOnMount: true
   });
 
   // React Query: Fetch multiple metrics and data in parallel
   const results = useQueries({
     queries: [
-      { queryKey: ['accounts'], queryFn: () => accountsAPI.getAll().then(res => res.data) },
-      { queryKey: ['statements'], queryFn: () => statementsAPI.getAll().then(res => res.data) },
+      { queryKey: ['accounts'], queryFn: () => accountsAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
+      { queryKey: ['statements'], queryFn: () => statementsAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
       { queryKey: ['safeToSpend'], queryFn: async () => {
         const res = await metricsAPI.getSafeToSpend();
         return res.data;
-      }},
-      { queryKey: ['netWorth'], queryFn: () => metricsAPI.getNetWorth().then(res => res.data) },
-      { queryKey: ['vehicleTelemetry'], queryFn: () => metricsAPI.getVehicleTelemetry().then(res => res.data) },
-      { queryKey: ['budgets'], queryFn: () => budgetsAPI.getAll().then(res => res.data) },
-      { queryKey: ['cashFlowForecast'], queryFn: () => metricsAPI.getCashFlowForecast().then(res => res.data) },
+      }, refetchOnWindowFocus: true, refetchOnMount: true },
+      { queryKey: ['netWorth'], queryFn: () => metricsAPI.getNetWorth().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
+      { queryKey: ['vehicleTelemetry'], queryFn: () => metricsAPI.getVehicleTelemetry().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
+      { queryKey: ['budgets'], queryFn: () => budgetsAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
+      { queryKey: ['cashFlowForecast'], queryFn: () => metricsAPI.getCashFlowForecast().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
       { 
         queryKey: ['dashboardSummary'], 
         queryFn: async () => {
@@ -82,7 +84,9 @@ const Dashboard = () => {
             console.error('Dashboard summary fetch failed:', err);
             return null;
           }
-        }
+        },
+        refetchOnWindowFocus: true,
+        refetchOnMount: true
       },
     ]
   });

@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      devOptions: { enabled: true },
+      devOptions: { enabled: true, suppressWarnings: true },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Finance Local-First',
@@ -36,7 +36,7 @@ export default defineConfig({
       },
       workbox: {
         // 1. Restaurar precache del App Shell (vital para SPA)
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg}'],
         
         // 2. Fallback de navegación para React Router
         navigateFallback: '/index.html',

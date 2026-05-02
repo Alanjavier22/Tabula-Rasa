@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from pydantic import BaseModel
 from datetime import datetime, timedelta
+from decimal import Decimal
 import json
 import calendar
 from database import get_db
@@ -25,13 +26,13 @@ router = APIRouter(prefix="/metrics", tags=["Metrics"], redirect_slashes=False)
 
 
 class SafeToSpendResponse(BaseModel):
-    safe_to_spend: int
-    monthly_income: int
-    current_balance: int
-    projected_fixed_expenses: int
-    actual_expenses: int
-    pending_cc_payments: int
-    anomaly_leaks: int
+    safe_to_spend: Decimal
+    monthly_income: Decimal
+    current_balance: Decimal
+    projected_fixed_expenses: Decimal
+    actual_expenses: Decimal
+    pending_cc_payments: Decimal
+    anomaly_leaks: Decimal
     breakdown: dict
 
 
@@ -45,61 +46,61 @@ def get_safe_to_spend(db: Session = Depends(get_db)):
         Account.is_active == 1,
         Account.account_type.in_(["checking", "savings", "cash"])
     ).all()
-    current_balance = sum((acc.balance for acc in accounts), 0)
+    current_balance = Decimal(str(sum((acc.balance for acc in accounts), 0)))
 
     # Add IOUs that others owe to the user (increases liquidity)
     they_owe_ious = db.query(IOU).filter(
         IOU.iou_type == IOUType.THEY_OWE,
         IOU.status == IOUStatus.PENDING
     ).all()
-    ious_receivable = sum((i.amount for i in they_owe_ious), 0)
+    ious_receivable = Decimal(str(sum((i.amount for i in they_owe_ious), 0)))
     current_balance += ious_receivable
 
     income_transactions = db.query(Transaction).filter(
         Transaction.transaction_type == "income",
         Transaction.date >= datetime(current_year, current_month, 1)
     ).all()
-    monthly_income_total = 0
+    monthly_income_total = Decimal("0")
     for txn in income_transactions:
         if txn.splits:
-            monthly_income_total += sum((s.amount for s in txn.splits), 0)
+            monthly_income_total += Decimal(str(sum((s.amount for s in txn.splits), 0)))
         else:
-            monthly_income_total += txn.amount
+            monthly_income_total += Decimal(str(txn.amount))
 
     expense_transactions = db.query(Transaction).filter(
         Transaction.transaction_type == "expense",
         Transaction.date >= datetime(current_year, current_month, 1)
     ).all()
-    actual_expenses_total = 0
+    actual_expenses_total = Decimal("0")
     for txn in expense_transactions:
         if txn.splits:
-            actual_expenses_total += sum((s.amount for s in txn.splits), 0)
+            actual_expenses_total += Decimal(str(sum((s.amount for s in txn.splits), 0)))
         else:
-            actual_expenses_total += txn.amount
+            actual_expenses_total += Decimal(str(txn.amount))
 
     budgets = db.query(Budget).filter(
         Budget.month == current_month, Budget.year == current_year
     ).all()
-    projected_fixed_expenses = sum((b.amount for b in budgets), 0)
+    projected_fixed_expenses = Decimal(str(sum((b.amount for b in budgets), 0)))
 
     pending_statements = db.query(CreditCardStatement).filter(
         CreditCardStatement.status.in_(["pending", "partial"]),
         CreditCardStatement.payment_due_date >= now,
         CreditCardStatement.payment_due_date <= now + timedelta(days=30)
     ).all()
-    pending_cc_payments = sum(
+    pending_cc_payments = Decimal(str(sum(
         (max(0, s.user_share - s.amount_paid) for s in pending_statements),
         0
-    )
+    )))
 
     # Subtract pending Debt Shares from credit cards (decreases liquidity)
     pending_debt_shares = db.query(DebtShare).filter(
         DebtShare.status == "pending"
     ).all()
-    pending_debt_total = sum((ds.amount for ds in pending_debt_shares), 0)
+    pending_debt_total = Decimal(str(sum((ds.amount for ds in pending_debt_shares), 0)))
 
     # Detect leaks from anomaly detector to penalize safe_to_spend
-    anomaly_leaks = calculate_anomaly_leak_total(db)
+    anomaly_leaks = Decimal(str(calculate_anomaly_leak_total(db)))
 
     safe_to_spend = current_balance - projected_fixed_expenses - pending_cc_payments - pending_debt_total - anomaly_leaks
 
@@ -128,25 +129,25 @@ def get_net_worth(db: Session = Depends(get_db)):
         Account.is_active == 1,
         Account.account_type.in_(["checking", "savings", "investment"])
     ).all()
-    assets = sum((acc.balance for acc in assets_accounts), 0)
+    assets = Decimal(str(sum((acc.balance for acc in assets_accounts), 0)))
 
     they_owe_ious = db.query(IOU).filter(
         IOU.iou_type == IOUType.THEY_OWE, IOU.status == IOUStatus.PENDING
     ).all()
-    assets += sum((i.amount for i in they_owe_ious), 0)
+    assets += Decimal(str(sum((i.amount for i in they_owe_ious), 0)))
 
     liabilities_accounts = db.query(Account).filter(
         Account.is_active == 1, Account.account_type == "credit_card"
     ).all()
-    liabilities = sum(
+    liabilities = Decimal(str(sum(
         (abs(acc.balance) for acc in liabilities_accounts if acc.balance < 0),
         0
-    )
+    )))
 
     i_owe_ious = db.query(IOU).filter(
         IOU.iou_type == IOUType.I_OWE, IOU.status == IOUStatus.PENDING
     ).all()
-    liabilities += sum((i.amount for i in i_owe_ious), 0)
+    liabilities += Decimal(str(sum((i.amount for i in i_owe_ious), 0)))
 
     net_worth = assets - liabilities
 
@@ -158,8 +159,8 @@ def get_net_worth(db: Session = Depends(get_db)):
 
     history = []
     for row in monthly_data:
-        month_income = int(row.income or 0)
-        month_expense = int(row.expense or 0)
+        month_income = Decimal(str(row.income or 0))
+        month_expense = Decimal(str(row.expense or 0))
 
         month_txns = db.query(Transaction).filter(
             func.strftime("%Y-%m", Transaction.date) == row.month
@@ -167,11 +168,11 @@ def get_net_worth(db: Session = Depends(get_db)):
 
         for txn in month_txns:
             if txn.splits:
-                split_total = sum((s.amount for s in txn.splits), 0)
+                split_total = Decimal(str(sum((s.amount for s in txn.splits), 0)))
                 if txn.transaction_type == "income":
-                    month_income = month_income - txn.amount + split_total
+                    month_income = month_income - Decimal(str(txn.amount)) + split_total
                 else:
-                    month_expense = month_expense - txn.amount + split_total
+                    month_expense = month_expense - Decimal(str(txn.amount)) + split_total
 
         history.append({
             "month": row.month,
@@ -213,15 +214,15 @@ def get_vehicle_telemetry(db: Session = Depends(get_db)):
         Transaction.metadata_json.isnot(None)
     ).all()
 
-    total_vehicle_cost = 0
+    total_vehicle_cost = Decimal("0")
     for txn in vehicle_txns:
         if txn.splits:
-            total_vehicle_cost += sum(
+            total_vehicle_cost += Decimal(str(sum(
                 (s.amount for s in txn.splits if s.category_id in vehicle_category_ids),
                 0
-            )
+            )))
         else:
-            total_vehicle_cost += txn.amount
+            total_vehicle_cost += Decimal(str(txn.amount))
 
     odometer_readings = []
     for txn in vehicle_txns:
@@ -232,14 +233,14 @@ def get_vehicle_telemetry(db: Session = Depends(get_db)):
         except (json.JSONDecodeError, TypeError):
             continue
 
-    total_distance = max(odometer_readings) - min(odometer_readings) if len(odometer_readings) >= 2 else 0
+    total_distance = Decimal(str(max(odometer_readings) - min(odometer_readings))) if len(odometer_readings) >= 2 else Decimal("0")
     if total_distance > 0:
-        cost_per_km = total_vehicle_cost // total_distance
+        cost_per_km = total_vehicle_cost / total_distance
     else:
-        cost_per_km = 0
+        cost_per_km = Decimal("0")
 
     return VehicleTelemetryResponse(
-        total_distance=round(total_distance, 2),
+        total_distance=total_distance,
         cost_per_km=cost_per_km,
         total_vehicle_cost=total_vehicle_cost,
         month=current_month,
@@ -262,7 +263,7 @@ def get_cash_flow_forecast(db: Session = Depends(get_db)):
         Account.is_active == 1,
         Account.account_type.in_(["checking", "savings"])
     ).all()
-    current_balance = sum((acc.balance for acc in accounts), 0)
+    current_balance = Decimal(str(sum((acc.balance for acc in accounts), 0)))
 
     reminders = db.query(Reminder).filter(
         Reminder.status == "pending",
@@ -283,23 +284,23 @@ def get_cash_flow_forecast(db: Session = Depends(get_db)):
         forecast_date = today + timedelta(days=day_offset)
         forecast_date_str = forecast_date.strftime("%Y-%m-%d")
 
-        daily_income = sum(
+        daily_income = Decimal(str(sum(
             (r.amount for r in reminders
              if r.due_date.date() == forecast_date and r.amount and r.amount > 0),
             0
-        )
+        )))
 
-        daily_expense = sum(
+        daily_expense = Decimal(str(sum(
             (r.amount for r in reminders
              if r.due_date.date() == forecast_date and r.amount and r.amount < 0),
             0
-        )
+        )))
 
-        daily_cc_payment = sum(
+        daily_cc_payment = Decimal(str(sum(
             (s.user_share - s.amount_paid for s in statements
              if s.payment_due_date and s.payment_due_date.date() == forecast_date),
             0
-        )
+        )))
 
         projected_balance += daily_income - daily_expense - daily_cc_payment
 
@@ -318,13 +319,13 @@ def get_cash_flow_forecast(db: Session = Depends(get_db)):
 
 
 class DashboardSummaryResponse(BaseModel):
-    total_income: int
-    total_expenses: int
+    total_income: Decimal
+    total_expenses: Decimal
     expense_breakdown: list[dict]
     daily_spending: list[dict]
     monthly_comparison: list[dict]
     sankey_data: dict
-    vehicle_cost: int
+    vehicle_cost: Decimal
     alerts: list[dict]
 
 
@@ -336,15 +337,20 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         current_year = now.year
         current_month_str = f"{current_year}-{current_month:02d}"
 
+        # Filter by current month only
         income_result = db.query(
             func.coalesce(func.sum(case((Transaction.transaction_type == "income", Transaction.amount), else_=0)), 0)
+        ).filter(
+            Transaction.date >= datetime(current_year, current_month, 1)
         ).scalar()
-        total_income = int(income_result)
+        total_income = Decimal(str(income_result))
 
         expense_result = db.query(
             func.coalesce(func.sum(case((Transaction.transaction_type == "expense", Transaction.amount), else_=0)), 0)
+        ).filter(
+            Transaction.date >= datetime(current_year, current_month, 1)
         ).scalar()
-        total_expenses = int(expense_result)
+        total_expenses = Decimal(str(expense_result))
 
         expense_breakdown_query = db.query(
             func.substr(Transaction.description, 1, 20).label("name"),
@@ -356,7 +362,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         ).order_by(func.sum(Transaction.amount).desc()).limit(8).all()
 
         expense_breakdown = [
-            {"name": row.name + ("..." if len(row.name) >= 20 else ""), "value": int(row.value)}
+            {"name": row.name + ("..." if len(row.name) >= 20 else ""), "value": Decimal(str(row.value))}
             for row in expense_breakdown_query
         ]
 
@@ -364,11 +370,12 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             func.date(Transaction.date).label("date"),
             func.coalesce(func.sum(Transaction.amount), 0).label("gasto")
         ).filter(
-            Transaction.transaction_type == "expense"
+            Transaction.transaction_type == "expense",
+            Transaction.date >= datetime(current_year, current_month, 1)
         ).group_by(func.date(Transaction.date)).order_by("date").all()
 
         daily_spending = [
-            {"date": datetime.strptime(str(row.date), "%Y-%m-%d").strftime("%m-%d"), "gasto": int(row.gasto)}
+            {"date": datetime.strptime(str(row.date), "%Y-%m-%d").strftime("%m-%d"), "gasto": Decimal(str(row.gasto))}
             for row in daily_spending_query
         ]
 
@@ -379,7 +386,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         ).group_by(func.strftime("%Y-%m", Transaction.date)).order_by("mes").all()
 
         monthly_comparison = [
-            {"mes": row.mes, "Ingresos": int(row.Ingresos), "Gastos": int(row.Gastos)}
+            {"mes": row.mes, "Ingresos": Decimal(str(row.Ingresos)), "Gastos": Decimal(str(row.Gastos))}
             for row in monthly_comparison_query
         ]
 
@@ -435,9 +442,10 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             func.coalesce(func.sum(Transaction.amount), 0)
         ).filter(
             Transaction.transaction_type == "expense",
-            Transaction.category_id.in_(vehicle_category_ids)
+            Transaction.category_id.in_(vehicle_category_ids),
+            Transaction.date >= datetime(current_year, current_month, 1)
         ).scalar()
-        vehicle_cost = int(vehicle_cost_result)
+        vehicle_cost = float(vehicle_cost_result)
         
         alerts = detect_anomalies(db)
 
@@ -544,7 +552,7 @@ class BalanceSheetResponse(BaseModel):
     date: str
     assets: dict
     liabilities: dict
-    equity_cents: int
+    equity_cents: Decimal
     is_stale: bool
 
 
@@ -609,4 +617,5 @@ def get_cash_flow_projection_days(days: int, db: Session = Depends(get_db)):
         projection = cash_flow_service.get_projected_balance(db, days)
         return projection.to_dict()
     except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting cash flow projection: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting cash flow projection: {str(e)}")

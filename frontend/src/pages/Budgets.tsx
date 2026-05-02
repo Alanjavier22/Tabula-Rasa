@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { budgetsAPI, categoriesAPI, transactionsAPI, accountsAPI } from '../services/api';
 import type { Budget, Category, Account, TransactionType, PaymentMethod, ExpenseType } from '../types';
 import { formatMoney, toCents } from '../utils/money';
@@ -16,6 +17,7 @@ const emptyForm = {
 };
 
 const Budgets = () => {
+  const queryClient = useQueryClient();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -198,6 +200,10 @@ const Budgets = () => {
       setPaymentBudget(null);
       setToast({ message: 'Pago registrado exitosamente', type: 'success' });
       fetchBudgets();
+      // Invalidate dashboard queries to trigger reactivity
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
     } catch (error) {
       console.error('Error creating payment transaction:', error);
       setToast({ message: 'Error al registrar pago', type: 'error' });

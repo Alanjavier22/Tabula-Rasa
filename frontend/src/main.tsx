@@ -8,6 +8,46 @@ import { phoenixHardReset } from './db/db'
 
 registerSW({ immediate: true })
 
+/**
+ * Thin Client: IndexedDB Cleanup
+ * Deletes the old IndexedDB database to remove zombie data from previous architecture.
+ * In Thin Client mode, all data is fetched from backend API on demand.
+ */
+async function cleanupOldIndexedDB(): Promise<void> {
+  const DB_NAME = 'FinanceLocalFirstDB';
+  const CLEANUP_KEY = 'indexeddb_cleanup_done';
+
+  // Check if cleanup already done
+  if (localStorage.getItem(CLEANUP_KEY) === 'true') {
+    return;
+  }
+
+  try {
+    console.log('[Thin Client] Cleaning up old IndexedDB database...');
+    
+    // Delete the old IndexedDB database
+    const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+    
+    deleteRequest.onsuccess = () => {
+      console.log('[Thin Client] Old IndexedDB database deleted successfully');
+      localStorage.setItem(CLEANUP_KEY, 'true');
+    };
+    
+    deleteRequest.onerror = () => {
+      console.error('[Thin Client] Failed to delete old IndexedDB database');
+    };
+    
+    deleteRequest.onblocked = () => {
+      console.warn('[Thin Client] IndexedDB deletion blocked - other tabs may have it open');
+    };
+  } catch (error) {
+    console.error('[Thin Client] Error during IndexedDB cleanup:', error);
+  }
+}
+
+// Run cleanup on app initialization
+cleanupOldIndexedDB();
+
 // FASE PHOENIX GLOBAL: Global Promise Interceptor for unhandled Dexie rejections
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason;
