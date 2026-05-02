@@ -14,11 +14,11 @@
 
 **Tus datos te pertenecen. Punto.**
 
-Tabula Rasa rechaza el modelo SaaS donde tus datos financieros viven en servidores de terceros. En su lugar, implementamos una arquitectura **Local-First** donde:
+Tabula Rasa rechaza el modelo SaaS donde tus datos financieros viven en servidores de terceros. En su lugar, implementamos una arquitectura **Thin Client** donde:
 
-- **IndexedDB** es tu base de datos en el navegador (ningún dato sale sin tu consentimiento explícito)
-- **Backend como Fuente de Verdad**: FastAPI + SQLite en modo WAL para concurrencia sin bloqueos
-- **Offline-Ready**: Carga inicial desde backend, luego trabaja con datos cacheados
+- **Backend como Fuente de Verdad**: FastAPI + SQLite en modo WAL es tu base de datos local (Single Source of Truth)
+- **Frontend Thin Client**: Cliente ligero que consulta datos vía HTTP sin almacenamiento local persistente
+- **Offline-Ready**: Carga inicial desde backend, React Query cache en memoria para reactividad
 - **Zero-Knowledge AI**: La IA solo ve datos sanitizados (Cédulas/RUCs enmascarados antes del envío)
 - **Google Drive Backup**: Backups automáticos en la nube con rotación inteligente
 
@@ -131,7 +131,7 @@ Tabula Rasa incluye un sistema de auto-curación multicapa:
 
 **Alerta al 80%, crítico al 95%. Nunca te sorprenda sin espacio.**
 
-El sistema monitorea continuamente el uso de almacenamiento de IndexedDB. Cuando alcanzas el 80% de cuota, recibes una advertencia. Al 95%, el sistema entra en modo crítico y ajusta automáticamente la política de sincronización para priorizar datos esenciales.
+El sistema monitorea continuamente el uso de almacenamiento del backend SQLite. Cuando alcanzas el 80% de cuota, recibes una advertencia. Al 95%, el sistema entra en modo crítico y activa automáticamente la rotación de backups para liberar espacio.
 
 ### ⚡ Lógica Avanzada: Telemetría y Depreciación
 
@@ -190,14 +190,14 @@ Tabula Rasa utiliza una arquitectura híbrida que combina lo mejor de dos mundos
 flowchart TB
     subgraph Frontend["Frontend (React + TypeScript)"]
         A[UI Components<br/>Dashboards & Forms]
-        B[IndexedDB<br/>Dexie.js - Local Cache]
+        B[React Query Cache<br/>In-memory volátil]
         C[Privacy Layer<br/>Sanitización PII]
         D[API Client<br/>HTTP Requests]
     end
 
     subgraph Backend["Backend (FastAPI + Python)"]
         E[REST API<br/>Endpoints seguros]
-        F[SQLite WAL<br/>Base de datos local]
+        F[SQLite WAL<br/>Base de datos local (SSOT)]
         G[AI Integration<br/>gemini-3.1-flash-lite-preview]
         H[Analytics Engine<br/>Cash Flow Forecast]
         I[Backup Service<br/>Google Drive API]
@@ -205,7 +205,6 @@ flowchart TB
 
     A --> B
     A --> C
-    B --> D
     C --> D
     D --> E
     E --> F
@@ -215,18 +214,18 @@ flowchart TB
 
     style Frontend fill:#e1f5ff
     style Backend fill:#fff4e1
-    style B fill:#e8f5e9
+    style B fill:#fff9c4
     style F fill:#e8f5e9
     style G fill:#fce4ec
     style I fill:#fff3cd
 ```
 
 **Flujo de datos:**
-1. **Frontend** maneja toda la lógica de UI y almacenamiento local en IndexedDB
+1. **Frontend** maneja toda la lógica de UI y realiza peticiones HTTP al backend
 2. **Privacy Layer** sanitiza datos antes de cualquier comunicación externa
 3. **API Client** realiza peticiones HTTP directas al backend (sin cola de sincronización)
 4. **Backend** proporciona API REST, análisis avanzado e integración con IA
-5. **SQLite WAL** asegura concurrencia sin bloqueos para múltiples operaciones
+5. **SQLite WAL** es la Single Source of Truth y asegura concurrencia sin bloqueos
 6. **Google Drive Backup** sube dumps de base de datos a la nube con rotación automática
 
 ---
@@ -329,10 +328,10 @@ npm run dev
 
 | Característica | Apps SaaS Comunes | Tabula Rasa |
 |---------------|------------------|-------------|
-| **Propiedad de datos** | Servidores de terceros | Tu navegador (IndexedDB) |
+| **Propiedad de datos** | Servidores de terceros | Backend local (SQLite) |
 | **Offline** | Requiere internet | Offline-ready (carga desde backend) |
 | **Privacidad IA** | Datos crudos a la nube | Zero-Knowledge (sanitizado) |
-| **Precisión monetaria** | Float IEEE 754 (errores) | Branded Types + Decimal.js |
+| **Precisión monetaria** | Float IEEE 754 (errores) | Decimal (precisión bancaria) |
 | **Backup** | En la nube (sin control) | Google Drive (control total) |
 | **Importación masiva** | Crash >10k registros | Streaming 50k+ sin freeze |
 | **Auto-reparación** | Manual | Protocolo Phoenix automático |
