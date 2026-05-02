@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime
 from database import get_db
 from app.models.config import Config
 from pydantic import BaseModel
@@ -113,17 +114,32 @@ class GoogleDriveCredentials(BaseModel):
     refresh_token: str
 
 
-@router.get("/drive", response_model=GoogleDriveCredentials)
-def get_google_drive_credentials(db: Session = Depends(get_db)):
-    """Get Google Drive OAuth credentials from database."""
+class GoogleDriveStatus(BaseModel):
+    is_configured: bool
+    has_client_id: bool
+    has_client_secret: bool
+    has_refresh_token: bool
+
+
+@router.get("/drive/status", response_model=GoogleDriveStatus)
+def get_google_drive_status(db: Session = Depends(get_db)):
+    """
+    Check if Google Drive OAuth credentials are configured.
+    SECURITY: Does NOT return actual token values - only status flags.
+    """
     client_id_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_ID").first()
     client_secret_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_SECRET").first()
     refresh_token_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
     
-    return GoogleDriveCredentials(
-        client_id=client_id_config.value if client_id_config else "",
-        client_secret=client_secret_config.value if client_secret_config else "",
-        refresh_token=refresh_token_config.value if refresh_token_config else ""
+    return GoogleDriveStatus(
+        is_configured=bool(
+            client_id_config and client_id_config.value and
+            client_secret_config and client_secret_config.value and
+            refresh_token_config and refresh_token_config.value
+        ),
+        has_client_id=bool(client_id_config and client_id_config.value),
+        has_client_secret=bool(client_secret_config and client_secret_config.value),
+        has_refresh_token=bool(refresh_token_config and refresh_token_config.value)
     )
 
 
