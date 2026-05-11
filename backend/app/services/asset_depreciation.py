@@ -4,7 +4,7 @@ Calculates current asset value using straight-line depreciation
 Precision: multiply first, divide later to avoid cent loss
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.models.asset import Asset
@@ -64,7 +64,7 @@ class AssetDepreciationService:
     ) -> AssetValueResult:
         """Calculate current value of an asset at a given date"""
         if as_of_date is None:
-            as_of_date = datetime.utcnow()
+            as_of_date = datetime.now(timezone.utc)
 
         asset = db.query(Asset).filter(Asset.id == asset_id).first()
         if not asset or asset.is_deleted:
@@ -114,7 +114,7 @@ class AssetDepreciationService:
     ) -> int:
         """Calculate total current value of all assets at a given date"""
         if as_of_date is None:
-            as_of_date = datetime.utcnow()
+            as_of_date = datetime.now(timezone.utc)
 
         assets = db.query(Asset).filter(Asset.is_deleted == False).all()
         total_value = 0
@@ -131,7 +131,7 @@ class AssetDepreciationService:
     ) -> List[dict]:
         """Get all assets with their current values"""
         if as_of_date is None:
-            as_of_date = datetime.utcnow()
+            as_of_date = datetime.now(timezone.utc)
 
         assets = db.query(Asset).filter(Asset.is_deleted == False).all()
         results = []
