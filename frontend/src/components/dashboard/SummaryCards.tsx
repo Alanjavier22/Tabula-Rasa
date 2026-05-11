@@ -1,7 +1,6 @@
-import { DollarSign, TrendingDown, TrendingUp, AlertCircle } from 'lucide-react';
+import { Wallet, CreditCard, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { formatMoney, toDecimal } from '../../utils/money';
 
-// Acepta cualquier valor monetario: string (Decimal del backend), number, Decimal, null/undefined
 type MoneyValue = string | number | null | undefined | { toFixed: (n: number) => string };
 
 interface SummaryCardsProps {
@@ -12,67 +11,94 @@ interface SummaryCardsProps {
 }
 
 export default function SummaryCards({ balance, creditCardDebt, income, expenses }: SummaryCardsProps) {
-  // Ensure all values default to 0.00 if missing or undefined
   const safeBalance = balance ?? 0;
   const safeCreditCardDebt = creditCardDebt ?? 0;
   const safeIncome = income ?? 0;
   const safeExpenses = expenses ?? 0;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6">
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-slate-400 text-xs lg:text-sm">Saldo Disponible</p>
-            <p className="text-2xl lg:text-3xl font-bold text-white mt-1">
-              ${formatMoney(safeBalance)}
-            </p>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      {/* Saldo Disponible - Compact Precision */}
+      <div className="group relative bg-white/[0.03] backdrop-blur-[40px] rounded-2xl border border-white/10 p-4 transition-all duration-500 hover:bg-white/[0.06] hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/[0.03] via-transparent to-transparent pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col justify-between h-full space-y-1">
+          <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black text-white/30 uppercase tracking-widest font-mono leading-none">Liquidez Neta</span>
+              <span className="text-xs font-bold text-blue-400 group-hover:text-blue-300 transition-colors">Saldo Disponible</span>
+            </div>
+            <div className="relative bg-white/5 p-2 rounded-xl border border-white/10 shadow-inner group-hover:scale-105 transition-transform">
+              <Wallet className="w-4 h-4 text-blue-400" />
+            </div>
           </div>
-          <div className="bg-blue-500/20 p-3 rounded-2xl">
-            <DollarSign className="w-6 h-6 text-blue-400" />
-          </div>
+          <p className="text-3xl font-black text-white tracking-tighter leading-none drop-shadow-sm">
+            <span className="text-xl text-blue-400 mr-1.5 font-mono">$</span>
+            {formatMoney(safeBalance)}
+          </p>
         </div>
       </div>
 
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-slate-400 text-xs lg:text-sm">Deuda Total Tarjetas</p>
-            <p className="text-2xl lg:text-3xl font-bold text-red-400 mt-1">
-              ${formatMoney(toDecimal(safeCreditCardDebt).abs())}
-            </p>
+      {/* Deuda Global - Compact Precision */}
+      <div className="group relative bg-white/[0.03] backdrop-blur-[40px] rounded-2xl border border-white/10 p-4 transition-all duration-500 hover:bg-white/[0.06] hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-tr from-rose-500/[0.03] via-transparent to-transparent pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col justify-between h-full space-y-1">
+          <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black text-white/30 uppercase tracking-widest font-mono leading-none">Pasivos Globales</span>
+              <span className="text-xs font-bold text-rose-400 group-hover:text-rose-300 transition-colors">Deuda Total</span>
+            </div>
+            <div className="relative bg-white/5 p-2 rounded-xl border border-white/10 shadow-inner group-hover:scale-105 transition-transform">
+              <CreditCard className="w-4 h-4 text-rose-400" />
+            </div>
           </div>
-          <div className="bg-red-500/20 p-3 rounded-2xl">
-            <TrendingDown className="w-6 h-6 text-red-400" />
-          </div>
+          <p className="text-3xl font-black text-rose-400 tracking-tighter leading-none drop-shadow-sm">
+            <span className="text-xl text-rose-400 mr-1.5 font-mono">$</span>
+            {formatMoney(toDecimal(safeCreditCardDebt).abs())}
+          </p>
         </div>
       </div>
 
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-slate-400 text-xs lg:text-sm">Ingresos</p>
-            <p className="text-2xl lg:text-3xl font-bold text-green-400 mt-1">
-              ${formatMoney(safeIncome)}
-            </p>
+      {/* Ingresos - Compact Precision */}
+      <div className="group relative bg-white/[0.03] backdrop-blur-[40px] rounded-2xl border border-white/10 p-4 transition-all duration-500 hover:bg-white/[0.06] hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] via-transparent to-transparent pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col justify-between h-full space-y-1">
+          <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black text-white/30 uppercase tracking-widest font-mono leading-none">Flujo Mensual</span>
+              <span className="text-xs font-bold text-emerald-400 group-hover:text-emerald-300 transition-colors">Ingresos Totales</span>
+            </div>
+            <div className="relative bg-white/5 p-2 rounded-xl border border-white/10 shadow-inner group-hover:scale-105 transition-transform">
+              <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+            </div>
           </div>
-          <div className="bg-green-500/20 p-3 rounded-2xl">
-            <TrendingUp className="w-6 h-6 text-green-400" />
-          </div>
+          <p className="text-3xl font-black text-emerald-400 tracking-tighter leading-none drop-shadow-sm">
+            <span className="text-xl text-emerald-400 mr-1.5 font-mono">$</span>
+            {formatMoney(safeIncome)}
+          </p>
         </div>
       </div>
 
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-slate-400 text-xs lg:text-sm">Gastos</p>
-            <p className="text-2xl lg:text-3xl font-bold text-orange-400 mt-1">
-              ${formatMoney(safeExpenses)}
-            </p>
+      {/* Gastos - Compact Precision */}
+      <div className="group relative bg-white/[0.03] backdrop-blur-[40px] rounded-2xl border border-white/10 p-4 transition-all duration-500 hover:bg-white/[0.06] hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/[0.03] via-transparent to-transparent pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col justify-between h-full space-y-1">
+          <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black text-white/30 uppercase tracking-widest font-mono leading-none">Consumo Operativo</span>
+              <span className="text-xs font-bold text-amber-400 group-hover:text-amber-300 transition-colors">Gastos Totales</span>
+            </div>
+            <div className="relative bg-white/5 p-2 rounded-xl border border-white/10 shadow-inner group-hover:scale-105 transition-transform">
+              <ArrowDownLeft className="w-4 h-4 text-amber-400" />
+            </div>
           </div>
-          <div className="bg-orange-500/20 p-3 rounded-2xl">
-            <AlertCircle className="w-6 h-6 text-orange-400" />
-          </div>
+          <p className="text-3xl font-black text-amber-400 tracking-tighter leading-none drop-shadow-sm">
+            <span className="text-xl text-amber-400 mr-1.5 font-mono">$</span>
+            {formatMoney(safeExpenses)}
+          </p>
         </div>
       </div>
     </div>
