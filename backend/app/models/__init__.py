@@ -11,6 +11,8 @@ from .subscription import Subscription
 from .transaction_split import TransactionSplit
 from .iou import IOU, IOUType, IOUStatus
 from .net_worth_snapshot import NetWorthSnapshot
+from .import_log import ImportLog
 
-__all__ = ["Transaction", "Category", "Account", "Budget", "Goal", "Reminder", "CreditCardStatement", "DebtShare", "Config", "Subscription", "TransactionSplit", "IOU", "IOUType", "IOUStatus", "NetWorthSnapshot"]
 from .device import PairedDevice
+
+__all__ = ["Transaction", "Category", "Account", "Budget", "Goal", "Reminder", "CreditCardStatement", "DebtShare", "Config", "Subscription", "TransactionSplit", "IOU", "IOUType", "IOUStatus", "NetWorthSnapshot", "PairedDevice", "ImportLog"]
