@@ -29,7 +29,8 @@ def calculate_historical_averages(db: Session, months_back: int = 3):
     
     txns = db.query(Transaction).filter(
         Transaction.date >= start_date,
-        Transaction.date <= end_date
+        Transaction.date <= end_date,
+        Transaction.is_deleted == False
     ).all()
     
     total_income = 0
