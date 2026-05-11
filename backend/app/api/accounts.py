@@ -2,10 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
+from app.api.auth import get_current_device
 from app.models.account import Account, AccountType
 from pydantic import BaseModel, StrictInt
 
-router = APIRouter(prefix="/accounts", tags=["accounts"], redirect_slashes=False)
+router = APIRouter(
+    prefix="/accounts", 
+    tags=["accounts"], 
+    dependencies=[Depends(get_current_device)],
+    redirect_slashes=False
+)
 
 
 class AccountBase(BaseModel):
@@ -17,6 +23,8 @@ class AccountBase(BaseModel):
     bank_name: Optional[str] = None
     linked_account_id: Optional[str] = None
     is_active: bool = True
+    statement_day: Optional[int] = None
+    payment_day: Optional[int] = None
 
 
 class AccountCreate(AccountBase):
@@ -32,6 +40,8 @@ class AccountUpdate(BaseModel):
     bank_name: Optional[str] = None
     linked_account_id: Optional[str] = None
     is_active: Optional[bool] = None
+    statement_day: Optional[int] = None
+    payment_day: Optional[int] = None
 
 
 class AccountResponse(BaseModel):
@@ -44,6 +54,8 @@ class AccountResponse(BaseModel):
     bank_name: Optional[str] = None
     linked_account_id: Optional[str] = None
     is_active: bool
+    statement_day: Optional[int] = None
+    payment_day: Optional[int] = None
     version: int  # FASE 7: OCC versioning
 
     class Config:
@@ -61,7 +73,7 @@ def create_account(account: AccountCreate, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=List[AccountResponse])
 def get_accounts(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    accounts = db.query(Account).offset(skip).limit(limit).all()
+    accounts = db.query(Account).filter(Account.is_deleted == False).offset(skip).limit(limit).all()
     return accounts
 
 
