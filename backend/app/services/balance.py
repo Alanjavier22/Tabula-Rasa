@@ -44,16 +44,24 @@ def apply_transaction_to_balance(db: Session, transaction: Transaction, reverse:
     db.flush()
 
 
-def recalculate_account_balance(db: Session, account_id: str, initial_balance: int = 0) -> int:
+def recalculate_account_balance(db: Session, account_id: str, initial_balance: int = None) -> int:
     """
     Recalculate an account's balance from scratch based on initial balance and all transactions.
     Returns the new computed balance.
+    
+    If initial_balance is not provided, uses the account's current balance as the base
+    (which includes the initial balance configured by the user).
     """
     account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
         return 0
     
-    transactions = db.query(Transaction).filter(Transaction.account_id == account_id).all()
+    # If initial_balance is not provided, use account's current balance as base
+    # This preserves the initial balance configured by the user
+    if initial_balance is None:
+        initial_balance = account.balance
+    
+    transactions = db.query(Transaction).filter(Transaction.account_id == account_id, Transaction.is_deleted == False).all()
     
     new_balance = initial_balance
     for txn in transactions:
