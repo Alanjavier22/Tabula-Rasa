@@ -1,5 +1,6 @@
 import uuid
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, Enum as SQLEnum
+from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import enum
 import sys
@@ -27,3 +28,7 @@ class Goal(Base):
     is_deleted = Column(Boolean, default=False, server_default="0", nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    version = Column(Integer, default=1, nullable=False)  # FASE 7: OCC versioning para resolución de conflictos
+
+    # Relationships
+    transactions = relationship("Transaction", back_populates="goal")  # Relación con transacciones para progreso automático
