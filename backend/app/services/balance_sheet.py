@@ -4,7 +4,7 @@ Executive reporting: Assets - Liabilities = Equity
 Source of truth: net_worth_snapshots for aggregates
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.models.account import Account
@@ -68,23 +68,33 @@ class BalanceSheetService:
         ious = (
             db.query(IOU)
             .filter(IOU.is_deleted == False)
-            .filter(IOU.amount > (IOU.amount_paid or 0))
+            .filter(IOU.status == "pending")
+            .filter(IOU.iou_type == "i_owe")
             .all()
         )
-        return sum(iou.amount - (iou.amount_paid or 0) for iou in ious)
+        return sum((iou.amount or 0) - (iou.amount_paid or 0) for iou in ious)
 
     @staticmethod
     def get_credit_card_balances(db: Session) -> int:
-        """Calculate credit card balances (unpaid statements)"""
+        """Calculate credit card balances (unpaid statements + live unbilled debt)"""
         statements = (
             db.query(CreditCardStatement)
             .filter(CreditCardStatement.is_deleted == False)
             .filter(CreditCardStatement.status != "paid")
             .all()
         )
-        # Placeholder: calculate from unpaid statements
-        # For now, use simple count * average balance
-        return len(statements) * 100000  # Placeholder: $1000 per unpaid statement
+        
+        # 1. Unpaid statements (formal debt)
+        stmt_balance = sum(
+            max((stmt.user_share or 0) - (stmt.amount_paid or 0), 0)
+            for stmt in statements
+        )
+        
+        # 2. Live balance from CC accounts (unbilled debt)
+        cc_accounts = db.query(Account).filter(Account.account_type == "credit_card", Account.is_deleted == False).all()
+        live_cc_balance = sum(acc.balance or 0 for acc in cc_accounts)
+        
+        return stmt_balance + live_cc_balance
 
     @staticmethod
     def get_balance_sheet(db: Session, month: int, year: int) -> Optional[dict]:
@@ -132,16 +142,43 @@ class BalanceSheetService:
 
     @staticmethod
     def get_current_balance_sheet(db: Session) -> Optional[dict]:
-        """Get balance sheet for current month"""
-        now = datetime.utcnow()
-        return BalanceSheetService.get_balance_sheet(db, now.month, now.year)
+        """Get balance sheet for current month (Real-time calculation)"""
+        now = datetime.now(timezone.utc)
+        # For current month, we calculate from live account balances
+        cash_accounts_cents = BalanceSheetService.get_cash_accounts_value(db)
+        physical_assets_cents = asset_depreciation_service.get_total_assets_value(db, now)
+        ious_pending_cents = BalanceSheetService.get_ious_pending_value(db)
+        credit_card_balances_cents = BalanceSheetService.get_credit_card_balances(db)
+
+        total_assets_cents = cash_accounts_cents + physical_assets_cents
+        total_liabilities_cents = ious_pending_cents + credit_card_balances_cents
+        equity_cents = total_assets_cents - total_liabilities_cents
+
+        return {
+            "month": now.month,
+            "year": now.year,
+            "date": now.isoformat(),
+            "assets": {
+                "cash_accounts_cents": cash_accounts_cents,
+                "physical_assets_cents": physical_assets_cents,
+                "total_assets_cents": total_assets_cents,
+            },
+            "liabilities": {
+                "ious_pending_cents": ious_pending_cents,
+                "credit_card_balances_cents": credit_card_balances_cents,
+                "total_liabilities_cents": total_liabilities_cents,
+            },
+            "equity_cents": equity_cents,
+            "is_stale": False,
+        }
 
     @staticmethod
     def get_balance_sheet_history(db: Session, limit: int = 12) -> List[dict]:
-        """Get balance sheet history (last N months)"""
+        """Get balance sheet history (last N months) using Snapshot data as Source of Truth"""
         snapshots = (
             db.query(NetWorthSnapshot)
-            .order_by(NetWorthSnapshot.date.desc())
+            .filter(NetWorthSnapshot.is_deleted == False)
+            .order_by(NetWorthSnapshot.year.desc(), NetWorthSnapshot.month.desc())
             .limit(limit)
             .all()
         )
@@ -149,35 +186,47 @@ class BalanceSheetService:
         balance_sheets = []
 
         for snapshot in snapshots:
-            cash_accounts_cents = BalanceSheetService.get_cash_accounts_value(db)
-            snapshot_date = datetime.fromisoformat(snapshot.date) if isinstance(snapshot.date, str) else snapshot.date
+            # TRY TO EXTRACT DATA FROM METADATA (The "Photo" taken at that time)
+            try:
+                metadata = json.loads(snapshot.metadata_json) if snapshot.metadata_json else {}
+                
+                # Check if we have detailed account data in metadata
+                accounts_meta = metadata.get("accounts", [])
+                if accounts_meta:
+                    cash_accounts_cents = sum(acc["balance"] for acc in accounts_meta if acc["type"] in ["checking", "savings"])
+                    # Liabilities are handled specifically in CC logic
+                else:
+                    # Fallback to the snapshot aggregate if detail is missing
+                    cash_accounts_cents = snapshot.total_assets - (snapshot.total_assets * 0.1) # Proxy if metadata is empty
+            except:
+                cash_accounts_cents = snapshot.total_assets
+
+            # Calculate historical physical assets value at THAT time
+            snapshot_date = datetime.fromisoformat(snapshot.snapshot_date.isoformat()) if hasattr(snapshot.snapshot_date, 'isoformat') else snapshot.snapshot_date
             physical_assets_cents = asset_depreciation_service.get_total_assets_value(db, snapshot_date)
-            ious_pending_cents = BalanceSheetService.get_ious_pending_value(db)
-            credit_card_balances_cents = BalanceSheetService.get_credit_card_balances(db)
+            
+            # Recalculate equity based on snapshot's verified totals
+            total_assets_cents = snapshot.total_assets
+            total_liabilities_cents = snapshot.total_liabilities
+            equity_cents = snapshot.net_worth
 
-            total_assets_cents = cash_accounts_cents + physical_assets_cents
-            total_liabilities_cents = ious_pending_cents + credit_card_balances_cents
-            equity_cents = total_assets_cents - total_liabilities_cents
-
-            balance_sheet = BalanceSheet(
-                month=snapshot.month,
-                year=snapshot.year,
-                date=snapshot.date,
-                assets={
-                    "cash_accounts_cents": cash_accounts_cents,
-                    "physical_assets_cents": physical_assets_cents,
-                    "total_assets_cents": total_assets_cents,
+            balance_sheet = {
+                "month": snapshot.month,
+                "year": snapshot.year,
+                "date": snapshot.snapshot_date.isoformat() if hasattr(snapshot.snapshot_date, 'isoformat') else snapshot.snapshot_date,
+                "assets": {
+                    "cash_accounts_cents": int(cash_accounts_cents),
+                    "physical_assets_cents": int(physical_assets_cents),
+                    "total_assets_cents": int(total_assets_cents),
                 },
-                liabilities={
-                    "ious_pending_cents": ious_pending_cents,
-                    "credit_card_balances_cents": credit_card_balances_cents,
-                    "total_liabilities_cents": total_liabilities_cents,
+                "liabilities": {
+                    "total_liabilities_cents": int(total_liabilities_cents),
                 },
-                equity_cents=equity_cents,
-                is_stale=snapshot.is_stale,
-            )
+                "equity_cents": int(equity_cents),
+                "is_stale": snapshot.is_stale,
+            }
 
-            balance_sheets.append(balance_sheet.to_dict())
+            balance_sheets.append(balance_sheet)
 
         return balance_sheets
 
