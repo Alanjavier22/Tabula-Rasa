@@ -102,6 +102,7 @@ export interface LocalAccount {
   balance: number;
   name?: string;
   currency?: string;
+  account_type?: 'checking' | 'savings' | 'credit_card' | 'investment' | 'cash';
 }
 
 export interface LocalTransaction {
