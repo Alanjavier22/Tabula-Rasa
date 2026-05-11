@@ -12,10 +12,11 @@ import {
   X,
   Settings as SettingsIcon,
   Calendar,
-  CreditCard
+  CreditCard,
+  Receipt
 } from 'lucide-react';
 import CommandPalette from './CommandPalette';
-import { IntegrityBadge } from './common/IntegrityBadge';
+import { SentinelBubble } from './SentinelBubble';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
@@ -31,15 +32,19 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     { path: '/reminders', label: 'Recordatorios', icon: Bell },
     { path: '/subscriptions', label: 'Suscripciones', icon: CreditCard },
     { path: '/snapshots', label: 'Snapshots', icon: Calendar },
+    { path: '/fiscal', label: 'SRI Fiscal', icon: Receipt },
     { path: '/settings', label: 'Configuración', icon: SettingsIcon },
   ];
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <CommandPalette />
+      <SentinelBubble />
       {/* Mobile Top Header */}
       <header className="lg:hidden fixed top-0 w-full z-30 bg-slate-800/80 backdrop-blur-xl border-b border-slate-700/50 flex justify-between items-center px-4 py-3">
-        <h1 className="text-lg font-bold text-white bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">Finanzas</h1>
+        <h1 className="text-lg font-black text-white tracking-tighter">
+          TABULA <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">RASA</span>
+        </h1>
       </header>
 
       {/* Mobile Bottom Navigation (Native App Feel) */}
@@ -105,12 +110,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <aside className="w-64 bg-slate-800/50 backdrop-blur-xl border-r border-slate-700/50 fixed h-full z-10 hidden lg:block overflow-y-auto scrollbar-hide">
         <div className="p-6 border-b border-slate-700/50 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-white">Finanzas Personales</h1>
-            <p className="text-sm text-slate-300 mt-1">Sistema de Gestión</p>
+            <h1 className="text-xl font-black text-white tracking-tighter">
+              TABULA <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">RASA</span>
+            </h1>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Ecosistema Privado</p>
           </div>
-        </div>
-        <div className="p-6 border-b border-slate-700/50 flex items-center gap-2">
-          <IntegrityBadge />
         </div>
         <nav className="mt-4">
           {navItems.map((item) => {
