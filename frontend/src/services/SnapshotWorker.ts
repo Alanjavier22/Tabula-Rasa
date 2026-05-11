@@ -139,13 +139,22 @@ export class SnapshotWorker {
       
       const balance = new Decimal(account.balance);
       
-      // FASE 3: Simplified asset/liability calculation
-      // TODO: Add account_type to LocalAccount interface for proper classification
-      // For now, treat positive balances as assets, negative as liabilities
-      if (balance.greaterThanOrEqualTo(0)) {
-        total_assets_cents = total_assets_cents.plus(balance);
+      // FASE 3: Asset/liability classification semántica
+      // Utilizamos account_type para lógica futura específica (ej. tasas de liquidez), 
+      // aunque matemáticamente el signo determina la posición final en el balance.
+      if (account.account_type === 'credit_card') {
+        if (balance.lessThan(0)) {
+          total_liabilities_cents = total_liabilities_cents.plus(balance.abs());
+        } else {
+          total_assets_cents = total_assets_cents.plus(balance); // Tarjeta sobrepagada a favor
+        }
       } else {
-        total_liabilities_cents = total_liabilities_cents.plus(balance.abs());
+        // checking, savings, cash, investment
+        if (balance.greaterThanOrEqualTo(0)) {
+          total_assets_cents = total_assets_cents.plus(balance);
+        } else {
+          total_liabilities_cents = total_liabilities_cents.plus(balance.abs()); // Sobregiro
+        }
       }
     }
 
