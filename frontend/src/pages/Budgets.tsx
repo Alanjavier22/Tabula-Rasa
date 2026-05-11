@@ -1,12 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import { budgetsAPI, categoriesAPI, transactionsAPI, accountsAPI } from '../services/api';
 import type { Budget, Category, Account, TransactionType, PaymentMethod, ExpenseType } from '../types';
 import { formatMoney, toCents } from '../utils/money';
-import { Plus, Trash2, Edit, PieChart, X, Check, RefreshCw } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  Edit, 
+  PieChart, 
+  X, 
+  Check, 
+  RefreshCw, 
+  TrendingUp, 
+  AlertCircle, 
+  ChevronRight,
+  Calendar,
+  Wallet
+} from 'lucide-react';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TransactionForm from '../components/TransactionForm';
+import Select from '../components/common/Select';
 
 const emptyForm = {
   name: '',
@@ -106,7 +121,6 @@ const Budgets = () => {
     setEditingBudget(budget);
     setEditForm({
       name: budget.name,
-      // Backend returns cents, divide by 100 for display
       amount: (budget.amount / 100).toString(),
       month: budget.month,
       year: budget.year,
@@ -121,7 +135,6 @@ const Budgets = () => {
     try {
       await budgetsAPI.create({
         name: form.name,
-        // Convert user input (dollars) to cents for backend
         amount: toCents(form.amount),
         month: form.month,
         year: form.year,
@@ -129,8 +142,10 @@ const Budgets = () => {
       });
       setShowCreateModal(false);
       setForm(emptyForm);
-      setToast({ message: 'Presupuesto creado', type: 'success' });
+      setToast({ message: 'Presupuesto creado con éxito', type: 'success' });
       fetchBudgets();
+      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
     } catch (error) {
       console.error('Error creating budget:', error);
       setToast({ message: 'Error al crear presupuesto', type: 'error' });
@@ -146,7 +161,6 @@ const Budgets = () => {
     try {
       await budgetsAPI.update(editingBudget.id, {
         name: editForm.name,
-        // Convert user input (dollars) to cents for backend
         amount: toCents(editForm.amount),
         month: editForm.month,
         year: editForm.year,
@@ -170,7 +184,6 @@ const Budgets = () => {
     setPaymentBudget(budget);
     setPaymentForm({
       description: budget.name,
-      // Backend returns cents, divide by 100 for display in form
       amount: remaining > 0 ? (remaining / 100).toString() : (budget.amount / 100).toString(),
       transaction_type: 'expense' as TransactionType,
       payment_method: 'transfer' as PaymentMethod,
@@ -187,7 +200,6 @@ const Budgets = () => {
     try {
       await transactionsAPI.create({
         description: data.description,
-        // Convert user input (dollars) to cents for backend
         amount: toCents(data.amount),
         transaction_type: data.transaction_type,
         payment_method: data.payment_method,
@@ -198,9 +210,8 @@ const Budgets = () => {
       });
       setShowPaymentModal(false);
       setPaymentBudget(null);
-      setToast({ message: 'Pago registrado exitosamente', type: 'success' });
+      setToast({ message: 'Pago registrado y presupuesto actualizado', type: 'success' });
       fetchBudgets();
-      // Invalidate dashboard queries to trigger reactivity
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
@@ -223,314 +234,526 @@ const Budgets = () => {
       });
 
       if (response.ok) {
-        setToast({ message: 'Presupuestos recurrentes generados exitosamente', type: 'success' });
+        setToast({ message: 'Ecosistema de presupuestos sincronizado', type: 'success' });
         setShowRecurringModal(false);
         fetchBudgets();
       } else {
         const error = await response.json();
-        setToast({ message: error.detail || 'Error al generar presupuestos recurrentes', type: 'error' });
+        setToast({ message: error.detail || 'Error al generar recurrentes', type: 'error' });
       }
     } catch (error) {
       console.error('Error generating recurring budgets:', error);
-      setToast({ message: 'Error al generar presupuestos recurrentes', type: 'error' });
+      setToast({ message: 'Error de conexión con el servidor', type: 'error' });
     } finally {
       setSaving(false);
     }
   };
 
+  // Stats for the header
+  const totalBudgeted = budgets.reduce((acc, b) => acc + b.amount, 0);
+  const totalSpent = budgets.reduce((acc, b) => acc + b.spent, 0);
+  const overallPercentage = totalBudgeted > 0 ? (totalSpent / totalBudgeted) * 100 : 0;
+
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-white">Cargando...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-white">
+        <RefreshCw className="w-10 h-10 animate-spin text-purple-500 mb-4" />
+        <p className="text-slate-400 font-medium animate-pulse">Analizando límites financieros...</p>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-between mb-6 lg:mb-8 flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl lg:text-4xl font-bold text-white mb-2">Presupuestos</h1>
-          <p className="text-slate-300 text-sm lg:text-base">Configura y rastrea tus presupuestos mensuales</p>
+    <div className="w-full relative min-h-screen pb-20">
+      {/* Background Decor */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-[10%] -left-[10%] w-[50%] h-[50%] bg-purple-600/10 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-[20%] -right-[10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]"></div>
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+            <div className="flex items-center gap-2 text-purple-400 text-xs font-bold tracking-[0.2em] uppercase mb-1">
+              <div className="w-8 h-[1px] bg-purple-500/50"></div>
+              <span>Control de Límites</span>
+            </div>
+            <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tight">
+              Tus <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">Presupuestos</span>
+            </h1>
+            <p className="text-slate-400 text-sm lg:text-base font-medium mt-2 max-w-md">
+              Gestiona tus techos de gasto y mantén tu salud financiera bajo control este mes.
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex flex-wrap gap-3"
+          >
+            <button 
+              onClick={() => setShowRecurringModal(true)} 
+              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all group"
+            >
+              <RefreshCw className="w-4 h-4 text-emerald-400 group-hover:rotate-180 transition-transform duration-700" />
+              <span className="text-xs font-black uppercase tracking-widest">Sincronizar Mes</span>
+            </button>
+            <button 
+              onClick={() => setShowCreateModal(true)} 
+              className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] transition-all transform hover:-translate-y-1"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="text-xs font-black uppercase tracking-widest">Nuevo Límite</span>
+            </button>
+          </motion.div>
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => setShowRecurringModal(true)} className="flex items-center bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all duration-300 text-sm lg:text-base whitespace-nowrap">
-            <RefreshCw className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
-            Generar Recurrente
-          </button>
-          <button onClick={() => setShowCreateModal(true)} className="flex items-center bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 text-sm lg:text-base whitespace-nowrap">
-            <Plus className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
-            Agregar Presupuesto
-          </button>
+
+        {/* Global Stats Summary */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12"
+        >
+          <div className="bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/5 flex items-center gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+              <PieChart className="w-7 h-7 text-purple-400" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Presupuesto Total</p>
+              <p className="text-2xl font-black text-white">${formatMoney(totalBudgeted)}</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/5 flex items-center gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+              <TrendingUp className="w-7 h-7 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Consumido</p>
+              <p className="text-2xl font-black text-white">${formatMoney(totalSpent)}</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/5">
+            <div className="flex justify-between items-end mb-2">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Utilización Global</p>
+              <p className={`text-sm font-black ${overallPercentage > 90 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {overallPercentage.toFixed(1)}%
+              </p>
+            </div>
+            <div className="w-full bg-black/40 rounded-full h-2.5 overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(overallPercentage, 100)}%` }}
+                className={`h-full rounded-full ${
+                  overallPercentage > 90 ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                }`}
+              />
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Budgets Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <AnimatePresence mode="popLayout">
+            {budgets.length === 0 ? (
+              <motion.div 
+                className="col-span-full py-20 flex flex-col items-center text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-6">
+                  <PieChart className="w-10 h-10 text-slate-600" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Sin límites definidos</h3>
+                <p className="text-slate-500 max-w-xs leading-relaxed">
+                  Configura tus presupuestos para que el asistente pueda avisarte cuando te acerques al borde.
+                </p>
+              </motion.div>
+            ) : (
+              budgets.map((budget, index) => {
+                const percentage = (budget.spent / budget.amount) * 100;
+                const remaining = budget.amount - budget.spent;
+                const isOverBudget = remaining < 0;
+                
+                return (
+                  <motion.div
+                    key={budget.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden"
+                  >
+                    {/* Background Visual Decor */}
+                    <div className={`absolute top-0 right-0 w-32 h-32 blur-[60px] opacity-10 transition-all group-hover:opacity-20 ${
+                      isOverBudget ? 'bg-rose-600' : percentage > 80 ? 'bg-yellow-600' : 'bg-blue-600'
+                    }`}></div>
+
+                    <div className="flex items-start justify-between mb-8 relative z-10">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all ${
+                          isOverBudget 
+                            ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' 
+                            : 'bg-white/5 border-white/10 text-slate-400 group-hover:text-white'
+                        }`}>
+                          <PieChart className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-black text-white tracking-tight leading-tight">{budget.name}</h3>
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
+                            Límite {budget.month < 10 ? `0${budget.month}` : budget.month}/{budget.year}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={() => handleQuickPayment(budget)} 
+                          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400 transition-all"
+                          title="Registrar Gasto"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleEdit(budget)} 
+                          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-500/20 text-slate-500 hover:text-blue-400 transition-all"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(budget.id)} 
+                          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6 relative z-10">
+                      <div>
+                        <div className="flex justify-between items-end mb-3">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Gastado Real</span>
+                            <span className="text-xl font-black text-white tracking-tight">${formatMoney(budget.spent)}</span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Techo</span>
+                            <span className="text-sm font-bold text-slate-400">${formatMoney(budget.amount)}</span>
+                          </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(percentage, 100)}%` }}
+                            className={`h-full rounded-full transition-all duration-700 ${
+                              isOverBudget 
+                                ? 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.4)]' 
+                                : percentage > 85
+                                ? 'bg-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]'
+                                : 'bg-gradient-to-r from-blue-500 to-indigo-500 shadow-[0_0_15px_rgba(59,130,246,0.4)]'
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${
+                        isOverBudget 
+                          ? 'bg-rose-500/10 border-rose-500/20' 
+                          : 'bg-black/20 border-white/5'
+                      }`}>
+                        <div className={`p-2 rounded-lg ${isOverBudget ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                          {isOverBudget ? <AlertCircle className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                            {isOverBudget ? 'Excedido por' : 'Disponible'}
+                          </p>
+                          <p className={`text-sm font-black ${isOverBudget ? 'text-rose-400' : 'text-white'}`}>
+                            ${formatMoney(Math.abs(remaining))}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Uso</p>
+                          <p className="text-sm font-black text-slate-300">{percentage.toFixed(0)}%</p>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {budgets.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <p className="text-slate-400 text-lg">No hay presupuestos configurados</p>
-            <p className="text-slate-500 text-sm mt-2">Crea presupuestos para controlar tus límites de gasto</p>
-          </div>
-        ) : (
-          budgets.map((budget) => {
-            const percentage = (budget.spent / budget.amount) * 100;
-            const remaining = budget.amount - budget.spent;
-            const isOverBudget = remaining < 0;
+      {/* Modals with custom glass styling */}
+      <AnimatePresence>
+        {(showCreateModal || showEditModal || showRecurringModal) && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setShowCreateModal(false);
+                setShowEditModal(false);
+                setShowRecurringModal(false);
+              }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-xl"
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-slate-900 rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-8 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                    {showRecurringModal ? <RefreshCw className="w-5 h-5 text-purple-400" /> : <Plus className="w-5 h-5 text-purple-400" />}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-white tracking-tight">
+                      {showCreateModal ? 'Nuevo Límite' : showEditModal ? 'Ajustar Límite' : 'Generar Recurrente'}
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">Configuración de Presupuesto</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setShowEditModal(false);
+                    setShowRecurringModal(false);
+                  }} 
+                  className="w-10 h-10 rounded-xl hover:bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-all"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
 
-            return (
-              <div
-                key={budget.id}
-                className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 hover:border-purple-500/50 transition-all duration-300"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center">
-                    <div className="bg-purple-500/20 p-3 rounded-full mr-3">
-                      <PieChart className="w-5 h-5 text-purple-400" />
+              {showCreateModal && (
+                <form onSubmit={handleCreateSubmit} className="p-8 space-y-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Nombre del Presupuesto</label>
+                      <input
+                        type="text"
+                        required
+                        value={form.name}
+                        onChange={e => setForm({...form, name: e.target.value})}
+                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white font-bold focus:outline-none focus:border-purple-500/50 transition-all"
+                        placeholder="Ej: Alimentación, Ocio, Servicios..."
+                      />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">{budget.name}</h3>
-                      <p className="text-sm text-slate-300">
-                        {budget.month}/{budget.year}
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Monto Máximo ($)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        required
+                        value={form.amount}
+                        onChange={e => setForm({...form, amount: e.target.value})}
+                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white font-bold focus:outline-none focus:border-purple-500/50 transition-all text-xl"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Mes Vigencia</label>
+                        <Select
+                          value={form.month.toString()}
+                          onChange={(value) => setForm({...form, month: parseInt(value)})}
+                          options={Array.from({length: 12}, (_, i) => ({ value: (i + 1).toString(), label: (i + 1).toString() }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Año</label>
+                        <Select
+                          value={form.year.toString()}
+                          onChange={(value) => setForm({...form, year: parseInt(value)})}
+                          options={[new Date().getFullYear(), new Date().getFullYear() + 1].map(year => ({ value: year.toString(), label: year.toString() }))}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Vincular Categoría</label>
+                      <Select
+                        value={form.category_id}
+                        onChange={(value) => setForm({...form, category_id: value})}
+                        options={[
+                          { value: '', label: 'Sin categoría vinculada' },
+                          ...categories.map(c => ({ value: c.id, label: c.name }))
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateModal(false)}
+                      className="flex-1 px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="flex-[2] px-6 py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-black uppercase tracking-widest hover:shadow-lg hover:shadow-purple-500/20 transition-all disabled:opacity-50"
+                    >
+                      {saving ? 'Guardando...' : 'Confirmar Presupuesto'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {showEditModal && (
+                <form onSubmit={handleEditSubmit} className="p-8 space-y-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Nombre</label>
+                      <input
+                        type="text"
+                        required
+                        value={editForm.name}
+                        onChange={e => setEditForm({...editForm, name: e.target.value})}
+                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white font-bold focus:outline-none focus:border-purple-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Monto ($)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        required
+                        value={editForm.amount}
+                        onChange={e => setEditForm({...editForm, amount: e.target.value})}
+                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white font-bold focus:outline-none focus:border-purple-500/50 text-xl"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Mes</label>
+                        <Select
+                          value={editForm.month.toString()}
+                          onChange={(value) => setEditForm({...editForm, month: parseInt(value)})}
+                          options={Array.from({length: 12}, (_, i) => ({ value: (i + 1).toString(), label: (i + 1).toString() }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Año</label>
+                        <Select
+                          value={editForm.year.toString()}
+                          onChange={(value) => setEditForm({...editForm, year: parseInt(value)})}
+                          options={[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map(year => ({ value: year.toString(), label: year.toString() }))}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Categoría</label>
+                      <Select
+                        value={editForm.category_id}
+                        onChange={(value) => setEditForm({...editForm, category_id: value})}
+                        options={[
+                          { value: '', label: 'Sin categoría' },
+                          ...categories.map(c => ({ value: c.id, label: c.name }))
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowEditModal(false)}
+                      className="flex-1 px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white text-xs font-black uppercase tracking-widest"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="flex-[2] px-6 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-black uppercase tracking-widest hover:shadow-lg transition-all"
+                    >
+                      {saving ? 'Guardando...' : 'Actualizar Límites'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {showRecurringModal && (
+                <form onSubmit={handleGenerateRecurring} className="p-8 space-y-6">
+                  <div className="p-5 bg-emerald-500/5 rounded-3xl border border-emerald-500/10 mb-2">
+                    <div className="flex gap-4">
+                      <div className="p-2 h-fit bg-emerald-500/10 rounded-xl text-emerald-400">
+                        <RefreshCw className="w-5 h-5" />
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Esta acción copiará los presupuestos definidos en el mes anterior al mes actual, permitiéndote mantener tus metas sin reconfigurar todo.
                       </p>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <button onClick={() => handleQuickPayment(budget)} className="text-green-400 hover:text-green-300" title="Registrar Pago">
-                      <Check className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleEdit(budget)} className="text-blue-400 hover:text-blue-300">
-                      <Edit className="w-4 h-4" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Destino: Mes</label>
+                      <Select
+                        value={recurringForm.month.toString()}
+                        onChange={(value) => setRecurringForm({...recurringForm, month: parseInt(value)})}
+                        options={Array.from({length: 12}, (_, i) => ({ value: (i + 1).toString(), label: (i + 1).toString() }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Destino: Año</label>
+                      <Select
+                        value={recurringForm.year.toString()}
+                        onChange={(value) => setRecurringForm({...recurringForm, year: parseInt(value)})}
+                        options={[new Date().getFullYear(), new Date().getFullYear() + 1].map(year => ({ value: year.toString(), label: year.toString() }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-4 bg-black/20 rounded-2xl border border-white/5">
+                    <input
+                      type="checkbox"
+                      id="delete_previous"
+                      checked={recurringForm.delete_previous}
+                      onChange={e => setRecurringForm({...recurringForm, delete_previous: e.target.checked})}
+                      className="w-5 h-5 rounded-lg border-white/10 bg-slate-900 text-emerald-500 focus:ring-emerald-500/50 transition-all"
+                    />
+                    <label htmlFor="delete_previous" className="text-xs font-bold text-slate-300 cursor-pointer">
+                      Limpiar registros previos del mes destino
+                    </label>
+                  </div>
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowRecurringModal(false)}
+                      className="flex-1 px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white text-xs font-black uppercase tracking-widest"
+                    >
+                      Cancelar
                     </button>
                     <button
-                      onClick={() => handleDelete(budget.id)}
-                      className="text-red-400 hover:text-red-300"
+                      type="submit"
+                      disabled={saving}
+                      className="flex-[2] px-6 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-900/20"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {saving ? 'Procesando...' : 'Sincronizar Mes'}
                     </button>
                   </div>
-                </div>
-
-                <div className="mb-4">
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm text-slate-400">Gastado</span>
-                    <span className="text-sm font-semibold text-white">
-                      ${formatMoney(budget.spent)} / ${formatMoney(budget.amount)}
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-700 rounded-full h-3">
-                    <div
-                      className={`h-3 rounded-full transition-all duration-500 ${
-                        isOverBudget
-                          ? 'bg-gradient-to-r from-red-600 to-red-400'
-                          : percentage > 90
-                          ? 'bg-gradient-to-r from-yellow-600 to-yellow-400'
-                          : 'bg-gradient-to-r from-green-600 to-green-400'
-                      }`}
-                      style={{ width: `${Math.min(percentage, 100)}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between mt-2">
-                    <span className="text-xs text-slate-400">{percentage.toFixed(0)}%</span>
-                    <span
-                      className={`text-xs font-semibold ${
-                        isOverBudget ? 'text-red-400' : 'text-green-400'
-                      }`}
-                    >
-                      {isOverBudget
-                        ? `Excedido por ${formatMoney(Math.abs(remaining))}`
-                        : `${formatMoney(remaining)} restantes`}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })
+                </form>
+              )}
+            </motion.div>
+          </div>
         )}
-      </div>
-
-      {/* Create Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-700">
-              <h2 className="text-xl font-bold text-white">Nuevo Presupuesto</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Nombre *</label>
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={e => setForm({...form, name: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  placeholder="Ej: Comida mensual"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Monto *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  required
-                  value={form.amount}
-                  onChange={e => setForm({...form, amount: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">Mes *</label>
-                  <select
-                    value={form.month}
-                    onChange={e => setForm({...form, month: parseInt(e.target.value)})}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  >
-                    {Array.from({length: 12}, (_, i) => (
-                      <option key={i + 1} value={i + 1}>{i + 1}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">Año *</label>
-                  <select
-                    value={form.year}
-                    onChange={e => setForm({...form, year: parseInt(e.target.value)})}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  >
-                    {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Categoría</label>
-                <select
-                  value={form.category_id}
-                  onChange={e => setForm({...form, category_id: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                >
-                  <option value="">Sin categoría</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 text-sm disabled:opacity-50"
-                >
-                  {saving ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {showEditModal && editingBudget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-700">
-              <h2 className="text-xl font-bold text-white">Editar Presupuesto</h2>
-              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleEditSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Nombre *</label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.name}
-                  onChange={e => setEditForm({...editForm, name: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Monto *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  required
-                  value={editForm.amount}
-                  onChange={e => setEditForm({...editForm, amount: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">Mes *</label>
-                  <select
-                    value={editForm.month}
-                    onChange={e => setEditForm({...editForm, month: parseInt(e.target.value)})}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  >
-                    {Array.from({length: 12}, (_, i) => (
-                      <option key={i + 1} value={i + 1}>{i + 1}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">Año *</label>
-                  <select
-                    value={editForm.year}
-                    onChange={e => setEditForm({...editForm, year: parseInt(e.target.value)})}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  >
-                    {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Categoría</label>
-                <select
-                  value={editForm.category_id}
-                  onChange={e => setEditForm({...editForm, category_id: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                >
-                  <option value="">Sin categoría</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 text-sm disabled:opacity-50"
-                >
-                  {saving ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      </AnimatePresence>
 
       {toast && (
         <Toast
@@ -543,7 +766,7 @@ const Budgets = () => {
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}
         title="Eliminar Presupuesto"
-        message="¿Estás seguro de que quieres eliminar este presupuesto? Esta acción no se puede deshacer."
+        message="¿Estás seguro de que quieres eliminar este presupuesto? El historial de gastos no se borrará, pero perderás el seguimiento del límite."
         onConfirm={confirmDelete}
         onCancel={() => setDeleteConfirm({ isOpen: false, id: null })}
       />
@@ -556,78 +779,8 @@ const Budgets = () => {
           onSubmit={handlePaymentSubmit}
           onCancel={() => setShowPaymentModal(false)}
           saving={saving}
-          title="Registrar Pago de Presupuesto"
+          title="Registro de Gasto Presupuestado"
         />
-      )}
-
-      {/* Recurring Budget Modal */}
-      {showRecurringModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-700">
-              <h2 className="text-xl font-bold text-white">Generar Presupuestos Recurrentes</h2>
-              <button onClick={() => setShowRecurringModal(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleGenerateRecurring} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">Mes *</label>
-                  <select
-                    value={recurringForm.month}
-                    onChange={e => setRecurringForm({...recurringForm, month: parseInt(e.target.value)})}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
-                  >
-                    {Array.from({length: 12}, (_, i) => (
-                      <option key={i + 1} value={i + 1}>{i + 1}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">Año *</label>
-                  <select
-                    value={recurringForm.year}
-                    onChange={e => setRecurringForm({...recurringForm, year: parseInt(e.target.value)})}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500"
-                  >
-                    {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="delete_previous"
-                  checked={recurringForm.delete_previous}
-                  onChange={e => setRecurringForm({...recurringForm, delete_previous: e.target.checked})}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500"
-                />
-                <label htmlFor="delete_previous" className="text-sm text-slate-300">
-                  Eliminar presupuestos del mes anterior
-                </label>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRecurringModal(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 text-sm disabled:opacity-50"
-                >
-                  {saving ? 'Generando...' : 'Generar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
     </div>
   );
