@@ -4,10 +4,16 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from database import get_db
+from app.api.auth import get_current_device
 from app.models.credit_card_statement import CreditCardStatement, StatementStatus
 from app.models.debt_share import DebtShare, DebtShareStatus
 
-router = APIRouter(prefix="/statements", tags=["Credit Card Statements"], redirect_slashes=False)
+router = APIRouter(
+    prefix="/statements", 
+    tags=["Credit Card Statements"], 
+    dependencies=[Depends(get_current_device)],
+    redirect_slashes=False
+)
 
 
 class DebtShareBase(BaseModel):
@@ -74,6 +80,7 @@ def serialize_statement(stmt):
     return {
         "id": stmt.id,
         "account_id": stmt.account_id,
+        "account_name": stmt.account.name if stmt.account else None,
         "statement_balance": stmt.statement_balance,
         "user_share": stmt.user_share,
         "payment_due_date": str(stmt.payment_due_date) if stmt.payment_due_date else None,
@@ -101,7 +108,8 @@ def serialize_statement(stmt):
 
 @router.get("/", response_model=List[dict])
 def get_statements(account_id: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(CreditCardStatement)
+    from sqlalchemy.orm import joinedload
+    query = db.query(CreditCardStatement).options(joinedload(CreditCardStatement.debt_shares), joinedload(CreditCardStatement.account)).filter(CreditCardStatement.is_deleted == False)
     if account_id:
         query = query.filter(CreditCardStatement.account_id == account_id)
     statements = query.order_by(CreditCardStatement.year.desc(), CreditCardStatement.month.desc()).all()
@@ -110,7 +118,8 @@ def get_statements(account_id: Optional[str] = None, db: Session = Depends(get_d
 
 @router.get("/{statement_id}")
 def get_statement(statement_id: str, db: Session = Depends(get_db)):
-    stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
+    from sqlalchemy.orm import joinedload
+    stmt = db.query(CreditCardStatement).options(joinedload(CreditCardStatement.debt_shares), joinedload(CreditCardStatement.account)).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
         raise HTTPException(status_code=404, detail="Statement not found")
     return serialize_statement(stmt)
