@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { aiAPI, accountsAPI, categoriesAPI, transactionsAPI } from '../services/api';
 import { Upload, X, CheckCircle, AlertCircle, FileImage, FileText, Trash2 } from 'lucide-react';
 import type { Category, Account, TransactionType, PaymentMethod, ExpenseType } from '../types';
+import Select from './common/Select';
 
 interface DocumentImportModalProps {
   onClose: () => void;
@@ -89,30 +90,24 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
     setResult(null);
     
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onloadend = async () => {
-        const base64Data = reader.result as string;
-        const documentBase64 = base64Data.split(',')[1];
+      const response = await aiAPI.parseReceipt(file);
 
-        const response = await aiAPI.documentToTransactions({
-          document_base64: documentBase64,
-          document_type: file.type
-        });
-
-        if (response.data.transactions && response.data.transactions.length > 0) {
-          const transactions = response.data.transactions.map((txn: any) => ({
-            ...txn,
-            selected: true
-          }));
-          setExtractedTransactions(transactions);
-        } else {
-          setResult({ success: false, message: 'No se detectaron transacciones en el documento' });
-        }
-      };
-    } catch (error) {
+      if (response.data.splits && response.data.splits.length > 0) {
+        const transactions = response.data.splits.map((split: any) => ({
+          description: split.description,
+          amount: split.amount,
+          category_id: split.suggested_category_id || null,
+          transaction_type: 'expense',
+          selected: true
+        }));
+        setExtractedTransactions(transactions);
+      } else {
+        setResult({ success: false, message: 'No se detectaron transacciones en el documento' });
+      }
+    } catch (error: any) {
       console.error('Processing error:', error);
-      setResult({ success: false, message: 'Error al procesar el documento' });
+      const detail = error.response?.data?.detail || 'Error al procesar el documento';
+      setResult({ success: false, message: detail });
     } finally {
       setProcessing(false);
     }
@@ -150,9 +145,10 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
         onSuccess();
         onClose();
       }, 1500);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Save error:', error);
-      setResult({ success: false, message: 'Error al guardar transacciones' });
+      const detail = error.response?.data?.detail || error.message || 'Error al guardar transacciones';
+      setResult({ success: false, message: detail });
     } finally {
       setSaving(false);
     }
@@ -179,15 +175,11 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
           {/* Account Selection */}
           <div>
             <label className="block text-sm text-slate-300 mb-2">Cuenta destino</label>
-            <select
-              value={accountId}
-              onChange={e => setAccountId(parseInt(e.target.value))}
-              className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-            >
-              {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>{acc.name}</option>
-              ))}
-            </select>
+            <Select
+              value={accountId.toString()}
+              onChange={(value) => setAccountId(parseInt(value))}
+              options={accounts.map(acc => ({ value: acc.id.toString(), label: acc.name }))}
+            />
           </div>
 
           {/* Drag & Drop Zone */}
@@ -294,7 +286,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                           />
                         </td>
                         <td className="px-4 py-3 text-sm text-white">{txn.description}</td>
-                        <td className="px-4 py-3 text-sm text-white">${txn.amount.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-white">${(txn.amount / 100).toFixed(2)}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             txn.transaction_type === 'income'
