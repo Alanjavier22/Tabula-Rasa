@@ -2,11 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
+from app.api.auth import get_current_device
 from app.models.iou import IOU, IOUType, IOUStatus
 from app.models.transaction import Transaction
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/ious", tags=["ious"], redirect_slashes=False)
+router = APIRouter(
+    prefix="/ious", 
+    tags=["ious"], 
+    dependencies=[Depends(get_current_device)],
+    redirect_slashes=False
+)
 
 
 class IOUBase(BaseModel):
@@ -63,7 +69,7 @@ def create_iou(iou: IOUCreate, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=List[IOUResponse])
 def get_ious(skip: int = 0, limit: int = 100, status: Optional[IOUStatus] = None, iou_type: Optional[IOUType] = None, db: Session = Depends(get_db)):
-    query = db.query(IOU)
+    query = db.query(IOU).filter(IOU.is_deleted == False)
     if status:
         query = query.filter(IOU.status == status)
     if iou_type:
@@ -73,7 +79,7 @@ def get_ious(skip: int = 0, limit: int = 100, status: Optional[IOUStatus] = None
 
 @router.get("/pending", response_model=List[IOUResponse])
 def get_pending_ious(db: Session = Depends(get_db)):
-    return db.query(IOU).filter(IOU.status == IOUStatus.PENDING).order_by(IOU.created_at.desc()).all()
+    return db.query(IOU).filter(IOU.is_deleted == False, IOU.status == IOUStatus.PENDING).order_by(IOU.created_at.desc()).all()
 
 
 @router.get("/{iou_id}", response_model=IOUResponse)
@@ -100,7 +106,7 @@ class IOUSettle(BaseModel):
     account_id: str
 
 
-@router.patch("/{iou_id}/settle")
+@router.post("/{iou_id}/settle")
 def settle_iou(iou_id: str, settle_data: IOUSettle, db: Session = Depends(get_db)):
     try:
         db_iou = db.query(IOU).filter(IOU.id == iou_id).first()
