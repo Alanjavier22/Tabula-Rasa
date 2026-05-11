@@ -1,17 +1,37 @@
-import { useEffect, useState, useRef } from 'react';
-import { configAPI, categoriesAPI, snapshotsAPI, getTokenKey } from '../services/api';
-import { Save, RefreshCw, LogOut, Download, Upload, FileSpreadsheet, Shield, AlertTriangle, HardDrive, Database, Trash2, AlertCircle, Cloud } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  configAPI, 
+  categoriesAPI, 
+  driveConfigAPI, 
+  backupAPI,
+  aiAPI
+} from '../services/api';
+import { 
+  Save, 
+  RefreshCw, 
+  FileSpreadsheet, 
+  AlertTriangle,
+  Cloud, 
+  CheckCircle, 
+  Download, 
+  Database, 
+  Cpu, 
+  Settings as SettingsIcon,
+  ShieldAlert,
+  ChevronRight,
+  Lock,
+  Sparkles
+} from 'lucide-react';
+import DeviceManager from '../components/Settings/DeviceManager';
 import Toast from '../components/Toast';
-import { db } from '../db/db';
-import { formatMoney } from '../utils/money';
-import { checkStorageQuota } from '../utils/storage';
-import { validateCacheIntegrity } from '../services/AICategorizationService';
 import type { Category } from '../types';
 
 interface ConfigData {
   vehicle_categories: string[];
   safe_to_spend_buffer: number;
   gemini_api_key: string;
+  ai_persona: string;
 }
 
 interface GoogleDriveCredentials {
@@ -20,7 +40,24 @@ interface GoogleDriveCredentials {
   refresh_token: string;
 }
 
+interface GoogleDriveStatus {
+  is_configured: boolean;
+  has_client_id: boolean;
+  has_client_secret: boolean;
+  has_refresh_token: boolean;
+}
+
+interface BackupFile {
+  id: string;
+  name: string;
+  createdTime: string;
+  size?: string;
+}
+
+  type SettingsTab = 'general' | 'ai' | 'labs' | 'cloud' | 'security';
+
 const Settings = () => {
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -29,18 +66,10 @@ const Settings = () => {
     vehicle_categories: [],
     safe_to_spend_buffer: 0,
     gemini_api_key: '',
+    ai_persona: 'professional',
   });
 
-  // FASE 6: Diagnostics state
-  const [storageUsage, setStorageUsage] = useState<{ usagePercent: number; status: 'healthy' | 'warning' | 'critical' }>({ usagePercent: 0, status: 'healthy' });
-  const [aiCacheCount, setAiCacheCount] = useState(0);
-  const [staleSnapshotsCount, setStaleSnapshotsCount] = useState(0);
-  const [reconciling, setReconciling] = useState(false);
-  const [phoenixBackup, setPhoenixBackup] = useState<{ timestamp: string; data: any } | null>(null);
-  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
-  const [showDiagnostics, setShowDiagnostics] = useState(false);
-
-  // FASE 3.5: Google Drive credentials state
+  const [hasDriveCredentials, setHasDriveCredentials] = useState(false);
   const [driveCredentials, setDriveCredentials] = useState<GoogleDriveCredentials>({
     client_id: '',
     client_secret: '',
@@ -48,61 +77,22 @@ const Settings = () => {
   });
   const [savingDriveCredentials, setSavingDriveCredentials] = useState(false);
 
-  // FASE 6: Load diagnostics data when diagnostics section is shown
-  useEffect(() => {
-    if (showDiagnostics) {
-      loadDiagnostics();
-    }
-  }, [showDiagnostics]);
+  const [backups, setBackups] = useState<BackupFile[]>([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [creatingBackup, setCreatingBackup] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [testingGemini, setTestingGemini] = useState(false);
+  const [testingDrive, setTestingDrive] = useState(false);
 
-  // FASE 6: Check for Phoenix emergency backup on mount
-  useEffect(() => {
-    const checkPhoenixBackup = () => {
-      try {
-        const backupStr = localStorage.getItem('phoenix_emergency_backup');
-        if (backupStr) {
-          const backup = JSON.parse(backupStr);
-          setPhoenixBackup({ timestamp: backup.timestamp, data: backup });
-        }
-      } catch (error) {
-        console.error('Error checking Phoenix backup:', error);
-      }
-    };
-    checkPhoenixBackup();
-  }, []);
+  const tabs = [
+    { id: 'general', label: 'General', icon: SettingsIcon, color: 'text-blue-400' },
+    { id: 'ai', label: 'Núcleo API', icon: Cpu, color: 'text-indigo-400' },
+    { id: 'labs', label: 'AI Labs', icon: Sparkles, color: 'text-amber-400' },
+    { id: 'cloud', label: 'Respaldo Cloud', icon: Cloud, color: 'text-emerald-400' },
+    { id: 'security', label: 'Seguridad Acceso', icon: Lock, color: 'text-rose-400' },
+  ];
 
-  const loadDiagnostics = async () => {
-    try {
-      // Check storage quota
-      const storage = await checkStorageQuota();
-      setStorageUsage({ usagePercent: storage.usagePercent * 100, status: storage.status });
-
-      // Count ai_cache entries
-      // @ts-ignore
-      const cacheCount = await db.ai_cache.count();
-      setAiCacheCount(cacheCount);
-
-      // Count stale snapshots
-      // @ts-ignore
-      const staleCount = await db.net_worth_snapshots.where('is_stale').equals(true).count();
-      setStaleSnapshotsCount(staleCount);
-
-      // FASE 7: Validate AI cache integrity (cross-reference with categories)
-      const integrityResult = await validateCacheIntegrity();
-      if (integrityResult.deleted > 0) {
-        setToast({ 
-          message: `Integridad de caché: ${integrityResult.deleted} entradas huérfanas eliminadas`, 
-          type: 'success' 
-        });
-        // Update cache count after cleanup
-        setAiCacheCount(integrityResult.checked - integrityResult.deleted);
-      }
-    } catch (error) {
-      console.error('Error loading diagnostics:', error);
-    }
-  };
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [catsRes, configRes] = await Promise.all([
         categoriesAPI.getAll(),
@@ -110,11 +100,11 @@ const Settings = () => {
       ]);
       setCategories(catsRes.data);
 
-      // Parse config values
       const configs: ConfigData = {
         vehicle_categories: [],
         safe_to_spend_buffer: 0,
         gemini_api_key: '',
+        ai_persona: 'professional',
       };
 
       configRes.data.forEach((c: any) => {
@@ -124,6 +114,8 @@ const Settings = () => {
           configs.safe_to_spend_buffer = parseFloat(c.value);
         } else if (c.key === 'gemini_api_key' && c.value) {
           configs.gemini_api_key = c.value;
+        } else if (c.key === 'ai_persona' && c.value) {
+          configs.ai_persona = c.value;
         }
       });
 
@@ -133,53 +125,43 @@ const Settings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // FASE 3.5: Load Google Drive credentials
-  const loadDriveCredentials = async () => {
+  const loadDriveCredentials = useCallback(async () => {
     try {
-      const response = await fetch('/api/config/drive');
-      if (response.ok) {
-        const data = await response.json();
-        setDriveCredentials(data);
+      const response = await driveConfigAPI.getStatus();
+      const data = response.data as GoogleDriveStatus;
+      if (data) {
+        setHasDriveCredentials(data.is_configured);
       }
     } catch (error) {
       console.error('Error loading Google Drive credentials:', error);
     }
-  };
+  }, []);
 
-  // FASE 3.5: Save Google Drive credentials
-  const handleSaveDriveCredentials = async () => {
-    setSavingDriveCredentials(true);
+  const handleLoadBackups = useCallback(async () => {
+    setLoadingBackups(true);
     try {
-      const response = await fetch('/api/config/drive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(driveCredentials),
-      });
-
-      if (response.ok) {
-        setToast({ message: 'Credenciales de Google Drive guardadas exitosamente', type: 'success' });
-      } else {
-        setToast({ message: 'Error al guardar credenciales de Google Drive', type: 'error' });
+      const res = await backupAPI.listBackups();
+      if (res.data.success) {
+        setBackups(res.data.backups);
       }
-    } catch (error) {
-      console.error('Error saving Google Drive credentials:', error);
-      setToast({ message: 'Error al guardar credenciales de Google Drive', type: 'error' });
+    } catch (e: any) {
+      console.error('Error loading backups:', e);
     } finally {
-      setSavingDriveCredentials(false);
+      setLoadingBackups(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
     loadDriveCredentials();
-  }, []);
+    handleLoadBackups();
+  }, [fetchData, loadDriveCredentials, handleLoadBackups]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Helper to update or create config
       const upsertConfig = async (key: string, data: any) => {
         try {
           await configAPI.getByKey(key);
@@ -189,7 +171,6 @@ const Settings = () => {
         }
       };
 
-      // Update or create vehicle_categories config
       await upsertConfig('vehicle_categories', {
         key: 'vehicle_categories',
         value: JSON.stringify(config.vehicle_categories),
@@ -198,7 +179,6 @@ const Settings = () => {
         is_public: true,
       });
 
-      // Update or create safe_to_spend_buffer config
       await upsertConfig('safe_to_spend_buffer', {
         key: 'safe_to_spend_buffer',
         value: config.safe_to_spend_buffer.toString(),
@@ -207,16 +187,25 @@ const Settings = () => {
         is_public: true,
       });
 
-      // Update or create gemini_api_key config
-      await upsertConfig('gemini_api_key', {
-        key: 'gemini_api_key',
-        value: config.gemini_api_key,
+      if (config.gemini_api_key && config.gemini_api_key !== '********') {
+        await upsertConfig('gemini_api_key', {
+          key: 'gemini_api_key',
+          value: config.gemini_api_key,
+          value_type: 'string',
+          description: 'Google Gemini API Key for AI insights',
+          is_public: false,
+        });
+      }
+
+      await upsertConfig('ai_persona', {
+        key: 'ai_persona',
+        value: config.ai_persona,
         value_type: 'string',
-        description: 'Google Gemini API Key for AI insights',
-        is_public: false,
+        description: 'Persona/Tone for the AI Assistant (professional vs roast)',
+        is_public: true,
       });
 
-      setToast({ message: 'Configuración guardada', type: 'success' });
+      setToast({ message: 'Configuración guardada exitosamente', type: 'success' });
     } catch (error) {
       console.error('Error saving settings:', error);
       setToast({ message: 'Error al guardar configuración', type: 'error' });
@@ -225,646 +214,684 @@ const Settings = () => {
     }
   };
 
-  const toggleCategory = (categoryId: string) => {
-    setConfig(prev => ({
-      ...prev,
-      vehicle_categories: prev.vehicle_categories.includes(categoryId)
-        ? prev.vehicle_categories.filter(id => id !== categoryId)
-        : [...prev.vehicle_categories, categoryId],
-    }));
+  const handleQuickSave = async (key: string, value: any, type: 'string' | 'json' | 'number') => {
+    try {
+      const data = {
+        key,
+        value: type === 'json' ? JSON.stringify(value) : value.toString(),
+        value_type: type,
+        description: `Auto-updated ${key}`,
+        is_public: true
+      };
+      
+      try {
+        await configAPI.getByKey(key);
+        await configAPI.update(key, data);
+      } catch {
+        await configAPI.create(data);
+      }
+      setToast({ message: 'Cambio guardado automáticamente', type: 'success' });
+    } catch (error) {
+      console.error(`Error auto-saving ${key}:`, error);
+      setToast({ message: 'Error al guardar automáticamente', type: 'error' });
+    }
   };
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importing, setImporting] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const toggleCategory = (categoryId: string) => {
+    const newList = config.vehicle_categories.includes(categoryId)
+      ? config.vehicle_categories.filter(id => id !== categoryId)
+      : [...config.vehicle_categories, categoryId];
+      
+    setConfig(prev => ({
+      ...prev,
+      vehicle_categories: newList,
+    }));
+    
+    handleQuickSave('vehicle_categories', newList, 'json');
+  };
 
-  // --- Export: Dump all Dexie tables to JSON ---
-  const handleExportBackup = async () => {
+  const handleExportCSV = async () => {
     setExporting(true);
     try {
-      const TABLES_TO_EXPORT = [
-        'categories', 'accounts', 'transactions', 'transaction_splits',
-        'credit_card_statements', 'debt_shares', 'ious', 'budgets',
-        'goals', 'reminders', 'subscriptions'
-      ];
-
-      const backup: Record<string, any> = {
-        _meta: {
-          exported_at: new Date().toISOString(),
-          version: 1,
-          source: 'FinanceLocalFirstDB',
-        },
-      };
-
-      for (const tableName of TABLES_TO_EXPORT) {
-        backup[tableName] = await db.table(tableName).toArray();
-      }
-
-      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `backup_finanzas_${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setToast({ message: 'Backup exportado exitosamente', type: 'success' });
+      const { StreamedExporter, streamedExporter } = await import('../utils/StreamedExporter');
+      const blob = await streamedExporter.exportTransactions();
+      const now = new Date();
+      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      StreamedExporter.downloadBlob(blob, `transactions_${yearMonth}.csv`);
+      setToast({ message: 'Transacciones exportadas a CSV', type: 'success' });
     } catch (e) {
-      console.error('Error exporting backup:', e);
-      setToast({ message: 'Error al exportar backup', type: 'error' });
+      console.error('Error exporting CSV:', e);
+      setToast({ message: 'Error al exportar CSV', type: 'error' });
     } finally {
       setExporting(false);
     }
   };
 
-  // --- Import: Restore Dexie from JSON backup ---
-  // FASE 6: Add progress bar and spinner for import
-  const handleImportBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!window.confirm(
-      '⚠️ Esto reemplazará TODOS los datos locales con el contenido del backup. ' +
-      'Los datos actuales se perderán. ¿Deseas continuar?'
-    )) {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    setImporting(true);
-    setImportProgress({ current: 0, total: 0 });
+  const handleSaveDriveCredentials = async () => {
+    setSavingDriveCredentials(true);
     try {
-      const text = await file.text();
-      const backup = JSON.parse(text);
-
-      if (!backup._meta || backup._meta.source !== 'FinanceLocalFirstDB') {
-        setToast({ message: 'Archivo de backup inválido o no compatible', type: 'error' });
-        return;
-      }
-
-      const TABLES_TO_IMPORT = [
-        'categories', 'accounts', 'transactions', 'transaction_splits',
-        'credit_card_statements', 'debt_shares', 'ious', 'budgets',
-        'goals', 'reminders', 'subscriptions'
-      ];
-
-      // Calculate total records for progress
-      let totalRecords = 0;
-      for (const tableName of TABLES_TO_IMPORT) {
-        if (backup[tableName] && Array.isArray(backup[tableName])) {
-          totalRecords += backup[tableName].length;
-        }
-      }
-      setImportProgress({ current: 0, total: totalRecords });
-
-      let currentRecord = 0;
-      await db.transaction('rw', db.tables, async () => {
-        for (const tableName of TABLES_TO_IMPORT) {
-          if (backup[tableName] && Array.isArray(backup[tableName])) {
-            await db.table(tableName).clear();
-            await db.table(tableName).bulkPut(backup[tableName]);
-            currentRecord += backup[tableName].length;
-            setImportProgress({ current: currentRecord, total: totalRecords });
-          }
-        }
-      });
-
-      setToast({ message: `Backup restaurado: ${backup._meta.exported_at}`, type: 'success' });
-      // Reload to reflect imported data
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (e) {
-      console.error('Error importing backup:', e);
-      setToast({ message: 'Error al importar: archivo corrupto o formato inválido', type: 'error' });
+      await driveConfigAPI.setCredentials(driveCredentials);
+      setToast({ message: 'Credenciales de Google Drive vinculadas', type: 'success' });
+      setDriveCredentials({ client_id: '', client_secret: '', refresh_token: '' });
+      await loadDriveCredentials();
+    } catch (error) {
+      console.error('Error saving Google Drive credentials:', error);
+      setToast({ message: 'Error al vincular Google Drive', type: 'error' });
     } finally {
-      setImporting(false);
-      setImportProgress({ current: 0, total: 0 });
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setSavingDriveCredentials(false);
     }
   };
 
-  // --- Export CSV: Current month transactions ---
-  // FASE 3: Use StreamedExporter for large datasets (>10,000 records)
-  const handleExportCSV = async () => {
+  const handleCreateBackup = async () => {
+    setCreatingBackup(true);
     try {
-      const now = new Date();
-      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-      const allTxns = await db.table('transactions')
-        .orderBy('date')
-        .reverse()
-        .filter((t: any) => !t.is_deleted && typeof t.date === 'string' && t.date.startsWith(yearMonth))
-        .toArray();
-
-      // FASE 3: Use StreamedExporter for large datasets to avoid blocking main thread
-      const { StreamedExporter, streamedExporter } = await import('../utils/StreamedExporter');
-      
-      if (allTxns.length > 10000) {
-        console.log(`[FASE-3] Large export detected (${allTxns.length} records), using StreamedExporter`);
-        const blob = await streamedExporter.exportTransactions();
-        StreamedExporter.downloadBlob(blob, `transactions_${yearMonth}.csv`);
+      const res = await backupAPI.createManualBackup();
+      if (res.data.success) {
+        setToast({ message: res.data.message, type: 'success' });
+        await handleLoadBackups();
       } else {
-        // Small dataset: use direct export with formatting (faster for small files)
-        const allCats = await db.table('categories').toArray();
-        const catMap = new Map(allCats.map((c: any) => [c.id, c.name]));
-
-        const header = 'Fecha,Tipo,Categoría,Descripción,Monto,Método de Pago';
-        const rows = allTxns.map((t: any) => {
-          const date = t.date ? t.date.slice(0, 10) : '';
-          const type = t.transaction_type === 'income' ? 'Ingreso' : 'Gasto';
-          const category = catMap.get(t.category_id) || 'Sin Categoría';
-          const desc = `"${(t.description || '').replace(/"/g, '""')}"`;
-          const amount = formatMoney(t.amount);
-          const method = t.payment_method || '';
-          return `${date},${type},${category},${desc},${amount},${method}`;
-        });
-
-        const csv = [header, ...rows].join('\n');
-        const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `transacciones_${yearMonth}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        setToast({ message: res.data.message, type: 'warning' });
       }
-
-      setToast({ message: `${allTxns.length} transacciones exportadas a CSV`, type: 'success' });
-    } catch (e) {
-      console.error('Error exporting CSV:', e);
-      setToast({ message: 'Error al exportar CSV', type: 'error' });
-    }
-  };
-
-  // --- Logout: Clear session but KEEP Dexie data ---
-  const handleLogout = () => {
-    if (window.confirm(
-      'Cerrar sesión eliminará tu token de acceso pero conservará todos los datos locales ' +
-      'para uso offline. ¿Continuar?'
-    )) {
-      const tokenKey = getTokenKey();
-      localStorage.removeItem('finance_base_url');
-      localStorage.removeItem(tokenKey);
-      window.location.reload();
-    }
-  };
-
-  const handleUnlink = async () => {
-    if (window.confirm("¿Estás seguro de que deseas desvincular este dispositivo? Todos los datos locales serán borrados permanentemente.")) {
-      try {
-        const tokenKey = getTokenKey();
-        localStorage.removeItem('finance_base_url');
-        localStorage.removeItem(tokenKey);
-        await Promise.all(db.tables.map(table => table.clear()));
-        window.location.reload();
-      } catch (e) {
-        console.error("Error al desvincular", e);
-      }
-    }
-  };
-
-  // FASE 6: Purge AI cache
-  const handlePurgeCache = async () => {
-    if (!window.confirm("¿Estás seguro de purgar la caché de IA? Esto forzará recálculos de categorización en próximas sincronizaciones.")) {
-      return;
-    }
-
-    try {
-      // @ts-ignore
-      await db.ai_cache.clear();
-      setAiCacheCount(0);
-      setToast({ message: 'Caché de IA purgada exitosamente', type: 'success' });
-    } catch (error) {
-      console.error('Error purging AI cache:', error);
-      setToast({ message: 'Error al purgar caché de IA', type: 'error' });
-    }
-  };
-
-  // FASE 6: Manual snapshot reconciliation
-  const handleReconcileSnapshots = async () => {
-    if (!window.confirm("¿Deseas ejecutar reconciliación manual de snapshots? Esto puede tomar varios segundos.")) {
-      return;
-    }
-
-    setReconciling(true);
-    try {
-      await snapshotsAPI.reconcile();
-      setStaleSnapshotsCount(0);
-      setToast({ message: 'Reconciliación completada exitosamente', type: 'success' });
-      // Reload diagnostics
-      await loadDiagnostics();
-    } catch (error) {
-      console.error('Error reconciling snapshots:', error);
-      setToast({ message: 'Error al reconciliar snapshots', type: 'error' });
+    } catch (e: any) {
+      console.error('Error creating backup:', e);
+      setToast({ message: 'Error al crear backup', type: 'error' });
     } finally {
-      setReconciling(false);
+      setCreatingBackup(false);
     }
   };
 
-  // FASE 6: Download Phoenix backup JSON
-  const handleDownloadPhoenixBackup = () => {
-    if (!phoenixBackup) return;
 
-    try {
-      const blob = new Blob([JSON.stringify(phoenixBackup.data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `phoenix_emergency_backup_${phoenixBackup.timestamp.slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setToast({ message: 'Backup de Phoenix descargado', type: 'success' });
-    } catch (error) {
-      console.error('Error downloading Phoenix backup:', error);
-      setToast({ message: 'Error al descargar backup', type: 'error' });
-    }
-  };
 
-  // FASE 6: Clear Phoenix alert
-  const handleClearPhoenixAlert = () => {
-    if (!window.confirm("¿Estás seguro de limpiar la alerta de backup de emergencia? Esto eliminará el respaldo de localStorage.")) {
+  const handleRestoreBackup = async (backupId: string) => {
+    if (!window.confirm('¿Estás seguro de que quieres restaurar este backup? El servidor necesitará reiniciarse.')) {
       return;
     }
-
     try {
-      localStorage.removeItem('phoenix_emergency_backup');
-      setPhoenixBackup(null);
-      setToast({ message: 'Alerta de Phoenix limpiada', type: 'success' });
-    } catch (error) {
-      console.error('Error clearing Phoenix alert:', error);
-      setToast({ message: 'Error al limpiar alerta', type: 'error' });
+      const res = await backupAPI.restoreBackup(backupId);
+      if (res.data.success) {
+        setToast({ message: res.data.message, type: 'success' });
+      } else {
+        setToast({ message: res.data.message, type: 'warning' });
+      }
+    } catch (e: any) {
+      console.error('Error restoring backup:', e);
+      setToast({ message: 'Error al restaurar backup', type: 'error' });
     }
   };
+
+  const personas = [
+    { id: 'professional', label: 'Analista Senior', desc: 'Preciso, educado y directo al punto.', icon: '👔' },
+    { id: 'roast', label: 'Modo Roast', desc: 'Sin piedad. Te humillará por cada café que compres fuera.', icon: '🔥' },
+    { id: 'gamified', label: 'RPG Master', desc: 'Convierte tus finanzas en una misión de nivel legendario.', icon: '⚔️' },
+    { id: 'coach', label: 'Motivador Personal', desc: '¡Vamos! Un pequeño ahorro hoy es una victoria mañana.', icon: '📣' },
+    { id: 'sabio', label: 'Maestro Zen', desc: 'Encuentra el equilibrio entre el gasto y la paz interior.', icon: '🧘' },
+    { id: 'detective', label: 'Forense Financiero', desc: 'Seguirá el rastro de cada centavo perdido.', icon: '🔍' },
+  ];
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-white">Cargando...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-white">
+        <RefreshCw className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
+        <p className="text-slate-400 font-medium animate-pulse">Iniciando Centro de Mando...</p>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full">
-      <div className="mb-6 lg:mb-8">
-        <h1 className="text-2xl lg:text-4xl font-bold text-white mb-2">Configuración</h1>
-        <p className="text-slate-300 text-sm lg:text-base">Configura las categorías de vehículo y el buffer de gasto seguro</p>
+    <div className="w-full relative min-h-screen pb-20">
+      {/* Background Glows */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-[10%] -left-[10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px]"></div>
       </div>
 
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
-        {/* Safe to Spend Buffer */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4">Buffer de Gasto Seguro</h2>
-          <p className="text-slate-400 text-sm mb-4">
-            Monto de seguridad que se resta del saldo disponible para calcular el gasto seguro.
-          </p>
-          <div className="flex items-center gap-4">
-            <div className="flex-1 max-w-xs">
-              <label className="block text-sm text-slate-300 mb-1">Monto ($)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={config.safe_to_spend_buffer}
-                onChange={e => setConfig({ ...config, safe_to_spend_buffer: parseFloat(e.target.value) || 0 })}
-                className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-              />
+      <div className="relative z-10 max-w-6xl mx-auto">
+        <div className="mb-10">
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold tracking-widest uppercase mb-1">
+              <div className="w-8 h-[1px] bg-indigo-500/50"></div>
+              <span>Panel de Control</span>
             </div>
-          </div>
+            <h1 className="text-3xl lg:text-4xl font-black text-white tracking-tight">
+              Configuración del <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Sistema</span>
+            </h1>
+            <p className="text-slate-400 text-sm lg:text-base font-medium">Personaliza el comportamiento y seguridad de Tabula Rasa</p>
+          </motion.div>
         </div>
 
-        {/* Vehicle Categories */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4">Categorías de Vehículo</h2>
-          <p className="text-slate-400 text-sm mb-4">
-            Selecciona las categorías que deben considerarse como gastos de vehículo para el cálculo de métricas.
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => toggleCategory(category.id)}
-                className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
-                  config.vehicle_categories.includes(category.id)
-                    ? 'bg-purple-500/20 border-purple-500 text-purple-400'
-                    : 'bg-slate-700/30 border-slate-600 text-slate-300 hover:border-slate-500'
-                }`}
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Sidebar Navigation */}
+          <div className="lg:w-64 flex-shrink-0">
+            <div className="sticky top-8 space-y-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as SettingsTab)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm ${
+                    activeTab === tab.id
+                      ? 'bg-white/10 text-white shadow-[0_0_20px_rgba(255,255,255,0.05)] border border-white/10'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+                  }`}
+                >
+                  <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? tab.color : ''}`} />
+                  <span>{tab.label}</span>
+                  {activeTab === tab.id && (
+                    <motion.div layoutId="activeTabIndicator" className="ml-auto">
+                      <ChevronRight className="w-4 h-4 text-white/40" />
+                    </motion.div>
+                  )}
+                </button>
+              ))}
+
+              <div className="pt-6">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4 rounded-2xl hover:shadow-lg hover:shadow-blue-500/20 transition-all font-black uppercase tracking-widest text-xs disabled:opacity-50"
+                >
+                  {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  <span>{saving ? 'Guardando...' : 'Aplicar Cambios'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content Area */}
+          <div className="flex-1">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+                className="bg-slate-800/40 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 p-8 lg:p-10"
               >
-                {category.color && (
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: category.color }}
-                  />
+                {activeTab === 'general' && (
+                  <div className="space-y-10">
+                    <section>
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                          <Database className="w-5 h-5 text-emerald-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-white">Exportar Transacciones</h2>
+                          <p className="text-slate-400 text-sm">Descarga tu historial financiero completo</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-black/20 rounded-3xl p-6 border border-white/5 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                            <FileSpreadsheet className="w-6 h-6 text-emerald-500" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-white">Reporte CSV</p>
+                            <p className="text-xs text-slate-500">Formato compatible con Excel y Sheets</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleExportCSV}
+                          disabled={exporting}
+                          className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-900/20"
+                        >
+                          {exporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                          Descargar
+                        </button>
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                          <ShieldAlert className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-white">Fondo de Seguridad</h2>
+                          <p className="text-slate-400 text-sm">Reserva una parte de tu capital para emergencias</p>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-black/20 rounded-3xl p-6 border border-white/5">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1">
+                            <label className="block text-xs font-black text-white/30 uppercase tracking-widest mb-2">Monto de Buffer ($)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={config.safe_to_spend_buffer}
+                              onChange={e => setConfig({ ...config, safe_to_spend_buffer: parseFloat(e.target.value) || 0 })}
+                              className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all"
+                            />
+                          </div>
+                          <div className="w-1/2 p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10">
+                            <p className="text-[10px] text-blue-400 font-bold uppercase mb-1">Impacto en Liquidez</p>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                              Este monto se restará de tu "Gasto Seguro" total para protegerte de imprevistos.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                          <FileSpreadsheet className="w-5 h-5 text-indigo-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-white">Categorías de Vehículo</h2>
+                          <p className="text-slate-400 text-sm">Categorías vinculadas al análisis de movilidad</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {categories
+                          .sort((a, b) => a.name.length - b.name.length)
+                          .map((category) => (
+                          <button
+                            key={category.id}
+                            onClick={() => toggleCategory(category.id)}
+                            className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all ${
+                              config.vehicle_categories.includes(category.id)
+                                ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.1)]'
+                                : 'bg-black/20 border-white/5 text-slate-500 hover:border-white/10'
+                            }`}
+                          >
+                            <span className="text-xs font-bold text-center leading-tight">{category.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
                 )}
-                <span className="text-sm">{category.name}</span>
-              </button>
-            ))}
+
+                {activeTab === 'ai' && (
+                  <div className="space-y-10">
+                    <section>
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                          <Lock className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-white">Seguridad API</h2>
+                          <p className="text-slate-400 text-sm">Conexión con el cerebro de Google Gemini</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-black/20 rounded-3xl p-6 border border-white/5">
+                        <label className="block text-xs font-black text-white/30 uppercase tracking-widest mb-3">Gemini API Key</label>
+                        <div className="relative">
+                          <input
+                            type="password"
+                            value={config.gemini_api_key}
+                            onChange={e => setConfig({ ...config, gemini_api_key: e.target.value })}
+                            placeholder="Ingresa tu API Key de Gemini..."
+                            className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-4 text-white font-mono text-sm focus:outline-none focus:border-purple-500/50 transition-all"
+                          />
+                        </div>
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                            <Cloud className="w-5 h-5 text-indigo-400" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-bold text-white">Credenciales OAuth</h2>
+                            <p className="text-slate-400 text-sm">Vínculo con Google Drive para respaldos</p>
+                          </div>
+                        </div>
+                        {hasDriveCredentials && (
+                          <div className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3" />
+                            Sincronizado
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="bg-black/20 rounded-3xl p-8 border border-white/5 space-y-5">
+                        <div className="grid grid-cols-1 gap-5">
+                          <div>
+                            <label className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Client ID</label>
+                            <input
+                              type="text"
+                              value={driveCredentials.client_id}
+                              onChange={(e) => setDriveCredentials({ ...driveCredentials, client_id: e.target.value })}
+                              className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-all"
+                              placeholder=".apps.googleusercontent.com"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                              <label className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Client Secret</label>
+                              <input
+                                type="password"
+                                value={driveCredentials.client_secret}
+                                onChange={(e) => setDriveCredentials({ ...driveCredentials, client_secret: e.target.value })}
+                                className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-all"
+                                placeholder="GOCSPX-..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Refresh Token</label>
+                              <input
+                                type="password"
+                                value={driveCredentials.refresh_token}
+                                onChange={(e) => setDriveCredentials({ ...driveCredentials, refresh_token: e.target.value })}
+                                className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-all"
+                                placeholder="//..."
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={handleSaveDriveCredentials}
+                          disabled={savingDriveCredentials}
+                          className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-xs font-black uppercase tracking-widest"
+                        >
+                          {savingDriveCredentials ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 text-blue-400" />}
+                          <span>Vincular Cuenta</span>
+                        </button>
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+                          <RefreshCw className="w-5 h-5 text-amber-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-white">Pruebas de Conectividad</h2>
+                          <p className="text-slate-400 text-sm">Verifica los canales de comunicación externos</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-black/20 rounded-3xl p-6 border border-white/5">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-purple-400" />
+                              <span className="text-sm font-bold text-white">Google Gemini</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              setTestingGemini(true);
+                              try {
+                                const res = await aiAPI.testComponent('sentinel');
+                                if (res.data.status === 'success') {
+                                  setToast({ message: 'Conexión con Gemini exitosa', type: 'success' });
+                                } else {
+                                  setToast({ message: 'Error de conexión: ' + res.data.message, type: 'error' });
+                                }
+                              } catch (e) {
+                                setToast({ message: 'Error de servidor al probar conexión', type: 'error' });
+                              } finally {
+                                setTestingGemini(false);
+                              }
+                            }}
+                            disabled={testingGemini}
+                            className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-slate-300 transition-all border border-white/5 flex items-center justify-center gap-2 disabled:opacity-50"
+                          >
+                            {testingGemini ? (
+                              <RefreshCw className="w-3 h-3 animate-spin text-purple-400" />
+                            ) : (
+                              <Sparkles className="w-3 h-3 text-purple-400" />
+                            )}
+                            {testingGemini ? 'Verificando...' : 'Verificar API Key'}
+                          </button>
+                        </div>
+
+                        <div className="bg-black/20 rounded-3xl p-6 border border-white/5">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                              <Cloud className="w-4 h-4 text-blue-400" />
+                              <span className="text-sm font-bold text-white">Google Drive</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              setTestingDrive(true);
+                              try {
+                                const res = await driveConfigAPI.test();
+                                if (res.data.success) {
+                                  setToast({ message: 'OAuth2 funcionando correctamente', type: 'success' });
+                                } else {
+                                  setToast({ message: 'Error: ' + res.data.message, type: 'error' });
+                                }
+                              } catch (e: any) {
+                                const msg = e.response?.data?.detail || 'Error de servidor al probar OAuth2';
+                                setToast({ message: msg, type: 'error' });
+                              } finally {
+                                setTestingDrive(false);
+                              }
+                            }}
+                            disabled={testingDrive}
+                            className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-slate-300 transition-all border border-white/5 flex items-center justify-center gap-2 disabled:opacity-50"
+                          >
+                            {testingDrive ? (
+                              <RefreshCw className="w-3 h-3 animate-spin text-blue-400" />
+                            ) : (
+                              <Cloud className="w-3 h-3 text-blue-400" />
+                            )}
+                            {testingDrive ? 'Verificando...' : 'Verificar OAuth2'}
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                )}
+
+                {activeTab === 'labs' && (
+                  <div className="space-y-10">
+                    <section>
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                          <Cpu className="w-5 h-5 text-purple-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-white">Personalidad del Asistente</h2>
+                          <p className="text-slate-400 text-sm">Define cómo interactúa la IA contigo</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {personas.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => {
+                              setConfig({ ...config, ai_persona: p.id });
+                              handleQuickSave('ai_persona', p.id, 'string');
+                            }}
+                            className={`flex items-start gap-4 p-5 rounded-3xl border transition-all text-left group ${
+                              config.ai_persona === p.id
+                                ? 'bg-purple-500/10 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]'
+                                : 'bg-black/20 border-white/5 hover:border-white/10'
+                            }`}
+                          >
+                            <span className="text-3xl transition-transform group-hover:scale-110 duration-300">{p.icon}</span>
+                            <div>
+                              <h3 className={`font-bold text-sm mb-1 ${config.ai_persona === p.id ? 'text-purple-400' : 'text-white'}`}>
+                                {p.label}
+                              </h3>
+                              <p className="text-xs text-slate-500 leading-normal">{p.desc}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                          <Sparkles className="w-5 h-5 text-indigo-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-white">Diagnóstico de Componentes</h2>
+                          <p className="text-slate-400 text-sm">Prueba el razonamiento de los motores de IA</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {[
+                          { id: 'sentinel', name: 'Sentinel Agent', desc: 'Orquestador de salud financiera y alertas.' },
+                          { id: 'anomaly', name: 'Anomaly Scanner', desc: 'Detección de gastos atípicos y fugas.' },
+                          { id: 'fiscal', name: 'Fiscal Intelligence', desc: 'Cálculo de impuestos y proyecciones SRI.' },
+                          { id: 'whatif', name: 'What-If Simulator', desc: 'Simulación de escenarios y proyecciones de ahorro.' },
+                          { id: 'audio', name: 'Multimodal Engine', desc: 'Procesamiento de notas de voz y documentos (OCR).' },
+                          { id: 'categorization', name: 'Semantic Brain', desc: 'Categorización inteligente de transacciones.' }
+                        ].map((comp) => (
+                          <div key={comp.id} className="group bg-black/20 rounded-3xl p-6 border border-white/5 flex items-center justify-between hover:border-white/10 transition-all">
+                            <div className="flex-1">
+                              <h3 className="font-bold text-white text-sm group-hover:text-amber-400 transition-all">{comp.name}</h3>
+                              <p className="text-xs text-slate-500">{comp.desc}</p>
+                            </div>
+                            <button
+                              onClick={async (e) => {
+                                const btn = e.currentTarget;
+                                btn.disabled = true;
+                                try {
+                                  const { aiAPI } = await import('../services/api');
+                                  const res = await aiAPI.testComponent(comp.id);
+                                  if (res.data.status === 'success') {
+                                    setToast({ message: `${comp.name}: OK`, type: 'success' });
+                                  } else {
+                                    setToast({ message: `${comp.name}: Error`, type: 'error' });
+                                  }
+                                } catch (err) {
+                                  setToast({ message: 'Error de servidor', type: 'error' });
+                                } finally {
+                                  btn.disabled = false;
+                                }
+                              }}
+                              className="px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[10px] font-black uppercase rounded-xl border border-indigo-500/20 transition-all"
+                            >
+                              Test
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                )}
+
+                {activeTab === 'cloud' && (
+                  <div className="space-y-10">
+                    <section>
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                            <Cloud className="w-5 h-5 text-emerald-400" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-bold text-white">Backups en la Nube</h2>
+                            <p className="text-slate-400 text-sm">Instantáneas de seguridad de tu base de datos</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleCreateBackup}
+                          disabled={creatingBackup}
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest transition-all shadow-lg"
+                        >
+                          {creatingBackup ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                          Nuevo Backup
+                        </button>
+                      </div>
+
+                      <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                        {loadingBackups ? (
+                          <div className="p-10 text-center text-slate-500 text-sm animate-pulse">Consultando historial...</div>
+                        ) : backups.length > 0 ? (
+                          backups.map((backup: BackupFile) => (
+                            <div key={backup.id} className="group flex items-center justify-between p-4 bg-black/20 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/10 transition-all">
+                                  <Database className="w-5 h-5 text-slate-500 group-hover:text-emerald-400" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold text-white/80 group-hover:text-white transition-all">{backup.name}</p>
+                                  <p className="text-[10px] text-slate-500 font-medium">
+                                    {new Date(backup.createdTime).toLocaleString('es-EC')}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleRestoreBackup(backup.id)}
+                                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 opacity-0 group-hover:opacity-100"
+                              >
+                                Restaurar
+                              </button>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-10 text-center text-slate-500 text-sm bg-black/10 rounded-3xl border border-dashed border-white/5">
+                            No se han encontrado backups.
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="pt-10 border-t border-red-500/10">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
+                          <AlertTriangle className="w-5 h-5 text-rose-500" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-rose-500">Zona de Peligro</h2>
+                          <p className="text-slate-400 text-sm">Acciones críticas e irreversibles</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-rose-500/5 rounded-[2rem] p-8 border border-rose-500/10 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-8 opacity-5">
+                          <AlertTriangle className="w-32 h-32 text-rose-500" />
+                        </div>
+                        <div className="relative z-10">
+                          <h3 className="text-rose-400 font-bold mb-2">Vaciar Base de Datos</h3>
+                          <p className="text-slate-400 text-xs mb-6 max-w-lg leading-relaxed">
+                            Se eliminarán todas las transacciones, estados de cuenta, presupuestos, metas, suscripciones, 
+                            recordatorios, snapshots, activos y logs de importación. 
+                            Las cuentas se conservarán con saldo en $0. Las categorías y configuración permanecen intactas.
+                          </p>
+                          <button
+                            onClick={async () => {
+                              const firstConfirm = window.confirm("¡ADVERTENCIA!\n\n¿Estás seguro?");
+                              if (!firstConfirm) return;
+                              const secondConfirm = window.prompt('Escribe "ELIMINAR TODO":');
+                              if (secondConfirm !== 'ELIMINAR TODO') return;
+                              try {
+                                await configAPI.wipeDatabase();
+                                setToast({ message: 'Sistema reiniciado', type: 'success' });
+                                setTimeout(() => window.location.reload(), 1500);
+                              } catch (error) {
+                                setToast({ message: 'Error al limpiar', type: 'error' });
+                              }
+                            }}
+                            className="px-6 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white transition-all text-xs font-black uppercase tracking-widest"
+                          >
+                            Eliminar Todo el Historial
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                )}
+
+                {activeTab === 'security' && (
+                  <div className="space-y-10">
+                    <section>
+                      <DeviceManager />
+                    </section>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
-
-        {/* Gemini API Key */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4">Gemini API Key</h2>
-          <p className="text-slate-400 text-sm mb-4">
-            API Key de Google Gemini para generar análisis financieros con IA. Se guardará de forma segura.
-          </p>
-          <div className="flex items-center gap-4">
-            <div className="flex-1 max-w-md">
-              <label className="block text-sm text-slate-300 mb-1">API Key</label>
-              <input
-                type="password"
-                value={config.gemini_api_key}
-                onChange={e => setConfig({ ...config, gemini_api_key: e.target.value })}
-                placeholder="Ingresa tu Gemini API Key"
-                className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
-          <button
-            onClick={handleUnlink}
-            className="flex items-center px-4 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 text-sm mr-auto transition-colors"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Desvincular Dispositivo
-          </button>
-          
-          <button
-            onClick={fetchData}
-            className="flex items-center px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Recargar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 text-sm disabled:opacity-50"
-          >
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-        </div>
-      </div>
-
-      {/* Backup & Recovery */}
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mt-6">
-        <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-          <Shield className="w-5 h-5 text-emerald-400" />
-          Respaldo y Recuperación
-        </h2>
-        <p className="text-slate-400 text-sm mb-6">Exporta o restaura todos tus datos financieros desde un archivo local.</p>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Export JSON */}
-          <button
-            onClick={handleExportBackup}
-            disabled={exporting}
-            className="flex flex-col items-center gap-3 p-5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors text-emerald-400 disabled:opacity-50"
-          >
-            <Download className="w-8 h-8" />
-            <span className="text-sm font-medium">{exporting ? 'Exportando...' : 'Exportar Todo (JSON)'}</span>
-            <span className="text-xs text-slate-500">Dump completo de todas las tablas</span>
-          </button>
-
-          {/* Import JSON */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importing}
-            className="flex flex-col items-center gap-3 p-5 rounded-xl border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-amber-400 disabled:opacity-50 relative"
-          >
-            {importing ? (
-              <RefreshCw className="w-8 h-8 animate-spin" />
-            ) : (
-              <Upload className="w-8 h-8" />
-            )}
-            <span className="text-sm font-medium">{importing ? 'Importando...' : 'Importar Backup (JSON)'}</span>
-            <span className="text-xs text-slate-500">Restaura desde archivo .json</span>
-            {importing && importProgress.total > 0 && (
-              <div className="w-full mt-2">
-                <div className="flex justify-between text-xs text-slate-400 mb-1">
-                  <span>Progreso</span>
-                  <span>{importProgress.current} / {importProgress.total}</span>
-                </div>
-                <div className="w-full bg-slate-700 rounded-full h-1">
-                  <div
-                    className="h-1 rounded-full bg-amber-500 transition-all"
-                    style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            onChange={handleImportBackup}
-            className="hidden"
-          />
-
-          {/* Export CSV */}
-          <button
-            onClick={handleExportCSV}
-            className="flex flex-col items-center gap-3 p-5 rounded-xl border border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 transition-colors text-blue-400"
-          >
-            <FileSpreadsheet className="w-8 h-8" />
-            <span className="text-sm font-medium">Exportar CSV (Mes Actual)</span>
-            <span className="text-xs text-slate-500">Transacciones en formato hoja de cálculo</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Session Management */}
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mt-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 text-amber-400" />
-          Sesión
-        </h2>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={handleLogout}
-            className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-colors text-sm"
-          >
-            <LogOut className="w-4 h-4" />
-            Cerrar Sesión
-            <span className="text-xs text-slate-500 ml-1">(conserva datos locales)</span>
-          </button>
-        </div>
-      </div>
-
-      {/* FASE 3.5: Google Drive Configuration */}
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mt-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <Cloud className="w-5 h-5 text-blue-400" />
-          Google Drive Backup
-        </h2>
-        <p className="text-slate-400 text-sm mb-4">
-          Configura las credenciales de OAuth para respaldos automáticos en Google Drive.
-        </p>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-slate-300 mb-1">Client ID</label>
-            <input
-              type="text"
-              value={driveCredentials.client_id}
-              onChange={(e) => setDriveCredentials({ ...driveCredentials, client_id: e.target.value })}
-              className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-              placeholder=".apps.googleusercontent.com"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-slate-300 mb-1">Client Secret</label>
-            <input
-              type="password"
-              value={driveCredentials.client_secret}
-              onChange={(e) => setDriveCredentials({ ...driveCredentials, client_secret: e.target.value })}
-              className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-              placeholder="GOCSPX-..."
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-slate-300 mb-1">Refresh Token</label>
-            <input
-              type="password"
-              value={driveCredentials.refresh_token}
-              onChange={(e) => setDriveCredentials({ ...driveCredentials, refresh_token: e.target.value })}
-              className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-              placeholder="//..."
-            />
-          </div>
-          <button
-            onClick={handleSaveDriveCredentials}
-            disabled={savingDriveCredentials}
-            className="flex items-center gap-2 px-5 py-3 rounded-xl border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 transition-colors text-sm disabled:opacity-50"
-          >
-            {savingDriveCredentials ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                Guardando...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                Guardar Credenciales
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* FASE 6: Phoenix Emergency Backup Alert */}
-      {phoenixBackup && (
-        <div className="bg-red-900/20 backdrop-blur-xl rounded-2xl border border-red-500/50 p-6 mt-6">
-          <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-400" />
-            Backup de Emergencia Detectado
-          </h2>
-          <p className="text-slate-400 text-sm mb-4">
-            Un backup de Phoenix fue creado el {new Date(phoenixBackup.timestamp).toLocaleString('es-MX')} debido a una corrupción de esquema.
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={handleDownloadPhoenixBackup}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 text-sm"
-            >
-              <Download className="w-4 h-4" />
-              Descargar Backup JSON
-            </button>
-            <button
-              onClick={handleClearPhoenixAlert}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm"
-            >
-              <Trash2 className="w-4 h-4" />
-              Limpiar Alerta
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* FASE 6: Data Diagnostics */}
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Database className="w-5 h-5 text-purple-400" />
-            Diagnóstico de Datos
-          </h2>
-          <button
-            onClick={() => setShowDiagnostics(!showDiagnostics)}
-            className="text-sm text-purple-400 hover:text-purple-300"
-          >
-            {showDiagnostics ? 'Ocultar' : 'Mostrar'}
-          </button>
-        </div>
-
-        {showDiagnostics && (
-          <div className="space-y-6">
-            {/* Storage Guardian */}
-            <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                <HardDrive className="w-4 h-4" />
-                Uso de Disco (Storage Guardian)
-              </h3>
-              <div className="mb-2">
-                <div className="flex justify-between text-xs text-slate-400 mb-1">
-                  <span>Uso actual</span>
-                  <span className={storageUsage.status === 'critical' ? 'text-red-400' : storageUsage.status === 'warning' ? 'text-amber-400' : 'text-emerald-400'}>
-                    {storageUsage.usagePercent.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="w-full bg-slate-700 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all ${
-                      storageUsage.status === 'critical' ? 'bg-red-500' : storageUsage.status === 'warning' ? 'bg-amber-500' : 'bg-emerald-500'
-                    }`}
-                    style={{ width: `${Math.min(storageUsage.usagePercent, 100)}%` }}
-                  />
-                </div>
-              </div>
-              {storageUsage.status === 'warning' && (
-                <p className="text-xs text-amber-400">⚠️ Almacenamiento bajo: considera limpiar datos antiguos</p>
-              )}
-              {storageUsage.status === 'critical' && (
-                <p className="text-xs text-red-400">🚨 Almacenamiento crítico: las importaciones masivas están bloqueadas</p>
-              )}
-            </div>
-
-            {/* AI Cache */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/50">
-              <div>
-                <h3 className="text-sm font-medium text-slate-300">Caché de IA</h3>
-                <p className="text-xs text-slate-500">{aiCacheCount} entradas almacenadas</p>
-              </div>
-              <button
-                onClick={handlePurgeCache}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 text-xs"
-              >
-                <Trash2 className="w-4 h-4" />
-                Purgar Caché
-              </button>
-            </div>
-
-            {/* Stale Snapshots */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/50">
-              <div>
-                <h3 className="text-sm font-medium text-slate-300">Snapshots Stale</h3>
-                <p className="text-xs text-slate-500">{staleSnapshotsCount} snapshots marcados como obsoletos</p>
-              </div>
-              <button
-                onClick={handleReconcileSnapshots}
-                disabled={reconciling}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-500/50 text-blue-400 hover:bg-blue-500/10 text-xs disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${reconciling ? 'animate-spin' : ''}`} />
-                Reconciliación Manual
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {toast && (
