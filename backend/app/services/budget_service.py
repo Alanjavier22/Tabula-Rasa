@@ -119,4 +119,5 @@ def enrich_budget_response(budget: Budget, now: Optional[datetime] = None) -> di
         "is_over_pacing": pacing["is_over_pacing"],
         "pacing_status": pacing["pacing_status"],
         "remaining": pacing["remaining"],
+        "version": budget.version if hasattr(budget, 'version') else 1,  # FASE 7: OCC versioning
     }
