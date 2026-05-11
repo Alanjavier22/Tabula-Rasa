@@ -1,9 +1,24 @@
 import sys
 import os
+import signal
+import asyncio
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import logging
 from logging.handlers import RotatingFileHandler
+from contextlib import asynccontextmanager
+
+class NetworkErrorFilter(logging.Filter):
+    """Filter to downgrade network-related errors to warnings."""
+    
+    def filter(self, record):
+        # Downgrade ConnectionResetError to warning
+        if record.levelno >= logging.ERROR:
+            if 'ConnectionResetError' in record.getMessage() or 'WinError 10054' in record.getMessage():
+                record.levelno = logging.WARNING
+                record.levelname = 'WARNING'
+                record.msg = f"[NETWORK-RECOVERABLE] {record.msg}"
+        return True
 
 # FASE 5: Configure rotating file handler for logs (10MB max, 5 backups)
 def setup_logging():
@@ -25,17 +40,22 @@ def setup_logging():
     )
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
+    file_handler.addFilter(NetworkErrorFilter())
     
     # Setup console handler
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     console_handler.setLevel(logging.INFO)
+    console_handler.addFilter(NetworkErrorFilter())
     
     # Configure root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
+    
+    # Suppress noisy asyncio connection-reset errors on Windows (WinError 10054)
+    logging.getLogger("asyncio").setLevel(logging.CRITICAL)
     
     return root_logger
 
@@ -44,10 +64,45 @@ logger = setup_logging()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import engine, Base
+from database import engine, Base, SessionLocal
 from sqlalchemy import event
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Application starting up...")
+    
+    # FASE 3: Autonomous Snapshot Reconciliation
+    try:
+        from app.services.autonomous_snapshot import AutonomousSnapshotService
+        from database import SessionLocal
+        db = SessionLocal()
+        AutonomousSnapshotService.run_reconciliation(db)
+        db.close()
+        logger.info("Autonomous snapshot reconciliation completed")
+    except Exception as e:
+        logger.error(f"[STARTUP] Error in autonomous snapshot: {e}")
+        
+    yield
+    # Shutdown
+    logger.info("Application shutting down gracefully...")
+    try:
+        # Close database connections
+        engine.dispose()
+        logger.info("Database connections closed")
+        
+        # Cancel all pending asyncio tasks
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        for task in tasks:
+            task.cancel()
+        logger.info(f"Cancelled {len(tasks)} pending tasks")
+        
+        # Wait a moment for tasks to cancel
+        await asyncio.sleep(0.5)
+        
+        logger.info("Graceful shutdown complete")
+    except Exception as e:
+        logger.error(f"Error during graceful shutdown: {e}")
 
 # Import models explicitly to register them with Base (fixes circular import)
 from app.models.transaction import Transaction
@@ -78,7 +133,7 @@ def increment_version(mapper, connection, target):
     if hasattr(target, 'version'):
         target.version += 1
 
-from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, csv_import, config, subscriptions, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, ai
+from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, config, subscriptions, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, ai, ai_vision, ai_goals, alerts, fiscal, backup, ai_insights, ai_audio, ai_sentinel, ai_audit, intelligence, export
 from middleware.security import SecurityMiddleware
 from init_db import init_db
 
@@ -86,7 +141,7 @@ from init_db import init_db
 # Set environment variable DB_RESET=1 to drop and recreate all tables (DEV ONLY).
 init_db()
 
-app = FastAPI(title="Personal Finance API", version="1.0.0")
+app = FastAPI(title="Personal Finance API", version="1.0.0", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -110,64 +165,26 @@ app.include_router(goals.router)
 app.include_router(reminders.router)
 app.include_router(statements.router)
 app.include_router(metrics.router)
-app.include_router(csv_import.router)
+
 app.include_router(config.router)
 app.include_router(subscriptions.router)
 app.include_router(transaction_splits.router)
 app.include_router(ious.router)
 app.include_router(net_worth_snapshots.router)
-app.include_router(ai_assistant.router)
 app.include_router(ai.router)
-app.include_router(auth.router, prefix="/auth", tags=["Auth"])
-
-# FASE 3: Configure background scheduler for daily external backups
-scheduler = BackgroundScheduler()
-
-def scheduled_external_backup():
-    """
-    Scheduled task to create external backup of the database.
-    Runs daily at the time specified in BACKUP_SCHEDULE environment variable.
-    Default: Daily at 2:00 AM
-    """
-    try:
-        from app.utils.backup import create_external_backup
-        logger.info("[SCHEDULED_BACKUP] Starting scheduled external backup...")
-        backup_path = create_external_backup()
-        if backup_path:
-            logger.info(f"[SCHEDULED_BACKUP] External backup completed successfully: {backup_path}")
-        else:
-            logger.warning("[SCHEDULED_BACKUP] External backup skipped (path not configured or failed)")
-    except Exception as e:
-        logger.error(f"[SCHEDULED_BACKUP] Error during scheduled backup: {e}")
-
-# Parse backup schedule from environment variable (default: 0 2 * * * = daily at 2:00 AM)
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
-backup_schedule = os.getenv('BACKUP_SCHEDULE', '0 2 * * *')
-schedule_parts = backup_schedule.split()
-
-# Validate schedule format (5 parts: minute hour day month day_of_week)
-if len(schedule_parts) == 5:
-    try:
-        # Use CronTrigger.from_crontab() to handle wildcard (*) characters properly
-        scheduler.add_job(
-            scheduled_external_backup,
-            trigger=CronTrigger.from_crontab(backup_schedule),
-            id='external_backup',
-            name='Daily External Database Backup',
-            replace_existing=True
-        )
-        logger.info(f"[SCHEDULED_BACKUP] Scheduled daily external backup at: {backup_schedule}")
-    except Exception as e:
-        logger.warning(f"[SCHEDULED_BACKUP] Invalid BACKUP_SCHEDULE format: {backup_schedule}. Error: {e}")
-else:
-    logger.warning(f"[SCHEDULED_BACKUP] Invalid BACKUP_SCHEDULE format: {backup_schedule}. Expected 5 parts (minute hour day month day_of_week)")
-
-# Start the scheduler
-scheduler.start()
-logger.info("[SCHEDULED_BACKUP] Background scheduler started")
+app.include_router(ai_assistant.router)
+app.include_router(ai_vision.router)
+app.include_router(ai_goals.router)
+app.include_router(ai_sentinel.router)
+app.include_router(ai_audit.router)
+app.include_router(ai_insights.router)
+app.include_router(ai_audio.router)
+app.include_router(auth.router)
+app.include_router(alerts.router)
+app.include_router(backup.router)
+app.include_router(fiscal.router)
+app.include_router(intelligence.router)
+app.include_router(export.router)
 
 @app.get("/")
 def read_root():
@@ -175,31 +192,61 @@ def read_root():
 
 @app.get("/health")
 def health_check():
+    """Health check endpoint - verifies database and system resources."""
     try:
-        # Execute PRAGMA integrity_check on SQLite
         from database import SessionLocal
+        from sqlalchemy import text
+        import psutil
+        
         db = SessionLocal()
-        result = db.execute("PRAGMA integrity_check;")
-        integrity_result = result.fetchone()[0]
-        db.close()
-        
-        # Check if integrity is OK
-        if integrity_result != "ok":
+        try:
+            # Execute PRAGMA integrity_check on SQLite
+            integrity_result = db.execute(text("PRAGMA integrity_check;")).fetchone()[0]
+            
+            # Check if integrity is OK
+            if integrity_result != "ok":
+                return {
+                    "status": "unhealthy",
+                    "integrity_check": integrity_result,
+                    "error": "Database integrity check failed"
+                }, 500
+            
+            # Check WAL mode
+            journal_mode = db.execute(text("PRAGMA journal_mode;")).fetchone()[0]
+            
+            # Check system memory usage
+            memory = psutil.virtual_memory()
+            memory_percent = memory.percent
+            memory_status = "healthy" if memory_percent < 90 else "warning" if memory_percent < 95 else "critical"
+            
+            # Check disk usage
+            disk = psutil.disk_usage('/')
+            disk_percent = disk.percent
+            disk_status = "healthy" if disk_percent < 90 else "warning" if disk_percent < 95 else "critical"
+            
+            # Overall status
+            overall_status = "healthy"
+            if memory_status == "critical" or disk_status == "critical":
+                overall_status = "unhealthy"
+            elif memory_status == "warning" or disk_status == "warning":
+                overall_status = "degraded"
+            
             return {
-                "status": "unhealthy",
-                "integrity_check": integrity_result,
-                "error": "Database integrity check failed"
-            }, 500
-        
-        # Check WAL mode
-        result = db.execute("PRAGMA journal_mode;")
-        journal_mode = result.fetchone()[0]
-        
-        return {
-            "status": "healthy",
-            "integrity_check": integrity_result,
-            "journal_mode": journal_mode
-        }
+                "status": overall_status,
+                "database": {
+                    "integrity_check": integrity_result,
+                    "journal_mode": journal_mode,
+                    "status": "healthy"
+                },
+                "system": {
+                    "memory_usage_percent": memory_percent,
+                    "memory_status": memory_status,
+                    "disk_usage_percent": disk_percent,
+                    "disk_status": disk_status
+                }
+            }
+        finally:
+            db.close()
     except Exception as e:
         return {
             "status": "unhealthy",
