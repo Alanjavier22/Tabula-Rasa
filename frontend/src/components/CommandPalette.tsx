@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Home, DollarSign, PieChart, Target, Calendar, List, Sparkles, Send, Loader2, Bot } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { aiAssistantAPI } from '../services/api';
@@ -41,10 +42,10 @@ const CommandPalette = () => {
   const filteredRoutes = routes.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
 
   const chatMutation = useMutation({
-    mutationFn: (message: string) => aiAssistantAPI.chat(message),
+    mutationFn: (message: string) => aiAssistantAPI.chat(message, true, true),
     onSuccess: (res) => {
-      setAiResponse(res.data.response);
-      if (res.data.has_mutations) {
+      setAiResponse(res.response);
+      if (res.has_mutations) {
         // Invalidate all relevant queries to refresh the UI "magically"
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
@@ -175,8 +176,8 @@ const CommandPalette = () => {
                 </div>
               ) : aiResponse ? (
                 <div className="space-y-4">
-                  <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 backdrop-blur-xl rounded-xl border border-purple-500/50 p-4">
-                    <p className="text-slate-200 text-sm leading-relaxed">{aiResponse}</p>
+                  <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 backdrop-blur-xl rounded-xl border border-purple-500/50 p-4 prose prose-invert prose-sm max-w-none prose-p:leading-relaxed">
+                    <ReactMarkdown>{aiResponse}</ReactMarkdown>
                   </div>
                   <button
                     onClick={() => {
