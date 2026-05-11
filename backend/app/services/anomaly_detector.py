@@ -37,11 +37,13 @@ def detect_anomalies(db: Session) -> List[Dict]:
     # ---------------------------------------------------------
     curr_txns = db.query(Transaction).filter(
         Transaction.transaction_type == "expense",
+        Transaction.is_deleted == False,
         Transaction.date >= curr_start
     ).all()
     
     prev_full_txns = db.query(Transaction).filter(
         Transaction.transaction_type == "expense",
+        Transaction.is_deleted == False,
         Transaction.date >= prev_start,
         Transaction.date < curr_start
     ).all()
@@ -66,7 +68,7 @@ def detect_anomalies(db: Session) -> List[Dict]:
                 alerts.append({
                     "type": "warning",
                     "severity": "high",
-                    "message": f"Posible aumento en suscripción/servicio: '{t.description}' subió de ${prev_amount} a ${curr_amount} (+{increase_pct:.0f}%)."
+                    "message": f"Posible aumento en suscripción/servicio: '{t.description}' subió de ${prev_amount/100:.2f} a ${curr_amount/100:.2f} (+{increase_pct:.0f}%)."
                 })
 
     # ---------------------------------------------------------
@@ -76,6 +78,7 @@ def detect_anomalies(db: Session) -> List[Dict]:
     prev_cat_spending = {}
     prev_txns_period = db.query(Transaction).filter(
         Transaction.transaction_type == "expense",
+        Transaction.is_deleted == False,
         Transaction.date >= prev_start,
         Transaction.date <= prev_end
     ).all()
@@ -100,14 +103,14 @@ def detect_anomalies(db: Session) -> List[Dict]:
                 alerts.append({
                     "type": "info",
                     "severity": "medium",
-                    "message": f"Gasto inusual: Has gastado ${curr_spent} en '{categories.get(cat_id, 'Desconocido')}', categoría en la que no gastaste nada el mes pasado a estas fechas."
+                    "message": f"Gasto inusual: Has gastado ${curr_spent/100:.2f} en '{categories.get(cat_id, 'Desconocido')}', categoría en la que no gastaste nada el mes pasado a estas fechas."
                 })
             elif curr_spent > prev_spent * 130 // 100:  # 30% mas rapido
                 inc_pct = ((curr_spent - prev_spent) * 100) // prev_spent
                 alerts.append({
                     "type": "warning",
                     "severity": "high",
-                    "message": f"Velocidad de gasto alta: En '{categories.get(cat_id, 'Desconocido')}' has gastado ${curr_spent}, un {inc_pct:.0f}% más rápido que el mes pasado."
+                    "message": f"Velocidad de gasto alta: En '{categories.get(cat_id, 'Desconocido')}' has gastado ${curr_spent/100:.2f}, un {inc_pct:.0f}% más rápido que el mes pasado."
                 })
 
     return alerts
@@ -128,8 +131,8 @@ def calculate_anomaly_leak_total(db: Session) -> int:
         from calendar import monthrange
         prev_end = prev_start.replace(day=monthrange(prev_start.year, prev_start.month)[1])
         
-    curr_txns = db.query(Transaction).filter(Transaction.transaction_type == "expense", Transaction.date >= curr_start).all()
-    prev_txns = db.query(Transaction).filter(Transaction.transaction_type == "expense", Transaction.date >= prev_start, Transaction.date <= prev_end).all()
+    curr_txns = db.query(Transaction).filter(Transaction.transaction_type == "expense", Transaction.is_deleted == False, Transaction.date >= curr_start).all()
+    prev_txns = db.query(Transaction).filter(Transaction.transaction_type == "expense", Transaction.is_deleted == False, Transaction.date >= prev_start, Transaction.date <= prev_end).all()
     
     curr_cat = {}
     for t in curr_txns:
