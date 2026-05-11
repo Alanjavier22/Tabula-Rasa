@@ -20,6 +20,53 @@ BACKUP_ROTATION_COUNT = int(os.getenv('BACKUP_ROTATION_COUNT', '30'))
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+import googleapiclient.http
+
+
+def rotate_local_backups(keep_count: int = 2):
+    """
+    Clean up old local backups, keeping only the most recent ones.
+    
+    Args:
+        keep_count: Number of recent backups to keep (default: 2 - current and previous)
+    """
+    try:
+        backend_dir = os.path.dirname(_DB_PATH)
+        local_backup_dir = os.path.join(backend_dir, "backups")
+        
+        if not os.path.exists(local_backup_dir):
+            return
+        
+        # Get all backup files
+        backup_files = []
+        for filename in os.listdir(local_backup_dir):
+            if filename.startswith("tabula_rasa_backup_") and filename.endswith(".sqlite3"):
+                filepath = os.path.join(local_backup_dir, filename)
+                # Extract timestamp from filename
+                try:
+                    timestamp_str = filename.replace("tabula_rasa_backup_", "").replace(".sqlite3", "")
+                    timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                    backup_files.append((filepath, timestamp))
+                except ValueError:
+                    # Skip files with invalid timestamp format
+                    continue
+        
+        # Sort by timestamp (newest first)
+        backup_files.sort(key=lambda x: x[1], reverse=True)
+        
+        # Delete old backups (keep only the most recent ones)
+        for i, (filepath, timestamp) in enumerate(backup_files):
+            if i >= keep_count:
+                try:
+                    os.remove(filepath)
+                    backup_logger.info(f"[LOCAL_BACKUP] Cleaned up old local backup: {filepath}")
+                except Exception as e:
+                    backup_logger.warning(f"[LOCAL_BACKUP] Failed to delete old backup {filepath}: {e}")
+            else:
+                backup_logger.info(f"[LOCAL_BACKUP] Keeping recent backup: {filepath}")
+                
+    except Exception as e:
+        backup_logger.warning(f"[LOCAL_BACKUP] Failed to clean up local backups: {e}")
 
 
 def create_physical_backup() -> str:
@@ -220,6 +267,52 @@ def get_google_drive_credentials() -> Optional[tuple[str, str, str]]:
             db.close()
 
 
+def test_google_drive_connection() -> dict:
+    """
+    Perform a real authentication test with Google Drive API.
+    Attempts to refresh the access token and build the service.
+    
+    Returns:
+        Dict with success status and descriptive message.
+    """
+    credentials = get_google_drive_credentials()
+    if not credentials:
+        return {"success": False, "message": "Credenciales no encontradas en la base de datos."}
+    
+    client_id, client_secret, refresh_token = credentials
+    
+    try:
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+        
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=["https://www.googleapis.com/auth/drive"]
+        )
+        
+        # Real handshake: Refresh the token
+        creds.refresh(Request())
+        
+        # Optional: Try to list a file to be 100% sure
+        drive_service = build('drive', 'v3', credentials=creds)
+        drive_service.about().get(fields="user").execute()
+        
+        return {"success": True, "message": "Conexión con Google Drive exitosa."}
+        
+    except Exception as e:
+        error_msg = str(e)
+        if "invalid_grant" in error_msg:
+            return {"success": False, "message": "Token de actualización (Refresh Token) inválido o expirado."}
+        elif "invalid_client" in error_msg:
+            return {"success": False, "message": "Client ID o Client Secret incorrectos."}
+        return {"success": False, "message": f"Error de conexión: {error_msg}"}
+
+
 def get_or_create_drive_folder(drive_service) -> Optional[str]:
     """
     Get or create the 'tabula_rasa_backup' folder in Google Drive.
@@ -309,7 +402,7 @@ def create_external_backup() -> Optional[str]:
                 token_uri="https://oauth2.googleapis.com/token",
                 client_id=client_id,
                 client_secret=client_secret,
-                scopes=["https://www.googleapis.com/auth/drive.file"]
+                scopes=["https://www.googleapis.com/auth/drive"]
             )
             
             # Refresh the access token with network error handling
@@ -369,19 +462,14 @@ def create_external_backup() -> Optional[str]:
                 os.remove(local_backup_path)
             return None
         
-        # Step 5: Rotate old backups (keep last BACKUP_ROTATION_COUNT)
-        try:
-            rotate_google_drive_backups(drive_service, folder_id)
-        except Exception as rotation_error:
-            backup_logger.warning(f"[GOOGLE_DRIVE] Backup rotation failed (non-critical): {rotation_error}")
-            # Continue with cleanup even if rotation fails
+        # Step 5: No rotation in Google Drive - keep all backups in cloud
+        # Users can manage/delete backups manually from Google Drive if needed
         
-        # Clean up local backup file
+        # Clean up old local backups (keep only 2 most recent)
         try:
-            os.remove(local_backup_path)
-            backup_logger.info(f"[GOOGLE_DRIVE] Cleaned up local backup: {local_backup_path}")
+            rotate_local_backups(keep_count=2)
         except Exception as cleanup_error:
-            backup_logger.warning(f"[GOOGLE_DRIVE] Failed to clean up local backup: {cleanup_error}")
+            backup_logger.warning(f"[GOOGLE_DRIVE] Failed to clean up local backups: {cleanup_error}")
         
         return local_backup_path
         
@@ -452,7 +540,7 @@ def rotate_external_backups() -> None:
 def list_external_backups() -> list[dict]:
     """
     List all external backup files from Google Drive.
-    
+
     Returns:
         List of backup file metadata (id, name, createdTime) sorted by creation time (newest first)
     """
@@ -461,9 +549,9 @@ def list_external_backups() -> list[dict]:
     if not credentials:
         backup_logger.warning("[GOOGLE_DRIVE] Google Drive credentials not set. Cannot list backups.")
         return []
-    
+
     client_id, client_secret, refresh_token = credentials
-    
+
     try:
         # Authenticate with Google Drive API
         creds = Credentials(
@@ -472,22 +560,22 @@ def list_external_backups() -> list[dict]:
             token_uri="https://oauth2.googleapis.com/token",
             client_id=client_id,
             client_secret=client_secret,
-            scopes=["https://www.googleapis.com/auth/drive.file"]
+            scopes=["https://www.googleapis.com/auth/drive"]
         )
-        
+
         # Refresh the access token
         from google.auth.transport.requests import Request
         creds.refresh(Request())
-        
+
         # Build Drive service
         drive_service = build('drive', 'v3', credentials=creds)
-        
+
         # Get backup folder
         folder_id = get_or_create_drive_folder(drive_service)
         if not folder_id:
             backup_logger.error("[GOOGLE_DRIVE] Failed to get backup folder")
             return []
-        
+
         # List backup files in the folder
         results = drive_service.files().list(
             q=f"'{folder_id}' in parents and name contains 'tabula_rasa_backup_'",
@@ -495,12 +583,353 @@ def list_external_backups() -> list[dict]:
             fields='files(id, name, createdTime, size)',
             orderBy='createdTime desc'
         ).execute()
-        
+
         files = results.get('files', [])
         backup_logger.info(f"[GOOGLE_DRIVE] Found {len(files)} backup files")
-        
+
         return files
-        
+
     except Exception as e:
         backup_logger.error(f"[GOOGLE_DRIVE] Error listing external backups: {e}")
         return []
+
+
+def download_backup_from_drive(backup_id: str) -> Optional[str]:
+    """
+    Download a specific backup file from Google Drive to local temp directory.
+
+    Args:
+        backup_id: Google Drive file ID of the backup
+
+    Returns:
+        Local path to downloaded backup file if successful, None otherwise
+    """
+    credentials = get_google_drive_credentials()
+    if not credentials:
+        backup_logger.error("[GOOGLE_DRIVE] Google Drive credentials not set. Cannot download backup.")
+        return None
+
+    client_id, client_secret, refresh_token = credentials
+
+    try:
+        # Authenticate with Google Drive API
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=["https://www.googleapis.com/auth/drive"]
+        )
+
+        # Refresh the access token
+        from google.auth.transport.requests import Request
+        creds.refresh(Request())
+
+        # Build Drive service
+        drive_service = build('drive', 'v3', credentials=creds)
+
+        # Get file metadata
+        file_metadata = drive_service.files().get(
+            fileId=backup_id,
+            fields='name, createdTime, size'
+        ).execute()
+
+        backup_filename = file_metadata.get('name')
+        backup_logger.info(f"[GOOGLE_DRIVE] Downloading backup: {backup_filename}")
+
+        # Create temp directory for download
+        backend_dir = os.path.dirname(_DB_PATH)
+        temp_dir = os.path.join(backend_dir, "temp_restore")
+        os.makedirs(temp_dir, exist_ok=True)
+        download_path = os.path.join(temp_dir, backup_filename)
+
+        # Download file
+        request = drive_service.files().get_media(fileId=backup_id)
+        with open(download_path, 'wb') as f:
+            downloader = googleapiclient.http.MediaIoBaseDownload(f, request)
+            done = False
+            while done is False:
+                status, done = downloader.next_chunk()
+                if status:
+                    backup_logger.info(f"[GOOGLE_DRIVE] Download progress: {int(status.progress() * 100)}%")
+
+        backup_logger.info(f"[GOOGLE_DRIVE] Backup downloaded to: {download_path}")
+        return download_path
+
+    except Exception as e:
+        backup_logger.error(f"[GOOGLE_DRIVE] Error downloading backup: {e}")
+        return None
+
+
+def get_current_db_timestamp() -> Optional[datetime]:
+    """
+    Get the modification timestamp of the current database file.
+
+    Returns:
+        Datetime object of file modification time, None if file doesn't exist
+    """
+    if not os.path.exists(_DB_PATH):
+        return None
+    return datetime.fromtimestamp(os.path.getmtime(_DB_PATH))
+
+
+def parse_backup_timestamp(backup_filename: str) -> Optional[datetime]:
+    """
+    Parse timestamp from backup filename.
+
+    Args:
+        backup_filename: Filename like "tabula_rasa_backup_20260505_213000.sqlite3"
+
+    Returns:
+        Datetime object if parsing successful, None otherwise
+    """
+    try:
+        # Extract timestamp from filename
+        timestamp_str = backup_filename.replace("tabula_rasa_backup_", "").replace(".sqlite3", "")
+        return datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+    except ValueError:
+        return None
+
+
+def restore_from_backup(backup_path: str, create_pre_restore_backup: bool = True) -> dict:
+    """
+    Restore database from a local backup file with safety validations.
+
+    Args:
+        backup_path: Path to the backup file to restore
+        create_pre_restore_backup: If True, creates a backup of current DB before restoring
+
+    Returns:
+        Dict with success status, message, and pre_restore_backup_path if created
+    """
+    if not os.path.exists(backup_path):
+        return {
+            "success": False,
+            "message": f"Archivo de backup no encontrado: {backup_path}"
+        }
+
+    pre_restore_backup_path = None
+
+    try:
+        # Step 1: Create pre-restore backup of current database
+        if create_pre_restore_backup:
+            backup_logger.info("[RESTORE] Creating pre-restore backup of current database...")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_filename = f"pre_restore_backup_{timestamp}.db"
+            backend_dir = os.path.dirname(_DB_PATH)
+            local_backup_dir = os.path.join(backend_dir, "backups")
+            os.makedirs(local_backup_dir, exist_ok=True)
+            pre_restore_backup_path = os.path.join(local_backup_dir, backup_filename)
+            shutil.copy2(_DB_PATH, pre_restore_backup_path)
+            backup_logger.info(f"[RESTORE] Pre-restore backup created: {pre_restore_backup_path}")
+
+        # Step 2: Compare timestamps to warn if backup is older
+        backup_timestamp = datetime.fromtimestamp(os.path.getmtime(backup_path))
+        current_timestamp = get_current_db_timestamp()
+
+        if current_timestamp:
+            time_diff = current_timestamp - backup_timestamp
+            backup_logger.warning(f"[RESTORE] Backup is {time_diff.total_seconds() / 3600:.1f} hours old")
+
+        # Step 3: Close all database connections
+        backup_logger.info("[RESTORE] Closing database connections...")
+        # Note: We can't force-close all connections from here, but SQLite handles this gracefully
+        # The file copy will work as long as no write transactions are in progress
+
+        # Step 4: Restore backup
+        backup_logger.info(f"[RESTORE] Restoring from backup: {backup_path}")
+        shutil.copy2(backup_path, _DB_PATH)
+        backup_logger.info("[RESTORE] Database restored successfully")
+
+        return {
+            "success": True,
+            "message": "Base de datos restaurada exitosamente",
+            "pre_restore_backup_path": pre_restore_backup_path,
+            "backup_age_hours": time_diff.total_seconds() / 3600 if current_timestamp else None
+        }
+
+    except Exception as e:
+        backup_logger.error(f"[RESTORE] Error during restore: {e}")
+        return {
+            "success": False,
+            "message": f"Error al restaurar backup: {str(e)}",
+            "pre_restore_backup_path": pre_restore_backup_path
+        }
+
+
+def restore_from_google_drive(backup_id: str, create_pre_restore_backup: bool = True) -> dict:
+    """
+    Restore database from a Google Drive backup with safety validations.
+
+    Args:
+        backup_id: Google Drive file ID of the backup
+        create_pre_restore_backup: If True, creates a backup of current DB before restoring
+
+    Returns:
+        Dict with success status, message, and pre_restore_backup_path if created
+    """
+    backup_logger.info(f"[RESTORE] Starting restore from Google Drive backup: {backup_id}")
+
+    # Step 1: Download backup from Google Drive
+    download_path = download_backup_from_drive(backup_id)
+    if not download_path:
+        return {
+            "success": False,
+            "message": "Error al descargar backup de Google Drive. Verifica tus credenciales."
+        }
+
+    # Step 2: Restore from downloaded backup
+    result = restore_from_backup(download_path, create_pre_restore_backup)
+
+    # Step 3: Clean up downloaded file
+    if os.path.exists(download_path):
+        try:
+            os.remove(download_path)
+            backup_logger.info(f"[RESTORE] Cleaned up downloaded backup: {download_path}")
+        except Exception as e:
+            backup_logger.warning(f"[RESTORE] Failed to cleanup downloaded file: {e}")
+
+    return result
+
+
+def list_pre_restore_backups() -> list[dict]:
+    """
+    List all pre-restore backup files in the local backups directory.
+
+    Returns:
+        List of pre-restore backup metadata (path, timestamp, size_bytes) sorted by timestamp (newest first)
+    """
+    backend_dir = os.path.dirname(_DB_PATH)
+    local_backup_dir = os.path.join(backend_dir, "backups")
+
+    if not os.path.exists(local_backup_dir):
+        return []
+
+    backups = []
+    for filename in os.listdir(local_backup_dir):
+        if filename.startswith("pre_restore_backup_") and filename.endswith(".db"):
+            filepath = os.path.join(local_backup_dir, filename)
+            try:
+                # Extract timestamp from filename
+                timestamp_str = filename.replace("pre_restore_backup_", "").replace(".db", "")
+                timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                size_bytes = os.path.getsize(filepath)
+
+                backups.append({
+                    "path": filepath,
+                    "filename": filename,
+                    "timestamp": timestamp,
+                    "size_bytes": size_bytes,
+                    "size_mb": round(size_bytes / (1024 * 1024), 2)
+                })
+            except ValueError:
+                # Skip files with invalid timestamp format
+                continue
+
+    # Sort by timestamp (newest first)
+    backups.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    return backups
+
+
+def delete_pre_restore_backup(backup_path: str) -> dict:
+    """
+    Delete a specific pre-restore backup file.
+
+    Args:
+        backup_path: Path to the pre-restore backup file to delete
+
+    Returns:
+        Dict with success status and message
+    """
+    if not os.path.exists(backup_path):
+        return {
+            "success": False,
+            "message": f"Archivo de backup no encontrado: {backup_path}"
+        }
+
+    # Safety check: only allow deleting files that start with "pre_restore_backup_"
+    filename = os.path.basename(backup_path)
+    if not filename.startswith("pre_restore_backup_"):
+        return {
+            "success": False,
+            "message": "Solo se pueden eliminar archivos de backup pre-restauración (que empiezan con 'pre_restore_backup_')"
+        }
+
+    try:
+        os.remove(backup_path)
+        backup_logger.info(f"[PRE_RESTORE] Deleted pre-restore backup: {backup_path}")
+        return {
+            "success": True,
+            "message": f"Backup pre-restauración eliminado: {filename}"
+        }
+    except Exception as e:
+        backup_logger.error(f"[PRE_RESTORE] Error deleting backup: {e}")
+        return {
+            "success": False,
+            "message": f"Error al eliminar backup: {str(e)}"
+        }
+
+
+def rollback_to_pre_restore(backup_path: str) -> dict:
+    """
+    Rollback to a pre-restore backup and then delete the backup file.
+
+    Args:
+        backup_path: Path to the pre-restore backup file
+
+    Returns:
+        Dict with success status and message
+    """
+    if not os.path.exists(backup_path):
+        return {
+            "success": False,
+            "message": f"Archivo de backup no encontrado: {backup_path}"
+        }
+
+    # Safety check: only allow rolling back to files that start with "pre_restore_backup_"
+    filename = os.path.basename(backup_path)
+    if not filename.startswith("pre_restore_backup_"):
+        return {
+            "success": False,
+            "message": "Solo se puede hacer rollback desde archivos de backup pre-restauración (que empiezan con 'pre_restore_backup_')"
+        }
+
+    try:
+        backup_logger.info(f"[ROLLBACK] Starting rollback to: {backup_path}")
+
+        # Restore from the pre-restore backup (without creating another pre-restore backup)
+        result = restore_from_backup(backup_path, create_pre_restore_backup=False)
+
+        if result["success"]:
+            # Delete the pre-restore backup after successful rollback
+            delete_result = delete_pre_restore_backup(backup_path)
+            if delete_result["success"]:
+                backup_logger.info(f"[ROLLBACK] Pre-restore backup deleted after successful rollback")
+                return {
+                    "success": True,
+                    "message": "Rollback exitoso. Base de datos restaurada al estado anterior y backup pre-restauración eliminado.",
+                    "needs_restart": True
+                }
+            else:
+                backup_logger.warning(f"[ROLLBACK] Rollback successful but failed to delete pre-restore backup: {delete_result['message']}")
+                return {
+                    "success": True,
+                    "message": f"Rollback exitoso pero no se pudo eliminar el backup pre-restauración: {delete_result['message']}",
+                    "needs_restart": True
+                }
+        else:
+            return {
+                "success": False,
+                "message": f"Error durante rollback: {result['message']}",
+                "needs_restart": False
+            }
+
+    except Exception as e:
+        backup_logger.error(f"[ROLLBACK] Error during rollback: {e}")
+        return {
+            "success": False,
+            "message": f"Error durante rollback: {str(e)}",
+            "needs_restart": False
+        }
