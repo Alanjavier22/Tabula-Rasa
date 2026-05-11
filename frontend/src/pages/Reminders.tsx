@@ -1,10 +1,28 @@
 import { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { remindersAPI } from '../services/api';
 import type { Reminder } from '../types';
 import { formatMoney, toCents } from '../utils/money';
-import { Plus, Trash2, Edit, Bell, CheckCircle2, Clock, Calendar, X } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  Edit, 
+  Bell, 
+  CheckCircle2, 
+  Clock, 
+  Calendar, 
+  X, 
+  AlertCircle,
+  RefreshCw,
+  MoreVertical,
+  CalendarDays,
+  Zap,
+  Check
+} from 'lucide-react';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Select from '../components/common/Select';
+import DatePicker from '../components/common/DatePicker';
 
 const emptyForm = {
   name: '',
@@ -51,11 +69,14 @@ const Reminders = () => {
     if (deleteConfirm.id === null) return;
     try {
       await remindersAPI.delete(deleteConfirm.id);
-      setToast({ message: 'Recordatorio eliminado', type: 'success' });
+      setToast({ message: 'Alerta eliminada del sistema', type: 'success' });
       fetchReminders();
     } catch (error: any) {
       console.error('Error deleting reminder:', error);
-      setToast({ message: error.response?.data?.detail || 'Error al eliminar recordatorio', type: 'error' });
+      const errorMessage = Array.isArray(error.response?.data?.detail)
+        ? error.response.data.detail[0]?.msg || 'Error al eliminar recordatorio'
+        : error.response?.data?.detail || 'Error al eliminar recordatorio';
+      setToast({ message: errorMessage, type: 'error' });
     } finally {
       setDeleteConfirm({ isOpen: false, id: null });
     }
@@ -65,7 +86,6 @@ const Reminders = () => {
     setEditingReminder(reminder);
     setEditForm({
       name: reminder.name,
-      // Backend returns cents, divide by 100 for display
       amount: reminder.amount ? (reminder.amount / 100).toString() : '',
       due_date: reminder.due_date.split('T')[0],
       frequency: reminder.frequency,
@@ -82,21 +102,23 @@ const Reminders = () => {
     try {
       await remindersAPI.create({
         name: form.name,
-        // Convert user input (dollars) to cents for backend
         amount: form.amount ? toCents(form.amount) : null,
         due_date: form.due_date + 'T00:00:00',
         frequency: form.frequency,
-        description: form.description || null,
+        description: form.description || '',
         status: form.status,
         is_active: form.is_active ? 1 : 0,
       });
       setShowCreateModal(false);
       setForm(emptyForm);
-      setToast({ message: 'Recordatorio creado', type: 'success' });
+      setToast({ message: 'Nueva alerta programada', type: 'success' });
       fetchReminders();
     } catch (error: any) {
       console.error('Error creating reminder:', error);
-      setToast({ message: error.response?.data?.detail || 'Error al crear recordatorio', type: 'error' });
+      const errorMessage = Array.isArray(error.response?.data?.detail)
+        ? error.response.data.detail[0]?.msg || 'Error al crear recordatorio'
+        : error.response?.data?.detail || 'Error al crear recordatorio';
+      setToast({ message: errorMessage, type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -109,22 +131,24 @@ const Reminders = () => {
     try {
       await remindersAPI.update(editingReminder.id, {
         name: editForm.name,
-        // Convert user input (dollars) to cents for backend
         amount: editForm.amount ? toCents(editForm.amount) : null,
         due_date: editForm.due_date + 'T00:00:00',
         frequency: editForm.frequency,
-        description: editForm.description || null,
+        description: editForm.description || '',
         status: editForm.status,
         is_active: editForm.is_active ? 1 : 0,
       });
       setShowEditModal(false);
       setEditingReminder(null);
       setEditForm(emptyForm);
-      setToast({ message: 'Recordatorio actualizado', type: 'success' });
+      setToast({ message: 'Configuración de alerta actualizada', type: 'success' });
       fetchReminders();
     } catch (error: any) {
       console.error('Error updating reminder:', error);
-      setToast({ message: error.response?.data?.detail || 'Error al actualizar recordatorio', type: 'error' });
+      const errorMessage = Array.isArray(error.response?.data?.detail)
+        ? error.response.data.detail[0]?.msg || 'Error al actualizar recordatorio'
+        : error.response?.data?.detail || 'Error al actualizar recordatorio';
+      setToast({ message: errorMessage, type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -133,358 +157,459 @@ const Reminders = () => {
   const handleMarkComplete = async (id: string) => {
     try {
       await remindersAPI.update(id, { status: 'completed' });
-      setToast({ message: 'Recordatorio marcado como completado', type: 'success' });
+      setToast({ message: 'Misión cumplida', type: 'success' });
       fetchReminders();
     } catch (error: any) {
       console.error('Error marking reminder as complete:', error);
-      setToast({ message: error.response?.data?.detail || 'Error al actualizar recordatorio', type: 'error' });
+      const errorMessage = Array.isArray(error.response?.data?.detail)
+        ? error.response.data.detail[0]?.msg || 'Error al actualizar recordatorio'
+        : error.response?.data?.detail || 'Error al actualizar recordatorio';
+      setToast({ message: errorMessage, type: 'error' });
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-500/20 text-green-400';
-      case 'skipped':
-        return 'bg-slate-700 text-slate-400';
+  const getUrgencyLevel = (dueDate: string, status: string) => {
+    if (status === 'completed') return 'low';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+    
+    if (due < today) return 'critical';
+    if (due.getTime() === today.getTime() || (due.getTime() - today.getTime()) <= 86400000 * 2) return 'high';
+    return 'normal';
+  };
+
+  const getStatusConfig = (urgency: string, status: string) => {
+    if (status === 'completed') {
+      return { 
+        color: 'text-emerald-400', 
+        bg: 'bg-emerald-500/10', 
+        border: 'border-emerald-500/20',
+        label: 'Completado',
+        glow: 'shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+      };
+    }
+    
+    switch (urgency) {
+      case 'critical':
+        return { 
+          color: 'text-rose-400', 
+          bg: 'bg-rose-500/10', 
+          border: 'border-rose-500/20',
+          label: 'Vencido',
+          glow: 'shadow-[0_0_20px_rgba(244,63,94,0.3)]'
+        };
+      case 'high':
+        return { 
+          color: 'text-amber-400', 
+          bg: 'bg-amber-500/10', 
+          border: 'border-amber-500/20',
+          label: 'Próximo',
+          glow: 'shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+        };
       default:
-        return 'bg-orange-500/20 text-orange-400';
+        return { 
+          color: 'text-blue-400', 
+          bg: 'bg-blue-500/10', 
+          border: 'border-blue-500/20',
+          label: 'Pendiente',
+          glow: ''
+        };
     }
   };
 
   const getFrequencyLabel = (frequency: string) => {
     switch (frequency) {
-      case 'daily':
-        return 'Diario';
-      case 'weekly':
-        return 'Semanal';
-      case 'monthly':
-        return 'Mensual';
-      case 'yearly':
-        return 'Anual';
-      default:
-        return 'Una vez';
+      case 'daily': return 'Diario';
+      case 'weekly': return 'Semanal';
+      case 'monthly': return 'Mensual';
+      case 'yearly': return 'Anual';
+      default: return 'Una vez';
     }
   };
 
+  // Stats for summary
+  const pendingCount = reminders.filter(r => r.status === 'pending' && r.is_active).length;
+  const criticalCount = reminders.filter(r => getUrgencyLevel(r.due_date, r.status) === 'critical' && r.status !== 'completed').length;
+
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-white">Cargando...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-white">
+        <RefreshCw className="w-10 h-10 animate-spin text-orange-500 mb-4" />
+        <p className="text-slate-400 font-medium animate-pulse">Sincronizando calendario de alertas...</p>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-between mb-6 lg:mb-8 flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl lg:text-4xl font-bold text-white mb-2">Recordatorios</h1>
-          <p className="text-slate-300 text-sm lg:text-base">Gestiona recordatorios de pagos y fechas de vencimiento</p>
-        </div>
-        <button onClick={() => setShowCreateModal(true)} className="flex items-center bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 text-sm lg:text-base whitespace-nowrap">
-          <Plus className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
-          Agregar Recordatorio
-        </button>
+    <div className="w-full relative min-h-screen pb-20">
+      {/* Background Decor */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-[15%] -left-[10%] w-[50%] h-[50%] bg-orange-600/10 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-[25%] -right-[10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px]"></div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {reminders.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <p className="text-slate-400 text-lg">No hay recordatorios configurados</p>
-            <p className="text-slate-500 text-sm mt-2">Agrega recordatorios para pagos próximos</p>
-          </div>
-        ) : (
-          reminders.map((reminder) => (
-            <div
-              key={reminder.id}
-              className={`bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 hover:border-purple-500/50 transition-all duration-300 ${
-                !reminder.is_active ? 'opacity-60' : ''
-              }`}
+      <div className="relative z-10 max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+            <div className="flex items-center gap-2 text-orange-400 text-xs font-bold tracking-[0.2em] uppercase mb-1">
+              <div className="w-8 h-[1px] bg-orange-500/50"></div>
+              <span>Timeline de Alertas</span>
+            </div>
+            <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tight">
+              Tus <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-400">Recordatorios</span>
+            </h1>
+            <p className="text-slate-400 text-sm lg:text-base font-medium mt-2 max-w-md">
+              Mantente al tanto de tus compromisos y evita recargos innecesarios.
+            </p>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <button 
+              onClick={() => setShowCreateModal(true)} 
+              className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-gradient-to-r from-orange-600 to-rose-600 text-white hover:shadow-[0_0_30px_rgba(249,115,22,0.3)] transition-all transform hover:-translate-y-1"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center">
-                  <div className="bg-orange-500/20 p-3 rounded-full mr-3">
-                    <Bell className="w-5 h-5 text-orange-400" />
+              <Plus className="w-5 h-5" />
+              <span className="text-xs font-black uppercase tracking-widest">Nueva Alerta</span>
+            </button>
+          </motion.div>
+        </div>
+
+        {/* Quick Stats Summary */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-wrap gap-4 mb-12"
+        >
+          <div className="bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20 text-orange-400">
+              <Bell className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pendientes</p>
+              <p className="text-lg font-black text-white">{pendingCount}</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20 text-rose-400">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Críticos</p>
+              <p className="text-lg font-black text-white">{criticalCount}</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4 ml-auto">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 text-blue-400">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <p className="text-xs font-bold text-slate-300">
+              Hoy: <span className="text-white ml-1">{new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Reminders Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <AnimatePresence mode="popLayout">
+            {reminders.length === 0 ? (
+              <motion.div 
+                className="col-span-full py-32 flex flex-col items-center text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <div className="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center mb-8">
+                  <Bell className="w-12 h-12 text-slate-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-3">No tienes alertas pendientes</h3>
+                <p className="text-slate-500 max-w-sm leading-relaxed font-medium">
+                  Configura recordatorios para que nunca se te pase un pago o una fecha importante.
+                </p>
+              </motion.div>
+            ) : (
+              reminders
+                .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+                .map((reminder, index) => {
+                  const urgency = getUrgencyLevel(reminder.due_date, reminder.status);
+                  const config = getStatusConfig(urgency, reminder.status);
+                  const isCompleted = reminder.status === 'completed';
+                  
+                  return (
+                    <motion.div
+                      key={reminder.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: index * 0.05 }}
+                      className={`group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden ${
+                        !reminder.is_active ? 'opacity-50 grayscale' : ''
+                      } ${config.glow}`}
+                    >
+                      {/* Background Status Indicator */}
+                      <div className={`absolute top-0 right-0 w-32 h-32 blur-[60px] opacity-10 transition-all group-hover:opacity-20 ${
+                        isCompleted ? 'bg-emerald-600' : urgency === 'critical' ? 'bg-rose-600' : urgency === 'high' ? 'bg-amber-600' : 'bg-blue-600'
+                      }`}></div>
+
+                      <div className="flex items-start justify-between mb-8 relative z-10">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all ${config.bg} ${config.border} ${config.color}`}>
+                            {isCompleted ? <CheckCircle2 className="w-8 h-8" /> : <Bell className="w-8 h-8" />}
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-black text-white tracking-tight leading-tight group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-slate-400 transition-all">
+                              {reminder.name}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${config.bg} ${config.border} ${config.color}`}>
+                                {config.label}
+                              </span>
+                              {!reminder.is_active && (
+                                <span className="px-2 py-0.5 rounded-lg bg-slate-900 border border-white/5 text-slate-500 text-[9px] font-black uppercase tracking-widest">
+                                  Inactivo
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-1">
+                          {reminder.status === 'pending' && reminder.is_active && (
+                            <button 
+                              onClick={() => handleMarkComplete(reminder.id)} 
+                              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400 transition-all"
+                              title="Completar"
+                            >
+                              <Check className="w-5 h-5" />
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => handleEdit(reminder)} 
+                            className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/10 text-slate-500 hover:text-white transition-all"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(reminder.id)} 
+                            className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-6 relative z-10">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                              <Calendar className="w-3 h-3" /> Vencimiento
+                            </p>
+                            <p className="text-sm font-black text-white">
+                              {new Date(reminder.due_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                            </p>
+                          </div>
+                          <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                              <Zap className="w-3 h-3" /> Frecuencia
+                            </p>
+                            <p className="text-sm font-black text-white">
+                              {getFrequencyLabel(reminder.frequency)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {reminder.amount && (
+                          <div className="flex justify-between items-center px-4 py-3 bg-white/5 rounded-2xl border border-white/5">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Monto Estimado</span>
+                            <span className="text-lg font-black text-white tracking-tight">${formatMoney(reminder.amount)}</span>
+                          </div>
+                        )}
+
+                        {reminder.description && (
+                          <div className="pt-4 border-t border-white/5">
+                            <p className="text-xs font-medium text-slate-400 leading-relaxed italic line-clamp-2">
+                              "{reminder.description}"
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Modals with custom glass styling */}
+      <AnimatePresence>
+        {(showCreateModal || showEditModal) && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setShowCreateModal(false);
+                setShowEditModal(false);
+              }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-xl"
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-slate-900 rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-10 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20 text-orange-400">
+                    <Bell className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white">{reminder.name}</h3>
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(reminder.status)}`}>
-                      {reminder.status === 'pending' ? 'Pendiente' : reminder.status === 'completed' ? 'Completado' : 'Omitido'}
-                    </span>
+                    <h2 className="text-2xl font-black text-white tracking-tight">
+                      {showCreateModal ? 'Nueva Alerta' : 'Editar Recordatorio'}
+                    </h2>
+                    <p className="text-xs text-slate-500 font-bold tracking-widest uppercase">Planificación de Tareas</p>
                   </div>
                 </div>
-                <div className="flex space-x-2">
-                  {reminder.status === 'pending' && (
-                    <button
-                      onClick={() => handleMarkComplete(reminder.id)}
-                      className="text-green-400 hover:text-green-300"
-                      title="Marcar como completo"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button onClick={() => handleEdit(reminder)} className="text-blue-400 hover:text-blue-300">
-                    <Edit className="w-4 h-4" />
+                <button 
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setShowEditModal(false);
+                  }} 
+                  className="w-12 h-12 rounded-2xl hover:bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-all"
+                >
+                  <X className="w-8 h-8" />
+                </button>
+              </div>
+
+              <form 
+                onSubmit={showCreateModal ? handleCreateSubmit : handleEditSubmit} 
+                className="p-10 space-y-8"
+              >
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Título del Recordatorio</label>
+                    <input
+                      type="text"
+                      required
+                      value={showCreateModal ? form.name : editForm.name}
+                      onChange={e => showCreateModal ? setForm({...form, name: e.target.value}) : setEditForm({...editForm, name: e.target.value})}
+                      className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-5 text-white font-bold focus:outline-none focus:border-orange-500/50 transition-all text-lg"
+                      placeholder="Ej: Pago de Internet, Revisión Técnica..."
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Monto (Opcional)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={showCreateModal ? form.amount : editForm.amount}
+                        onChange={e => showCreateModal ? setForm({...form, amount: e.target.value}) : setEditForm({...editForm, amount: e.target.value})}
+                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-5 text-white font-black focus:outline-none focus:border-orange-500/50 transition-all text-2xl"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Fecha Límite</label>
+                      <DatePicker
+                        value={showCreateModal ? form.due_date : editForm.due_date}
+                        onChange={(value) => showCreateModal ? setForm({...form, due_date: value}) : setEditForm({...editForm, due_date: value})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Ciclo de Repetición</label>
+                      <Select
+                        value={showCreateModal ? form.frequency : editForm.frequency}
+                        onChange={(value) => showCreateModal ? setForm({...form, frequency: value}) : setEditForm({...editForm, frequency: value})}
+                        options={[
+                          { value: 'once', label: 'Una vez' },
+                          { value: 'daily', label: 'Diario' },
+                          { value: 'weekly', label: 'Semanal' },
+                          { value: 'monthly', label: 'Mensual' },
+                          { value: 'yearly', label: 'Anual' }
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Estado Inicial</label>
+                      <Select
+                        value={showCreateModal ? form.status : editForm.status}
+                        onChange={(value) => showCreateModal ? setForm({...form, status: value}) : setEditForm({...editForm, status: value})}
+                        options={[
+                          { value: 'pending', label: 'Pendiente' },
+                          { value: 'completed', label: 'Completado' },
+                          { value: 'skipped', label: 'Omitido' }
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Notas Adicionales</label>
+                    <textarea
+                      value={showCreateModal ? form.description : editForm.description}
+                      onChange={e => showCreateModal ? setForm({...form, description: e.target.value}) : setEditForm({...editForm, description: e.target.value})}
+                      className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-5 text-white font-medium focus:outline-none focus:border-orange-500/50 transition-all text-sm"
+                      rows={3}
+                      placeholder="Agrega detalles del pago o enlace a la factura..."
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-4 px-4 py-2">
+                    <div className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        id="isActiveToggle"
+                        checked={showCreateModal ? form.is_active : editForm.is_active}
+                        onChange={e => showCreateModal ? setForm({...form, is_active: e.target.checked}) : setEditForm({...editForm, is_active: e.target.checked})}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                      <span className="ml-3 text-xs font-black text-slate-300 uppercase tracking-widest cursor-pointer select-none">Recordatorio Activo</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setShowEditModal(false);
+                    }}
+                    className="flex-1 px-8 py-5 rounded-2xl bg-white/5 border border-white/10 text-white text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                  >
+                    Cancelar
                   </button>
                   <button
-                    onClick={() => handleDelete(reminder.id)}
-                    className="text-red-400 hover:text-red-300"
+                    type="submit"
+                    disabled={saving}
+                    className="flex-[2] px-8 py-5 rounded-2xl bg-gradient-to-r from-orange-600 to-rose-600 text-white text-xs font-black uppercase tracking-widest hover:shadow-xl hover:shadow-orange-500/20 transition-all disabled:opacity-50"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {saving ? 'Procesando...' : showCreateModal ? 'Crear Alerta' : 'Actualizar Alerta'}
                   </button>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center text-sm text-slate-300">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  <span>Vencimiento: {new Date(reminder.due_date).toLocaleDateString('es-ES')}</span>
-                </div>
-
-                <div className="flex items-center text-sm text-slate-300">
-                  <Clock className="w-4 h-4 mr-2" />
-                  <span>Frecuencia: {getFrequencyLabel(reminder.frequency)}</span>
-                </div>
-
-                {reminder.amount && (
-                  <div>
-                    <span className="text-slate-400">Monto: </span>
-                    <span className="font-semibold text-white">${formatMoney(reminder.amount)}</span>
-                  </div>
-                )}
-
-                {reminder.description && (
-                  <p className="text-sm text-slate-400 mt-2">{reminder.description}</p>
-                )}
-
-                {!reminder.is_active && (
-                  <span className="text-xs text-slate-500">Inactivo</span>
-                )}
-              </div>
-            </div>
-          ))
+              </form>
+            </motion.div>
+          </div>
         )}
-      </div>
-
-      {/* Create Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-700">
-              <h2 className="text-xl font-bold text-white">Nuevo Recordatorio</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Nombre *</label>
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={e => setForm({...form, name: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  placeholder="Ej: Pago de alquiler"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">Monto</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.amount}
-                    onChange={e => setForm({...form, amount: e.target.value})}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">Fecha Vencimiento *</label>
-                  <input
-                    type="date"
-                    required
-                    value={form.due_date}
-                    onChange={e => setForm({...form, due_date: e.target.value})}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Frecuencia</label>
-                <select
-                  value={form.frequency}
-                  onChange={e => setForm({...form, frequency: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                >
-                  <option value="once">Una vez</option>
-                  <option value="daily">Diario</option>
-                  <option value="weekly">Semanal</option>
-                  <option value="monthly">Mensual</option>
-                  <option value="yearly">Anual</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Estado</label>
-                <select
-                  value={form.status}
-                  onChange={e => setForm({...form, status: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                >
-                  <option value="pending">Pendiente</option>
-                  <option value="completed">Completado</option>
-                  <option value="skipped">Omitido</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Descripción</label>
-                <textarea
-                  value={form.description}
-                  onChange={e => setForm({...form, description: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  rows={2}
-                  placeholder="Opcional"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={form.is_active}
-                  onChange={e => setForm({...form, is_active: e.target.checked})}
-                  className="rounded bg-slate-700 border-slate-600 text-purple-500 focus:ring-purple-500"
-                />
-                <label htmlFor="isActive" className="text-sm text-slate-300">Recordatorio activo</label>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 text-sm disabled:opacity-50"
-                >
-                  {saving ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {showEditModal && editingReminder && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-slate-700">
-              <h2 className="text-xl font-bold text-white">Editar Recordatorio</h2>
-              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleEditSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Nombre *</label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.name}
-                  onChange={e => setEditForm({...editForm, name: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">Monto</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={editForm.amount}
-                    onChange={e => setEditForm({...editForm, amount: e.target.value})}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">Fecha Vencimiento *</label>
-                  <input
-                    type="date"
-                    required
-                    value={editForm.due_date}
-                    onChange={e => setEditForm({...editForm, due_date: e.target.value})}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Frecuencia</label>
-                <select
-                  value={editForm.frequency}
-                  onChange={e => setEditForm({...editForm, frequency: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                >
-                  <option value="once">Una vez</option>
-                  <option value="daily">Diario</option>
-                  <option value="weekly">Semanal</option>
-                  <option value="monthly">Mensual</option>
-                  <option value="yearly">Anual</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Estado</label>
-                <select
-                  value={editForm.status}
-                  onChange={e => setEditForm({...editForm, status: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                >
-                  <option value="pending">Pendiente</option>
-                  <option value="completed">Completado</option>
-                  <option value="skipped">Omitido</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">Descripción</label>
-                <textarea
-                  value={editForm.description}
-                  onChange={e => setEditForm({...editForm, description: e.target.value})}
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-purple-500"
-                  rows={2}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="editIsActive"
-                  checked={editForm.is_active}
-                  onChange={e => setEditForm({...editForm, is_active: e.target.checked})}
-                  className="rounded bg-slate-700 border-slate-600 text-purple-500 focus:ring-purple-500"
-                />
-                <label htmlFor="editIsActive" className="text-sm text-slate-300">Recordatorio activo</label>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 text-sm disabled:opacity-50"
-                >
-                  {saving ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      </AnimatePresence>
 
       {toast && (
         <Toast
@@ -496,8 +621,8 @@ const Reminders = () => {
 
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}
-        title="Eliminar Recordatorio"
-        message="¿Estás seguro de que quieres eliminar este recordatorio? Esta acción no se puede deshacer."
+        title="Eliminar Alerta"
+        message="¿Estás seguro de que quieres eliminar este recordatorio? Esta acción es irreversible y podrías olvidar el compromiso."
         onConfirm={confirmDelete}
         onCancel={() => setDeleteConfirm({ isOpen: false, id: null })}
       />
