@@ -1,16 +1,22 @@
 import axios from 'axios';
-import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
-import { db } from '../db/db';
 import { prepareForAI, hydrateAIResponse } from '../utils/privacy';
 import { parseCSVAsync } from '../utils/csvParsers';
-import { generateTransactionHash } from '../utils/crypto';
-// import { metricsService } from './MetricsService'; // Temporarily unused - using backend API
 import { aiCashFlowService } from './AICashFlowService';
 
-// UUIDv5 Namespace for Tabula Rasa (deterministic IDs)
-const TABULA_RASA_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // DNS namespace
+const getDynamicBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl;
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+  const hostname = window.location.hostname;
+  // If we are on an IP address (not localhost), assume the API is on the same host at port 8001
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1' && /^(?:\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
+    return `http://${hostname}:8001`;
+  }
+  
+  return 'http://localhost:8001';
+};
+
+const API_BASE_URL = getDynamicBaseUrl();
 
 /**
  * Extract port from URL for port-aware token storage
@@ -38,7 +44,7 @@ export const getTokenKey = (): string => {
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000, // 15 second timeout to prevent indefinite hangs
+  timeout: 60000, // 60 second timeout for heavy AI endpoints
   headers: {
     'Content-Type': 'application/json',
   },
@@ -62,6 +68,7 @@ api.interceptors.request.use(
     
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers['X-Tabula-Auth'] = token; // Compatibility with industrial security middleware
     }
 
     return config;
@@ -75,543 +82,109 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
-      console.warn('[API] 401 Unauthorized - logging out');
+    // 401: Invalid or expired token, 403: Forbidden (not paired or revoked)
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      console.warn(`[API] ${error.response.status} - auth failure`);
       
       // Clear auth (port-aware)
       const tokenKey = getTokenKey();
       localStorage.removeItem(tokenKey);
-      localStorage.removeItem('finance_base_url');
       
-      // Redirect to login with message
-      window.location.href = '/?msg=Sesión reiniciada por actualización de sistema';
+      // Only redirect if not on localhost AND not already on /pair
+      if (!isLocalhost && window.location.pathname !== '/pair') {
+        window.location.href = '/pair';
+      } else if (isLocalhost && error.response?.status === 401) {
+        // Localhost only auto-logs out on 401 (expired), not 403 (bypass usually works)
+        window.location.href = '/?msg=Sesión reiniciada';
+      }
     }
     return Promise.reject(error);
   }
 );
 
-// --- OFFLINE-FIRST LOCAL ADAPTERS (DEXIE) ---
-
-/**
- * FASE 2: Mutation Collapsing - Prevent OCC Thrashing
- * Collapses rapid successive updates to the same record into a single sync queue entry.
- * Wrapped in ACID transaction to prevent race conditions.
- *
- * Logic:
- * - Case A: Existing CREATE → update payload with new record state
- * - Case B: Existing UPDATE → deep merge payload data
- * - Case C: No existing → enqueue new UPDATE
- */
-async function enqueueUpdateWithCollapsing(
-  tableName: string,
-  entityId: string,
-  updatedRecord: any,
-  timestamp: string
-): Promise<void> {
-  // @ts-ignore - ACID transaction prevents race conditions
-  await db.transaction('rw', ['sync_queue'], async () => {
-    // Search for pending operations on same entity/table
-    // @ts-ignore
-    const existingEntries = await db.sync_queue
-      .where('table_name')
-      .equals(tableName)
-      .filter((entry: any) => {
-        // Skip entries currently being processed to prevent interference
-        if (entry.is_processing === true) {
-          return false;
-        }
-        // Extract entity_id from payload based on action type
-        if (entry.action === 'create') {
-          return entry.payload?.id === entityId;
-        } else if (entry.action === 'update') {
-          return entry.payload?.id === entityId;
-        }
-        return false;
-      })
-      .toArray();
-
-    if (existingEntries.length === 0) {
-      // Case C: No existing entry → enqueue new UPDATE
-      const syncQueueEntry = {
-        id: uuidv4(),
-        table_name: tableName,
-        action: 'update' as const,
-        payload: { id: entityId, data: updatedRecord },
-        timestamp,
-      };
-      // @ts-ignore
-      await db.sync_queue.add(syncQueueEntry);
-      return;
-    }
-
-    // Get the most recent entry (highest timestamp)
-    const mostRecent = existingEntries.sort((a: any, b: any) =>
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    )[0];
-
-    if (mostRecent.action === 'create') {
-      // Case A: Existing CREATE → update payload with new record state
-      // @ts-ignore
-      await db.sync_queue.update(mostRecent.id, {
-        payload: updatedRecord, // Replace entire payload with new record state
-        timestamp, // Update timestamp to reflect latest change
-      });
-    } else if (mostRecent.action === 'update') {
-      // Case B: Existing UPDATE → deep merge payload data
-      // Merge the new data into existing payload.data
-      const mergedPayload = {
-        id: entityId,
-        data: { ...mostRecent.payload.data, ...updatedRecord },
-      };
-      // @ts-ignore
-      await db.sync_queue.update(mostRecent.id, {
-        payload: mergedPayload,
-        timestamp,
-      });
-    }
-  });
-}
-
-// --- HYDRATION MAP ---
-// Define relaciones one-to-many que deben hidratarse al hacer localGet.
-// Esto replica el `JOIN` que haría el backend, evitando que la UI reciba
-// objetos con propiedades anidadas undefined.
-//
-// Estructura: parentTable -> [{ childTable, foreignKey, attachAs }]
-type HydrationRule = {
-  childTable: string;
-  foreignKey: string;   // columna en la tabla hija que apunta al padre
-  attachAs: string;     // nombre del array hidratado en cada padre
-};
-
-const HYDRATION_MAP: Record<string, HydrationRule[]> = {
-  credit_card_statements: [
-    { childTable: 'debt_shares', foreignKey: 'statement_id', attachAs: 'debt_shares' },
-  ],
-  transactions: [
-    { childTable: 'transaction_splits', foreignKey: 'transaction_id', attachAs: 'splits' },
-  ],
-};
-
-/**
- * Hidrata cada record con sus relaciones declaradas en HYDRATION_MAP.
- * Usa .where(foreignKey).anyOf(parentIds) para cargar solo registros relacionados,
- * evitando cargar toda la tabla hija en memoria.
- */
-const hydrateRelations = async (tableName: string, parents: any[]): Promise<any[]> => {
-  const rules = HYDRATION_MAP[tableName];
-  if (!rules || rules.length === 0 || parents.length === 0) return parents;
-
-  for (const rule of rules) {
-    try {
-      const parentIds = parents.map(p => p.id).filter(Boolean);
-      if (parentIds.length === 0) return parents;
-
-      // @ts-ignore - Query eficiente: solo hijos con foreignKey en parentIds
-      const allChildren = await db.table(rule.childTable)
-        .where(rule.foreignKey)
-        .anyOf(parentIds)
-        .filter((c: any) => !c.is_deleted)
-        .toArray();
-
-      // Agrupar por foreignKey en un Map para lookups O(1)
-      const childrenByParent = new Map<string, any[]>();
-      for (const child of allChildren) {
-        const parentId = child[rule.foreignKey];
-        if (!parentId) continue;
-        const arr = childrenByParent.get(parentId) ?? [];
-        arr.push(child);
-        childrenByParent.set(parentId, arr);
-      }
-
-      // Adjuntar siempre un array (aunque vacío) para que la UI nunca vea undefined
-      for (const parent of parents) {
-        parent[rule.attachAs] = childrenByParent.get(parent.id) ?? [];
-      }
-    } catch (err) {
-      // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
-      throw err;
-    }
-  }
-
-  return parents;
-};
-
-const localGet = async (tableName: string, options?: { limit?: number; offset?: number }) => {
-  try {
-    // FIX: Defensive pagination to prevent OOM with 50k+ records
-    const limit = options?.limit ?? 100; // Safe default: 100 records
-    const offset = options?.offset ?? 0; // Safe default: start at 0
-    
-    // Delegate sorting to Dexie indexes instead of in-memory .sort()
-    const sortField = tableName === 'transactions' ? 'date' : 'updated_at';
-    // @ts-ignore – orderBy uses the indexed field for efficient B-tree traversal
-    const records = await db.table(tableName)
-      .orderBy(sortField)
-      .reverse()
-      .filter((t: any) => !t.is_deleted)
-      .offset(offset)  // FIX: Apply pagination AFTER filter, BEFORE toArray
-      .limit(limit)    // FIX: Limit memory footprint
-      .toArray();
-
-    // Hidratar relaciones declaradas (e.g. statements ← debt_shares)
-    const safeRecords = Array.isArray(records) ? records : [];
-    const hydrated = await hydrateRelations(tableName, safeRecords);
-
-    return { data: hydrated };
-  } catch (err) {
-    // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
-    throw err;
-  }
-};
-
-const localGetById = async (tableName: string, id: string) => {
-  // @ts-ignore
-  const record = await db.table(tableName).get(id);
-  if (!record) throw new Error(`Record not found: ${tableName}/${id}`);
-  if (record.is_deleted) throw new Error(`Record deleted: ${tableName}/${id}`);
-  return { data: record };
-};
-
-// FASE 3: Helper to enqueue snapshot recalculation (prevents deadlocks)
-async function enqueueSnapshotRecalc(date: string): Promise<void> {
-  try {
-    const dateObj = new Date(date);
-    const month = dateObj.getMonth() + 1;
-    const year = dateObj.getFullYear();
-    const queueId = `${year}-${month.toString().padStart(2, '0')}`; // Format: "YYYY-MM"
-    const now = new Date().toISOString();
-    
-    // @ts-ignore
-    await db.snapshot_recalc_queue.put({
-      id: queueId,
-      month,
-      year,
-      enqueued_at: now,
-      priority: 1, // Normal priority
-    });
-    console.debug(`[FASE-3] Enqueued snapshot recalc for ${queueId}`);
-  } catch (error) {
-    // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
-    throw error;
-  }
-}
-
-const localCreate = async (tableName: string, data: any) => {
-  const now = new Date().toISOString();
-  let id: string;
-  let hash: string | undefined;
-
-  // Use UUIDv5 + SHA-256 hash for transactions (deterministic identity)
-  if (tableName === 'transactions' && data.date && data.description && data.account_id) {
-    const seed = `${data.account_id}:${data.date}:${data.description}:${data.amount}`;
-    id = uuidv5(seed, TABULA_RASA_NAMESPACE);
-    console.debug('[QualityGate-F1] UUIDv5 seed:', seed);
-    hash = await generateTransactionHash(data.date, data.amount, data.description, data.account_id);
-  } else {
-    id = uuidv4(); // Keep uuidv4 for other tables (backward compatibility)
-  }
-
-  const newRecord = { ...data, id, is_deleted: false, created_at: now, updated_at: now, hash, version: 1 }; // FASE 1: Initialize version=1 for new transactions
-  const syncQueueEntry = {
-    id: uuidv4(),
-    table_name: tableName,
-    action: 'create' as const,
-    payload: newRecord,
-    timestamp: now,
-  };
-
-  // FASE 3: Enqueue snapshot recalc instead of synchronous invalidation (prevents deadlocks)
-  if (tableName === 'transactions' && data.date) {
-    await enqueueSnapshotRecalc(data.date);
-  }
-
-  // @ts-ignore
-  await db.transaction('rw', [tableName, 'sync_queue'], async () => {
-    // @ts-ignore
-    await db.table(tableName).put(newRecord);
-    // @ts-ignore
-    await db.sync_queue.add(syncQueueEntry);
-  });
-  
-  return { data: newRecord };
-};
-
-export const localUpdate = async (tableName: string, id: string, data: any) => {
-  const now = new Date().toISOString();
-  // @ts-ignore
-  const existing = await db.table(tableName).get(id);
-  if (!existing) throw new Error(`Record not found for update: ${tableName}/${id}`);
-  
-  // FASE 1: Immutable identity - keep original UUID, increment version, recalculate hash
-  let updatedRecord = { ...existing, ...data, updated_at: now };
-  if (tableName === 'transactions' && updatedRecord.date && updatedRecord.description && updatedRecord.account_id) {
-    // Keep original id immutable (UUIDv5 from creation)
-    // Increment version for OCC conflict resolution
-    updatedRecord.version = (existing.version || 1) + 1;
-    // Recalculate SHA-256 hash to reflect new data (vital for server handshake)
-    updatedRecord.hash = await generateTransactionHash(
-      updatedRecord.date,
-      updatedRecord.amount,
-      updatedRecord.description,
-      updatedRecord.account_id
-    );
-  }
-
-  // FASE 3: Enqueue snapshot recalc instead of synchronous invalidation (prevents deadlocks)
-  const txDate = data.date || existing.date;
-  if (tableName === 'transactions' && txDate) {
-    await enqueueSnapshotRecalc(txDate);
-  }
-
-  // @ts-ignore - Update local record
-  await db.table(tableName).put(updatedRecord);
-  
-  // FASE 2: Use mutation collapsing for sync queue (prevents OCC thrashing)
-  await enqueueUpdateWithCollapsing(tableName, id, updatedRecord, now);
-  
-  return { data: updatedRecord };
-};
-
-const localDelete = async (tableName: string, id: string) => {
-  const now = new Date().toISOString();
-  // @ts-ignore
-  const existing = await db.table(tableName).get(id);
-  if (existing) {
-    const updatedRecord = { ...existing, is_deleted: true, updated_at: now };
-    const syncQueueEntry = {
-      id: uuidv4(),
-      table_name: tableName,
-      action: 'delete',
-      payload: { id },
-      timestamp: now,
-    };
-
-    let orphanCount = 0;
-    let staleCount = 0;
-    const txDate = existing.date;
-
-    // Build transaction scope based on table type
-    let txTables = [tableName, 'sync_queue'];
-    if (tableName === 'transactions') {
-      txTables.push('net_worth_snapshots');
-    } else if (tableName === 'accounts' || tableName === 'categories') {
-      txTables.push('transactions');
-    }
-
-    // @ts-ignore
-    await db.transaction('rw', txTables, async () => {
-      // Handle account/category orphan prevention
-      if (tableName === 'accounts' || tableName === 'categories') {
-        const foreignKey = tableName === 'accounts' ? 'account_id' : 'category_id';
-        // @ts-ignore
-        const relatedTransactions = await db.transactions.where(foreignKey).equals(id).toArray();
-
-        if (relatedTransactions.length > 0) {
-          orphanCount = relatedTransactions.length;
-          for (const txn of relatedTransactions) {
-            // @ts-ignore
-            await db.transactions.update(txn.id, {
-              [foreignKey]: null, // Move to Uncategorized
-              needs_review: true,
-              updated_at: now,
-            });
-          }
-          console.debug(`[QualityGate-F3] Prevented orphans: ${orphanCount} records moved to review`);
-        }
-      }
-
-      // Handle snapshot invalidation for transactions
-      if (tableName === 'transactions' && txDate) {
-        // Invalidate snapshots >= transaction date
-        // @ts-ignore
-        const staleSnapshots = await db.net_worth_snapshots.where('date').aboveOrEqual(txDate).toArray();
-        if (staleSnapshots.length > 0) {
-          staleCount = staleSnapshots.length;
-          const snapshotIds = staleSnapshots.map((s: any) => s.id);
-          // @ts-ignore
-          await db.net_worth_snapshots.bulkUpdate(snapshotIds, { is_stale: true, needs_review: true });
-          console.debug(`[QualityGate-F4] Marked ${staleCount} snapshots as stale due to retroactive transaction on ${txDate}`);
-        }
-      }
-
-      // Perform the actual delete/update
-      // @ts-ignore
-      await db.table(tableName).put(updatedRecord);
-      // @ts-ignore
-      await db.sync_queue.add(syncQueueEntry);
-    });
-    
-    if (staleCount > 0) {
-      window.dispatchEvent(new CustomEvent('snapshotsStale', { detail: { count: staleCount, transactionDate: txDate } }));
-    }
-  }
-  return { data: { success: true } };
-};
-
-// --- CORE FINANCIAL APIS (LOCAL) ---
+// --- CORE FINANCIAL APIS (THIN CLIENT - HTTP ONLY) ---
 
 export const transactionsAPI = {
-  getAll: (options?: { limit?: number; offset?: number }) => localGet('transactions', options), // FIX: Pass pagination options
-  getById: (id: string) => localGetById('transactions', id),
-  create: (data: any) => localCreate('transactions', data),
-  update: (id: string, data: any) => localUpdate('transactions', id, data),
-  delete: (id: string) => localDelete('transactions', id),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get('/transactions/', { params }),
+  getById: (id: string) => api.get(`/transactions/${id}`),
+  create: (data: any) => api.post('/transactions/', data),
+  update: (id: string, data: any) => api.put(`/transactions/${id}`, data),
+  delete: (id: string) => api.delete(`/transactions/${id}`),
 };
 
 export const categoriesAPI = {
-  getAll: (options?: { limit?: number; offset?: number }) => localGet('categories', options), // FIX: Pass pagination options
-  getById: (id: string) => localGetById('categories', id),
-  create: (data: any) => localCreate('categories', data),
-  update: (id: string, data: any) => localUpdate('categories', id, data),
-  delete: (id: string) => localDelete('categories', id),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get('/categories/', { params }),
+  getById: (id: string) => api.get(`/categories/${id}`),
+  create: (data: any) => api.post('/categories/', data),
+  update: (id: string, data: any) => api.put(`/categories/${id}`, data),
+  delete: (id: string) => api.delete(`/categories/${id}`),
+  export: () => api.get('/categories/export'),
+  import: (categories: any[]) => api.post('/categories/import', categories),
 };
 
 export const accountsAPI = {
-  getAll: (options?: { limit?: number; offset?: number }) => localGet('accounts', options), // FIX: Pass pagination options
-  getById: (id: string) => localGetById('accounts', id),
-  create: (data: any) => localCreate('accounts', data), // FIX: Eliminated SQLite relic 1/0 casting, Dexie supports native booleans
-  update: (id: string, data: any) => localUpdate('accounts', id, data), // FIX: Eliminated SQLite relic 1/0 casting, Dexie supports native booleans
-  delete: (id: string) => localDelete('accounts', id),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get('/accounts/', { params }),
+  getById: (id: string) => api.get(`/accounts/${id}`),
+  create: (data: any) => api.post('/accounts/', data),
+  update: (id: string, data: any) => api.put(`/accounts/${id}`, data),
+  delete: (id: string) => api.delete(`/accounts/${id}`),
 };
 
 export const budgetsAPI = {
-  getAll: (options?: { limit?: number; offset?: number }) => localGet('budgets', options), // FIX: Pass pagination options
-  getById: (id: string) => localGetById('budgets', id),
-  create: (data: any) => localCreate('budgets', data),
-  update: (id: string, data: any) => localUpdate('budgets', id, data),
-  delete: (id: string) => localDelete('budgets', id),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get('/budgets/', { params }),
+  getById: (id: string) => api.get(`/budgets/${id}`),
+  create: (data: any) => api.post('/budgets/', data),
+  update: (id: string, data: any) => api.put(`/budgets/${id}`, data),
+  delete: (id: string) => api.delete(`/budgets/${id}`),
 };
 
 export const goalsAPI = {
-  getAll: (options?: { limit?: number; offset?: number }) => localGet('goals', options), // FIX: Pass pagination options
-  getById: (id: string) => localGetById('goals', id),
-  create: (data: any) => localCreate('goals', data),
-  update: (id: string, data: any) => localUpdate('goals', id, data),
-  delete: (id: string) => localDelete('goals', id),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get('/goals/', { params }),
+  getById: (id: string) => api.get(`/goals/${id}`),
+  create: (data: any) => api.post('/goals/', data),
+  update: (id: string, data: any) => api.put(`/goals/${id}`, data),
+  delete: (id: string) => api.delete(`/goals/${id}`),
 };
 
 export const remindersAPI = {
-  getAll: (options?: { limit?: number; offset?: number }) => localGet('reminders', options), // FIX: Pass pagination options
-  getById: (id: string) => localGetById('reminders', id),
-  create: (data: any) => localCreate('reminders', data),
-  update: (id: string, data: any) => localUpdate('reminders', id, data),
-  delete: (id: string) => localDelete('reminders', id),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get('/reminders/', { params }),
+  getById: (id: string) => api.get(`/reminders/${id}`),
+  create: (data: any) => api.post('/reminders/', data),
+  update: (id: string, data: any) => api.put(`/reminders/${id}`, data),
+  delete: (id: string) => api.delete(`/reminders/${id}`),
 };
 
 export const subscriptionsAPI = {
-  getAll: (options?: { limit?: number; offset?: number }) => localGet('subscriptions', options), // FIX: Pass pagination options
-  getById: (id: string) => localGetById('subscriptions', id),
-  create: (data: any) => localCreate('subscriptions', data),
-  update: (id: string, data: any) => localUpdate('subscriptions', id, data),
-  delete: (id: string) => localDelete('subscriptions', id),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get('/subscriptions/', { params }),
+  getById: (id: string) => api.get(`/subscriptions/${id}`),
+  create: (data: any) => api.post('/subscriptions/', data),
+  update: (id: string, data: any) => api.put(`/subscriptions/${id}`, data),
+  delete: (id: string) => api.delete(`/subscriptions/${id}`),
+  pay: (id: string) => api.post(`/subscriptions/${id}/pay`),
 };
 
 export const statementsAPI = {
-  getAll: (options?: { limit?: number; offset?: number }) => localGet('credit_card_statements', options), // FIX: Pass pagination options
-  getById: (id: string) => localGetById('credit_card_statements', id),
-  create: (data: any) => localCreate('credit_card_statements', data),
-  update: (id: string, data: any) => localUpdate('credit_card_statements', id, data),
-  delete: (id: string) => localDelete('credit_card_statements', id),
-  addShare: (statementId: string, data: any) => localCreate('debt_shares', { ...data, statement_id: statementId }),
-  updateShare: (shareId: string, data: any) => localUpdate('debt_shares', shareId, data),
-  deleteShare: (shareId: string) => localDelete('debt_shares', shareId),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get('/statements/', { params }),
+  getById: (id: string) => api.get(`/statements/${id}`),
+  create: (data: any) => api.post('/statements/', data),
+  update: (id: string, data: any) => api.put(`/statements/${id}`, data),
+  delete: (id: string) => api.delete(`/statements/${id}`),
+  // Debt shares endpoints
+  addDebtShare: (statementId: string, data: any) => api.post(`/statements/${statementId}/shares`, data),
+  updateDebtShare: (shareId: string, data: any) => api.put(`/statements/shares/${shareId}`, data),
+  deleteDebtShare: (shareId: string) => api.delete(`/statements/shares/${shareId}`),
 };
 
 export const iousAPI = {
-  getAll: (options?: { limit?: number; offset?: number }) => localGet('ious', options), // FIX: Pass pagination options
-  getPending: async () => {
-    // @ts-ignore
-    const records = await db.table('ious').filter(t => !t.is_deleted && t.amount > t.amount_paid).toArray();
-    return { data: records };
-  },
-  getById: (id: string) => localGetById('ious', id),
-  create: (data: any) => localCreate('ious', data),
-  update: (id: string, data: any) => localUpdate('ious', id, data),
-  settle: async (id: string, data: { account_id?: string }) => {
-    const now = new Date().toISOString();
-    
-    // @ts-ignore - Atomic transaction across ious, transactions, accounts
-    return await db.transaction('rw', [db.ious, db.transactions, db.accounts], async () => {
-      // @ts-ignore
-      const iou = await db.ious.get(id);
-      if (!iou) throw new Error(`IOU not found: ${id}`);
-      if (iou.is_deleted) throw new Error(`IOU deleted: ${id}`);
-
-      const remaining = iou.amount - (iou.amount_paid || 0);
-      if (remaining <= 0) throw new Error('Already fully paid');
-
-      // Validate account balance if provided
-      if (data.account_id) {
-        // @ts-ignore
-        const account = await db.accounts.get(data.account_id);
-        if (!account) throw new Error(`Account not found: ${data.account_id}`);
-        if (account.is_deleted) throw new Error(`Account deleted: ${data.account_id}`);
-        if (account.balance < remaining) throw new Error('Insufficient account balance');
-
-        // Update account balance (subtract payment amount)
-        // @ts-ignore
-        await db.accounts.update(data.account_id, { balance: account.balance - remaining, updated_at: now });
-      }
-
-      // Create transaction record for the payment
-      const txnId = uuidv4();
-      const paymentTxn = {
-        id: txnId,
-        description: `IOU Payment: ${iou.description || 'Payment'}`,
-        amount: remaining,
-        transaction_type: 'expense',
-        payment_method: 'transfer',
-        date: now,
-        category_id: null,
-        account_id: data.account_id || null,
-        expense_type: null,
-        is_deleted: false,
-        created_at: now,
-        updated_at: now,
-      };
-      // @ts-ignore
-      await db.transactions.put(paymentTxn);
-
-      // Update IOU with amount_paid
-      const updatedIou = { ...iou, amount_paid: (iou.amount_paid || 0) + remaining, transaction_id: txnId, updated_at: now };
-      // @ts-ignore
-      await db.ious.put(updatedIou);
-
-      // Add sync queue entries for atomic operations (complete objects)
-      // @ts-ignore
-      await db.sync_queue.add({
-        id: uuidv4(),
-        table_name: 'transactions',
-        action: 'create',
-        payload: paymentTxn,
-        timestamp: now,
-      });
-      // @ts-ignore
-      await db.sync_queue.add({
-        id: uuidv4(),
-        table_name: 'ious',
-        action: 'update',
-        payload: updatedIou, // Complete object, not delta
-        timestamp: now,
-      });
-      if (data.account_id) {
-        // @ts-ignore
-        const updatedAccount = await db.accounts.get(data.account_id);
-        // @ts-ignore
-        await db.sync_queue.add({
-          id: uuidv4(),
-          table_name: 'accounts',
-          action: 'update',
-          payload: updatedAccount, // Complete object after mutation
-          timestamp: now,
-        });
-      }
-
-      return { data: updatedIou };
-    });
-  },
-  delete: (id: string) => localDelete('ious', id),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get('/ious/', { params }),
+  getPending: () => api.get('/ious/pending'),
+  getById: (id: string) => api.get(`/ious/${id}`),
+  create: (data: any) => api.post('/ious/', data),
+  update: (id: string, data: any) => api.put(`/ious/${id}`, data),
+  settle: (id: string, data: { account_id?: string }) => api.post(`/ious/${id}/settle`, data),
+  delete: (id: string) => api.delete(`/ious/${id}`),
 };
 
 // --- ONLINE REQUIRED APIS (AXIOS) ---
@@ -620,70 +193,103 @@ export const metricsAPI = {
   getSafeToSpend: () => api.get('/metrics/safe-to-spend'),
   getNetWorth: () => api.get('/metrics/net-worth'),
   getVehicleTelemetry: () => api.get('/metrics/vehicle-telemetry'),
-  getCashFlowForecast: () => api.get('/metrics/cash-flow-forecast'),
-  getDashboardSummary: async () => {
-    try {
-      // Use snapshots instead of processing all transactions
-      // @ts-ignore
-      const snapshots = await db.net_worth_snapshots
-        .orderBy('date')
-        .reverse()
-        .limit(12)
-        .toArray();
-
-      if (snapshots.length > 0) {
-        // Calculate summary from snapshots (cached data)
-        const latest = snapshots[0];
-        const totalNetWorth = latest.net_worth_cents;
-        const monthlyIncome = snapshots.reduce((sum, s) => sum + s.income_cents, 0) / snapshots.length;
-        const monthlyExpense = snapshots.reduce((sum, s) => sum + s.expense_cents, 0) / snapshots.length;
-
-        return {
-          data: {
-            net_worth: totalNetWorth,
-            monthly_income: Math.round(monthlyIncome),
-            monthly_expense: Math.round(monthlyExpense),
-            snapshot_count: snapshots.length,
-            source: 'snapshots'
-          }
-        };
-      }
-    } catch (err) {
-      // FASE PHOENIX AGGRESSIVE: Throw all Dexie errors - no fallback
-      throw err;
-    }
-
-    // Fallback to API if no snapshots or Dexie error
-    return api.get('/metrics/dashboard-summary');
-  },
+  getCashFlowForecast: (days?: number) => api.get('/metrics/cash-flow-forecast', { params: days ? { days } : undefined }),
+  getCashFlowProjectionDays: (days: number) => api.get(`/metrics/cash-flow-projection/${days}`),
+  getDashboardSummary: () => api.get('/metrics/dashboard-summary'),
   getInsights: () => api.get('/ai/insights'),
+};
+
+export const alertsAPI = {
+  getPaymentReminders: (daysAhead?: number) => api.get('/alerts/payment-reminders', { params: daysAhead ? { days_ahead: daysAhead } : undefined }),
+};
+
+export const backupAPI = {
+  createManualBackup: () => api.post('/backup/manual'),
+  listBackups: () => api.get('/backup/list'),
+  restoreBackup: (backupId: string) => api.post(`/backup/restore/${backupId}`, { confirmed: true, create_pre_restore_backup: true }),
+};
+
+export const fiscalAPI = {
+  getReport: (startDate: string, endDate: string, categoryIds?: string) => 
+    api.get('/fiscal/report', { params: { start_date: startDate, end_date: endDate, category_ids: categoryIds } }),
+  getTrend: (startDate: string, endDate: string, categoryIds?: string) => 
+    api.get('/fiscal/trend', { params: { start_date: startDate, end_date: endDate, category_ids: categoryIds } }),
 };
 
 export const aiAPI = {
   audioToTransactions: (audioData: { audio_base64: string; audio_format?: string }) => 
-    api.post('/ai/audio-to-txns', audioData),
-  documentToTransactions: (documentData: { document_base64: string; document_type?: string }) => 
-    api.post('/ai/document-to-txns', documentData),
+    api.post('/api/ai/audio-to-txns', audioData),
+  parseReceipt: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/api/ai/parse-receipt', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
   batchCategoryMapping: (descriptions: { descriptions: string[] }) => {
     const { sanitized } = prepareForAI(descriptions);
-    return api.post('/ai/batch-category-mapping', { descriptions: sanitized });
+    return api.post('/api/ai/batch-category-mapping', { descriptions: sanitized });
   },
   suggestCategories: (data: { transactions: any[]; categories: any[] }) => 
-    api.post('/ai/suggest-categories', data),
+    api.post('/api/ai/suggest-categories', data),
+  getInsights: () => api.get('/ai/insights'),
+  testComponent: (component: string) => api.get(`/api/ai/test-component?component=${component}`),
+};
+
+export const aiGoalsAPI = {
+  getSmartRecommendations: () => api.get('/ai/goals/smart-recommendations'),
+};
+
+export const intelligenceAPI = {
+  uploadStatement: (accountId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/intelligence/import-statement/${accountId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  confirmImport: (logId: string, transactions: any[], statementMetadata?: any) => 
+    api.post(`/intelligence/confirm-import/${logId}`, {
+      confirmed_transactions: transactions,
+      statement_metadata: statementMetadata
+    }),
+  uploadAccountDocument: (accountId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/intelligence/parse-account/${accountId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  confirmAccountImport: (logId: string, transactions: any[]) => 
+    api.post(`/intelligence/confirm-account-import/${logId}`, {
+      confirmed_transactions: transactions
+    }),
 };
 
 export const snapshotsAPI = {
-  create: (data: { month: number; year: number }) => api.post('/snapshots/create/', data),
+  create: (data: { month: number; year: number }) => api.post('/snapshots/create', data),
   getAll: (params?: any) => api.get('/snapshots/', { params }),
-  getById: (id: string) => api.get(`/snapshots/${id}/`),
-  getByMonthYear: (month: number, year: number) => api.get(`/snapshots/month/${month}/year/${year}/`),
-  delete: (id: string) => api.delete(`/snapshots/${id}/`),
-  analyze: (id: string) => api.post(`/snapshots/${id}/analyze/`),
-  reconcile: () => api.post('/snapshots/reconcile/'), // FASE 6: Manual reconciliation endpoint
+  getById: (id: string) => api.get(`/snapshots/${id}`),
+  getByMonthYear: (month: number, year: number) => api.get(`/snapshots/month/${month}/year/${year}`),
+  delete: (id: string) => api.delete(`/snapshots/${id}`),
+  analyze: (id: string) => api.post(`/snapshots/${id}/analyze`),
+  reconcile: () => api.post('/snapshots/reconcile'), // FASE 6: Manual reconciliation endpoint
 };
 
 export const aiAssistantAPI = {
-  chat: async (message: string, includeCashFlow: boolean = false, includeAssets: boolean = false) => {
+  chat: async (
+    message: string, 
+    includeCashFlow: boolean = false, 
+    includeAssets: boolean = false,
+    documentBase64?: string,
+    documentMimeType?: string
+  ) => {
     // Sanitize message with hydration map
     const { sanitized: sanitizedMessage, hydrationMap: messageMap } = prepareForAI(message);
 
@@ -718,6 +324,8 @@ export const aiAssistantAPI = {
       message: sanitizedMessage,
       cash_flow_context: cashFlowContext,
       assets_context: assetsContext,
+      document_base64: documentBase64,
+      document_mime_type: documentMimeType,
     });
 
     // Hydrate response with original values
@@ -736,158 +344,48 @@ export const importAPI = {
     const text = await file.text();
     
     // Parse using async chunked parser (prevents RAM overflow with 50k+ records)
-    // Deduplication now happens inside parseCSVAsync
+    // Deduplication now happens inside parseCSVAsync via backend check
     const parsedTransactions = await parseCSVAsync(text, accountId, onProgress);
     
     if (parsedTransactions.length === 0) {
       return { data: { imported: 0, message: 'No valid transactions found' } };
     }
 
-    // Get existing transaction hashes to detect duplicates (optimized with index)
-    // Note: Deduplication already handled in parseCSVAsync, but keep for safety
-    const batchHashes: string[] = [];
-    for (const txn of parsedTransactions) {
-      const hash = await generateTransactionHash(
-        txn.date, 
-        txn.amount, 
-        txn.description, 
-        accountId
-      );
-      batchHashes.push(hash);
-    }
+    // Send to backend for processing
+    const response = await api.post('/transactions/import-batch', {
+      transactions: parsedTransactions,
+      skip_duplicates: true,
+    });
 
-    // Use indexed query for efficient hash lookup
-    // @ts-ignore
-    const existingTxnsByHash = await db.transactions
-      .where('hash')
-      .anyOf(batchHashes)
-      .toArray();
+    return response.data;
+  },
+  uploadGuayaquilExcel: async (file: File, accountId: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (accountId) formData.append('account_id', accountId);
     
-    const existingHashes = new Map<string, boolean>();
-    for (const txn of existingTxnsByHash) {
-      if (txn.hash) {
-        existingHashes.set(txn.hash, true);
-      }
-    }
-
-    // Filter out duplicates using SHA-256
-    const newTransactions: typeof parsedTransactions = [];
-    for (let i = 0; i < parsedTransactions.length; i++) {
-      const txn = parsedTransactions[i];
-      const hash = batchHashes[i];
-      if (!existingHashes.has(hash)) {
-        newTransactions.push(txn);
-      }
-    }
-
-    if (newTransactions.length === 0) {
-      return { data: { imported: 0, message: 'All transactions already exist' } };
-    }
-
-    // Extract descriptions for AI categorization
-    const descriptions = newTransactions.map(t => t.description).filter(d => d);
-
-    // Sanitize descriptions before sending to AI
-    const sanitizedDescriptions = descriptions.map(d => prepareForAI(d));
-
-    // Get category suggestions from AI
-    const aiResponse = await api.post('/ai/batch-category-mapping', {
-      descriptions: sanitizedDescriptions,
+    const response = await api.post('/transactions/import-guayaquil', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
-
-    const categoryMap = aiResponse.data?.mappings || {};
-
-    // Calculate total amount for balance update
-    const totalAmount = newTransactions.reduce((sum, t) => {
-      return t.transaction_type === 'income' ? sum + t.amount : sum - t.amount;
-    }, 0);
-
-    // ATOMIC TRANSACTION: All or nothing with chunked bulkAdd (prevents blocking)
-    const now = new Date().toISOString();
-    const CHUNK_SIZE = 1000;
-    // @ts-ignore
-    await db.transaction('rw', [db.transactions, db.accounts, db.sync_queue], async () => {
-      // Get current account balance
-      // @ts-ignore
-      const account = await db.accounts.get(accountId);
-      if (!account) throw new Error('Account not found');
-
-      // Insert transactions in chunks with UI yielding
-      for (let i = 0; i < newTransactions.length; i += CHUNK_SIZE) {
-        const chunk = newTransactions.slice(i, i + CHUNK_SIZE);
-        const chunkTxns: any[] = [];
-        
-        for (const txn of chunk) {
-          const id = uuidv4();
-          const sanitized = prepareForAI(txn);
-          const hash = await generateTransactionHash(
-            txn.date,
-            txn.amount,
-            txn.description,
-            accountId
-          );
-          const newTxn = {
-            ...sanitized,
-            id,
-            account_id: accountId,
-            category_id: categoryMap[txn.description] || null,
-            payment_method: 'transfer',
-            is_deleted: false,
-            created_at: now,
-            updated_at: now,
-            hash, // Save SHA-256 hash for future deduplication
-          };
-          chunkTxns.push(newTxn);
-        }
-        
-        // Bulk add chunk to Dexie
-        // @ts-ignore
-        await db.transactions.bulkAdd(chunkTxns);
-        
-        // Add sync queue entries for chunk
-        for (const txn of chunkTxns) {
-          // @ts-ignore
-          await db.sync_queue.add({
-            id: uuidv4(),
-            table_name: 'transactions',
-            action: 'create',
-            payload: txn,
-            timestamp: now,
-            retry_count: 0,
-          });
-        }
-        
-        // Yield UI after each chunk (prevents browser freeze)
-        await new Promise(resolve => setTimeout(resolve, 0));
-      }
-
-      // Update account balance atomically
-      // @ts-ignore
-      await db.accounts.update(accountId, { 
-        balance: account.balance + totalAmount,
-        updated_at: now 
-      });
-      // @ts-ignore
-      await db.sync_queue.add({
-        id: uuidv4(),
-        table_name: 'accounts',
-        action: 'update',
-        payload: { ...account, balance: account.balance + totalAmount, updated_at: now },
-        timestamp: now,
-        retry_count: 0,
-      });
-    });
-
-    return { data: { imported: newTransactions.length, total: parsedTransactions.length, duplicates: parsedTransactions.length - newTransactions.length } };
+    return response;
   },
 };
 
 export const configAPI = {
-  getAll: (params?: any) => api.get('/config/', { params }),
-  getByKey: (key: string) => api.get(`/config/${key}/`),
-  create: (data: any) => api.post('/config/', data),
-  update: (key: string, data: any) => api.put(`/config/${key}/`, data),
-  delete: (key: string) => api.delete(`/config/${key}/`),
+  getAll: (params?: any) => api.get('/config', { params }),
+  getByKey: (key: string) => api.get(`/config/${key}`),
+  create: (data: any) => api.post('/config', data),
+  update: (key: string, data: any) => api.put(`/config/${key}`, data),
+  delete: (key: string) => api.delete(`/config/${key}`),
+  wipeDatabase: () => api.post('/config/wipe-database'),
+};
+
+export const driveConfigAPI = {
+  getStatus: () => api.get('/config/drive/status'),
+  setCredentials: (data: any) => api.post('/config/drive', data),
+  test: () => api.post('/config/drive/test'),
 };
 
 export const authAPI = {
@@ -895,6 +393,10 @@ export const authAPI = {
   consumePairingCode: (pin: string, deviceName: string) => api.post('/auth/pair/consume', { pin, device_name: deviceName }),
   getPairingStatus: (pin: string) => api.get(`/auth/pair/status?pin=${pin}`),
   pairLocalhost: () => axios.post('http://127.0.0.1:8001/auth/pair/localhost'),
+  listDevices: () => api.get('/auth/devices'),
+  revokeDevice: (id: string) => api.delete(`/auth/devices/${id}`),
 };
+
+
 
 export default api;
