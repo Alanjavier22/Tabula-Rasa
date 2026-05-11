@@ -1,8 +1,6 @@
-import axios from 'axios';
+import api from './api';
 import { prepareForAI, hydrateAIResponse } from '../utils/privacy';
 import { toCents } from '../utils/money';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
 
 export interface AICategorySuggestion {
   transaction_id: string;
@@ -57,15 +55,14 @@ export class AIAgentService {
       name: cat.name,
     }));
 
-    const response = await axios.post(
-      `${API_BASE_URL}/api/ai/suggest-categories`,
+    const response = await api.post(
+      '/api/ai/suggest-categories',
       {
         transactions: sanitizedTxns,
         categories: categoryList,
       },
       {
         headers: {
-          'Content-Type': 'application/json',
           'X-AI-API-Key': apiKey,
         },
       }
@@ -84,40 +81,43 @@ export class AIAgentService {
     userPrompt: string,
     categoryTransactions: any[],
     currentNetWorth: number,
-    apiKey: string
+    apiKey: string,
+    monthlyIncome: number = 0,
+    fixedExpenses: number = 0,
+    totalDebt: number = 0,
+    monthlyDebtPayment: number = 0,
+    monthlyCashFlow: number = 0
   ): Promise<WhatIfScenario> {
     const { sanitized: sanitizedTxns, hydrationMap } = prepareForAI(categoryTransactions);
 
     const avgMonthlySpend = Math.round(categoryTransactions.reduce((sum, t) => sum + t.amount, 0) / 12);
 
-    const response = await axios.post(
-      `${API_BASE_URL}/api/ai/simulate-what-if`,
+    const response = await api.post(
+      '/api/ai/simulate-what-if',
       {
         user_prompt: userPrompt,
-        avg_monthly_spend: avgMonthlySpend,
+        avg_monthly_spend: Math.round(avgMonthlySpend),
         current_net_worth: currentNetWorth,
         transactions: sanitizedTxns,
+        monthly_income: Math.round(monthlyIncome),
+        fixed_expenses: Math.round(fixedExpenses),
+        total_debt: Math.round(totalDebt),
+        monthly_debt_payment: Math.round(monthlyDebtPayment),
+        monthly_cash_flow: Math.round(monthlyCashFlow),
       },
       {
         headers: {
-          'Content-Type': 'application/json',
           'X-AI-API-Key': apiKey,
         },
       }
     );
 
-    // Sanitize monetary fields: force integers, cast to Cents
-    const sanitizedProjection = response.data.projection.map((p: WhatIfProjection) => ({
-      ...p,
-      baseline_net_worth: toCents(Math.round(p.baseline_net_worth)),
-      projected_net_worth: toCents(Math.round(p.projected_net_worth)),
-    }));
-
+    // Backend now returns values in cents correctly, no need to convert
     const hydratedScenario: WhatIfScenario = {
       ...response.data,
       summary: hydrateAIResponse(response.data.summary, hydrationMap),
       scenario_title: hydrateAIResponse(response.data.scenario_title, hydrationMap),
-      projection: sanitizedProjection,
+      projection: response.data.projection,
     };
 
     return hydratedScenario;
@@ -126,6 +126,8 @@ export class AIAgentService {
   static async scanForAnomalies(
     recentTransactions: any[],
     currentSubscriptions: any[],
+    categories: any[],
+    goals: any[],
     apiKey: string
   ): Promise<AnomalyScanResult> {
     // FIX: Use single hydrationMap for token coherence across txns and subscriptions
@@ -135,31 +137,32 @@ export class AIAgentService {
     const sanitizedTxns = sanitizedCombined.slice(0, recentTransactions.length);
     const sanitizedSubs = sanitizedCombined.slice(recentTransactions.length);
 
-    const response = await axios.post(
-      `${API_BASE_URL}/api/ai/scan-anomalies`,
+    const response = await api.post(
+      '/api/ai/scan-anomalies',
       {
         transactions: sanitizedTxns,
         subscriptions: sanitizedSubs,
+        categories: categories.map(c => ({ id: c.id, name: c.name })),
+        goals: goals.map(g => ({ name: g.name, target_amount: g.target_amount, current_amount: g.current_amount })),
       },
       {
         headers: {
-          'Content-Type': 'application/json',
           'X-AI-API-Key': apiKey,
         },
       }
     );
 
-    // Sanitize monetary fields in zombie subscriptions
+    // Backend already sends amounts in cents, no conversion needed
     const sanitizedZombieSubscriptions = response.data.zombie_subscriptions.map((z: ZombieSubscription) => ({
       ...z,
-      estimated_amount: toCents(Math.round(z.estimated_amount)),
+      estimated_amount: Math.round(z.estimated_amount),
     }));
 
-    // Sanitize monetary fields in spending spikes
+    // Backend already sends amounts in cents, no conversion needed
     const sanitizedSpendingSpikes = response.data.spending_spikes.map((s: SpendingSpike) => ({
       ...s,
-      normal_average: toCents(Math.round(s.normal_average)),
-      current_spike: toCents(Math.round(s.current_spike)),
+      normal_average: Math.round(s.normal_average),
+      current_spike: Math.round(s.current_spike),
     }));
 
     const hydratedResult: AnomalyScanResult = {
