@@ -3,10 +3,16 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from database import get_db
+from app.api.auth import get_current_device
 from app.models.config import Config
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/config", tags=["config"], redirect_slashes=False)
+router = APIRouter(
+    prefix="/config", 
+    tags=["config"], 
+    dependencies=[Depends(get_current_device)],
+    redirect_slashes=False
+)
 
 
 class ConfigBase(BaseModel):
@@ -65,7 +71,21 @@ def get_configs(
     if is_public is not None:
         query = query.filter(Config.is_public == is_public)
     configs = query.offset(skip).limit(limit).all()
-    return configs
+    
+    # SECURITY: Mask private values
+    result = []
+    for c in configs:
+        c_dict = {
+            "id": c.id,
+            "key": c.key,
+            "value": "********" if not c.is_public and c.value else c.value,
+            "value_type": c.value_type,
+            "description": c.description,
+            "is_public": c.is_public
+        }
+        result.append(c_dict)
+        
+    return result
 
 
 @router.get("/{config_key}", response_model=ConfigResponse)
@@ -73,7 +93,17 @@ def get_config(config_key: str, db: Session = Depends(get_db)):
     config = db.query(Config).filter(Config.key == config_key).first()
     if not config:
         raise HTTPException(status_code=404, detail="Config not found")
-    return config
+        
+    # SECURITY: Mask private values
+    c_dict = {
+        "id": config.id,
+        "key": config.key,
+        "value": "********" if not config.is_public and config.value else config.value,
+        "value_type": config.value_type,
+        "description": config.description,
+        "is_public": config.is_public
+    }
+    return c_dict
 
 
 @router.put("/{config_key}", response_model=ConfigResponse)
@@ -143,6 +173,16 @@ def get_google_drive_status(db: Session = Depends(get_db)):
     )
 
 
+@router.post("/drive/test")
+def test_drive_connection():
+    """Perform a real handshake test with Google Drive API."""
+    from app.utils.backup import test_google_drive_connection
+    result = test_google_drive_connection()
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+
 @router.post("/drive")
 def set_google_drive_credentials(credentials: GoogleDriveCredentials, db: Session = Depends(get_db)):
     """Save Google Drive OAuth credentials to database."""
@@ -193,3 +233,78 @@ def set_google_drive_credentials(credentials: GoogleDriveCredentials, db: Sessio
     
     db.commit()
     return {"message": "Google Drive credentials saved successfully"}
+
+@router.post("/wipe-database")
+def wipe_database(db: Session = Depends(get_db)):
+    """
+    Vacía TODOS los datos financieros y transaccionales del sistema.
+    Deja un esqueleto limpio listo para reimportación desde cero.
+    
+    SE ELIMINA:
+    - Transacciones y sus splits
+    - Estados de cuenta de tarjetas y participaciones de deuda
+    - Préstamos (IOUs)
+    - Suscripciones
+    - Presupuestos
+    - Recordatorios
+    - Metas de ahorro
+    - Snapshots patrimoniales
+    - Activos
+    - Logs de importación (permite reimportar los mismos archivos)
+    
+    SE CONSERVA (esqueleto):
+    - Cuentas: nombre, tipo, banco, vinculación, descripción, estado, 
+      días de corte/pago. Saldos y límites se resetean a 0.
+    - Categorías: intactas
+    - Configuración: API keys, OAuth, personas, buffer, vehículos
+    - Dispositivos vinculados
+    - Backups en la nube (no se tocan)
+    """
+    from app.models.transaction_split import TransactionSplit
+    from app.models.debt_share import DebtShare
+    from app.models.iou import IOU
+    from app.models.credit_card_statement import CreditCardStatement
+    from app.models.transaction import Transaction
+    from app.models.subscription import Subscription
+    from app.models.budget import Budget
+    from app.models.reminder import Reminder
+    from app.models.goal import Goal
+    from app.models.net_worth_snapshot import NetWorthSnapshot
+    from app.models.asset import Asset
+    from app.models.account import Account
+    from app.models.import_log import ImportLog
+    
+    try:
+        # ── FASE 1: Borrar datos transaccionales (orden estricto FK) ──
+        db.query(TransactionSplit).delete()    # FK -> transactions
+        db.query(DebtShare).delete()           # FK -> credit_card_statements
+        db.query(IOU).delete()                 # FK -> transactions
+        db.query(Transaction).delete()         # FK -> accounts, categories, import_logs
+        db.query(CreditCardStatement).delete() # FK -> accounts
+        db.query(Subscription).delete()        # FK -> accounts, categories
+        db.query(Budget).delete()              # FK -> categories
+        db.query(Reminder).delete()
+        db.query(Goal).delete()
+        db.query(NetWorthSnapshot).delete()
+        db.query(Asset).delete()
+        
+        # ── FASE 2: Limpiar logs de importación (permite reimportar desde 0) ──
+        db.query(ImportLog).delete()
+        
+        # ── FASE 3: Resetear cuentas a esqueleto limpio ──
+        # Conserva: id, name, account_type, currency, bank_name, description, 
+        #           linked_account_id, is_active, statement_day, payment_day, is_deleted
+        # Resetea: balance, credit_limit
+        db.query(Account).update({
+            "balance": 0,
+            "credit_limit": 0
+        }, synchronize_session=False)
+        
+        db.commit()
+        return {
+            "message": "Sistema reiniciado exitosamente. Cuentas conservadas con saldo en $0. Logs de importación eliminados. Listo para reimportación limpia."
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al limpiar la base de datos: {str(e)}")
+
