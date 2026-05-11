@@ -92,10 +92,30 @@ class SnapshotReconciler:
         for account in accounts:
             balance = Decimal(str(account.balance))
             
+            # TEMPORAL REWIND: Reverse transactions from now back to the end of the target month
+            # This is critical for accurate historical reconciliation
+            now = datetime.now(timezone.utc)
+            if month_end < now:
+                future_txns = db.query(Transaction).filter(
+                    Transaction.account_id == account.id,
+                    Transaction.date >= month_end,
+                    Transaction.is_deleted == False
+                ).all()
+                for f_txn in future_txns:
+                    f_amount = Decimal(str(f_txn.amount))
+                    if f_txn.transaction_type == 'income':
+                        balance -= f_amount
+                    else:
+                        balance += f_amount
+
             # Classify by account type
             if account.account_type in ['checking', 'savings', 'investment']:
                 total_assets_cents += balance
-            elif account.account_type == 'credit_card' and balance < 0:
+            elif account.account_type == 'credit_card':
+                # In our system, positive CC balance = debt
+                if balance > 0:
+                    total_liabilities_cents += balance
+            elif balance < 0:
                 total_liabilities_cents += abs(balance)
         
         # Add physical assets (depreciated value)
