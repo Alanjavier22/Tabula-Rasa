@@ -5,7 +5,7 @@
 
 import { toCents } from './money';
 import { generateTransactionHash } from './crypto';
-import { db } from '../db/db';
+import api from '../services/api';
 
 export interface ParsedTransaction {
   date: string;
@@ -310,10 +310,9 @@ export async function parseCSVAsync(
     hashes.push(hash);
   }
   
-  // Bulk check for existing hashes
-  // @ts-ignore
-  const existingTxns = await db.transactions.where('hash').anyOf(hashes).toArray();
-  const existingHashes = new Set(existingTxns.map((t: any) => t.hash));
+  // Bulk check for existing hashes via backend
+  const response = await api.post('/transactions/check-duplicates', { hashes });
+  const existingHashes = new Set(response.data.existing_hashes);
   
   // Filter out duplicates
   const filteredTransactions: ParsedTransaction[] = [];
