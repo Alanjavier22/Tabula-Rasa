@@ -66,11 +66,18 @@ export interface ReportResult {
 
 export class ReportingService {
   private readonly YIELD_INTERVAL = 1000; // UI yield every 1,000 records
-  private readonly DEFAULT_FISCAL_RULES: EcuadorFiscalRules = {
-    iva_rate: 0.15, // 15% IVA Ecuador
+  private fiscalRules: EcuadorFiscalRules = {
+    iva_rate: 0.15, // 15% IVA Ecuador (default)
     retencion_source_rate: 0.01, // 1% retención fuente
     retencion_iva_rate: 0.30, // 30% del IVA
   };
+
+  /**
+   * Update fiscal rules from external config (e.g. backend)
+   */
+  setFiscalRules(rules: Partial<EcuadorFiscalRules>): void {
+    this.fiscalRules = { ...this.fiscalRules, ...rules };
+  }
 
   /**
    * Generate deterministic UUIDv5 for report ID
@@ -115,11 +122,11 @@ export class ReportingService {
    * FASE 2: IVA reverse calculation - extract IVA from amount that includes tax
    * For 15% IVA: IVA = amount / 1.15 * 0.15, Base = amount / 1.15
    */
-  private calculateIVAReverse(amountCents: Cents, taxType: string): { iva: Cents; base: Cents } {
+  private calculateIVAReverse(amountCents: Cents, taxType: string, ivaRate: number = 0.15): { iva: Cents; base: Cents } {
     const amountDecimal = toDecimal(amountCents);
     
     if (taxType === 'iva_15') {
-      const divisor = new Decimal(1.15);
+      const divisor = new Decimal(1 + ivaRate);
       const baseDecimal = amountDecimal.div(divisor);
       const ivaDecimal = amountDecimal.minus(baseDecimal);
       return {
@@ -221,7 +228,7 @@ export class ReportingService {
           
           // FASE 2: Calculate IVA paid on iva_15 categories using reverse calculation
           if (taxType === 'iva_15') {
-            const { iva } = this.calculateIVAReverse(amountCents, taxType);
+            const { iva } = this.calculateIVAReverse(amountCents, taxType, fiscalRules.iva_rate);
             totals.iva_pagado_15_cents = toCents(
               toDecimal(totals.iva_pagado_15_cents).plus(toDecimal(iva))
             ) as Cents;
@@ -274,7 +281,7 @@ export class ReportingService {
     fiscalRules?: Partial<EcuadorFiscalRules>,
     progressCallback?: (processed: number, total: number) => void
   ): Promise<ReportResult> {
-    const rules = { ...this.DEFAULT_FISCAL_RULES, ...fiscalRules };
+    const rules = { ...this.fiscalRules, ...fiscalRules };
     
     // Filter transactions
     const transactionIds = await this.filterTransactions(startDate, endDate, categoryIds);
@@ -347,7 +354,7 @@ export class ReportingService {
     fiscalRules?: Partial<EcuadorFiscalRules>,
     progressCallback?: (processed: number, total: number) => void
   ): Promise<Array<{ date: string; income: number; expense: number; tax: number; deductible: number }>> {
-    const rules = { ...this.DEFAULT_FISCAL_RULES, ...fiscalRules };
+    const rules = { ...this.fiscalRules, ...fiscalRules };
     const transactionIds = await this.filterTransactions(startDate, endDate, categoryIds);
     
     // Preload category tax properties
@@ -406,7 +413,7 @@ export class ReportingService {
           }
           
           if (taxType === 'iva_15') {
-            const { iva } = this.calculateIVAReverse(amountCents, taxType);
+            const { iva } = this.calculateIVAReverse(amountCents, taxType, rules.iva_rate);
             bucket.tax = toDecimal(bucket.tax).plus(toDecimal(iva)).toNumber();
           }
         }
@@ -697,7 +704,8 @@ export class ReportingService {
     startDate?: string,
     endDate?: string
   ): Promise<{ discrepancies: Array<{ id: string; description: string; current_category: string; suggested_category: string; confidence: number }>, total_scanned: number }> {
-    const transactions = await this.getTransactionsWithCategories(undefined, undefined, startDate, endDate);
+    // Limit to last 1000 transactions for performance - anomaly detection on recent data is sufficient
+    const transactions = await this.getTransactionsWithCategories(1000, 0, startDate, endDate);
     const discrepancies: Array<{ id: string; description: string; current_category: string; suggested_category: string; confidence: number }> = [];
     
     // Simple heuristic-based anomaly detection
