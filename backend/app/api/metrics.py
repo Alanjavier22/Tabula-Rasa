@@ -1,16 +1,19 @@
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
 import calendar
 from database import get_db
+from app.api.auth import get_current_device
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.models.budget import Budget
 from app.models.category import Category
+from app.models.config import Config
 from app.models.reminder import Reminder
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.transaction_split import TransactionSplit
@@ -22,7 +25,12 @@ from app.services.asset_depreciation import asset_depreciation_service
 from app.services.balance_sheet import balance_sheet_service
 from app.services.cash_flow import cash_flow_service
 
-router = APIRouter(prefix="/metrics", tags=["Metrics"], redirect_slashes=False)
+router = APIRouter(
+    prefix="/metrics", 
+    tags=["Metrics"], 
+    redirect_slashes=False,
+    dependencies=[Depends(get_current_device)]
+)
 
 
 class SafeToSpendResponse(BaseModel):
@@ -32,88 +40,58 @@ class SafeToSpendResponse(BaseModel):
     projected_fixed_expenses: Decimal
     actual_expenses: Decimal
     pending_cc_payments: Decimal
+    pending_debt_shares: Decimal
+    safe_to_spend_buffer: Decimal
     anomaly_leaks: Decimal
+    projected_taxes: Decimal
     breakdown: dict
 
 
 @router.get("/safe-to-spend", response_model=SafeToSpendResponse)
 def get_safe_to_spend(db: Session = Depends(get_db)):
-    now = datetime.now()
-    current_month = now.month
-    current_year = now.year
+    """
+    Get safe-to-spend metric using the unified CashFlowService.
+    Ensures consistency across all dashboard components.
+    """
+    try:
+        # We use a 30-day horizon for the main dashboard metric
+        projection = cash_flow_service.get_projected_balance(db, 30)
+        
+        # Get additional metrics for the response model
+        anomaly_leaks = Decimal(str(calculate_anomaly_leak_total(db)))
+        buffer_config = db.query(Config).filter(Config.key == 'safe_to_spend_buffer').first()
+        # Buffer config is stored as dollars in the UI, convert to cents for math
+        buffer_val = float(buffer_config.value) if buffer_config and buffer_config.value else 0
+        safe_to_spend_buffer = Decimal(str(int(buffer_val * 100)))
 
-    accounts = db.query(Account).filter(
-        Account.is_active == 1,
-        Account.account_type.in_(["checking", "savings", "cash"])
-    ).all()
-    current_balance = Decimal(str(sum((acc.balance for acc in accounts), 0)))
+        # Get fiscal burden (IVA/Retenciones)
+        try:
+            from app.api.ai_assistant import get_fiscal_summary
+            fiscal = get_fiscal_summary(db)
+            projected_taxes = Decimal(str(fiscal["iva_projected"] + fiscal["retencion_projected"]))
+        except:
+            projected_taxes = Decimal("0")
 
-    # Add IOUs that others owe to the user (increases liquidity)
-    they_owe_ious = db.query(IOU).filter(
-        IOU.iou_type == IOUType.THEY_OWE,
-        IOU.status == IOUStatus.PENDING
-    ).all()
-    ious_receivable = Decimal(str(sum((i.amount for i in they_owe_ious), 0)))
-    current_balance += ious_receivable
+        # We subtract anomaly_leaks AND projected taxes AND the safety buffer from the projected balance for maximum prudence
+        safe_to_spend = Decimal(str(projection.projected_balance)) - anomaly_leaks - projected_taxes - safe_to_spend_buffer
 
-    income_transactions = db.query(Transaction).filter(
-        Transaction.transaction_type == "income",
-        Transaction.date >= datetime(current_year, current_month, 1)
-    ).all()
-    monthly_income_total = Decimal("0")
-    for txn in income_transactions:
-        if txn.splits:
-            monthly_income_total += Decimal(str(sum((s.amount for s in txn.splits), 0)))
-        else:
-            monthly_income_total += Decimal(str(txn.amount))
-
-    expense_transactions = db.query(Transaction).filter(
-        Transaction.transaction_type == "expense",
-        Transaction.date >= datetime(current_year, current_month, 1)
-    ).all()
-    actual_expenses_total = Decimal("0")
-    for txn in expense_transactions:
-        if txn.splits:
-            actual_expenses_total += Decimal(str(sum((s.amount for s in txn.splits), 0)))
-        else:
-            actual_expenses_total += Decimal(str(txn.amount))
-
-    budgets = db.query(Budget).filter(
-        Budget.month == current_month, Budget.year == current_year
-    ).all()
-    projected_fixed_expenses = Decimal(str(sum((b.amount for b in budgets), 0)))
-
-    pending_statements = db.query(CreditCardStatement).filter(
-        CreditCardStatement.status.in_(["pending", "partial"]),
-        CreditCardStatement.payment_due_date >= now,
-        CreditCardStatement.payment_due_date <= now + timedelta(days=30)
-    ).all()
-    pending_cc_payments = Decimal(str(sum(
-        (max(0, s.user_share - s.amount_paid) for s in pending_statements),
-        0
-    )))
-
-    # Subtract pending Debt Shares from credit cards (decreases liquidity)
-    pending_debt_shares = db.query(DebtShare).filter(
-        DebtShare.status == "pending"
-    ).all()
-    pending_debt_total = Decimal(str(sum((ds.amount for ds in pending_debt_shares), 0)))
-
-    # Detect leaks from anomaly detector to penalize safe_to_spend
-    anomaly_leaks = Decimal(str(calculate_anomaly_leak_total(db)))
-
-    safe_to_spend = current_balance - projected_fixed_expenses - pending_cc_payments - pending_debt_total - anomaly_leaks
-
-    return SafeToSpendResponse(
-        safe_to_spend=safe_to_spend,
-        monthly_income=monthly_income_total,
-        current_balance=current_balance,
-        projected_fixed_expenses=projected_fixed_expenses,
-        actual_expenses=actual_expenses_total,
-        pending_cc_payments=pending_cc_payments,
-        anomaly_leaks=anomaly_leaks,
-        breakdown={"month": current_month, "year": current_year}
-    )
+        return SafeToSpendResponse(
+            safe_to_spend=safe_to_spend,
+            monthly_income=Decimal(str(projection.projected_income)),
+            current_balance=Decimal(str(projection.current_balance)),
+            projected_fixed_expenses=Decimal(str(projection.projected_expenses)),
+            actual_expenses=Decimal(str(0)), # This would need a separate query if needed, but safe_to_spend is the focus
+            pending_cc_payments=Decimal(str(projection.breakdown.get("credit_cards", 0))),
+            pending_debt_shares=Decimal(str(projection.breakdown.get("debt_shares", 0))),
+            safe_to_spend_buffer=safe_to_spend_buffer,
+            anomaly_leaks=anomaly_leaks,
+            projected_taxes=projected_taxes,
+            breakdown=projection.breakdown
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error calculating safe-to-spend: {str(e)}")
 
 
 class NetWorthResponse(BaseModel):
@@ -127,17 +105,32 @@ class NetWorthResponse(BaseModel):
 def get_net_worth(db: Session = Depends(get_db)):
     assets_accounts = db.query(Account).filter(
         Account.is_active == 1,
+        Account.is_deleted == False,
         Account.account_type.in_(["checking", "savings", "investment"])
     ).all()
     assets = Decimal(str(sum((acc.balance for acc in assets_accounts), 0)))
 
     they_owe_ious = db.query(IOU).filter(
-        IOU.iou_type == IOUType.THEY_OWE, IOU.status == IOUStatus.PENDING
+        IOU.iou_type == IOUType.THEY_OWE, IOU.status == IOUStatus.PENDING,
+        IOU.is_deleted == False
     ).all()
     assets += Decimal(str(sum((i.amount for i in they_owe_ious), 0)))
 
+    # DebtShares (Money owed to user by others for CC payments)
+    pending_debt_shares = db.query(DebtShare).filter(DebtShare.status == "pending").all()
+    assets += Decimal(str(sum((ds.amount for ds in pending_debt_shares), 0)))
+
+    # Physical Assets with Depreciation
+    from app.models.asset import Asset
+    from app.services.asset_depreciation import asset_depreciation_service
+    physical_assets = db.query(Asset).filter(Asset.is_deleted == False).all()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for asset in physical_assets:
+        current_val = asset_depreciation_service.get_current_value(asset, now)
+        assets += Decimal(str(current_val))
+
     liabilities_accounts = db.query(Account).filter(
-        Account.is_active == 1, Account.account_type == "credit_card"
+        Account.is_active == 1, Account.is_deleted == False, Account.account_type == "credit_card"
     ).all()
     liabilities = Decimal(str(sum(
         (abs(acc.balance) for acc in liabilities_accounts if acc.balance < 0),
@@ -145,9 +138,11 @@ def get_net_worth(db: Session = Depends(get_db)):
     )))
 
     i_owe_ious = db.query(IOU).filter(
-        IOU.iou_type == IOUType.I_OWE, IOU.status == IOUStatus.PENDING
+        IOU.iou_type == IOUType.I_OWE, IOU.status == IOUStatus.PENDING,
+        IOU.is_deleted == False
     ).all()
     liabilities += Decimal(str(sum((i.amount for i in i_owe_ious), 0)))
+
 
     net_worth = assets - liabilities
 
@@ -155,6 +150,8 @@ def get_net_worth(db: Session = Depends(get_db)):
         func.strftime("%Y-%m", Transaction.date).label("month"),
         func.sum(case((Transaction.transaction_type == "income", Transaction.amount), else_=0)).label("income"),
         func.sum(case((Transaction.transaction_type == "expense", Transaction.amount), else_=0)).label("expense")
+    ).filter(
+        Transaction.is_deleted == False
     ).group_by(func.strftime("%Y-%m", Transaction.date)).order_by("month").all()
 
     history = []
@@ -163,7 +160,8 @@ def get_net_worth(db: Session = Depends(get_db)):
         month_expense = Decimal(str(row.expense or 0))
 
         month_txns = db.query(Transaction).filter(
-            func.strftime("%Y-%m", Transaction.date) == row.month
+            func.strftime("%Y-%m", Transaction.date) == row.month,
+            Transaction.is_deleted == False
         ).all()
 
         for txn in month_txns:
@@ -194,59 +192,96 @@ class VehicleTelemetryResponse(BaseModel):
     total_vehicle_cost: int
     month: int
     year: int
-
+    historical_cost_per_km: int
+    next_maintenance_estimate: Optional[float]
+    maintenance_interval: int = 5000  # Default interval
 
 @router.get("/vehicle-telemetry", response_model=VehicleTelemetryResponse)
 def get_vehicle_telemetry(db: Session = Depends(get_db)):
     now = datetime.now()
-    current_month = now.month
-    current_year = now.year
+    
+    config_entry = db.query(Config).filter(Config.key == "vehicle_categories").first()
+    vehicle_category_ids = []
+    if config_entry and config_entry.value:
+        try:
+            vehicle_category_ids = json.loads(config_entry.value)
+        except json.JSONDecodeError:
+            pass
 
-    vehicle_categories = db.query(Category).filter(
-        Category.name.in_(["Combustible", "Mantenimiento Vehiculo"])
-    ).all()
-    vehicle_category_ids = [c.id for c in vehicle_categories]
+    if not vehicle_category_ids:
+        vehicle_categories = db.query(Category).filter(
+            Category.name.in_(["Combustible", "Mantenimiento Vehiculo"])
+        ).all()
+        vehicle_category_ids = [c.id for c in vehicle_categories]
 
-    vehicle_txns = db.query(Transaction).filter(
+    # Current month stats
+    current_month_txns = db.query(Transaction).filter(
         Transaction.transaction_type == "expense",
         Transaction.category_id.in_(vehicle_category_ids),
-        Transaction.date >= datetime(current_year, current_month, 1),
-        Transaction.metadata_json.isnot(None)
+        Transaction.date >= datetime(now.year, now.month, 1),
+        Transaction.is_deleted == False,
     ).all()
 
-    total_vehicle_cost = Decimal("0")
-    for txn in vehicle_txns:
-        if txn.splits:
-            total_vehicle_cost += Decimal(str(sum(
-                (s.amount for s in txn.splits if s.category_id in vehicle_category_ids),
-                0
-            )))
-        else:
-            total_vehicle_cost += Decimal(str(txn.amount))
+    total_vehicle_cost = sum((Decimal(str(t.amount)) for t in current_month_txns), Decimal("0"))
+    
+    # Historical stats for Odometer and cost per KM
+    all_vehicle_txns = db.query(Transaction).filter(
+        Transaction.transaction_type == "expense",
+        Transaction.category_id.in_(vehicle_category_ids),
+        Transaction.is_deleted == False,
+    ).order_by(Transaction.date.asc()).all()
 
     odometer_readings = []
-    for txn in vehicle_txns:
-        try:
-            metadata = json.loads(txn.metadata_json)
-            if "odometer" in metadata:
-                odometer_readings.append(metadata["odometer"])
-        except (json.JSONDecodeError, TypeError):
-            continue
+    total_historical_cost = Decimal("0")
+    
+    for txn in all_vehicle_txns:
+        total_historical_cost += Decimal(str(txn.amount))
+        if txn.metadata_json:
+            try:
+                meta = json.loads(txn.metadata_json)
+                if "odometer" in meta:
+                    odometer_readings.append({"date": txn.date, "val": meta["odometer"]})
+            except: continue
 
-    total_distance = Decimal(str(max(odometer_readings) - min(odometer_readings))) if len(odometer_readings) >= 2 else Decimal("0")
-    if total_distance > 0:
-        cost_per_km = total_vehicle_cost / total_distance
-    else:
-        cost_per_km = Decimal("0")
+    # Current month distance
+    month_odometer = [o["val"] for o in odometer_readings if o["date"].month == now.month and o["date"].year == now.year]
+    total_distance = max(month_odometer) - min(month_odometer) if len(month_odometer) >= 2 else 0
+    cost_per_km = total_vehicle_cost / total_distance if total_distance > 0 else 0
+
+    # Historical cost per KM
+    hist_distance = max([o["val"] for o in odometer_readings]) - min([o["val"] for o in odometer_readings]) if len(odometer_readings) >= 2 else 0
+    historical_cost_per_km = total_historical_cost / hist_distance if hist_distance > 0 else 0
+
+    # Next maintenance estimate
+    next_maint = None
+    if odometer_readings:
+        current_odo = max([o["val"] for o in odometer_readings])
+        # Find last maintenance
+        maint_categories = db.query(Category).filter(Category.name.ilike("%mantenimiento%")).all()
+        maint_ids = [c.id for c in maint_categories]
+        last_maint_txn = db.query(Transaction).filter(
+            Transaction.category_id.in_(maint_ids),
+            Transaction.is_deleted == False
+        ).order_by(Transaction.date.desc()).first()
+        
+        last_maint_odo = 0
+        if last_maint_txn and last_maint_txn.metadata_json:
+            try:
+                m_meta = json.loads(last_maint_txn.metadata_json)
+                last_maint_odo = m_meta.get("odometer", 0)
+            except: pass
+        
+        next_maint = (last_maint_odo + 5000) - current_odo
 
     return VehicleTelemetryResponse(
-        total_distance=total_distance,
-        cost_per_km=cost_per_km,
-        total_vehicle_cost=total_vehicle_cost,
-        month=current_month,
-        year=current_year
+        total_distance=float(total_distance),
+        cost_per_km=int(cost_per_km),
+        total_vehicle_cost=int(total_vehicle_cost),
+        month=now.month,
+        year=now.year,
+        historical_cost_per_km=int(historical_cost_per_km),
+        next_maintenance_estimate=float(next_maint) if next_maint is not None else None
     )
-
 
 class CashFlowForecastResponse(BaseModel):
     forecast: list[dict]
@@ -255,12 +290,18 @@ class CashFlowForecastResponse(BaseModel):
 
 
 @router.get("/cash-flow-forecast", response_model=CashFlowForecastResponse)
-def get_cash_flow_forecast(db: Session = Depends(get_db)):
+def get_cash_flow_forecast(days: int = 30, db: Session = Depends(get_db)):
+    if days < 1:
+        days = 30
+    if days > 365:
+        days = 365
+
     now = datetime.now()
     today = now.date()
 
     accounts = db.query(Account).filter(
         Account.is_active == 1,
+        Account.is_deleted == False,
         Account.account_type.in_(["checking", "savings"])
     ).all()
     current_balance = Decimal(str(sum((acc.balance for acc in accounts), 0)))
@@ -268,19 +309,19 @@ def get_cash_flow_forecast(db: Session = Depends(get_db)):
     reminders = db.query(Reminder).filter(
         Reminder.status == "pending",
         Reminder.due_date >= now,
-        Reminder.due_date <= now + timedelta(days=30)
+        Reminder.due_date <= now + timedelta(days=days)
     ).all()
 
     statements = db.query(CreditCardStatement).filter(
         CreditCardStatement.status.in_(["pending", "partial"]),
         CreditCardStatement.payment_due_date >= now,
-        CreditCardStatement.payment_due_date <= now + timedelta(days=30)
+        CreditCardStatement.payment_due_date <= now + timedelta(days=days)
     ).all()
 
     forecast = []
     projected_balance = current_balance
 
-    for day_offset in range(1, 31):
+    for day_offset in range(1, days + 1):
         forecast_date = today + timedelta(days=day_offset)
         forecast_date_str = forecast_date.strftime("%Y-%m-%d")
 
@@ -335,34 +376,52 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         now = datetime.now()
         current_month = now.month
         current_year = now.year
+        
+        # Find the most recent month with transactions
+        latest_txn = db.query(Transaction).filter(
+            Transaction.is_deleted == False
+        ).order_by(Transaction.date.desc()).first()
+        
+        if latest_txn:
+            latest_date = latest_txn.date
+            current_month = latest_date.month
+            current_year = latest_date.year
+        
         current_month_str = f"{current_year}-{current_month:02d}"
 
-        # Filter by current month only
+        # Current month totals - RAW DATA INTEGRITY (No filters)
         income_result = db.query(
             func.coalesce(func.sum(case((Transaction.transaction_type == "income", Transaction.amount), else_=0)), 0)
         ).filter(
-            Transaction.date >= datetime(current_year, current_month, 1)
+            Transaction.is_deleted == False,
+            Transaction.date >= datetime(current_year, current_month, 1),
+            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
         ).scalar()
         total_income = Decimal(str(income_result))
 
         expense_result = db.query(
             func.coalesce(func.sum(case((Transaction.transaction_type == "expense", Transaction.amount), else_=0)), 0)
         ).filter(
-            Transaction.date >= datetime(current_year, current_month, 1)
+            Transaction.is_deleted == False,
+            Transaction.date >= datetime(current_year, current_month, 1),
+            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
         ).scalar()
         total_expenses = Decimal(str(expense_result))
 
         expense_breakdown_query = db.query(
-            func.substr(Transaction.description, 1, 20).label("name"),
+            func.coalesce(Category.name, 'Sin Categoría').label("name"),
             func.coalesce(func.sum(Transaction.amount), 0).label("value")
-        ).filter(
-            Transaction.transaction_type == "expense"
+        ).outerjoin(Category, Transaction.category_id == Category.id).filter(
+            Transaction.transaction_type == "expense",
+            Transaction.is_deleted == False,
+            Transaction.date >= datetime(current_year, current_month, 1),
+            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
         ).group_by(
-            func.substr(Transaction.description, 1, 20)
-        ).order_by(func.sum(Transaction.amount).desc()).limit(8).all()
+            func.coalesce(Category.name, 'Sin Categoría')
+        ).order_by(func.sum(Transaction.amount).desc()).limit(10).all()
 
         expense_breakdown = [
-            {"name": row.name + ("..." if len(row.name) >= 20 else ""), "value": Decimal(str(row.value))}
+            {"name": row.name, "value": Decimal(str(row.value))}
             for row in expense_breakdown_query
         ]
 
@@ -371,7 +430,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             func.coalesce(func.sum(Transaction.amount), 0).label("gasto")
         ).filter(
             Transaction.transaction_type == "expense",
-            Transaction.date >= datetime(current_year, current_month, 1)
+            Transaction.is_deleted == False,
+            Transaction.date >= datetime(current_year, current_month, 1),
+            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
         ).group_by(func.date(Transaction.date)).order_by("date").all()
 
         daily_spending = [
@@ -379,20 +440,46 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             for row in daily_spending_query
         ]
 
-        monthly_comparison_query = db.query(
+        # Optimized Historical comparison using SQL aggregation
+        # 1. Sum simple transactions (no splits)
+        simple_txns = db.query(
             func.strftime("%Y-%m", Transaction.date).label("mes"),
-            func.coalesce(func.sum(case((Transaction.transaction_type == "income", Transaction.amount), else_=0)), 0).label("Ingresos"),
-            func.coalesce(func.sum(case((Transaction.transaction_type == "expense", Transaction.amount), else_=0)), 0).label("Gastos")
-        ).group_by(func.strftime("%Y-%m", Transaction.date)).order_by("mes").all()
+            func.sum(case((Transaction.transaction_type == "income", Transaction.amount), else_=0)).label("Ingresos"),
+            func.sum(case((Transaction.transaction_type == "expense", Transaction.amount), else_=0)).label("Gastos")
+        ).filter(
+            Transaction.is_deleted == False,
+            ~Transaction.id.in_(db.query(TransactionSplit.transaction_id))
+        ).group_by("mes").all()
+
+        # 2. Sum split transactions
+        split_txns = db.query(
+            func.strftime("%Y-%m", Transaction.date).label("mes"),
+            func.sum(case((Transaction.transaction_type == "income", TransactionSplit.amount), else_=0)).label("Ingresos"),
+            func.sum(case((Transaction.transaction_type == "expense", TransactionSplit.amount), else_=0)).label("Gastos")
+        ).join(TransactionSplit, Transaction.id == TransactionSplit.transaction_id).filter(
+            Transaction.is_deleted == False
+        ).group_by("mes").all()
+
+        # Combine results
+        monthly_map = {}
+        for row in simple_txns:
+            monthly_map[row.mes] = {"Ingresos": int(row.Ingresos), "Gastos": int(row.Gastos)}
+        
+        for row in split_txns:
+            if row.mes not in monthly_map:
+                monthly_map[row.mes] = {"Ingresos": 0, "Gastos": 0}
+            monthly_map[row.mes]["Ingresos"] += int(row.Ingresos)
+            monthly_map[row.mes]["Gastos"] += int(row.Gastos)
 
         monthly_comparison = [
-            {"mes": row.mes, "Ingresos": Decimal(str(row.Ingresos)), "Gastos": Decimal(str(row.Gastos))}
-            for row in monthly_comparison_query
+            {"mes": mes, "Ingresos": data["Ingresos"], "Gastos": data["Gastos"]}
+            for mes, data in sorted(monthly_map.items())
         ]
 
         # Sankey data for current month
         current_month_txns = db.query(Transaction).filter(
-            func.strftime("%Y-%m", Transaction.date) == current_month_str
+            func.strftime("%Y-%m", Transaction.date) == current_month_str,
+            Transaction.is_deleted == False
         ).all()
 
         total_income_month = 0
@@ -414,55 +501,89 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
                     expense_categories[cat_name] = expense_categories.get(cat_name, 0) + (txn.amount or 0)
 
         total_expenses_month = sum(expense_categories.values(), 0)
-        remaining = max(0, total_income_month - total_expenses_month)
 
-        nodes = [{"name": "Ingresos"}]
+        nodes = []
         links = []
-        node_index = 1
+        node_index = 0
 
+        # Case 1: Has income - show flow from Income → Categories → Savings
         if total_income_month > 0:
+            nodes.append({"name": "Ingresos"})
+            node_index = 1
+            remaining = max(0, total_income_month - total_expenses_month)
+            
             for cat, amount in expense_categories.items():
                 if amount > 0:
                     nodes.append({"name": cat})
                     links.append({"source": 0, "target": node_index, "value": amount})
                     node_index += 1
+            
             if remaining > 0:
                 nodes.append({"name": "Ahorro / Sobrante"})
                 links.append({"source": 0, "target": node_index, "value": remaining})
+        
+        # Case 2: No income but has expenses - show flow from Accounts → Categories
+        elif total_expenses_month > 0:
+            nodes.append({"name": "Cuentas / Fuentes"})
+            node_index = 1
+            
+            for cat, amount in expense_categories.items():
+                if amount > 0:
+                    nodes.append({"name": cat})
+                    links.append({"source": 0, "target": node_index, "value": amount})
+                    node_index += 1
+        
+        # Case 3: No transactions at all - show placeholder
+        else:
+            nodes.append({"name": "Sin Datos"})
+            nodes.append({"name": "Registra Transacciones"})
+            links.append({"source": 0, "target": 1, "value": 0})
 
         sankey_data = {"nodes": nodes, "links": links}
 
         # Vehicle cost
-        vehicle_categories = db.query(Category).filter(
-            Category.name.in_(["Combustible", "Mantenimiento Vehiculo"])
-        ).all()
-        vehicle_category_ids = [c.id for c in vehicle_categories]
+        config_entry = db.query(Config).filter(Config.key == "vehicle_categories").first()
+        vehicle_category_ids = []
+        if config_entry and config_entry.value:
+            try:
+                vehicle_category_ids = json.loads(config_entry.value)
+            except json.JSONDecodeError:
+                pass
+
+        if not vehicle_category_ids:
+            vehicle_categories = db.query(Category).filter(
+                Category.name.in_(["Combustible", "Mantenimiento Vehiculo"])
+            ).all()
+            vehicle_category_ids = [c.id for c in vehicle_categories]
 
         vehicle_cost_result = db.query(
             func.coalesce(func.sum(Transaction.amount), 0)
         ).filter(
             Transaction.transaction_type == "expense",
+            Transaction.is_deleted == False,
             Transaction.category_id.in_(vehicle_category_ids),
-            Transaction.date >= datetime(current_year, current_month, 1)
+            Transaction.date >= datetime(current_year, current_month, 1),
+            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
         ).scalar()
         vehicle_cost = float(vehicle_cost_result)
         
         alerts = detect_anomalies(db)
 
-        return DashboardSummaryResponse(
-            total_income=total_income,
-            total_expenses=total_expenses,
-            expense_breakdown=expense_breakdown,
-            daily_spending=daily_spending,
-            monthly_comparison=monthly_comparison,
-            sankey_data=sankey_data,
-            vehicle_cost=vehicle_cost,
-            alerts=alerts
-        )
+        return {
+            "total_income": total_income,
+            "total_expenses": total_expenses,
+            "expense_breakdown": expense_breakdown,
+            "daily_spending": daily_spending,
+            "monthly_comparison": monthly_comparison,
+            "sankey_data": sankey_data,
+            "vehicle_cost": vehicle_cost,
+            "alerts": alerts
+        }
     except Exception as e:
         import traceback
+        print(f"Error in dashboard summary: {e}")
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error generating dashboard summary: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class ProjectionResponse(BaseModel):
@@ -617,5 +738,4 @@ def get_cash_flow_projection_days(days: int, db: Session = Depends(get_db)):
         projection = cash_flow_service.get_projected_balance(db, days)
         return projection.to_dict()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error getting cash flow projection: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting cash flow projection: {str(e)}")
