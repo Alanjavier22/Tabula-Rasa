@@ -2,12 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
+from app.api.auth import get_current_device
 from app.models.transaction_split import TransactionSplit
 from app.models.transaction import Transaction
 from app.models.category import Category
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/transaction-splits", tags=["transaction-splits"], redirect_slashes=False)
+router = APIRouter(
+    prefix="/transaction-splits", 
+    tags=["transaction-splits"], 
+    dependencies=[Depends(get_current_device)],
+    redirect_slashes=False
+)
 
 
 class TransactionSplitBase(BaseModel):
