@@ -153,8 +153,24 @@ def create_transaction_with_splits(
 
         apply_transaction_to_balance(db, db_transaction, reverse=False)
 
+        # Cross-payment: detect credit card payments and create mirror transaction
+        if db_transaction.account_id:
+            from app.services.credit_card_payment import process_cross_payment
+            source_account = db.query(Account).filter(Account.id == db_transaction.account_id).first()
+            if source_account:
+                process_cross_payment(db, db_transaction, source_account)
+
         if splits_data:
             create_splits(db, db_transaction.id, splits_data)
+
+        # Recalculate goal progress if transaction is assigned to a goal
+        if db_transaction.goal_id:
+            from app.api.goals import recalculate_goal_progress
+            recalculate_goal_progress(db_transaction.goal_id, db)
+
+        # Disparamos la sanación de snapshots si la transacción es del pasado o afecta el histórico
+        from app.services.snapshot_service import mark_snapshots_as_stale
+        mark_snapshots_as_stale(db, db_transaction.date.month, db_transaction.date.year)
 
         db.commit()
         db.refresh(db_transaction)
@@ -220,6 +236,22 @@ def update_transaction_with_splits(
         # Apply new transaction effect on balance
         apply_transaction_to_balance(db, db_transaction, reverse=False)
 
+        # Recalculate goal progress if transaction is assigned to a goal
+        # Recalculate both old goal (if changed) and new goal
+        old_goal_id = db_transaction.goal_id
+        new_goal_id = transaction_data.get("goal_id")
+        
+        if old_goal_id and old_goal_id != new_goal_id:
+            from app.api.goals import recalculate_goal_progress
+            recalculate_goal_progress(old_goal_id, db)
+        if new_goal_id and new_goal_id != old_goal_id:
+            from app.api.goals import recalculate_goal_progress
+            recalculate_goal_progress(new_goal_id, db)
+
+        # Disparamos la sanación de snapshots para el mes de la transacción
+        from app.services.snapshot_service import mark_snapshots_as_stale
+        mark_snapshots_as_stale(db, db_transaction.date.month, db_transaction.date.year)
+
         db.commit()
         db.refresh(db_transaction)
         return db_transaction
@@ -252,6 +284,41 @@ def delete_transaction_with_balance(db: Session, transaction_id: str) -> dict:
     # Reverse transaction effect on balance before deletion
     apply_transaction_to_balance(db, db_transaction, reverse=True)
 
-    db.delete(db_transaction)
+    # Recalculate goal progress if transaction was assigned to a goal
+    goal_id = db_transaction.goal_id
+    
+    # Soft delete: mark as deleted instead of physically deleting
+    db_transaction.is_deleted = True
+    # Disparamos la sanación de snapshots para el mes de la transacción eliminada
+    from app.services.snapshot_service import mark_snapshots_as_stale
+    mark_snapshots_as_stale(db, db_transaction.date.month, db_transaction.date.year)
+
     db.commit()
+    
+    if goal_id:
+        from app.api.goals import recalculate_goal_progress
+        recalculate_goal_progress(goal_id, db)
+    
     return {"message": "Transaction deleted successfully"}
+
+
+def get_existing_hashes(db: Session, hashes: List[str]) -> List[str]:
+    """
+    Recibe una lista de hashes y devuelve solo los que ya existen.
+    Utiliza una consulta IN masiva seleccionando únicamente la columna hash.
+
+    Args:
+        db: SQLAlchemy session
+        hashes: List of transaction hashes to check
+
+    Returns:
+        List of hashes that already exist in the database
+    """
+    if not hashes:
+        return []
+
+    # Seleccionamos SOLO la columna hash para máxima eficiencia de memoria
+    results = db.query(Transaction.hash).filter(Transaction.hash.in_(hashes)).all()
+
+    # results es una lista de tuplas ej: [("hash1",), ("hash2",)]
+    return [result[0] for result in results]
