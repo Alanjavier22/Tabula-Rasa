@@ -7,13 +7,14 @@ interface ToastProps {
   message: string;
   type: ToastType;
   onClose: () => void;
+  duration?: number;
 }
 
-const Toast = ({ message, type, onClose }: ToastProps) => {
+const Toast = ({ message, type, onClose, duration = 3000 }: ToastProps) => {
   useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
+    const timer = setTimeout(onClose, duration);
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, [onClose, duration]);
 
   const icons = {
     success: <CheckCircle className="w-5 h-5 text-green-400" />,
