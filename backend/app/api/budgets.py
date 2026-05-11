@@ -4,12 +4,18 @@ from typing import List, Optional
 from datetime import datetime, timezone
 import calendar
 from database import get_db
+from app.api.auth import get_current_device
 from app.models.budget import Budget
 from app.services.budget_service import enrich_budget_response
 from app.services.budget_automation import generate_recurring_budgets, update_recurring_budgets
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/budgets", tags=["budgets"], redirect_slashes=False)
+router = APIRouter(
+    prefix="/budgets", 
+    tags=["budgets"], 
+    dependencies=[Depends(get_current_device)],
+    redirect_slashes=False
+)
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +100,7 @@ def get_budgets(
     - month/year: filter to a specific period
     """
     try:
-        query = db.query(Budget)
+        query = db.query(Budget).filter(Budget.is_deleted == False)
         if month is not None:
             query = query.filter(Budget.month == month)
         if year is not None:
@@ -113,7 +119,7 @@ def get_budgets(
 
 
 @router.get("/{budget_id}", response_model=BudgetResponse)
-def get_budget(budget_id: int, db: Session = Depends(get_db)):
+def get_budget(budget_id: str, db: Session = Depends(get_db)):
     budget = db.query(Budget).filter(Budget.id == budget_id).first()
     if not budget:
         raise HTTPException(status_code=404, detail="Budget not found")
@@ -121,7 +127,7 @@ def get_budget(budget_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{budget_id}", response_model=BudgetResponse)
-def update_budget(budget_id: int, budget: BudgetUpdate, db: Session = Depends(get_db)):
+def update_budget(budget_id: str, budget: BudgetUpdate, db: Session = Depends(get_db)):
     db_budget = db.query(Budget).filter(Budget.id == budget_id).first()
     if not db_budget:
         raise HTTPException(status_code=404, detail="Budget not found")
@@ -136,7 +142,7 @@ def update_budget(budget_id: int, budget: BudgetUpdate, db: Session = Depends(ge
 
 
 @router.delete("/{budget_id}")
-def delete_budget(budget_id: int, db: Session = Depends(get_db)):
+def delete_budget(budget_id: str, db: Session = Depends(get_db)):
     db_budget = db.query(Budget).filter(Budget.id == budget_id).first()
     if not db_budget:
         raise HTTPException(status_code=404, detail="Budget not found")
