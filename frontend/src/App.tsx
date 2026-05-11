@@ -12,6 +12,8 @@ import Reminders from './pages/Reminders';
 import Settings from './pages/Settings';
 import Subscriptions from './pages/Subscriptions';
 import Snapshots from './pages/Snapshots';
+import Fiscal from './pages/Fiscal';
+import PairingPage from './pages/PairingPage';
 import { AuthGuard } from './components/AuthGuard';
 import { GlobalErrorBoundary } from './components/common/GlobalErrorBoundary';
 import { validateCacheIntegrity } from './services/AICategorizationService';
@@ -25,15 +27,15 @@ function App() {
   useEffect(() => {
     const runIntegrityHeartbeat = async () => {
       try {
-        console.log('[FASE-8] Integrity Heartbeat: Starting...');
+        console.log('🛡️ Pulso de Integridad: Iniciando...');
         
         // 1. Validate AI cache integrity
         const integrityResult = await validateCacheIntegrity();
-        console.log(`[FASE-8] AI cache integrity: ${integrityResult.deleted} orphaned entries deleted`);
+        console.log(`🧠 Integridad de caché de IA: ${integrityResult.deleted} entradas huérfanas eliminadas`);
         
         // 2. Check storage health
         const storage = await checkStorageQuota();
-        console.log(`[FASE-8] Storage health: ${storage.usagePercent.toFixed(2)}% (${storage.status})`);
+        console.log(`💾 Salud del almacenamiento: ${storage.usagePercent.toFixed(2)}% (${storage.status === 'healthy' ? 'Saludable' : storage.status})`);
         
         // 3. Check stale snapshots and reconcile if >5
         // Thin Client: Use backend API instead of IndexedDB
@@ -41,19 +43,19 @@ function App() {
           const snapshots = await snapshotsAPI.getAll();
           const staleCount = snapshots.data.filter((s: any) => s.is_stale).length;
           if (staleCount > 5) {
-            console.log(`[FASE-8] Found ${staleCount} stale snapshots, triggering reconciliation...`);
+            console.log(`🔍 Se encontraron ${staleCount} snapshots obsoletos, iniciando reconciliación...`);
             await snapshotsAPI.reconcile();
-            console.log('[FASE-8] Reconciliation completed');
+            console.log('✅ Reconciliación completada');
           } else {
-            console.log(`[FASE-8] Snapshot integrity: ${staleCount} stale snapshots (OK)`);
+            console.log(`📊 Integridad de Snapshots: ${staleCount} snapshots obsoletos (OK)`);
           }
         } catch (error) {
-          console.warn('[FASE-8] Could not check snapshot integrity via API:', error);
+          console.warn('⚠️ No se pudo verificar la integridad de snapshots vía API:', error);
         }
         
-        console.log('[FASE-8] Integrity Heartbeat: Completed');
+        console.log('🏁 Pulso de Integridad: Completado');
       } catch (error) {
-        console.error('[FASE-8] Integrity Heartbeat: Error:', error);
+        console.error('❌ Pulso de Integridad: Error:', error);
       }
     };
 
@@ -111,7 +113,9 @@ function App() {
                 <Route path="/reminders" element={<Reminders />} />
                 <Route path="/subscriptions" element={<Subscriptions />} />
                 <Route path="/snapshots" element={<Snapshots />} />
+                <Route path="/fiscal" element={<Fiscal />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/pair" element={<PairingPage />} />
               </Routes>
             </AnimatePresence>
           </Layout>
