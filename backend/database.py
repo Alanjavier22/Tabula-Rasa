@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine, event, pool
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 import os
 
 # Database file path — ABSOLUTE para ser consistente sin importar el CWD del launcher.
@@ -27,7 +26,6 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.execute("PRAGMA busy_timeout=30000")
-    cursor.execute("PRAGMA integrity_check")
     cursor.close()
 
 # Create SessionLocal class
