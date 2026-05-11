@@ -2,22 +2,28 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
+from app.api.auth import get_current_device
 from app.models.reminder import Reminder, ReminderFrequency, ReminderStatus
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 from datetime import datetime, date
 
 
-router = APIRouter(prefix="/reminders", tags=["reminders"], redirect_slashes=False)
+router = APIRouter(
+    prefix="/reminders", 
+    tags=["reminders"], 
+    dependencies=[Depends(get_current_device)],
+    redirect_slashes=False
+)
 
 
 class ReminderBase(BaseModel):
     name: str
-    amount: int = None
+    amount: int | None = None
     due_date: datetime
     frequency: ReminderFrequency = ReminderFrequency.ONCE
     status: ReminderStatus = ReminderStatus.PENDING
-    description: str = None
-    category_id: str = None
+    description: str | None = None
+    category_id: str | None = None
     is_active: bool = True
 
 
@@ -38,9 +44,16 @@ class ReminderUpdate(BaseModel):
 
 class ReminderResponse(ReminderBase):
     id: str
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
     version: int  # FASE 7: OCC versioning
+    
+    @field_serializer('created_at', 'updated_at', when_used='json')
+    def serialize_datetime(self, dt: datetime | None):
+        if dt is None:
+            return None
+        return dt.isoformat()
+    
     class Config:
         from_attributes = True
 
@@ -56,12 +69,12 @@ def create_reminder(reminder: ReminderCreate, db: Session = Depends(get_db)):
     return db_reminder
 
 
-@router.get("/", response_model=List[ReminderResponse])
+@router.get("/")
 def get_reminders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(Reminder).offset(skip).limit(limit).all()
+    return db.query(Reminder).filter(Reminder.is_deleted == False).offset(skip).limit(limit).all()
 
 
-@router.get("/{reminder_id}", response_model=ReminderResponse)
+@router.get("/{reminder_id}")
 def get_reminder(reminder_id: str, db: Session = Depends(get_db)):
     reminder = db.query(Reminder).filter(Reminder.id == reminder_id).first()
     if not reminder:
@@ -69,7 +82,7 @@ def get_reminder(reminder_id: str, db: Session = Depends(get_db)):
     return reminder
 
 
-@router.put("/{reminder_id}", response_model=ReminderResponse)
+@router.put("/{reminder_id}")
 def update_reminder(reminder_id: str, reminder: ReminderUpdate, db: Session = Depends(get_db)):
     db_reminder = db.query(Reminder).filter(Reminder.id == reminder_id).first()
     if not db_reminder:
