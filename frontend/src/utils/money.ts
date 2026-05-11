@@ -9,8 +9,16 @@ export const toDecimal = (value: unknown): Decimal => {
   if (value === null || value === undefined || value === '') {
     return new Decimal(0);
   }
+  
+  let normalizedValue = value;
+  
+  // Si es un string, normalizamos comas a puntos para que Decimal lo entienda
+  if (typeof value === 'string') {
+    normalizedValue = value.replace(',', '.');
+  }
+
   try {
-    return new Decimal(value as string | number | Decimal);
+    return new Decimal(normalizedValue as string | number | Decimal);
   } catch {
     return new Decimal(0);
   }
