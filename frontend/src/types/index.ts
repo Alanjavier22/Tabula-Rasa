@@ -66,14 +66,34 @@ export interface Account {
   account_type: AccountType;
   balance: Cents;
   currency: string;
+  credit_limit?: Cents;
   description?: string;
   bank_name?: string;
   linked_account_id?: string;
   is_active: boolean;
+  statement_day?: number;
+  payment_day?: number;
   created_at: string;
   updated_at: string;
   version: number;  // FASE 7: OCC versioning
   needs_review?: boolean;  // FASE 7: Conflict flag
+}
+
+export interface PaymentAlert {
+  account_id: string;
+  account_name: string;
+  bank_name?: string;
+  alert_type: 'payment_due' | 'statement_cut' | 'overdue';
+  due_date?: string;
+  days_remaining: number;
+  amount_pending: number;
+  statement_id?: string;
+  severity: 'info' | 'warning' | 'critical';
+}
+
+export interface AlertsResponse {
+  alerts: PaymentAlert[];
+  total_pending: number;
 }
 
 export interface Budget {
@@ -178,6 +198,7 @@ export interface DebtShare {
 export interface CreditCardStatement {
   id: string;
   account_id: string;
+  account_name?: string;
   statement_balance: Cents;
   user_share: Cents;
   payment_due_date?: string;
@@ -199,10 +220,16 @@ export interface SafeToSpendResponse {
   projected_fixed_expenses: number;
   actual_expenses: number;
   pending_cc_payments: number;
+  pending_debt_shares: number;
+  safe_to_spend_buffer: number;
   anomaly_leaks: number;
+  projected_taxes: number;
   breakdown: {
-    month: number;
-    year: number;
+    subscriptions: number;
+    ious: number;
+    credit_cards: number;
+    debt_shares: number;
+    seasonal: number;
   };
 }
 
@@ -237,6 +264,8 @@ export interface VehicleTelemetryResponse {
   total_vehicle_cost: number;
   month: number;
   year: number;
+  historical_cost_per_km: number;
+  next_maintenance_estimate: number | null;
 }
 
 export interface CashFlowForecastResponse {
