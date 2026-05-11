@@ -1,66 +1,134 @@
 # Menú interactivo para Finanzas Personales (Versión Enterprise)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# --- CONFIGURACIÓN DE RUTAS (ALCANCE GLOBAL) ---
+# Usamos SCRIPT_DIR que viene definido desde el .bat
+$script:scriptPath = $global:SCRIPT_DIR
+if (-not $script:scriptPath) { $script:scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path }
+if (-not $script:scriptPath) { $script:scriptPath = $PSScriptRoot }
+if (-not $script:scriptPath) { $script:scriptPath = "." } # Fallback al directorio actual
+
+$script:backendPath = Join-Path $script:scriptPath "backend"
+$script:frontendPath = Join-Path $script:scriptPath "frontend"
+$script:backendLog = Join-Path $script:scriptPath "backend.log"
+$script:frontendLog = Join-Path $script:scriptPath "frontend.log"
+$script:venvPython = Join-Path $script:backendPath "venv\Scripts\python.exe"
+$script:nodeModules = Join-Path $script:frontendPath "node_modules"
+
+# Función para instalar requisitos vía Winget
+function Install-Requirement {
+    param(
+        [string]$Name,
+        [string]$Id
+    )
+    
+    Write-Host "⚠️  $Name no detectado." -ForegroundColor Yellow
+    $confirm = Read-Host "¿Deseas que lo instale automáticamente por ti? (S/N)"
+    if ($confirm -eq 'S' -or $confirm -eq 's') {
+        Write-Host "🚀 Iniciando instalación de $Name..." -ForegroundColor Cyan
+        winget install --id $Id --source winget --accept-package-agreements --accept-source-agreements
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ $Name instalado correctamente." -ForegroundColor Green
+            Write-Host "📢 IMPORTANTE: Es posible que debas cerrar y volver a abrir este menú para que los cambios surtan efecto." -ForegroundColor Yellow
+            Start-Sleep -Seconds 3
+            return $true
+        } else {
+            Write-Host "❌ Error al instalar $Name. Por favor, instálalo manualmente desde su web oficial." -ForegroundColor Red
+            Read-Host "Presiona Enter para salir..."
+            exit 1
+        }
+    } else {
+        Write-Host "❌ No se puede continuar sin $Name." -ForegroundColor Red
+        exit 1
+    }
+}
 
 # Validación de versión de Python (requerido: 3.12+)
 function Test-PythonVersion {
     $pythonVersion = python --version 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ ERROR: Python no está instalado o no está en PATH." -ForegroundColor Red
-        Write-Host "   Requisito: Python 3.12 o superior" -ForegroundColor Yellow
-        exit 1
+        if (Install-Requirement "Python 3.12" "Python.Python.3.12") {
+            # Intentamos refrescar el PATH para la sesión actual
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        }
     }
     
-    # Extract version number (e.g., "Python 3.12.0" -> "3.12.0")
+    # Volvemos a probar después de la posible instalación
+    $pythonVersion = python --version 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Python aún no es reconocido. Por favor, reinicia la terminal." -ForegroundColor Red
+        exit 1
+    }
+
     $versionStr = $pythonVersion -replace "Python ", ""
-    $version = [version]$versionStr
-    
-    # Check if version is 3.12 or higher
-    $minVersion = [version]"3.12.0"
-    if ($version -lt $minVersion) {
-        Write-Host "❌ ERROR: Versión de Python incompatible." -ForegroundColor Red
-        Write-Host "   Versión actual: $versionStr" -ForegroundColor Yellow
-        Write-Host "   Requisito mínimo: Python 3.12.0" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host "   Por favor, actualiza Python desde: https://www.python.org/downloads/" -ForegroundColor Cyan
-        exit 1
+    try {
+        $version = [version]$versionStr
+        $minVersion = [version]"3.12.0"
+        if ($version -lt $minVersion) {
+            Write-Host "⚠️  Versión de Python antigua ($versionStr). Se recomienda 3.12+." -ForegroundColor Yellow
+        } else {
+            Write-Host "✅ Python $versionStr detectado" -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "✅ Python detectado" -ForegroundColor Green
+    }
+}
+
+function Test-NodeVersion {
+    $nodeVersion = node --version 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        if (Install-Requirement "Node.js" "OpenJS.NodeJS") {
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        }
     }
     
-    Write-Host "✅ Python $versionStr detectado (compatible)" -ForegroundColor Green
+    $nodeVersion = node --version 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Node.js aún no es reconocido. Por favor, reinicia la terminal." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "✅ Node.js $nodeVersion detectado" -ForegroundColor Green
 }
 
 Test-PythonVersion
+Test-NodeVersion
 
 # Validación de privilegios de Administrador
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    Write-Host "⚠️  ADVERTENCIA: El script no se está ejecutando como Administrador." -ForegroundColor Red
-    Write-Host "   Algunas operaciones de limpieza de archivos podrían fallar por falta de permisos." -ForegroundColor Yellow
-    Write-Host "   Se recomienda ejecutar PowerShell como Administrador." -ForegroundColor Yellow
-    Write-Host ""
-    Start-Sleep -Seconds 2
+    Write-Host "⚠️  ADVERTENCIA: Sin privilegios de Administrador." -ForegroundColor Red
+    Write-Host "   La instalación automática podría requerir permisos." -ForegroundColor Yellow
+    Start-Sleep -Seconds 1
 }
 
-$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-$backendPath = Join-Path $scriptPath "backend"
-$frontendPath = Join-Path $scriptPath "frontend"
-$backendLog = Join-Path $scriptPath "backend.log"
-$frontendLog = Join-Path $scriptPath "frontend.log"
 
-# Rutas críticas de Self-Healing
-$venvPython = Join-Path $backendPath "venv\Scripts\python.exe"
-$nodeModules = Join-Path $frontendPath "node_modules"
+
+function Show-Header {
+    Write-Host "  ____________________________________________" -ForegroundColor Magenta
+    Write-Host "  |                                          |" -ForegroundColor Magenta
+    Write-Host "  |   TABULA RASA - Financial Control v2.0   |" -ForegroundColor Cyan
+    Write-Host "  |__________________________________________|" -ForegroundColor Magenta
+}
 
 function Show-Menu {
     Clear-Host
-    Write-Host "========================================"  -ForegroundColor Cyan
-    Write-Host "  Finanzas Personales - Menú Principal"  -ForegroundColor Cyan
-    Write-Host "========================================"  -ForegroundColor Cyan
+    Show-Header
     Write-Host ""
-    Write-Host "  [1] Iniciar Aplicativo"  -ForegroundColor Green
-    Write-Host "  [2] Detener Aplicativo"  -ForegroundColor Yellow
-    Write-Host "  [3] Ver Logs"  -ForegroundColor Blue
-    Write-Host "  [4] Salir"  -ForegroundColor Red
+    Write-Host "  [1] INICIAR APLICATIVO"  -ForegroundColor Green
+    Write-Host "  [2] DETENER SERVICIOS"   -ForegroundColor Yellow
+    Write-Host "  [3] VER LOGS (En vivo)"  -ForegroundColor Blue
+    Write-Host "  [4] MANTENIMIENTO"       -ForegroundColor Cyan
+    Write-Host "  [5] SALIR"               -ForegroundColor Red
     Write-Host ""
-    Write-Host "========================================"  -ForegroundColor Cyan
+    Write-Host "  Estado actual: " -NoNewline; 
+    $port8001 = Get-NetTCPConnection -LocalPort 8001 -State Listen -ErrorAction SilentlyContinue
+    if ($port8001) { 
+        Write-Host ">>> ONLINE <<<" -ForegroundColor Green 
+    } else { 
+        Write-Host ">>> OFFLINE <<<" -ForegroundColor Red 
+    }
+    Write-Host "  --------------------------------------------" -ForegroundColor DarkGray
 }
 
 function Stop-ProjectProcesses {
@@ -129,7 +197,7 @@ function Stop-SpecificPorts {
     return $killedSomething
 }
 
-function Safe-RemoveVenv {
+function Remove-VenvSafely {
     param(
         [string]$Path
     )
@@ -202,27 +270,27 @@ function Start-Application {
 
     # 2. Rotación de Logs (Limpieza en frío)
     Write-Host "[2/5] Limpiando archivos de log anteriores..." -ForegroundColor Yellow
-    Clear-Content $backendLog -ErrorAction SilentlyContinue
-    Clear-Content $frontendLog -ErrorAction SilentlyContinue
+    Clear-Content $script:backendLog -ErrorAction SilentlyContinue
+    Clear-Content $script:frontendLog -ErrorAction SilentlyContinue
 
     # 3. Backend Health Check & Self-Healing
     Write-Host "[3/5] Verificando salud del entorno virtual..."  -ForegroundColor Yellow
-    $venvPath = Join-Path $backendPath "venv"
+    $venvPath = Join-Path $script:backendPath "venv"
     $venvNeedsReinstall = $false
 
-    if (Test-Path $venvPython) {
+    if (Test-Path $script:venvPython) {
         # Check if critical packages and app can be imported
-        & $venvPython -c "import fastapi, sqlalchemy, pydantic, cryptography" 2>&1 | Out-Null
+        & $script:venvPython -c "import fastapi, sqlalchemy, pydantic, cryptography" 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  Entorno virtual corrupto detectado. Reinstalando..." -ForegroundColor Magenta
-            Safe-RemoveVenv $venvPath
+            Remove-VenvSafely $venvPath
             $venvNeedsReinstall = $true
         } else {
             # Try to import the main app module
-            & $venvPython -c "import sys; sys.path.insert(0, '$backendPath'); from main import app" 2>&1 | Out-Null
+            & $script:venvPython -c "import sys; sys.path.insert(0, r'$script:backendPath'); from main import app" 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "  Error al importar aplicación. Reinstalando..." -ForegroundColor Magenta
-                Safe-RemoveVenv $venvPath
+                Remove-VenvSafely $venvPath
                 $venvNeedsReinstall = $true
             } else {
                 Write-Host "  Entorno virtual saludable." -ForegroundColor Green
@@ -237,10 +305,10 @@ function Start-Application {
         python -m venv $venvPath
 
         # 1. Instalar uv (toma 1 segundo)
-        & $venvPython -m pip install uv --quiet
+        & $script:venvPython -m pip install uv --quiet
 
         # 2. Usar uv para instalar el requirements (10x - 100x más rápido)
-        & $venvPython -m uv pip install -r (Join-Path $backendPath "requirements.txt")
+        & $script:venvPython -m uv pip install -r (Join-Path $script:backendPath "requirements.txt")
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  ERROR: Falló la instalación de dependencias con uv. Revisa requirements.txt" -ForegroundColor Red
@@ -253,8 +321,8 @@ function Start-Application {
     Write-Host "[4/5] Iniciando Backend..."  -ForegroundColor Yellow
     
     # Inicia como proceso oculto, enrutando StdOut y StdErr al Log
-    $backendErrorLog = Join-Path $scriptPath "backend_error.log"
-    Start-Process -FilePath $venvPython -ArgumentList "-m uvicorn main:app --host 0.0.0.0 --port 8001" -WorkingDirectory $backendPath -WindowStyle Hidden -RedirectStandardOutput $backendLog -RedirectStandardError $backendErrorLog
+    $backendErrorLog = Join-Path $script:scriptPath "backend_error.log"
+    Start-Process -FilePath $script:venvPython -ArgumentList "-m uvicorn main:app --host 0.0.0.0 --port 8001" -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendLog -RedirectStandardError $backendErrorLog
 
     # Health Check Polling (Evitar Race Condition)
     Write-Host "  Esperando a que el backend esté listo..." -ForegroundColor Yellow
@@ -283,16 +351,16 @@ function Start-Application {
 
     # 5. Frontend (Self-Healing + Start)
     Write-Host "[5/5] Preparando e Iniciando Frontend..."  -ForegroundColor Yellow
-    if (-not (Test-Path $nodeModules)) {
+    if (-not (Test-Path $script:nodeModules)) {
         Write-Host "  Dependencias de Node no detectadas. Instalando..." -ForegroundColor Magenta
-        Push-Location $frontendPath
+        Push-Location $script:frontendPath
         npm install
         Pop-Location
     }
 
     # Inicia Vite oculto enrutando logs
-    $frontendErrorLog = Join-Path $scriptPath "frontend_error.log"
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run dev" -WorkingDirectory $frontendPath -WindowStyle Hidden -RedirectStandardOutput $frontendLog -RedirectStandardError $frontendErrorLog
+    $frontendErrorLog = Join-Path $script:scriptPath "frontend_error.log"
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run dev" -WorkingDirectory $script:frontendPath -WindowStyle Hidden -RedirectStandardOutput $script:frontendLog -RedirectStandardError $frontendErrorLog
 
     Start-Sleep -Seconds 3
 
@@ -327,9 +395,9 @@ function Show-Logs {
     switch ($choice) {
         '1' {
             Write-Host "Mostrando últimas 30 líneas del Backend (Ctrl+C para volver):" -ForegroundColor Cyan
-            if (Test-Path $backendLog) {
+            if (Test-Path $script:backendLog) {
                 # -Wait permite leer el log en tiempo real como un 'tail -f' de Linux
-                Get-Content $backendLog -Tail 30 -Wait
+                Get-Content $script:backendLog -Tail 30 -Wait
             } else {
                 Write-Host "Log vacío o no existe." -ForegroundColor Red
                 Read-Host "Presiona Enter para continuar..."
@@ -337,8 +405,8 @@ function Show-Logs {
         }
         '2' {
             Write-Host "Mostrando últimas 30 líneas del Frontend (Ctrl+C para volver):" -ForegroundColor Cyan
-            if (Test-Path $frontendLog) {
-                Get-Content $frontendLog -Tail 30 -Wait
+            if (Test-Path $script:frontendLog) {
+                Get-Content $script:frontendLog -Tail 30 -Wait
             } else {
                 Write-Host "Log vacío o no existe." -ForegroundColor Red
                 Read-Host "Presiona Enter para continuar..."
@@ -357,7 +425,15 @@ while ($true) {
         '1' { Start-Application }
         '2' { Stop-AllProcesses }
         '3' { Show-Logs }
-        '4' {
+        '4' { 
+            Write-Host "Iniciando mantenimiento profundo..." -ForegroundColor Cyan
+            Stop-SpecificPorts | Out-Null
+            Remove-VenvSafely (Join-Path $script:backendPath "venv")
+            if (Test-Path $script:nodeModules) { Remove-Item -Recurse -Force $script:nodeModules }
+            Write-Host "Limpieza completada. Inicia de nuevo para reinstalar todo." -ForegroundColor Green
+            Read-Host "Presiona Enter para continuar..."
+        }
+        '5' {
             Write-Host "Cerrando aplicativo de forma segura..." -ForegroundColor Yellow
             Stop-SpecificPorts | Out-Null
             exit
