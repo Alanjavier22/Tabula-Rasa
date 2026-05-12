@@ -385,6 +385,7 @@ export const configAPI = {
 export const driveConfigAPI = {
   getStatus: () => api.get('/config/drive/status'),
   setCredentials: (data: any) => api.post('/config/drive', data),
+  getAuthUrl: () => api.get('/backup/google/auth-url'),
   test: () => api.post('/config/drive/test'),
 };
 
