@@ -954,6 +954,12 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      <footer className="fixed bottom-4 right-6 opacity-30 hover:opacity-100 transition-opacity duration-700">
+        <p className="text-slate-500 text-[9px] uppercase tracking-[0.2em] font-medium">
+          Desarrollado con ☕ por <span className="text-slate-300">Alan Javier Mejia Alvarez</span>
+        </p>
+      </footer>
     </div>
   </div>
 );
