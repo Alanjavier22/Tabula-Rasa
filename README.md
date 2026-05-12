@@ -101,7 +101,14 @@ El inventario de tus activos y pasivos.
 * Rastreador automático de pagos recurrentes (Netflix, AWS, Gimnasio).
 * Cálculo de costo mensualizado y anualizado para evaluar el impacto a largo plazo de las membresías.
 
-### 6. ⚙️ Configuración y SRI (Compliance & Settings)
+### 6. ☁️ Copias de Seguridad (Cloud Backup & Sync)
+Tabula Rasa ahora integra una solución de respaldos soberana sobre Google Drive:
+* **Google Drive OAuth2 Native Flow**: Integración directa mediante un flujo manual ultra-robusto que garantiza privacidad absoluta sin intermediarios.
+* **Respaldos Automatizados**: Crea copias cifradas de tu base de datos SQLite y las sube automáticamente a tu unidad personal.
+* **Gestión de Versiones**: Lista, restaura o elimina copias de seguridad directamente desde el panel de control.
+* **Sistema Pre-Restore Safety**: Antes de cada restauración, el sistema crea un backup local preventivo (Rollback) para evitar pérdida de datos accidental.
+
+### 7. ⚙️ Configuración y SRI (Compliance & Settings)
 * **Gestor de Base de Datos**: Importación/Exportación cruda de la base de datos en formato JSON para portabilidad absoluta (Data Freedom). Capacidad de "Clean Wipe" para purgar historiales reteniendo configuraciones estructurales.
 * **Gestor de Categorías Arborescentes**: Soporte para Parent-Child categories con asignación hexadecimal de color.
 * **Reglas Fiscales (SRI)**: Asignación de topes legales deducibles por categoría tributaria ecuatoriana y gestión de llaves API (Gemini).
