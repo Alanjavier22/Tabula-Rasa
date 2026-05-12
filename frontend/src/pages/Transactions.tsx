@@ -1,10 +1,10 @@
 import { useState, memo, useDeferredValue, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { transactionsAPI, categoriesAPI, accountsAPI, goalsAPI } from '../services/api';
 import type { TransactionType, PaymentMethod, ExpenseType } from '../types';
 import { formatMoney, toCents } from '../utils/money';
-import { Plus, Trash2, Edit, Upload, Mic, MicOff, FileImage, Search, Bot, TrendingUp, CreditCard } from 'lucide-react';
+import { Plus, Trash2, Edit, Upload, Mic, MicOff, FileImage, Search, Bot, CreditCard } from 'lucide-react';
 import { aiAPI } from '../services/api';
 import AccountImportModal from '../components/AccountImportModal';
 import DocumentImportModal from '../components/DocumentImportModal';
