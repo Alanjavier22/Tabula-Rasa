@@ -83,6 +83,7 @@ const Settings = () => {
   const [exporting, setExporting] = useState(false);
   const [testingGemini, setTestingGemini] = useState(false);
   const [testingDrive, setTestingDrive] = useState(false);
+  const [authorizingDrive, setAuthorizingDrive] = useState(false);
 
   const tabs = [
     { id: 'general', label: 'General', icon: SettingsIcon, color: 'text-blue-400' },
@@ -272,7 +273,6 @@ const Settings = () => {
     try {
       await driveConfigAPI.setCredentials(driveCredentials);
       setToast({ message: 'Credenciales de Google Drive vinculadas', type: 'success' });
-      setDriveCredentials({ client_id: '', client_secret: '', refresh_token: '' });
       await loadDriveCredentials();
     } catch (error) {
       console.error('Error saving Google Drive credentials:', error);
@@ -297,6 +297,24 @@ const Settings = () => {
       setToast({ message: 'Error al crear backup', type: 'error' });
     } finally {
       setCreatingBackup(false);
+    }
+  };
+
+  const handleAuthorizeDrive = async () => {
+    setAuthorizingDrive(true);
+    try {
+      const res = await driveConfigAPI.getAuthUrl();
+      if (res.data.auth_url) {
+        // Open authorization URL in a new window
+        window.open(res.data.auth_url, '_blank', 'width=600,height=600');
+        setToast({ message: 'Se ha abierto la ventana de autorización de Google', type: 'warning' });
+      }
+    } catch (error: any) {
+      console.error('Error getting auth URL:', error);
+      const msg = error.response?.data?.detail || 'Error al iniciar autorización';
+      setToast({ message: msg, type: 'error' });
+    } finally {
+      setAuthorizingDrive(false);
     }
   };
 
@@ -588,14 +606,25 @@ const Settings = () => {
                           </div>
                         </div>
                         
-                        <button
-                          onClick={handleSaveDriveCredentials}
-                          disabled={savingDriveCredentials}
-                          className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-xs font-black uppercase tracking-widest"
-                        >
-                          {savingDriveCredentials ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 text-blue-400" />}
-                          <span>Vincular Cuenta</span>
-                        </button>
+                        <div className="flex flex-wrap gap-4">
+                          <button
+                            onClick={handleSaveDriveCredentials}
+                            disabled={savingDriveCredentials}
+                            className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-xs font-black uppercase tracking-widest disabled:opacity-50"
+                          >
+                            {savingDriveCredentials ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 text-blue-400" />}
+                            <span>Guardar Credenciales</span>
+                          </button>
+
+                          <button
+                            onClick={handleAuthorizeDrive}
+                            disabled={authorizingDrive || (!driveCredentials.client_id && !hasDriveCredentials)}
+                            className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-900/40 disabled:opacity-30"
+                          >
+                            {authorizingDrive ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                            <span>Autorizar con Google</span>
+                          </button>
+                        </div>
                       </div>
                     </section>
 
