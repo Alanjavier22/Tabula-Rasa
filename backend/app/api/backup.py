@@ -15,15 +15,19 @@ from app.utils.backup import (
     parse_backup_timestamp,
     list_pre_restore_backups,
     delete_pre_restore_backup,
-    rollback_to_pre_restore
+    rollback_to_pre_restore,
+    get_google_drive_credentials
 )
+from fastapi.responses import HTMLResponse
 import logging
+import os
+import requests
+from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
-    prefix="/backup", 
-    tags=["Backup"], 
-    dependencies=[Depends(get_current_device)]
+    prefix="/backup",
+    tags=["Backup"]
 )
 
 
@@ -83,7 +87,7 @@ class RollbackRequest(BaseModel):
     backup_path: str
 
 
-@router.post("/manual", response_model=ManualBackupResponse)
+@router.post("/manual", dependencies=[Depends(get_current_device)], response_model=ManualBackupResponse)
 def create_manual_backup(db: Session = Depends(get_db)):
     """
     Trigger a manual backup to Google Drive.
@@ -109,7 +113,7 @@ def create_manual_backup(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error al crear backup: {str(e)}")
 
 
-@router.get("/list", response_model=BackupsListResponse)
+@router.get("/list", dependencies=[Depends(get_current_device)], response_model=BackupsListResponse)
 def list_google_drive_backups(db: Session = Depends(get_db)):
     """
     List all available backups from Google Drive.
@@ -155,7 +159,7 @@ def list_google_drive_backups(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error al listar backups: {str(e)}")
 
 
-@router.post("/restore/{backup_id}", response_model=RestoreResponse)
+@router.post("/restore/{backup_id}", dependencies=[Depends(get_current_device)], response_model=RestoreResponse)
 def restore_from_drive(backup_id: str, request: RestoreRequest = None, db: Session = Depends(get_db)):
     """
     Restore database from a specific Google Drive backup with safety validations.
@@ -171,7 +175,6 @@ def restore_from_drive(backup_id: str, request: RestoreRequest = None, db: Sessi
     try:
         # If request body is provided, use it; otherwise create default
         if request is None:
-            from pydantic import parse_obj_as
             request = RestoreRequest(backup_id=backup_id, confirmed=False, create_pre_restore_backup=True)
         else:
             request.backup_id = backup_id
@@ -215,7 +218,7 @@ def restore_from_drive(backup_id: str, request: RestoreRequest = None, db: Sessi
         raise HTTPException(status_code=500, detail=f"Error al restaurar backup: {str(e)}")
 
 
-@router.get("/pre-restore/list", response_model=PreRestoreListResponse)
+@router.get("/pre-restore/list", dependencies=[Depends(get_current_device)], response_model=PreRestoreListResponse)
 def list_pre_restore_backups_endpoint(db: Session = Depends(get_db)):
     """
     List all local pre-restore backup files.
@@ -246,7 +249,7 @@ def list_pre_restore_backups_endpoint(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error al listar backups pre-restauración: {str(e)}")
 
 
-@router.post("/pre-restore/delete")
+@router.post("/pre-restore/delete", dependencies=[Depends(get_current_device)])
 def delete_pre_restore_backup_endpoint(request: DeletePreRestoreRequest, db: Session = Depends(get_db)):
     """
     Delete a specific pre-restore backup file.
@@ -271,7 +274,7 @@ def delete_pre_restore_backup_endpoint(request: DeletePreRestoreRequest, db: Ses
         raise HTTPException(status_code=500, detail=f"Error al eliminar backup pre-restauración: {str(e)}")
 
 
-@router.post("/pre-restore/rollback", response_model=RestoreResponse)
+@router.post("/pre-restore/rollback", dependencies=[Depends(get_current_device)], response_model=RestoreResponse)
 def rollback_to_pre_restore_endpoint(request: RollbackRequest, db: Session = Depends(get_db)):
     """
     Rollback to a pre-restore backup (reverts a previous restore operation).
@@ -297,3 +300,102 @@ def rollback_to_pre_restore_endpoint(request: RollbackRequest, db: Session = Dep
     except Exception as e:
         logger.error(f"[BACKUP_API] Error during rollback: {e}")
         raise HTTPException(status_code=500, detail=f"Error durante rollback: {str(e)}")
+
+
+@router.get("/google/auth-url", dependencies=[Depends(get_current_device)])
+def get_google_auth_url(db: Session = Depends(get_db)):
+    """
+    Generates the Google OAuth2 authorization URL manually to avoid PKCE issues.
+    """
+    from app.models.config import Config
+    
+    client_id_cfg = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_ID").first()
+    
+    if not client_id_cfg:
+        raise HTTPException(status_code=400, detail="Client ID debe estar configurado primero.")
+    
+    redirect_uri = "http://localhost:8001/backup/google/callback"
+    
+    params = {
+        "client_id": client_id_cfg.value,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "https://www.googleapis.com/auth/drive",
+        "access_type": "offline",
+        "prompt": "consent",
+        "include_granted_scopes": "true"
+    }
+    
+    auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+    return {"auth_url": auth_url}
+
+
+@router.get("/google/callback")
+def google_oauth_callback(code: str, db: Session = Depends(get_db)):
+    """
+    Callback for Google OAuth2. Exchanges authorization code for tokens manually.
+    """
+    from app.models.config import Config
+    
+    client_id_cfg = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_ID").first()
+    client_secret_cfg = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_SECRET").first()
+    
+    if not client_id_cfg or not client_secret_cfg:
+        return HTMLResponse(content="Error: Client ID o Client Secret no configurados.")
+
+    redirect_uri = "http://localhost:8001/backup/google/callback"
+    
+    try:
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": client_id_cfg.value,
+            "client_secret": client_secret_cfg.value,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code"
+        }
+        
+        response = requests.post(token_url, data=data)
+        tokens = response.json()
+        
+        if "error" in tokens:
+            logger.error(f"[GOOGLE_AUTH] Error from Google: {tokens}")
+            return HTMLResponse(content=f"Error de Google: {tokens.get('error_description', tokens['error'])}")
+            
+        refresh_token = tokens.get("refresh_token")
+        
+        if not refresh_token:
+            return HTMLResponse(content="""
+                <html>
+                    <body style="font-family: sans-serif; text-align: center; padding-top: 50px; background: #1a1a2e; color: white;">
+                        <h2 style="color: #f9ca24;">Atención</h2>
+                        <p>No se recibió un nuevo Refresh Token. Esto sucede si ya habías autorizado antes.</p>
+                        <p>Google solo envía el Refresh Token la primera vez o si usas 'prompt=consent'.</p>
+                        <button onclick="window.close()" style="padding: 10px 20px; background: #4ecca3; border: none; border-radius: 5px; color: #1a1a2e; cursor: pointer;">Cerrar ventana</button>
+                    </body>
+                </html>
+            """)
+
+        # Save Refresh Token to DB
+        token_cfg = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
+        if not token_cfg:
+            token_cfg = Config(key="GOOGLE_DRIVE_REFRESH_TOKEN", value=refresh_token, value_type="string", is_public=False)
+            db.add(token_cfg)
+        else:
+            token_cfg.value = refresh_token
+        
+        db.commit()
+        
+        return HTMLResponse(content="""
+            <html>
+                <body style="font-family: sans-serif; text-align: center; padding-top: 50px; background: #1a1a2e; color: white;">
+                    <h2 style="color: #4ecca3;">¡Autorización Exitosa!</h2>
+                    <p>El Refresh Token ha sido guardado correctamente en la base de datos.</p>
+                    <p>Ya puedes cerrar esta ventana y regresar al Dashboard.</p>
+                    <button onclick="window.close()" style="padding: 10px 20px; background: #4ecca3; border: none; border-radius: 5px; color: #1a1a2e; cursor: pointer;">Cerrar ventana</button>
+                </body>
+            </html>
+        """)
+    except Exception as e:
+        logger.error(f"[GOOGLE_AUTH] Error: {str(e)}")
+        return HTMLResponse(content=f"Error interno: {str(e)}")
