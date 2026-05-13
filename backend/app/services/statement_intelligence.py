@@ -13,6 +13,7 @@ from app.models.transaction import Transaction
 from app.models.import_log import ImportLog
 from app.models.credit_card_statement import CreditCardStatement, StatementStatus
 from app.models.category import Category
+from app.services.categorizer import get_semantic_category
 
 class ExtractedTransaction(BaseModel):
     date: str = Field(description="Fecha de la transacción en formato YYYY-MM-DD")
@@ -46,9 +47,9 @@ class StatementIntelligenceService:
         config = self.db.query(Config).filter(Config.key == "gemini_api_key").first()
         return config.value if config else None
 
-    def generate_fingerprint(self, date: str, description: str, amount_cents: int, account_id: str) -> str:
-        """Genera un hash único para evitar duplicados."""
-        raw_str = f"{date}|{description.strip().upper()}|{amount_cents}|{account_id}"
+    def generate_fingerprint(self, date: str, description: str, amount_cents: int, account_id: str, deferred_info: str = "", index: int = 0) -> str:
+        """Generates a unique hash, including deferred info and index to disambiguate identical transactions."""
+        raw_str = f"{date}|{description.strip().upper()}|{amount_cents}|{account_id}|{deferred_info}|{index}"
         return hashlib.sha256(raw_str.encode()).hexdigest()
 
     async def parse_statement(self, file_path: str, account_id: str, expected_bank_name: str = None) -> Dict:
@@ -97,85 +98,82 @@ class StatementIntelligenceService:
         # Soporte para PDF o Imágenes
         mime_type = "application/pdf" if file_path.lower().endswith(".pdf") else "image/jpeg"
 
-        response = client.models.generate_content(
-            model='gemini-3.1-flash-lite', 
-            contents=[
-                types.Part.from_bytes(data=file_data, mime_type=mime_type),
-                prompt
-            ],
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                response_schema=StatementParsingResponse,
-            )
-        )
-
-        parsed_data = json.loads(response.text)
+        # Llamada a Gemini con Reintentos (Exponential Backoff más agresivo)
+        import time
+        max_retries = 5
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model='gemini-3.1-flash-lite', 
+                    contents=[
+                        types.Part.from_bytes(data=file_data, mime_type=mime_type),
+                        prompt
+                    ],
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=StatementParsingResponse,
+                    )
+                )
+                # Si llegamos aquí, la llamada fue exitosa
+                parsed_data = json.loads(response.text)
+                break
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 3 # 3s, 6s, 9s, 12s...
+                    time.sleep(wait_time)
+                else:
+                    raise ValueError(f"IA no disponible tras {max_retries} intentos. Google reporta: {str(e)}")
         
         # Motor de Deduplicación Progresiva (Universal) — Adaptado para Tarjetas de Crédito
+        # ── TIER 4: Batch Categorization ──
+        from app.services.categorizer import categorize_batch
+        
+        # Preparar lista para el categorizador
+        batch_input = [
+            {
+                'description': tx['description'],
+                'amount': tx['amount_cents'],
+                'transaction_type': tx['transaction_type']
+            }
+            for tx in parsed_data['transactions']
+        ]
+        
+        # Obtener categorías en bloque
+        cat_results = categorize_batch(batch_input, self.db)
+        
+        # Enriquecer transacciones con los resultados del lote
+        categories_dict = {c.id: c.name for c in self.db.query(Category).all()}
+        
         enriched_transactions = []
-        seen_in_batch = {}  # batch_key -> count para detectar duplicados intra-archivo
+        seen_in_batch = {}
 
-        for tx in parsed_data['transactions']:
-            fp = self.generate_fingerprint(tx['date'], tx['description'], tx['amount_cents'], account_id)
-            dt = datetime.fromisoformat(tx['date'])
-            is_deferred_tx = tx.get('is_deferred', False) or "DIFERIDO" in tx['description'].upper()
-            
-            # ── TIER 1: Fingerprint exacto ──
-            existing = self.db.query(Transaction).filter(Transaction.fingerprint == fp).first()
-
-            # ── TIER 2: Búsqueda por fecha + monto + cuenta ──
-            if not existing:
-                if is_deferred_tx:
-                    # Para diferidos, buscamos en todo el mes (la fecha exacta varía entre cortes)
-                    candidates = self.db.query(Transaction).filter(
-                        func.strftime('%Y-%m', Transaction.date) == dt.strftime('%Y-%m'),
-                        Transaction.amount == abs(tx['amount_cents']),
-                        Transaction.account_id == account_id
-                    ).all()
-                else:
-                    # Para consumos normales, día exacto
-                    candidates = self.db.query(Transaction).filter(
-                        func.date(Transaction.date) == dt.date(),
-                        Transaction.amount == abs(tx['amount_cents']),
-                        Transaction.account_id == account_id
-                    ).all()
-
-                if candidates:
-                    tx_desc_clean = tx['description'].upper().strip()
-                    
-                    if len(candidates) == 1:
-                        candidate = candidates[0]
-                        # Para tarjetas no tenemos running_balance, confiamos en la coincidencia base
-                        # pero verificamos descripción para mayor seguridad
-                        db_desc_clean = candidate.description.upper().strip()
-                        if tx_desc_clean in db_desc_clean or db_desc_clean in tx_desc_clean:
-                            existing = candidate
-                        elif candidate.running_balance is not None and tx.get('balance_cents') is not None:
-                            if candidate.running_balance == tx['balance_cents']:
-                                existing = candidate
-                        else:
-                            # Sin más señales para desambiguar, asumimos coincidencia
-                            existing = candidate
-                    else:
-                        # Múltiples candidatos: emparejar por descripción
-                        for candidate in candidates:
-                            db_desc_clean = candidate.description.upper().strip()
-                            if tx_desc_clean in db_desc_clean or db_desc_clean in tx_desc_clean:
-                                existing = candidate
-                                break
-
-            # ── TIER 3: Deduplicación intra-batch ──
-            # En tarjetas de crédito no hay saldo progresivo, así que usamos
-            # deferred_info como diferenciador adicional cuando está disponible.
+        for idx, tx in enumerate(parsed_data['transactions']):
             deferred_key = tx.get('deferred_info', '')
-            batch_key = f"{tx['date']}_{tx['amount_cents']}_{tx['description'].strip().upper()}_{deferred_key}"
             
-            is_batch_duplicate = batch_key in seen_in_batch
-            seen_in_batch[batch_key] = seen_in_batch.get(batch_key, 0) + 1
-
+            # Detectamos cuántas veces hemos visto esta misma combinación en este lote
+            batch_key = f"{tx['date']}_{tx['amount_cents']}_{tx['description'].strip().upper()}_{deferred_key}"
+            occurrence_index = seen_in_batch.get(batch_key, 0)
+            seen_in_batch[batch_key] = occurrence_index + 1
+            
+            fp = self.generate_fingerprint(tx['date'], tx['description'], tx['amount_cents'], account_id, deferred_key, occurrence_index)
+            
             tx_dict = tx.copy()
             tx_dict['fingerprint'] = fp
+            
+            # Usar resultado del batch
+            cat_id = cat_results.get(idx)
+            tx_dict['category_id'] = cat_id
+            if cat_id in categories_dict:
+                tx_dict['category_name'] = categories_dict[cat_id]
+            
+            # Verificar duplicados reales en DB
+            existing = self.db.query(Transaction).filter(Transaction.fingerprint == fp, Transaction.is_deleted == False).first()
+            
+            is_batch_duplicate = occurrence_index > 0
             tx_dict['is_duplicate'] = (existing is not None) or is_batch_duplicate
             enriched_transactions.append(tx_dict)
 
@@ -192,7 +190,8 @@ class StatementIntelligenceService:
             new_txs_count = 0
             earliest_date = datetime.now().date()
 
-            for tx_data in confirmed_transactions:
+            # We reverse to insert from OLDEST to NEWEST
+            for tx_data in reversed(confirmed_transactions):
                 # Solo insertamos si no es duplicado o si el usuario fuerza la inserción
                 if not tx_data.get('is_duplicate', False):
                     dt = datetime.fromisoformat(tx_data['date'])
@@ -200,11 +199,16 @@ class StatementIntelligenceService:
                         earliest_date = dt.date()
 
                     # Buscar ID de la categoría sugerida
-                    category_id = None
-                    if tx_data.get('category_name'):
-                        cat = self.db.query(Category).filter(Category.name == tx_data['category_name']).first()
-                        if cat:
-                            category_id = cat.id
+                    # Use the category_id from the confirmed data if available, 
+                    # otherwise fallback to re-calculating (safety)
+                    category_id = tx_data.get('category_id')
+                    if not category_id and tx_data.get('description'):
+                        category_id = get_semantic_category(
+                            tx_data['description'], 
+                            tx_data['amount_cents'], 
+                            self.db, 
+                            tx_data['transaction_type']
+                        )
 
                     new_tx = Transaction(
                         description=tx_data['description'],
@@ -279,6 +283,9 @@ class StatementIntelligenceService:
             if new_txs_count > 0:
                 from app.services.snapshot_service import mark_snapshots_as_stale
                 mark_snapshots_as_stale(self.db, earliest_date.month, earliest_date.year)
+                # Recalcular saldo de la cuenta
+                from app.services.balance import recalculate_account_balance
+                recalculate_account_balance(self.db, log.account_id)
 
             return new_txs_count
         except Exception as e:
