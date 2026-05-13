@@ -56,6 +56,7 @@ class Transaction(Base):
     is_manual = Column(Boolean, default=False, nullable=False)  # Bloquea cambios automáticos de IA
     fingerprint = Column(String, unique=True, index=True, nullable=True)  # Hash único robusto
     import_log_id = Column(String(36), ForeignKey("import_logs.id", ondelete="SET NULL"), nullable=True)
+    beneficiary = Column(String, nullable=True)  # Beneficiario/pagador (ej: "DLC UBER RIDES", "376653XXXXXX0754")
 
     # Relationships
     category = relationship("Category", back_populates="transactions")
