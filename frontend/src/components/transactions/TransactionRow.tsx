@@ -66,6 +66,14 @@ export const TransactionRow = memo<TransactionRowProps>(({ transaction, onEdit, 
           )}
         </div>
         <div className="flex items-center gap-2">
+          {(transaction as any).beneficiary && (
+            <>
+              <p className="text-[11px] font-medium text-indigo-400/60 truncate max-w-[180px]" title={(transaction as any).beneficiary}>
+                → {(transaction as any).beneficiary}
+              </p>
+              <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+            </>
+          )}
           <p className="text-[11px] font-medium text-slate-500">{transaction.date}</p>
           <span className="w-1 h-1 rounded-full bg-slate-700"></span>
           <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
