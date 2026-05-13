@@ -37,6 +37,8 @@ class IOUUpdate(BaseModel):
     due_date: Optional[str] = None
 
 
+from datetime import datetime
+
 class IOUResponse(BaseModel):
     id: str
     person_name: str
@@ -45,9 +47,9 @@ class IOUResponse(BaseModel):
     status: IOUStatus
     transaction_id: Optional[str] = None
     description: Optional[str] = None
-    due_date: Optional[str] = None
-    created_at: str
-    updated_at: str
+    due_date: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
     version: int  # FASE 7: OCC versioning
 
     class Config:
