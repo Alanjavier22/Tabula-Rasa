@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import Decimal from 'decimal.js-light';
-import { accountsAPI, statementsAPI, metricsAPI, budgetsAPI, snapshotsAPI, alertsAPI, transactionsAPI, subscriptionsAPI as subsAPI, categoriesAPI, goalsAPI } from '../services/api';
+import { accountsAPI, statementsAPI, metricsAPI, budgetsAPI, snapshotsAPI, alertsAPI, transactionsAPI, subscriptionsAPI as subsAPI, categoriesAPI, goalsAPI, iousAPI } from '../services/api';
 import { formatMoney, toDecimal, clampZero } from '../utils/money';
 import Toast from '../components/Toast';
 import type { Account, CreditCardStatement, SafeToSpendResponse, NetWorthResponse, VehicleTelemetryResponse, CashFlowForecastResponse, DashboardSummaryResponse, AlertsResponse } from '../types';
@@ -74,6 +74,12 @@ const Dashboard = () => {
   // React Query: Fetch multiple metrics and data in parallel
   const results = useQueries({
     queries: [
+      {
+        queryKey: ['pendingIOUs'],
+        queryFn: () => iousAPI.getPending().then(res => res.data),
+        refetchOnWindowFocus: true,
+        refetchOnMount: true
+      },
       { queryKey: ['accounts'], queryFn: () => accountsAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
       { queryKey: ['statements'], queryFn: () => statementsAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
       { queryKey: ['safeToSpend'], queryFn: async () => {
@@ -138,17 +144,18 @@ const Dashboard = () => {
     ]
   });
 
-  const accounts = (results[0].data as Account[]) || [];
-  const statements = (results[1].data as CreditCardStatement[]) || [];
-  const safeToSpend = (results[2].data as unknown) as SafeToSpendResponse | undefined;
-  const netWorth = results[3].data as NetWorthResponse | undefined;
-  const vehicleTelemetry = results[4].data as VehicleTelemetryResponse | undefined;
-  const cashFlowForecast = results[6].data as CashFlowForecastResponse | undefined;
-  const transactions = (results[7].data as any[]) || [];
-  const subscriptions = (results[8].data as any[]) || [];
-  const categories = (results[9].data as any[]) || [];
-  const goals = (results[12].data as any[]) || [];
-  const dashboardSummary = results[10].data as DashboardSummaryResponse | undefined;
+  const pendingIOUs = (results[0].data as any[]) || [];
+  const accounts = (results[1].data as Account[]) || [];
+  const statements = (results[2].data as CreditCardStatement[]) || [];
+  const safeToSpend = (results[3].data as unknown) as SafeToSpendResponse | undefined;
+  const netWorth = results[4].data as NetWorthResponse | undefined;
+  const vehicleTelemetry = results[5].data as VehicleTelemetryResponse | undefined;
+  const cashFlowForecast = results[7].data as CashFlowForecastResponse | undefined;
+  const transactions = (results[8].data as any[]) || [];
+  const subscriptions = (results[9].data as any[]) || [];
+  const categories = (results[10].data as any[]) || [];
+  const goals = (results[13].data as any[]) || [];
+  const dashboardSummary = results[11].data as DashboardSummaryResponse | undefined;
 
   const insightsMutation = useMutation({
     mutationFn: () => metricsAPI.getInsights(),
@@ -226,18 +233,32 @@ const Dashboard = () => {
     new Decimal(0)
   ), [latestStatements]);
 
-  const totalThirdPartyDebt = useMemo(() => latestStatements.reduce(
-    (sum, s) => sum.plus(
-      (s.debt_shares ?? []).reduce(
-        (ds: Decimal, d: any) => ds.plus(d.status === 'pending' ? toDecimal(d.amount) : 0),
-        new Decimal(0)
-      )
-    ),
-    new Decimal(0)
-  ), [latestStatements]);
-
   // La deuda neta es lo que debo pagar menos lo que me deben terceros
-  const totalStatementDue = useMemo(() => totalStatementGross.minus(totalThirdPartyDebt), [totalStatementGross, totalThirdPartyDebt]);
+  const totalIOUsTheyOwe = useMemo(() => {
+    return (pendingIOUs || [])
+      .filter((iou: any) => {
+        const type = String(iou.iou_type || '').toLowerCase();
+        return type === 'they_owe' || type.includes('they_owe');
+      })
+      .reduce((sum: Decimal, iou: any) => sum.plus(toDecimal(iou.amount)), new Decimal(0));
+  }, [pendingIOUs]);
+
+  const totalThirdPartyDebt = useMemo(() => {
+    const debtSharesSum = latestStatements.reduce(
+      (sum, s) => sum.plus(
+        (s.debt_shares ?? []).reduce(
+          (ds: Decimal, d: any) => ds.plus(d.status === 'pending' ? toDecimal(d.amount) : 0),
+          new Decimal(0)
+        )
+      ),
+      new Decimal(0)
+    );
+    return debtSharesSum.plus(totalIOUsTheyOwe);
+  }, [latestStatements, totalIOUsTheyOwe]);
+
+  // La deuda de tarjetas "tuya" ya está calculada en user_share (que excluye lo que deben terceros en el estado de cuenta).
+  // No restamos totalThirdPartyDebt aquí porque causaría una doble resta.
+  const totalStatementDue = useMemo(() => totalStatementGross, [totalStatementGross]);
 
   const expenseBreakdown = useMemo(() => dashboardSummary?.expense_breakdown ?? [], [dashboardSummary]);
 
@@ -548,7 +569,6 @@ const Dashboard = () => {
         <IOUWidget />
       </div>
 
-      {/* Debt Shares Widget - Deudas Compartidas */}
       <div className="mb-6">
         <DebtSharesWidget statements={statements} />
       </div>
