@@ -23,8 +23,8 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
   const pendingShares = allDebtShares.filter(ds => ds.status === 'pending');
   const totalPending = pendingShares.reduce((sum, ds) => sum + ds.amount, 0);
 
-  // Show widget if there are statements (for credit cards) or existing debt shares
-  if (statements.length === 0 && allDebtShares.length === 0) {
+  // Show widget only if there are debt shares to display
+  if (allDebtShares.length === 0) {
     return null;
   }
 
@@ -85,9 +85,7 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
     }
   };
 
-  if (allDebtShares.length === 0) {
-    return null;
-  }
+
 
   return (
     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
@@ -96,7 +94,16 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
           <Users className="w-5 h-5 text-purple-400" />
           <h3 className="text-lg font-semibold text-white">Deudas Compartidas</h3>
         </div>
-        <span className="text-xs text-slate-400">{allDebtShares.length} deuda(s)</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400">{allDebtShares.length} deuda(s)</span>
+          <button 
+            onClick={handleAddDebtShare}
+            className="p-1 hover:bg-purple-500/20 rounded-lg text-purple-400 transition-colors"
+            title="Agregar deuda manual"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -113,23 +120,26 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
       {/* List */}
       <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
         {allDebtShares.map(ds => (
-          <div key={ds.id} className="flex items-center justify-between p-2 bg-slate-700/30 rounded-lg">
+          <div key={ds.id} className="flex items-center justify-between p-3 bg-slate-700/30 rounded-xl border border-white/5">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{ds.person_name}</p>
-              <p className="text-xs text-slate-400">{ds.statement.account_name || 'Cuenta desconocida'}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold text-white truncate">{ds.person_name}</p>
+                <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">Mensual</span>
+              </div>
+              <p className="text-[10px] text-slate-400">{ds.statement.account_name || 'Visa Platinum'}</p>
               {ds.description && (
-                <p className="text-xs text-slate-500 truncate">{ds.description}</p>
+                <p className="text-[10px] text-slate-500 italic truncate">"{ds.description}"</p>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <div className="text-right">
-                <p className="text-sm font-semibold text-purple-400">${(ds.amount / 100).toFixed(2)}</p>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                <p className="text-sm font-black text-purple-400">${(ds.amount / 100).toFixed(2)}</p>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                   ds.status === 'paid_to_card' ? 'bg-green-500/20 text-green-400' :
                   ds.status === 'received' ? 'bg-blue-500/20 text-blue-400' :
                   'bg-orange-500/20 text-orange-400'
                 }`}>
-                  {ds.status === 'paid_to_card' ? 'Pagado a tarjeta' : ds.status === 'received' ? 'Recibido' : 'Pendiente'}
+                  {ds.status === 'paid_to_card' ? 'A Tarjeta' : ds.status === 'received' ? 'Recibido' : 'Pendiente'}
                 </span>
               </div>
               <div className="flex gap-1">
