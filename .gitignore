@@ -52,6 +52,7 @@ desktop.ini
 # --- IDE y Editores ---
 .vscode/
 .idea/
+.VSCodeCounter/
 *.swp
 *.swo
 *~
