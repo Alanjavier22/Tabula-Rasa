@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { intelligenceAPI, accountsAPI } from '../services/api';
+import { intelligenceAPI, accountsAPI, categoriesAPI } from '../services/api';
 import { Upload, X, CheckCircle, AlertCircle, FileSpreadsheet, Trash2, Calendar, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 import type { Account } from '../types';
 import Select from './common/Select';
@@ -14,6 +14,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
   const [file, setFile] = useState<File | null>(null);
   const [accountId, setAccountId] = useState<string>('');
   const [bankAccounts, setBankAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [processing, setProcessing] = useState(false);
   
   // Datos extraídos de la IA
@@ -35,6 +36,10 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
       if (bAccounts.length > 0) {
         setAccountId(bAccounts[0].id.toString());
       }
+    });
+    
+    categoriesAPI.getAll().then(res => {
+      setCategories(res.data);
     });
   }, []);
 
@@ -336,14 +341,34 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                           <td className="px-4 py-3 text-sm text-slate-300">{txn.date}</td>
                           <td className="px-4 py-3 text-sm text-white font-medium">
                             {txn.description}
+                            {txn.beneficiary && (
+                              <div className="text-[11px] text-slate-500 font-normal mt-0.5 truncate max-w-[250px]" title={txn.beneficiary}>
+                                → {txn.beneficiary}
+                              </div>
+                            )}
                             {txn.is_duplicate && (
                               <span className="ml-2 px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] rounded-full uppercase font-bold tracking-wider">
                                 Duplicado
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-sm text-slate-400">
-                            {txn.category_name || <span className="italic opacity-50">Sin Categoría</span>}
+                          <td className="px-4 py-3 text-sm">
+                            <select
+                              value={txn.category_id || ''}
+                              onChange={(e) => {
+                                const newCategoryId = e.target.value;
+                                const newCategoryName = categories.find(c => c.id === newCategoryId)?.name || '';
+                                setExtractedTransactions(prev =>
+                                  prev.map((t, i) => i === index ? { ...t, category_id: newCategoryId, category_name: newCategoryName } : t)
+                                );
+                              }}
+                              className="bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 px-2 py-1 text-xs w-full max-w-[200px] focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                            >
+                              <option value="" disabled>Seleccione...</option>
+                              {categories.map(cat => (
+                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                              ))}
+                            </select>
                           </td>
                           <td className={`px-4 py-3 text-sm font-bold text-right ${txn.transaction_type === 'income' ? 'text-blue-400' : 'text-rose-400'}`}>
                             {txn.transaction_type === 'income' ? '+' : '-'}${formatMoney(Math.abs(txn.amount_cents))}
