@@ -46,36 +46,77 @@ def apply_transaction_to_balance(db: Session, transaction: Transaction, reverse:
 
 def recalculate_account_balance(db: Session, account_id: str, initial_balance: int = None) -> int:
     """
-    Recalculate an account's balance from scratch based on initial balance and all transactions.
-    Returns the new computed balance.
+    Recalculate an account's balance with 'Anchor Logic'.
     
-    If initial_balance is not provided, uses the account's current balance as the base
-    (which includes the initial balance configured by the user).
+    1. Search for the most recent transaction with a 'running_balance' (the anchor).
+    2. If found, use it as the base and apply only newer transactions.
+    3. If not found, fall back to the account's base balance or 0 and apply all transactions.
     """
     account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
         return 0
-    
-    # If initial_balance is not provided, use account's current balance as base
-    # This preserves the initial balance configured by the user
-    if initial_balance is None:
-        initial_balance = account.balance
-    
-    transactions = db.query(Transaction).filter(Transaction.account_id == account_id, Transaction.is_deleted == False).all()
-    
-    new_balance = initial_balance
-    for txn in transactions:
-        txn_amount = txn.amount
-        if account.account_type == "credit_card":
-            if txn.transaction_type == TransactionType.EXPENSE:
-                new_balance -= txn_amount
+
+    # 1. Look for the 'Anchor Transaction' (the latest one with a verified running balance)
+    anchor_tx = db.query(Transaction).filter(
+        Transaction.account_id == account_id,
+        Transaction.running_balance.isnot(None),
+        Transaction.is_deleted == False
+    ).order_by(Transaction.date.desc(), Transaction.created_at.desc()).first()
+
+    if anchor_tx:
+        # We found an anchor! This is the bank's absolute truth at that point in time.
+        base_balance = anchor_tx.running_balance
+        anchor_date = anchor_tx.date
+        anchor_id = anchor_tx.id
+        
+        # 2. Get all transactions strictly NEWER than the anchor
+        # We use date and creation time/ID to ensure we don't miss anything or double count
+        newer_transactions = db.query(Transaction).filter(
+            Transaction.account_id == account_id,
+            Transaction.is_deleted == False,
+            Transaction.date >= anchor_date
+        ).all()
+        
+        new_balance = base_balance
+        for txn in newer_transactions:
+            # Skip the anchor itself and any transaction that happened BEFORE it on the same day
+            # (We use created_at to determine the sequence within the same date)
+            if txn.date == anchor_date and txn.created_at <= anchor_tx.created_at:
+                continue
+
+            txn_amount = txn.amount
+            if account.account_type == "credit_card":
+                if txn.transaction_type == TransactionType.EXPENSE:
+                    new_balance -= txn_amount
+                else:
+                    new_balance += txn_amount
             else:
-                new_balance += txn_amount
-        else:
-            if txn.transaction_type == TransactionType.INCOME:
-                new_balance += txn_amount
+                if txn.transaction_type == TransactionType.INCOME:
+                    new_balance += txn_amount
+                else:
+                    new_balance -= txn_amount
+    else:
+        # No anchor found. Fallback to starting from 0 or the current base.
+        # Note: In a cleared DB, this will be 0.
+        new_balance = initial_balance if initial_balance is not None else 0
+        
+        transactions = db.query(Transaction).filter(
+            Transaction.account_id == account_id, 
+            Transaction.is_deleted == False
+        ).order_by(Transaction.date.asc()).all()
+        
+        for txn in transactions:
+            txn_amount = txn.amount
+            if account.account_type == "credit_card":
+                if txn.transaction_type == TransactionType.EXPENSE:
+                    new_balance -= txn_amount
+                else:
+                    new_balance += txn_amount
             else:
-                new_balance -= txn_amount
+                if txn.transaction_type == TransactionType.INCOME:
+                    new_balance += txn_amount
+                else:
+                    new_balance -= txn_amount
     
     account.balance = new_balance
     db.commit()
