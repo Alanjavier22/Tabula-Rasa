@@ -56,6 +56,7 @@ class TransactionBase(BaseModel):
     category_id: Optional[str] = None
     account_id: Optional[str] = None
     goal_id: Optional[str] = None  # Vinculación con metas para progreso automático
+    beneficiary: Optional[str] = None
 
 
 class TransactionCreate(TransactionBase):
@@ -73,6 +74,7 @@ class TransactionUpdate(BaseModel):
     account_id: Optional[str] = None
     goal_id: Optional[str] = None  # Vinculación con metas para progreso automático
     splits: Optional[List[TransactionSplitCreate]] = None
+    beneficiary: Optional[str] = None
 
 
 class ImportTransactionsRequest(BaseModel):
@@ -100,6 +102,7 @@ class TransactionResponse(BaseModel):
     account_id: Optional[str] = None
     goal_id: Optional[str] = None  # Vinculación con metas para progreso automático
     splits: List[TransactionSplitResponse] = []
+    beneficiary: Optional[str] = None
     version: int  # FASE 7: OCC versioning
 
     @validator('transaction_type', pre=True)
