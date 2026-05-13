@@ -82,11 +82,11 @@ const IOUWidget = () => {
       <div className="grid grid-cols-2 gap-2 mb-3">
         <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-2 text-center">
           <p className="text-xs text-green-400 mb-1">Me deben</p>
-          <p className="text-lg font-bold text-green-300">${theyOweTotal.toFixed(2)}</p>
+          <p className="text-lg font-bold text-green-300">${(theyOweTotal / 100).toFixed(2)}</p>
         </div>
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2 text-center">
           <p className="text-xs text-red-400 mb-1">Debo</p>
-          <p className="text-lg font-bold text-red-300">${iOweTotal.toFixed(2)}</p>
+          <p className="text-lg font-bold text-red-300">${(iOweTotal / 100).toFixed(2)}</p>
         </div>
       </div>
 
@@ -112,7 +112,7 @@ const IOUWidget = () => {
                 <p className={`text-sm font-semibold ${
                   iou.iou_type === 'they_owe' ? 'text-green-400' : 'text-red-400'
                 }`}>
-                  {iou.iou_type === 'they_owe' ? '+' : '-'}${iou.amount.toFixed(2)}
+                  {iou.iou_type === 'they_owe' ? '+' : '-'}${(iou.amount / 100).toFixed(2)}
                 </p>
                 {iou.due_date && (
                   <div className="flex items-center gap-1 text-xs text-slate-400">
