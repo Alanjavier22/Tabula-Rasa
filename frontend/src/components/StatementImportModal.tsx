@@ -20,6 +20,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
   const [importLogId, setImportLogId] = useState<string | null>(null);
   const [extractedTransactions, setExtractedTransactions] = useState<any[]>([]);
   const [statementMetadata, setStatementMetadata] = useState<any | null>(null);
+  const [auditInfo, setAuditInfo] = useState<any | null>(null);
   
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -102,8 +103,11 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
           payment_due_date: parsed.payment_due_date,
           cut_off_date: parsed.cut_off_date,
           total_new_consumos_cents: parsed.total_new_consumos_cents,
-          total_pagos_cents: parsed.total_pagos_cents
+          total_pagos_cents: parsed.total_pagos_cents,
+          credit_limit_cents: parsed.credit_limit_cents
         });
+        
+        setAuditInfo(parsed.audit);
       } else {
         setResult({ success: false, message: 'No se detectaron transacciones en el documento.' });
       }
@@ -284,6 +288,32 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                    </div>
                 </div>
               </div>
+ 
+              {/* Alerta de Auditoría / Discrepancia */}
+              {auditInfo && (!auditInfo.consumos_match || !auditInfo.pagos_match) && (
+                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-amber-500 font-bold text-sm uppercase tracking-wider">Discrepancia detectada en Auditoría 1:1</p>
+                    <p className="text-amber-200/80 text-xs mt-1">
+                      La suma de las transacciones extraídas no coincide exactamente con el resumen del banco. 
+                      Por favor, revisa el documento original para asegurar precisión absoluta.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Método de Extracción */}
+              {auditInfo && (
+                <div className="flex items-center justify-end px-2">
+                  <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-700/30 rounded-full border border-slate-700">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      MÉTODO: {auditInfo.extraction_method}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Tabla de Transacciones */}
               <div className="bg-slate-900/50 rounded-2xl border border-slate-700 overflow-hidden">
