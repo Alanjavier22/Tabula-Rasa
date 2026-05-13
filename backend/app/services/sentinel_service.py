@@ -99,38 +99,54 @@ class SentinelService:
         prompt = f"Datos reales del ecosistema: {json.dumps(context, ensure_ascii=False)}"
         
         try:
-            response = self.client.models.generate_content(
-                model="gemini-3.1-flash-lite",
-                contents=system_instruction + "\n\n" + prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema={
-                        "type": "object",
-                        "properties": {
-                            "health_score": {"type": "integer"},
-                            "status_summary": {"type": "string"},
-                            "top_concerns": {"type": "array", "items": {"type": "string"}},
-                            "recommended_action": {"type": "string"},
-                            "warnings": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "level": {"type": "string", "enum": ["warning", "info", "success"]},
-                                        "message": {"type": "string"}
-                                    },
-                                    "required": ["level", "message"]
-                                }
-                            }
-                        },
-                        "required": ["health_score", "status_summary", "top_concerns", "recommended_action", "warnings"]
-                    }
-                )
-            )
+            # 3. Llamada a Gemini con Reintentos (Exponential Backoff)
+            import time
+            max_retries = 5
+            last_error = None
             
-            report = json.loads(response.text)
-            report["timestamp"] = datetime.now(timezone.utc).isoformat()
-            return report
+            for attempt in range(max_retries):
+                try:
+                    response = self.client.models.generate_content(
+                        model="gemini-3.1-flash-lite",
+                        contents=system_instruction + "\n\n" + prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema={
+                                "type": "object",
+                                "properties": {
+                                    "health_score": {"type": "integer"},
+                                    "status_summary": {"type": "string"},
+                                    "top_concerns": {"type": "array", "items": {"type": "string"}},
+                                    "recommended_action": {"type": "string"},
+                                    "warnings": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "level": {"type": "string", "enum": ["warning", "info", "success"]},
+                                                "message": {"type": "string"}
+                                            },
+                                            "required": ["level", "message"]
+                                        }
+                                    }
+                                },
+                                "required": ["health_score", "status_summary", "top_concerns", "recommended_action", "warnings"]
+                            }
+                        )
+                    )
+                    # Si llegamos aquí, la llamada fue exitosa
+                    report = json.loads(response.text)
+                    report["timestamp"] = datetime.now(timezone.utc).isoformat()
+                    return report
+                except Exception as e:
+                    last_error = e
+                    # Reintentamos solo en errores de disponibilidad (503, etc)
+                    if ("503" in str(e) or "UNAVAILABLE" in str(e) or "Deadline" in str(e)) and attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 3
+                        time.sleep(wait_time)
+                    else:
+                        # Si ya no hay más reintentos o es un error fatal, disparamos el fallback heurístico
+                        return self._generate_heuristic_fallback(context, persona, str(e))
             
         except Exception as e:
             # FALLBACK: Heuristic-based health report (No AI Mode)
