@@ -50,6 +50,7 @@ El asistente interactivo puede adoptar "system prompts" extremadamente detallado
 * 👁️ **Statement Intelligence (Multimodal Vision)**: Motor OCR integrado. Arrastra una foto de un recibo o un extracto bancario; la IA extrae el monto exacto, identifica el comercio, asume la categoría semántica y pre-llena el formulario de transacción.
 * ✨ **Simulador "What-If" (Máquina del Tiempo)**: Motor de proyección condicional. Le preguntas a la IA: *"¿Qué pasa con mi liquidez si saco un préstamo de $10,000 al 12% a 3 años para comprar un auto?"*. El simulador inyecta esa deuda hipotética y recalcula toda tu gráfica de flujo de caja proyectada a 90 días en el Dashboard.
 * 🔎 **AI Anomaly Scanner**: Auditoría profunda que rastrea pagos duplicados, micropagos silenciosos (suscripciones olvidadas) y desviaciones estándar aberrantes en tu comportamiento de gasto mensual.
+* 🧠 **Continual Pattern Learning**: Sistema de aprendizaje pasivo que detecta cuando el usuario corrige una categoría. El motor de IA aprende de esta corrección para futuras transacciones similares, refinando la precisión semántica sin intervención manual.
 
 ---
 
@@ -60,7 +61,8 @@ Cada línea de código de Tabula Rasa está concebida bajo estándares de softwa
 ### 🧱 Backend: Alto Rendimiento y Consistencia (Python / FastAPI)
 * **Concurrencia Extrema**: La base de datos SQLite opera bajo el pragma `WAL` (Write-Ahead Logging). Integrada con **SQLAlchemy 2.0** asíncrono, permite miles de lecturas y escrituras concurrentes sin el bloqueo tradicional de SQLite.
 * **Inyección de Dependencias Robusta**: Uso intensivo del sistema de inyección de FastAPI para gestionar sesiones de base de datos seguras (`get_db`) y servicios modulares, manteniendo un acoplamiento débil y alta testabilidad.
-* **Deduplicación Criptográfica (Zero-Duplicates)**: Para evitar registrar transacciones repetidas al importar archivos masivos, cada transacción genera un **Fingerprint SHA-256** único (basado en fecha, monto, hash de descripción y cuenta). Es matemáticamente imposible duplicar un registro.
+* **Deduplicación Criptográfica (Zero-Duplicates)**: Para evitar registrar transacciones repetidas al importar archivos masivos, cada transacción genera un **Fingerprint SHA-256** único. El sistema utiliza una técnica de desambiguación secuencial para permitir movimientos legítimos idénticos (ej. cobros repetidos con el mismo saldo) evitando falsos positivos de duplicidad.
+* **Paridad Bancaria Absoluta (1:1)**: El motor de importación está diseñado para replicar exactamente los totales del estado de cuenta oficial. Diferencia inteligentemente entre Ingresos, Egresos, Depósitos y Transferencias para garantizar que el Dashboard coincida al centavo con el papel del banco.
 * **Sistema Auto-Healing de Snapshots**: Los *Snapshots* (cortes de patrimonio histórico) son inmutables... a menos que haya un error humano. Si el usuario modifica el saldo de una transacción ocurrida hace 8 meses, un trigger algorítmico **recalcula en cascada y atómicamente** todos los Snapshots desde esa fecha hasta el presente, garantizando que el historial del patrimonio neto nunca se corrompa.
 
 ### 🎨 Frontend: Renderizado Reactivo y UI Ultra-Premium (React 19 / Vite)
