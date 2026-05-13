@@ -251,6 +251,7 @@ def wipe_database(db: Session = Depends(get_db)):
     - Snapshots patrimoniales
     - Activos
     - Logs de importación (permite reimportar los mismos archivos)
+    - Patrones de categorización aprendidos (CategoryPattern)
     
     SE CONSERVA (esqueleto):
     - Cuentas: nombre, tipo, banco, vinculación, descripción, estado, 
@@ -273,6 +274,7 @@ def wipe_database(db: Session = Depends(get_db)):
     from app.models.asset import Asset
     from app.models.account import Account
     from app.models.import_log import ImportLog
+    from app.models.category_pattern import CategoryPattern
     
     try:
         # ── FASE 1: Borrar datos transaccionales (orden estricto FK) ──
@@ -288,8 +290,9 @@ def wipe_database(db: Session = Depends(get_db)):
         db.query(NetWorthSnapshot).delete()
         db.query(Asset).delete()
         
-        # ── FASE 2: Limpiar logs de importación (permite reimportar desde 0) ──
+        # ── FASE 2: Limpiar logs y patrones aprendidos (reinicio total de IA) ──
         db.query(ImportLog).delete()
+        db.query(CategoryPattern).delete()
         
         # ── FASE 3: Resetear cuentas a esqueleto limpio ──
         # Conserva: id, name, account_type, currency, bank_name, description, 
