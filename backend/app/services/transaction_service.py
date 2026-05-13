@@ -217,11 +217,20 @@ def update_transaction_with_splits(
         # Reverse old transaction effect on balance
         apply_transaction_to_balance(db, db_transaction, reverse=True)
 
+        # --- Detect category change and learn pattern ---
+        old_category_id = db_transaction.category_id
+        new_category_id = transaction_data.get('category_id')
+        
         # Update transaction fields
         for key, value in transaction_data.items():
             setattr(db_transaction, key, value)
 
         db_transaction.updated_at = datetime.now(timezone.utc)
+        
+        # Learn from user's recategorization (only when category actually changed)
+        if new_category_id and new_category_id != old_category_id:
+            from app.services.categorizer import learn_category_pattern
+            learn_category_pattern(db, db_transaction.description, new_category_id, db_transaction.beneficiary)
 
         # --- validate splits against the (possibly new) amount -----------
         if splits_data is not None:
