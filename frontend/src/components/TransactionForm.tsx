@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, DollarSign, Calendar, Tag, CreditCard, Layers, Target, Info, TrendingUp, CheckCircle, RefreshCw } from 'lucide-react';
+import { X, Plus, Trash2, DollarSign, Calendar, Tag, CreditCard, Layers, Target, Info, TrendingUp, CheckCircle, RefreshCw, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Category, Account, TransactionType, PaymentMethod, ExpenseType, TransactionSplit as TransactionSplitType, Goal } from '../types';
 import Select from './common/Select';
@@ -15,6 +15,7 @@ interface TransactionFormData {
   account_id: string;
   expense_type: ExpenseType;
   goal_id?: string;
+  beneficiary?: string;
 }
 
 interface TransactionSplit {
@@ -115,7 +116,7 @@ const TransactionForm = ({
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-xl max-h-[92vh] overflow-hidden flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+        className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-xl max-h-[92vh] flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative"
       >
         {/* Header con estilo Glass */}
         <div className="relative flex items-center justify-between p-7 border-b border-white/5">
@@ -182,6 +183,19 @@ const TransactionForm = ({
                 placeholder="¿En qué se usó el dinero?"
               />
             </div>
+
+            {/* Beneficiario (solo si existe — importaciones bancarias) */}
+            {form.beneficiary && (
+              <div className="col-span-full">
+                <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <User className="w-3 h-3" />
+                  Beneficiario
+                </label>
+                <div className="w-full bg-white/3 border border-white/5 rounded-2xl px-5 py-3 text-slate-400 text-xs font-mono">
+                  {form.beneficiary}
+                </div>
+              </div>
+            )}
 
             {/* Fecha */}
             <div>
