@@ -388,8 +388,8 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                           <td className="px-4 py-3 text-sm text-slate-400">
                             {txn.category_name || <span className="italic opacity-50">Sin Categoría</span>}
                           </td>
-                          <td className={`px-4 py-3 text-sm font-bold text-right ${txn.transaction_type === 'income' ? 'text-blue-400' : 'text-emerald-400'}`}>
-                            {txn.transaction_type === 'income' ? '+' : '-'}${formatMoney(Math.abs(txn.amount_cents))}
+                          <td className={`px-4 py-3 text-sm font-bold text-right ${txn.transaction_type === 'income' ? 'text-blue-400' : 'text-rose-400'}`}>
+                            {txn.transaction_type === 'income' ? '-' : '+'}${formatMoney(Math.abs(txn.amount_cents))}
                           </td>
                         </tr>
                       ))}
