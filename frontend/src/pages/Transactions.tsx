@@ -25,6 +25,7 @@ const emptyForm = {
   account_id: '',
   expense_type: 'variable' as ExpenseType,
   goal_id: '',
+  beneficiary: '',
 };
 
 const TransactionRow = memo(({ transaction, onEdit, onDelete }: { transaction: any; onEdit: (t: any) => void; onDelete: (id: string) => void }) => (
@@ -173,6 +174,7 @@ const Transactions = () => {
       account_id: transaction.account_id || '',
       expense_type: 'variable' as ExpenseType,
       goal_id: transaction.goal_id || '',
+      beneficiary: transaction.beneficiary || '',
     });
     setShowModal(true);
   };
@@ -332,6 +334,7 @@ const Transactions = () => {
           account_id: '',
           expense_type: 'variable' as ExpenseType,
           goal_id: '',
+          beneficiary: '',
         });
         setShowModal(true);
         setToast({ message: 'Transacción extraída del audio', type: 'success' });
@@ -370,7 +373,7 @@ const Transactions = () => {
       const amount = txn.amount;
       if (txn.transaction_type === 'income') {
         acc.income += amount;
-      } else {
+      } else if (txn.transaction_type === 'expense') {
         acc.expenses += amount;
       }
       return acc;
