@@ -187,6 +187,13 @@ export const iousAPI = {
   delete: (id: string) => api.delete(`/ious/${id}`),
 };
 
+export const deferredAPI = {
+  getAll: () => api.get('/deferred/'),
+  create: (data: any) => api.post('/deferred/', data),
+  advance: (id: string) => api.post(`/deferred/${id}/advance`),
+  delete: (id: string) => api.delete(`/deferred/${id}`),
+};
+
 // --- ONLINE REQUIRED APIS (AXIOS) ---
 
 export const metricsAPI = {
