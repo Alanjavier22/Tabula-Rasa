@@ -44,7 +44,7 @@ export const getTokenKey = (): string => {
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60000, // 60 second timeout for heavy AI endpoints
+  timeout: 900000, // 15 minute timeout to accommodate extreme API throttling/retries
   headers: {
     'Content-Type': 'application/json',
   },
