@@ -37,6 +37,7 @@ class StatementParsingResponse(BaseModel):
     cut_off_date: Optional[str] = Field(description="Fecha de corte del estado de cuenta en formato YYYY-MM-DD")
     total_new_consumos_cents: int = Field(description="Suma total de consumos del mes en centavos")
     total_pagos_cents: int = Field(description="Suma total de pagos/abonos del mes en centavos")
+    credit_limit_cents: Optional[int] = Field(description="Cupo total o límite de crédito de la tarjeta en centavos")
     transactions: List[ExtractedTransaction]
 
 class StatementIntelligenceService:
@@ -150,34 +151,57 @@ class StatementIntelligenceService:
         
         enriched_transactions = []
         seen_in_batch = {}
+        
+        # Auditoría interna de sumas
+        calc_sum_consumos = 0
+        calc_sum_pagos = 0
 
         for idx, tx in enumerate(parsed_data['transactions']):
             deferred_key = tx.get('deferred_info', '')
+            amt = tx['amount_cents']
             
-            # Detectamos cuántas veces hemos visto esta misma combinación en este lote
-            batch_key = f"{tx['date']}_{tx['amount_cents']}_{tx['description'].strip().upper()}_{deferred_key}"
+            # Auditoría
+            if tx['transaction_type'] == 'expense':
+                calc_sum_consumos += amt
+            else:
+                calc_sum_pagos += abs(amt)
+
+            # Detectamos cuántas veces hemos visto esta misma combinación en este lote para desambiguar
+            batch_key = f"{tx['date']}_{amt}_{tx['description'].strip().upper()}_{deferred_key}"
             occurrence_index = seen_in_batch.get(batch_key, 0)
             seen_in_batch[batch_key] = occurrence_index + 1
             
-            fp = self.generate_fingerprint(tx['date'], tx['description'], tx['amount_cents'], account_id, deferred_key, occurrence_index)
+            # Cada ocurrencia tiene un fingerprint único gracias al index
+            fp = self.generate_fingerprint(tx['date'], tx['description'], amt, account_id, deferred_key, occurrence_index)
             
             tx_dict = tx.copy()
             tx_dict['fingerprint'] = fp
             
-            # Usar resultado del batch
+            # Usar resultado del batch para categorización
             cat_id = cat_results.get(idx)
             tx_dict['category_id'] = cat_id
             if cat_id in categories_dict:
                 tx_dict['category_name'] = categories_dict[cat_id]
             
-            # Verificar duplicados reales en DB
+            # Verificar duplicados reales en DB (solo si el fingerprint exacto ya existe)
             existing = self.db.query(Transaction).filter(Transaction.fingerprint == fp, Transaction.is_deleted == False).first()
             
-            is_batch_duplicate = occurrence_index > 0
-            tx_dict['is_duplicate'] = (existing is not None) or is_batch_duplicate
+            # Ya no marcamos como duplicado solo por estar en el mismo batch (occurrence_index > 0)
+            # Esto permite transacciones legítimas idénticas.
+            tx_dict['is_duplicate'] = (existing is not None)
             enriched_transactions.append(tx_dict)
 
         parsed_data['transactions'] = enriched_transactions
+        
+        # Añadir info de auditoría al objeto final
+        parsed_data['audit'] = {
+            "consumos_match": abs(calc_sum_consumos - parsed_data['total_new_consumos_cents']) < 100, # Margen de 1 dólar por redondeos
+            "pagos_match": abs(calc_sum_pagos - parsed_data['total_pagos_cents']) < 100,
+            "calculated_consumos": calc_sum_consumos,
+            "calculated_pagos": calc_sum_pagos,
+            "extraction_method": "gemini-3.1-flash-lite-vision"
+        }
+        
         return parsed_data
 
     def finalize_import(self, import_log_id: str, confirmed_transactions: List[Dict], statement_metadata: Optional[Dict] = None):
@@ -277,6 +301,14 @@ class StatementIntelligenceService:
                     self.db.add(new_stmt)
 
             log.status = 'processed'
+            
+            # Actualizar límite de crédito si se detectó uno nuevo
+            if statement_metadata and statement_metadata.get('credit_limit_cents'):
+                from app.models.account import Account
+                acc = self.db.query(Account).filter(Account.id == log.account_id).first()
+                if acc:
+                    acc.credit_limit = int(statement_metadata['credit_limit_cents'])
+
             self.db.commit()
 
             # Disparamos la sanación de snapshots si hubo cambios en el pasado
