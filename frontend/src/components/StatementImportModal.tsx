@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { intelligenceAPI, accountsAPI } from '../services/api';
-import { Upload, X, CheckCircle, AlertCircle, FileText, Trash2, CreditCard, Calendar, DollarSign } from 'lucide-react';
+import { Upload, X, CheckCircle, AlertCircle, FileText, Trash2, CreditCard, Calendar, DollarSign, User } from 'lucide-react';
 import type { Account } from '../types';
 import Select from './common/Select';
 import { formatMoney } from '../utils/money';
@@ -104,7 +104,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
           cut_off_date: parsed.cut_off_date,
           total_new_consumos_cents: parsed.total_new_consumos_cents,
           total_pagos_cents: parsed.total_pagos_cents,
-          credit_limit_cents: parsed.credit_limit_cents
+          credit_limit_cents: parsed.credit_limit_cents,
+          user_share_cents: parsed.statement_balance_cents, // Por defecto el usuario asume todo
+          debt_shares: []
         });
         
         setAuditInfo(parsed.audit);
@@ -260,20 +262,43 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                 </div>
                 
                 <div className="bg-gradient-to-br from-purple-900/40 to-slate-900 p-5 rounded-2xl border border-purple-500/30 shadow-inner relative overflow-hidden">
-                  <div className="absolute -right-4 -top-4 w-16 h-16 bg-purple-500/20 rounded-full blur-xl"></div>
-                  <div className="flex items-center gap-2 text-purple-400 mb-2 relative z-10">
-                    <DollarSign className="w-4 h-4" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Deuda Total (Pago Contado)</span>
-                  </div>
-                  <p className="text-2xl font-black text-white relative z-10">
-                    ${formatMoney(statementMetadata.statement_balance_cents)}
-                  </p>
-                  {statementMetadata.payment_due_date && (
-                    <p className="text-xs text-purple-300/70 mt-1 relative z-10 font-medium">
-                      Pagar antes de: {statementMetadata.payment_due_date}
-                    </p>
-                  )}
-                </div>
+                   <div className="absolute -right-4 -top-4 w-16 h-16 bg-purple-500/20 rounded-full blur-xl"></div>
+                   <div className="flex items-center justify-between mb-2 relative z-10">
+                     <div className="flex items-center gap-2 text-purple-400">
+                       <DollarSign className="w-4 h-4" />
+                       <span className="text-xs font-bold uppercase tracking-wider">Deuda Total</span>
+                     </div>
+                     <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full font-bold">PAGO CONTADO</span>
+                   </div>
+                   <p className="text-2xl font-black text-white relative z-10 mb-3">
+                     ${formatMoney(statementMetadata.statement_balance_cents)}
+                   </p>
+                   
+                   {/* Selector de Cuota de Usuario */}
+                   <div className="pt-3 border-t border-purple-500/20 relative z-10">
+                     <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold text-purple-300/70 uppercase">Tu Responsabilidad</span>
+                        <span className="text-xs font-bold text-white">${formatMoney(statementMetadata.user_share_cents)}</span>
+                     </div>
+                     <input 
+                        type="range" 
+                        min="0" 
+                        max={statementMetadata.statement_balance_cents} 
+                        value={statementMetadata.user_share_cents}
+                        onChange={(e) => setStatementMetadata({
+                          ...statementMetadata, 
+                          user_share_cents: parseInt(e.target.value)
+                        })}
+                        className="w-full h-1.5 bg-purple-900 rounded-lg appearance-none cursor-pointer accent-purple-400"
+                     />
+                     {statementMetadata.user_share_cents < statementMetadata.statement_balance_cents && (
+                       <p className="text-[10px] text-emerald-400 mt-2 font-bold flex items-center gap-1">
+                         <User className="w-3 h-3" />
+                         Compartido: ${formatMoney(statementMetadata.statement_balance_cents - statementMetadata.user_share_cents)} serán asignados a terceros.
+                       </p>
+                     )}
+                   </div>
+                 </div>
 
                 <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-5 rounded-2xl border border-slate-700 shadow-inner">
                    <div className="flex justify-between items-end h-full">
@@ -359,21 +384,51 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                       {extractedTransactions.map((txn, index) => (
                         <tr key={index} className={`transition-colors ${txn.selected ? 'bg-purple-500/5' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-slate-700/30'}`}>
                           <td className="px-4 py-3">
-                            <input
-                              type="checkbox"
-                              checked={txn.selected}
-                              disabled={txn.is_duplicate}
-                              onChange={() => {
-                                setExtractedTransactions(prev =>
-                                  prev.map((t, i) => i === index ? { ...t, selected: !t.selected } : t)
-                                );
-                              }}
-                              className="accent-purple-500 rounded"
-                            />
-                          </td>
+                             <div className="flex items-center gap-2">
+                               <input
+                                 type="checkbox"
+                                 checked={txn.selected}
+                                 disabled={txn.is_duplicate}
+                                 onChange={() => {
+                                   setExtractedTransactions(prev =>
+                                     prev.map((t, i) => i === index ? { ...t, selected: !t.selected } : t)
+                                   );
+                                 }}
+                                 className="accent-purple-500 rounded"
+                               />
+                               {/* Botón de Compartir */}
+                               <button 
+                                 onClick={() => {
+                                   const person = prompt("¿Con quién compartes este gasto?", txn.shared_with || "");
+                                   if (person === null) return;
+                                   const amount = prompt(`¿Cuánto debe pagar ${person}? (Máximo ${formatMoney(txn.amount_cents)})`, (txn.shared_amount ? (txn.shared_amount/100).toString() : (txn.amount_cents/200).toString()));
+                                   if (amount === null) return;
+                                   
+                                   setExtractedTransactions(prev => prev.map((t, i) => 
+                                     i === index ? { 
+                                       ...t, 
+                                       shared_with: person, 
+                                       shared_amount: parseFloat(amount) * 100 
+                                     } : t
+                                   ));
+                                 }}
+                                 className={`p-1 rounded transition-colors ${txn.shared_with ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500 hover:text-white hover:bg-slate-700'}`}
+                                 title="Marcar como compartido"
+                               >
+                                 <User className="w-3 h-3" />
+                               </button>
+                             </div>
+                           </td>
                           <td className="px-4 py-3 text-sm text-slate-300">{txn.date}</td>
                           <td className="px-4 py-3 text-sm text-white font-medium">
-                            {txn.description}
+                             <div className="flex flex-col">
+                               <span>{txn.description}</span>
+                               {txn.shared_with && (
+                                 <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-tight">
+                                   👤 {txn.shared_with} te debe ${formatMoney(txn.shared_amount || 0)}
+                                 </span>
+                               )}
+                             </div>
                             {txn.is_deferred && (
                               <span className="ml-2 px-2 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] rounded-full uppercase font-bold tracking-wider">
                                 Diferido {txn.deferred_info}

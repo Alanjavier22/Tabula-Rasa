@@ -13,6 +13,8 @@ from app.models.transaction import Transaction
 from app.models.import_log import ImportLog
 from app.models.credit_card_statement import CreditCardStatement, StatementStatus
 from app.models.category import Category
+from app.models.debt_share import DebtShare
+from app.models.iou import IOU, IOUType, IOUStatus
 from app.services.categorizer import get_semantic_category
 
 class ExtractedTransaction(BaseModel):
@@ -251,6 +253,20 @@ class StatementIntelligenceService:
                         })
                     )
                     self.db.add(new_tx)
+                    self.db.flush() # Para obtener el ID si necesitamos vincular IOU
+                    
+                    # Manejo de Consumo Compartido (IOU) por transacción
+                    if tx_data.get('shared_with') and tx_data.get('shared_amount'):
+                        new_iou = IOU(
+                            person_name=tx_data['shared_with'],
+                            amount=int(tx_data['shared_amount']),
+                            iou_type=IOUType.THEY_OWE,
+                            status=IOUStatus.PENDING,
+                            transaction_id=new_tx.id,
+                            description=f"Compartido de: {tx_data['description']} ({statement_metadata.get('statement_period', '')})"
+                        )
+                        self.db.add(new_iou)
+
                     new_txs_count += 1
 
             # Procesamiento de CreditCardStatement (Deuda Global)
@@ -284,6 +300,7 @@ class StatementIntelligenceService:
                 if existing_stmt:
                     # Actualizar si existe
                     existing_stmt.statement_balance = stmt_balance
+                    existing_stmt.user_share = int(statement_metadata.get('user_share_cents', stmt_balance))
                     if due_date: existing_stmt.payment_due_date = due_date
                     if cut_date: existing_stmt.cut_off_date = cut_date
                 else:
@@ -291,7 +308,7 @@ class StatementIntelligenceService:
                     new_stmt = CreditCardStatement(
                         account_id=log.account_id,
                         statement_balance=stmt_balance,
-                        user_share=stmt_balance, # Por defecto todo el share es del usuario
+                        user_share=int(statement_metadata.get('user_share_cents', stmt_balance)),
                         payment_due_date=due_date,
                         cut_off_date=cut_date,
                         month=stmt_month,
@@ -299,6 +316,23 @@ class StatementIntelligenceService:
                         status=StatementStatus.PENDING
                     )
                     self.db.add(new_stmt)
+                    self.db.flush()
+
+                # Procesar DebtShares (Gente que debe parte del total del mes)
+                if statement_metadata.get('debt_shares'):
+                    # Limpiamos previos para este statement si estamos re-importando/actualizando
+                    if existing_stmt:
+                        self.db.query(DebtShare).filter(DebtShare.statement_id == existing_stmt.id).delete()
+                    
+                    stmt_id = existing_stmt.id if existing_stmt else new_stmt.id
+                    for share in statement_metadata['debt_shares']:
+                        new_share = DebtShare(
+                            statement_id=stmt_id,
+                            person_name=share['person_name'],
+                            amount=int(share['amount_cents']),
+                            description=share.get('description', 'Parte proporcional del estado de cuenta')
+                        )
+                        self.db.add(new_share)
 
             log.status = 'processed'
             
