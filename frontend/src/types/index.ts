@@ -289,3 +289,23 @@ export interface DashboardSummaryResponse {
   };
   vehicle_cost: number;
 }
+
+export interface DeferredPayment {
+  id: string;
+  account_id: string;
+  name: string;
+  description?: string;
+  total_amount: Cents;
+  installment_amount: Cents;
+  total_installments: number;
+  current_installment: number;
+  remaining_balance: Cents;
+  is_shared: boolean;
+  shared_with?: string;
+  shared_amount?: Cents;
+  start_date?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
