@@ -116,6 +116,8 @@ from app.models.subscription import Subscription
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.debt_share import DebtShare
 from app.models.authorized_device import AuthorizedDevice
+from app.models.deferred_payment import DeferredPayment
+
 
 # Register event listeners for auto-increment version on UPDATE (OCC conflict resolution)
 @event.listens_for(Transaction, 'before_update')
@@ -128,12 +130,15 @@ from app.models.authorized_device import AuthorizedDevice
 @event.listens_for(Subscription, 'before_update')
 @event.listens_for(CreditCardStatement, 'before_update')
 @event.listens_for(DebtShare, 'before_update')
+@event.listens_for(DeferredPayment, 'before_update')
+
 def increment_version(mapper, connection, target):
     """Auto-increment version field on UPDATE for conflict resolution (OCC)"""
     if hasattr(target, 'version'):
         target.version += 1
 
-from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, config, subscriptions, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, ai, ai_vision, ai_goals, alerts, fiscal, backup, ai_insights, ai_audio, ai_sentinel, ai_audit, intelligence, export
+from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, config, subscriptions, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, ai, ai_vision, ai_goals, alerts, fiscal, backup, ai_insights, ai_audio, ai_sentinel, ai_audit, intelligence, export, deferred
+
 from middleware.security import SecurityMiddleware
 from init_db import init_db
 
@@ -185,6 +190,8 @@ app.include_router(backup.router)
 app.include_router(fiscal.router)
 app.include_router(intelligence.router)
 app.include_router(export.router)
+app.include_router(deferred.router)
+
 
 @app.get("/")
 def read_root():
