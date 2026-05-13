@@ -195,8 +195,8 @@ class StatementIntelligenceService:
         
         # Añadir info de auditoría al objeto final
         parsed_data['audit'] = {
-            "consumos_match": abs(calc_sum_consumos - parsed_data['total_new_consumos_cents']) < 100, # Margen de 1 dólar por redondeos
-            "pagos_match": abs(calc_sum_pagos - parsed_data['total_pagos_cents']) < 100,
+            "consumos_match": abs(abs(calc_sum_consumos) - abs(parsed_data['total_new_consumos_cents'])) < 5, 
+            "pagos_match": abs(abs(calc_sum_pagos) - abs(parsed_data['total_pagos_cents'])) < 5,
             "calculated_consumos": calc_sum_consumos,
             "calculated_pagos": calc_sum_pagos,
             "extraction_method": "gemini-3.1-flash-lite-vision"
