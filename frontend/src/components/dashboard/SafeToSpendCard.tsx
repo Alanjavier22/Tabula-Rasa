@@ -87,7 +87,12 @@ export default function SafeToSpendCard({ data }: SafeToSpendCardProps) {
                     ? 'text-rose-400' 
                     : 'text-emerald-400'
                 }`}>$</span>
-                {((data?.breakdown?.credit_cards ?? 0) + (data?.breakdown?.ious ?? 0) - (data?.breakdown?.debt_shares ?? 0)) >= 0 ? '-' : '+'}
+                {(() => {
+                  const debtValue = (data?.breakdown?.credit_cards ?? 0) + (data?.breakdown?.ious ?? 0) - (data?.breakdown?.debt_shares ?? 0);
+                  if (debtValue > 0) return '-';
+                  if (debtValue < 0) return '+';
+                  return '';
+                })()}
                 {formatMoney(Math.abs((data?.breakdown?.credit_cards ?? 0) + (data?.breakdown?.ious ?? 0) - (data?.breakdown?.debt_shares ?? 0)))}
               </span>
             </div>
