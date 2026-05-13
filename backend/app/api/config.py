@@ -275,6 +275,8 @@ def wipe_database(db: Session = Depends(get_db)):
     from app.models.account import Account
     from app.models.import_log import ImportLog
     from app.models.category_pattern import CategoryPattern
+    from app.models.deferred_payment import DeferredPayment
+
     
     try:
         # ── FASE 1: Borrar datos transaccionales (orden estricto FK) ──
@@ -289,6 +291,8 @@ def wipe_database(db: Session = Depends(get_db)):
         db.query(Goal).delete()
         db.query(NetWorthSnapshot).delete()
         db.query(Asset).delete()
+        db.query(DeferredPayment).delete()     # FASE 4: Borrar diferidos inteligentes
+
         
         # ── FASE 2: Limpiar logs y patrones aprendidos (reinicio total de IA) ──
         db.query(ImportLog).delete()
