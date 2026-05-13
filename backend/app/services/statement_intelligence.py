@@ -263,9 +263,41 @@ class StatementIntelligenceService:
                             iou_type=IOUType.THEY_OWE,
                             status=IOUStatus.PENDING,
                             transaction_id=new_tx.id,
-                            description=f"Compartido de: {tx_data['description']} ({statement_metadata.get('statement_period', '')})"
+                            description=f"Compartido de: {tx_data['description']} ({statement_metadata.get('statement_period', '') if statement_metadata else ''})"
                         )
                         self.db.add(new_iou)
+
+                    # --- NUEVO: Creación de DeferredPayment si la IA detectó que es diferido ---
+                    if tx_data.get('is_deferred'):
+                        from app.models.deferred_payment import DeferredPayment
+                        
+                        # Extraer info de cuotas (ej: "3/12" -> current=3, total=12)
+                        current_inst = 1
+                        total_inst = 1
+                        def_info = tx_data.get('deferred_info', '')
+                        if '/' in def_info:
+                            parts = def_info.split('/')
+                            try:
+                                current_inst = int(parts[0])
+                                total_inst = int(parts[1])
+                            except ValueError: pass
+                        
+                        # Crear el registro de diferido para seguimiento futuro
+                        new_deferred = DeferredPayment(
+                            account_id=log.account_id,
+                            name=tx_data['description'],
+                            total_amount=abs(tx_data['amount_cents']) * total_inst, # Estimación
+                            installment_amount=abs(tx_data['amount_cents']),
+                            total_installments=total_inst,
+                            current_installment=current_inst,
+                            remaining_balance=abs(tx_data['amount_cents']) * (total_inst - current_inst + 1),
+                            is_shared=True if tx_data.get('shared_with') else False,
+                            shared_with=tx_data.get('shared_with'),
+                            shared_amount=int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None,
+                            start_date=dt,
+                            is_active=True
+                        )
+                        self.db.add(new_deferred)
 
                     new_txs_count += 1
 
