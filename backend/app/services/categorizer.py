@@ -23,148 +23,206 @@ if sys.platform == 'win32':
 AI_ENABLED = os.getenv("AI_ENABLED", "true").lower() == "true"
 
 
-class AICategorizationResponse(BaseModel):
-    category_name: str = Field(description="El NOMBRE EXACTO de la categoría seleccionada de la lista proporcionada. Debe coincidir exactamente con uno de los nombres de la lista.")
+class AICategorizationBatchItem(BaseModel):
+    index: int = Field(description="El índice original de la transacción en la lista proporcionada.")
+    category_id: str = Field(description="El ID ÚNICO de la categoría seleccionada.")
     confidence: float = Field(description="Nivel de confianza de la predicción, entre 0.0 y 1.0.")
-    is_anomaly: bool = Field(description="True si el monto o la descripción son inusuales para esta categoría.")
-    reasoning: str = Field(description="Breve justificación de la elección de la categoría.")
+    reasoning: str = Field(description="Breve justificación de la elección.")
 
 
-def get_rule_based_category(description: str, db_session) -> Optional[int]:
+class AICategorizationBatchResponse(BaseModel):
+    items: list[AICategorizationBatchItem] = Field(description="Lista de resultados de categorización.")
+
+
+def normalize_description(description: str) -> str:
+    """Normalize a transaction description for pattern matching."""
+    return (description or "").strip().upper()
+
+
+# Descriptions that are too generic to be useful as pattern keys
+GENERIC_DESCRIPTIONS = {
+    "COMPRA POS INTERNACIONAL", "COMPRA MAESTRO LOCAL",
+    "IVA SERVICIO DIGITAL AH", "IVA 15% COMISIÓN", "IVA 15% COMISION",
+}
+
+
+def is_generic_description(description: str) -> bool:
+    """Check if a description is too generic to be a useful pattern key."""
+    return normalize_description(description) in GENERIC_DESCRIPTIONS
+
+
+def get_pattern_based_category(description: str, db_session, beneficiary: str = None) -> Optional[str]:
     """
-    Deterministic rules for high-confidence patterns.
-    Bypasses AI for internal transfers and reversals.
+    LAYER 1: Pattern Memory (DB lookup).
+    Checks the category_patterns table for a matching pattern.
+    Returns the category_id if found, None otherwise.
+    
+    Matching strategy:
+      1. Exact match on beneficiary (if available) — most specific
+      2. Exact match on the full normalized description
+      3. Partial match: any stored pattern is contained in description OR beneficiary
     """
-    desc_upper = (description or "").upper()
+    from app.models.category_pattern import CategoryPattern
+    from datetime import datetime, timezone
     
-    rules = [
-        # pattern, target_category_name
-        (["TRANSFERENCIA INTERNA", "TRANSFERENCIA ENTRE MIS CTAS", "META BCO GUAYAQUIL", "AHORRO META"], "Transferencia Interna"),
-        (["REVERSO", "DEVOLUCION", "AJUSTE POR DIFERENCIA"], "Devoluciones / Ajustes"),
-    ]
+    desc_normalized = normalize_description(description)
+    benef_normalized = normalize_description(beneficiary) if beneficiary else None
     
-    for patterns, cat_name in rules:
-        if any(p in desc_upper for p in patterns):
-            cat = db_session.query(Category).filter(Category.name == cat_name).first()
-            if not cat:
-                cat = Category(name=cat_name, description=f"Categoria de sistema para {cat_name.lower()}")
-                db_session.add(cat)
-                db_session.commit()
-                db_session.refresh(cat)
-            return cat.id
+    if not desc_normalized:
+        return None
+    
+    def _mark_hit(pattern_obj):
+        pattern_obj.hit_count += 1
+        pattern_obj.last_used_at = datetime.now(timezone.utc)
+        try:
+            db_session.flush()
+        except Exception:
+            pass
+    
+    # 1. Exact match on beneficiary (highest specificity)
+    if benef_normalized:
+        exact_benef = db_session.query(CategoryPattern).filter(
+            CategoryPattern.pattern == benef_normalized
+        ).first()
+        if exact_benef:
+            _mark_hit(exact_benef)
+            return exact_benef.category_id
+    
+    # 2. Exact match on description
+    exact = db_session.query(CategoryPattern).filter(
+        CategoryPattern.pattern == desc_normalized
+    ).first()
+    if exact:
+        _mark_hit(exact)
+        return exact.category_id
+    
+    # 3. Partial match: check if any stored pattern is a substring of description OR beneficiary
+    all_patterns = db_session.query(CategoryPattern).order_by(
+        CategoryPattern.source.desc(),  # 'user' > 'system'
+        CategoryPattern.hit_count.desc()
+    ).all()
+    
+    # Build the search text: description + beneficiary combined
+    search_text = desc_normalized
+    if benef_normalized:
+        search_text = f"{desc_normalized} {benef_normalized}"
+    
+    for pat in all_patterns:
+        if pat.pattern in search_text:
+            _mark_hit(pat)
+            return pat.category_id
+    
     return None
+
+
+def learn_category_pattern(db_session, description: str, category_id: str, beneficiary: str = None):
+    """
+    Learn a new pattern from a user's manual recategorization.
+    
+    Smart key selection:
+      - If description is generic AND beneficiary exists → learn from beneficiary
+      - Otherwise → learn from description
+    """
+    from app.models.category_pattern import CategoryPattern
+    
+    # Decide the best pattern key
+    if beneficiary and is_generic_description(description):
+        pattern_key = _extract_beneficiary_key(beneficiary)
+    else:
+        pattern_key = normalize_description(description)
+    
+    if not pattern_key or not category_id:
+        return
+    
+    existing = db_session.query(CategoryPattern).filter(
+        CategoryPattern.pattern == pattern_key
+    ).first()
+    
+    if existing:
+        existing.category_id = category_id
+        existing.source = "user"
+        existing.hit_count += 1
+    else:
+        new_pattern = CategoryPattern(
+            pattern=pattern_key,
+            category_id=category_id,
+            source="user",
+            hit_count=1
+        )
+        db_session.add(new_pattern)
+    
+    try:
+        db_session.flush()
+    except Exception as e:
+        print(f"[Categorizer] Error learning pattern: {e}")
+
+
+def _extract_beneficiary_key(beneficiary: str) -> str:
+    """
+    Extract the meaningful part of a beneficiary string for pattern matching.
+    
+    Examples:
+      'DLC UBER RIDES         SA009MDSK1ENNP           4121' → 'DLC UBER RIDES'
+      'GOOGLE SPOTIFY MUSIC   MO009MDSER2YNN'             → 'GOOGLE SPOTIFY MUSIC'
+      '376653XXXXXX0754'                                    → '376653XXXXXX0754'
+    """
+    import re
+    normalized = normalize_description(beneficiary)
+    if not normalized:
+        return ""
+    
+    # Split on large whitespace gaps (5+ spaces) — common bank formatting
+    parts = re.split(r'\s{5,}', normalized)
+    if parts:
+        meaningful = parts[0].strip()
+        # Remove trailing transaction codes (alphanumeric with 3+ digits)
+        meaningful = re.sub(r'\s+[A-Z]{0,3}\d{3,}[A-Z0-9]*$', '', meaningful).strip()
+        if meaningful:
+            return meaningful
+    
+    return normalized
+
 
 
 def get_semantic_category(description: str, amount: int, db_session=None, transaction_type: str = None) -> Optional[int]:
     """
-    Auto-categorize transaction based on semantic meaning of description and amount.
-    Uses Rule-based logic first, then Gemini AI as a fallback.
+    Fallback for single-transaction categorization (UI usage).
     """
-    if not description:
-        return None
-        
-    db = db_session or SessionLocal()
-    try:
-        # 1. Rule-based categorization (FAST & ATOMIC)
-        rule_cat_id = get_rule_based_category(description, db)
-        if rule_cat_id:
-            return rule_cat_id
+    results = categorize_batch([{'description': description, 'amount': amount, 'transaction_type': transaction_type}], db_session)
+    return results.get(0)
 
-        # 2. Bypass AI during cold load migration if enabled
-        if not AI_ENABLED:
-            otros_cat = db.query(Category).filter(Category.name == "Otros").first()
-            return otros_cat.id if otros_cat else None
 
-        # 3. Obtain current categories from DB
-        categories = db.query(Category).all()
-        if not categories:
-            return None
-            
-        category_map = [{"id": cat.id, "name": cat.name, "description": cat.description or ""} for cat in categories]
-        
-        # 4. Check API Key
-        from app.models.config import Config
-        config_entry = db.query(Config).filter(Config.key == "gemini_api_key").first()
-        api_key = config_entry.value if config_entry else None
-        
-        if not api_key:
-            otros_cat = next((c for c in categories if c.name.lower() == "otros"), None)
-            return otros_cat.id if otros_cat else categories[0].id
-            
-        # 5. Prompt setup
-        type_context = ""
-        if transaction_type == "expense" or transaction_type == "Gasto":
-            type_context = "ESTA TRANSACCIÓN ES UN GASTO. BAJO NINGÚN CONCEPTO elijas categorías exclusivas de 'Ingresos'."
-        elif transaction_type == "income" or transaction_type == "Ingreso":
-            type_context = "ESTA TRANSACCIÓN ES UN INGRESO. NO elijas categorías exclusivas de 'Gastos'."
-
-        system_instruction = (
-            "Eres un categorizador financiero especializado en Ecuador. "
-            "Clasifica la transacción en UNA de estas categorías exactas: "
-            f"{json.dumps(category_map, ensure_ascii=False)}.\n\n"
-            f"{type_context}\n\n"
-            "PRUDENCIA FINANCIERA:\n"
-            "- Si la descripción indica REVERSO, DEVOLUCIÓN o AJUSTE, usa 'Devoluciones / Ajustes'.\n"
-            "- Si indica movimiento entre cuentas propias o METAS, usa 'Transferencia Interna'.\n"
-            "- IMPORTANTE: Debes devolver el NOMBRE EXACTO de la categoría.\n\n"
-            "CONTEXTO ECUATORIANO:\n"
-            "- Supermaxi, Mi Comisariato, Prati, AQUÍ, La Favorita, Tía, Mega, Kywi -> Comestibles\n"
-            "- IESS, SRI, Banco del Pacífico, Banco Pichincha, Banco Guayaquil -> Financiero/Salud/Impuestos\n"
-            "- Uber, Cabify -> Transporte\n"
-        )
-        
-        sanitized_description = mask_description(description)
-        prompt = f"Descripción: '{sanitized_description}' | Monto: ${amount / 100:.2f}"
-        
-        client = genai.Client(api_key=api_key)
-        
-        # Retry logic
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = client.models.generate_content(
-                    model='gemini-3.1-flash-lite',
-                    contents=system_instruction + "\n\n" + prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=AICategorizationResponse,
-                    )
-                )
-                break
-            except Exception as e:
-                if "503" in str(e) or "UNAVAILABLE" in str(e):
-                    if attempt < max_retries - 1:
-                        time.sleep(2 ** attempt)
-                        continue
-                raise
-        
-        result = json.loads(response.text)
-        pred_name = result["category_name"]
-        confidence = result["confidence"]
-        
-        if confidence < 0.70:
-            otros_cat = next((c for c in categories if c.name.lower() == "otros"), None)
-            return otros_cat.id if otros_cat else categories[0].id
-
-        category_by_name = {cat.name: cat for cat in categories}
-        if pred_name in category_by_name:
-            return category_by_name[pred_name].id
-        
-        otros_cat = next((c for c in categories if c.name.lower() == "otros"), None)
-        return otros_cat.id if otros_cat else categories[0].id
-        
-    except Exception:
-        otros_cat = db.query(Category).filter(Category.name == "Otros").first()
-        return otros_cat.id if otros_cat else None
-    finally:
-        if not db_session:
-            db.close()
+def get_heuristic_category(description: str, db, transaction_type: str = 'expense') -> Optional[str]:
+    """
+    LAYER 0: Fast Heuristic Rules for the Ecuadorian market.
+    """
+    desc = normalize_description(description)
+    
+    rules = {
+        "PAGO DE TARJETA DE CREDITO": "Obligaciones Financieras",
+        "INTERESES GANADOS": "Ahorro e Inversión",
+        "META ACREDITADA": "Ahorro e Inversión",
+        "RETIRO DE TU META": "Transferencia Interna",
+        "TRANSFERENCIA INTERNA": "Transferencia Interna",
+        "IVA SERVICIO DIGITAL": "Movilidad",
+        "SUELDO": "Ingresos",
+        "CAJ/AUTO.RET.": "Retiros en Efectivo",
+        "RECAUD. TIENDEC": "Compras Personales y Retail",
+        "DE PRATI": "Compras Personales y Retail",
+        "MEGAMAXI": "Alimentación",
+        "SUPERMAXI": "Alimentación",
+    }
+    
+    for pattern, cat_name in rules.items():
+        if pattern in desc:
+            cat = db.query(Category).filter(Category.name.ilike(f"%{cat_name}%")).first()
+            return str(cat.id) if cat else None
+    return None
 
 
 def categorize_batch(transactions: list, db_session=None) -> dict:
     """
-    Categorize multiple transactions.
-    Uses Rule-based logic for the whole batch first.
+    Categorize multiple transactions efficiently using Rule-based logic + Batch AI.
     """
     if not transactions:
         return {}
@@ -174,26 +232,146 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
         results = {}
         pending_ai = []
         
-        # 1. Rule-based pass for all
+        # 1. Local Processing (Tiers 0 & 1)
         for i, tx in enumerate(transactions):
-            rule_id = get_rule_based_category(tx.get('description', ''), db)
-            if rule_id:
-                results[i] = rule_id
+            desc = tx.get('description', '')
+            benef = tx.get('beneficiary', '')
+            
+            # Tier 0: Heuristics (Instant)
+            heuristic_id = get_heuristic_category(desc, db, tx.get('transaction_type'))
+            if heuristic_id:
+                results[i] = heuristic_id
+                continue
+
+            # Tier 1: Pattern Memory (DB lookup)
+            pattern_id = get_pattern_based_category(desc, db, benef)
+            if pattern_id:
+                results[i] = pattern_id
             else:
                 pending_ai.append((i, tx))
         
-        if not pending_ai:
+        if not pending_ai or not AI_ENABLED:
+            # Handle AI_ENABLED=False fallback
+            if not AI_ENABLED and pending_ai:
+                otros_cat = db.query(Category).filter(Category.name == "Otros (🔄)").first()
+                for idx, _ in pending_ai:
+                    results[idx] = otros_cat.id if otros_cat else None
             return results
 
-        # 2. AI pass for remaining (simplified for now to individual calls to maintain logic)
-        for idx, tx in pending_ai:
-            results[idx] = get_semantic_category(
-                description=tx.get('description', ''),
-                amount=tx.get('amount', 0),
-                db_session=db,
-                transaction_type=tx.get('transaction_type')
-            )
+        # 2. Prepare AI context
+        categories = db.query(Category).all()
+        if not categories:
+            return results
             
+        category_map = [{"id": str(cat.id), "name": cat.name, "description": cat.description or ""} for cat in categories]
+        
+        from app.models.config import Config
+        config_entry = db.query(Config).filter(Config.key == "gemini_api_key").first()
+        api_key = config_entry.value if config_entry else None
+        
+        if not api_key:
+            # Fallback to 'Otros' if no API key
+            otros_cat = next((c for c in categories if "Otros" in c.name), categories[0])
+            for idx, _ in pending_ai:
+                results[idx] = str(otros_cat.id)
+            return results
+
+        client = genai.Client(api_key=api_key)
+        
+        # Tier 4: Batch Processing with Throttling to respect 15 RPM
+        # Usamos un tamaño de lote de 80: Ideal para precisión en modelos Lite y cuotas RPM
+        chunk_size = 80
+        chunks = [pending_ai[i:i + chunk_size] for i in range(0, len(pending_ai), chunk_size)]
+        
+        print(f"[Categorizer] Iniciando procesamiento de {len(pending_ai)} transacciones en {len(chunks)} lotes...")
+
+        for i, chunk in enumerate(chunks):
+            # Throttling: Pausa obligatoria para no saturar los 15 RPM (incluso en el primer lote para dar aire tras Tier 3)
+            wait_time = 6 if i > 0 else 3
+            print(f"[Categorizer] Throttling: Esperando {wait_time}s para respetar cuota API...")
+            time.sleep(wait_time)
+            
+            # Create a compact prompt for the batch (include beneficiary for context)
+            tx_list_str = "\n".join([
+                f"- ID:{idx} | Desc: '{mask_description(tx.get('description', ''))}' | Beneficiario: '{tx.get('beneficiary', '')}' | Monto: ${tx.get('amount', 0) / 100:.2f} | Tipo: {tx.get('transaction_type')}"
+                for idx, tx in chunk
+            ])
+
+            system_instruction = (
+                "Eres un categorizador financiero experto para el mercado de ECUADOR. Tu objetivo es clasificar transacciones bancarias con precisión quirúrgica.\n\n"
+                f"CATEGORÍAS DISPONIBLES (ID y Nombre):\n{json.dumps(category_map, ensure_ascii=False)}\n\n"
+                "INSTRUCCIONES TÉCNICAS:\n"
+                "1. Usa el 'id' de la categoría para responder.\n"
+                "2. Prioriza el campo 'Beneficiario' si está presente, ya que contiene el comercio real.\n"
+                "3. Si la descripción es genérica (ej: COMPRA POS INTERNACIONAL), el beneficiario es la clave.\n\n"
+                "GUÍA DE CLASIFICACIÓN PRIORITARIA (ECUADOR):\n"
+                "- 'Pago de tarjeta de crédito' o números de tarjeta (ej: 3766..., 4110...) -> 'Obligaciones Financieras'.\n"
+                "- 'CIRCULOS', 'RELOJ', 'PIKEOS', 'FIBU' (Cobros compartidos) -> 'Ingresos' (si son positivos) o 'Alimentación' (si son negativos).\n"
+                "- 'TRANSFERENCIA INTERNA' o 'Otras cuentas' -> 'Transferencia Interna'.\n"
+                "- 'IVA SERVICIO DIGITAL' siempre va en la misma categoría que la compra original (ej: IVA UBER -> Movilidad).\n"
+                "- 'RECAUD. TIENDEC', 'DE PRATI', 'MEGAMAXI', 'MARATHON' -> 'Compras Personales y Retail'.\n"
+                "- 'SUELDO', 'ROL', 'FIBU' (ingreso) -> 'Ingresos'.\n"
+                "- 'RET. CAJERO', 'ATM' -> 'Retiros en Efectivo'.\n"
+                "- 'Meta acreditada', 'Intereses Meta' -> 'Ahorro e Inversión'.\n"
+                "- 'REVERSO', 'DEVOLUCION' -> 'Devoluciones / Ajustes'.\n"
+                "STRICT RULES:\n"
+                "1. reasoning: Breve (máximo 15 palabras).\n"
+                "2. category_id: Usa ÚNICAMENTE los IDs proporcionada.\n"
+                "3. index: Mantén el índice original para mapear correctamente.\n"
+                "4. Si no estás seguro, usa el ID de la categoría 'Otros'.\n"
+            )
+
+            max_retries = 5
+            retry_count = 0
+            while retry_count < max_retries:
+                try:
+                    response = client.models.generate_content(
+                        model='gemini-3.1-flash-lite',
+                        contents=system_instruction + "\n\nLISTA A PROCESAR:\n" + tx_list_str,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=AICategorizationBatchResponse,
+                            temperature=0.1
+                        )
+                    )
+                    
+                    batch_results = json.loads(response.text)
+                    category_by_id = {str(cat.id): cat for cat in categories}
+                    otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
+
+                    for item in batch_results.get("items", []):
+                        idx = item.get("index")
+                        conf = item.get("confidence", 0)
+                        cat_id = item.get("category_id")
+                        
+                        if idx is not None:
+                            if conf >= 0.45 and cat_id in category_by_id:
+                                results[idx] = cat_id
+                            else:
+                                results[idx] = otros_cat_id
+                    
+                    break # Success! Exit retry loop
+                
+                except Exception as e:
+                    if "503" in str(e) or "UNAVAILABLE" in str(e):
+                        retry_count += 1
+                        wait_time = (retry_count + 1) * 4 # Backoff más largo: 8s, 12s, 16s...
+                        print(f"[Categorizer] Gemini ocupado (503). Reintentando en {wait_time}s... ({retry_count}/{max_retries})")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"[Categorizer] Error en Batch AI: {e}")
+                        # Fallback to 'Otros' for this chunk
+                        otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
+                        for idx, _ in chunk:
+                            results[idx] = otros_cat_id
+                        break # Other errors don't trigger retry
+
+            # Final check: if we hit max retries or some other exit, ensure chunk is categorized
+            otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
+            for idx, _ in chunk:
+                if idx not in results:
+                    results[idx] = otros_cat_id
+
         return results
     finally:
         if not db_session:
