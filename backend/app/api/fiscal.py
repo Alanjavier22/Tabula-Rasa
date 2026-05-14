@@ -325,9 +325,11 @@ def export_sri_annex(year: int = Query(...), db: Session = Depends(get_db)):
         
         # Write transaction rows
         for txn, category in transactions:
-            # Convert amount from cents to dollars
-            amount_dollars = float(txn.amount) / 100
-            iva_dollars = amount_dollars * float(get_iva_rate(db))
+            # En Tabula Rasa, txn.amount ya está en la unidad principal (dólares)
+            # si viene de la base de datos como se configuró en modelos previos.
+            # Pero para asegurar consistencia con el sistema de centavos:
+            amount_val = float(txn.amount)
+            iva_val = amount_val * float(get_iva_rate(db))
             
             # Clean category name: remove emojis and empty parentheses, keep accents
             category_name = category.name if category else ""
@@ -341,8 +343,8 @@ def export_sri_annex(year: int = Query(...), db: Session = Depends(get_db)):
                 txn.date.strftime("%Y-%m-%d"),
                 txn.description or "",
                 category_name_clean,
-                f"{amount_dollars:.2f}",
-                f"{iva_dollars:.2f}",
+                f"{amount_val:.2f}",
+                f"{iva_val:.2f}",
                 "Factura"  # Default document type
             ])
         
