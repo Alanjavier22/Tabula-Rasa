@@ -24,13 +24,14 @@
 
 * 🔒 **Local-First (Zero-Cloud)**: Toda la base de datos, el historial de transacciones, los tokens de autenticación y las proyecciones residen **exclusivamente en tu entorno local**. El sistema es el dueño de los datos, no un servidor de terceros.
 * 🧮 **Integridad Matemática Absoluta**: La precisión es imperativa. Toda la gestión financiera se procesa y almacena en precisión entera (centavos) en el Backend y mediante `decimal.js-light` en el Frontend, erradicando por completo las inconsistencias del estándar de coma flotante IEEE-754.
-* 🤝 **La IA como Motor de Razonamiento, NO como Custodio**: La inteligencia artificial (*Gemini 3.1 Flash-Lite*) interactúa con la información mediante **Function Calling** (Tool Use). Procesa la data en ventanas de contexto efímeras y en tiempo real. **Tus datos nunca entrenan modelos.**
+* 🤝 **La IA como Motor de Razonamiento, NO como Custodio**: La inteligencia artificial (*Gemini 3.1 Pro/Flash*) interactúa con la información mediante **Function Calling** (Tool Use). Procesa la data en ventanas de contexto efímeras y en tiempo real. **Tus datos nunca entrenan modelos.**
+* 💎 **Arquitectura de Integridad 360**: Implementación del sistema `is_internal` para el filtrado determinista de flujos de caja. El sistema identifica y aísla automáticamente pagos de tarjetas y transferencias internas, garantizando que tus ingresos y gastos operativos sean 100% veraces y libres de inflación por movimientos de deuda.
 
 ---
 
 ## 🧠 El Ecosistema de Inteligencia Agentizada (AI-Driven)
 
-Tabula Rasa no tiene un simple "chatbot". Integra una compleja red de agentes autónomos y personalidades especializadas que operan como tu junta directiva financiera. Todo impulsado por la velocidad y eficiencia del modelo **Gemini 3.1 Flash-Lite**.
+Tabula Rasa no tiene un simple "chatbot". Integra una compleja red de agentes autónomos y personalidades especializadas que operan como tu junta directiva financiera. Todo impulsado por la velocidad y eficiencia del modelo **Gemini 3.1 Pro/Flash**.
 
 ### 🛡️ Sentinel (Orquestador Central Autónomo)
 El *Sentinel* no espera a que le preguntes. Es un agente que corre análisis en segundo plano sobre tu base de datos local y presenta inteligencia procesable directamente en tu Dashboard.
@@ -38,16 +39,17 @@ El *Sentinel* no espera a que le preguntes. Es un agente que corre análisis en 
 * **Proyección de Runway**: Calcula exactamente cuántos meses puedes sobrevivir con tu nivel de gasto actual (Burn Rate) si tus ingresos se detienen hoy.
 * **Alertas Predictivas**: Detecta si tu trayectoria de gasto en una categoría específica (ej. "Comida a Domicilio") excederá el presupuesto antes de que termine el mes.
 
-### 🎭 Personalidades de IA Modulares (Expertos en Demanda)
-El asistente interactivo puede adoptar "system prompts" extremadamente detallados según lo que necesites:
+### 🎭 Personalidades de IA con Improvisación Natural
+A diferencia de otros sistemas, las personalidades de Tabula Rasa no usan respuestas preprogramadas. Utilizan un motor de **improvisación creativa** basado en el contexto real de tus números:
 
-1. 💼 **Asesor Financiero (Wealth Advisor)**: Analítico, formal y enfocado en el crecimiento patrimonial. Su objetivo es optimizar tu *Safe to Spend* (Monto Seguro para Gastar) y sugerir reasignaciones de capital basadas en tu historial.
-2. ⚠️ **Analista de Riesgos**: Extremadamente conservador. Su labor es auditar tu relación deuda-ingreso (DTI), advertir sobre sobreapalancamiento en tarjetas de crédito y simular los peores escenarios.
-3. 🔥 **Financial Roast Mode**: Un coach financiero sádico, brutalmente honesto y sarcástico. Creado para forjar disciplina a base de críticas ácidas. Te hará sentir culpable por cada dólar gastado en caprichos innecesarios.
-4. 🇪🇨 **Especialista SRI (Ecuador)**: Configurado con la ley tributaria vigente. Se enfoca en categorizar gastos deducibles (Salud, Vivienda, Educación, Vestimenta, Alimentación) y proyectar tu declaración de Impuesto a la Renta.
+1. 💼 **Asesor Financiero (Wealth Advisor)**: Analítico, formal y enfocado en el crecimiento patrimonial. Su objetivo es optimizar tu *Safe to Spend* y sugerir reasignaciones de capital estratégicas.
+2. ⚠️ **Analista de Riesgos (Detective Noir)**: Trata tus estados de cuenta como una escena del crimen. Busca "cómplices" (gastos hormiga) y "autores intelectuales" (malos hábitos) con un tono cínico y analítico.
+3. 🔥 **Financial Roast (Stand-Up Mode)**: Un villano financiero con humor negro. No solo regaña, sino que improvisa analogías crueles e ingeniosas sobre tus gastos absurdos para forjar disciplina a través de la ironía.
+4. 🧘 **Maestro Zen (Sabio)**: Ve el dinero como energía fluida. Crea metáforas filosóficas y parábolas únicas para cada situación financiera, guiándote hacia la paz mental y el desapego consciente.
+5. 🎮 **Game Master (RPG Mode)**: Transforma tu economía en una aventura épica. Inventa mecánicas de juego, *debuffs* y misiones basadas en tu comportamiento de gasto real.
 
 ### 🔬 Herramientas de IA Especializadas (Tools)
-* 👁️ **Statement Intelligence (Multimodal Vision)**: Motor OCR integrado. Arrastra una foto de un recibo o un extracto bancario; la IA extrae el monto exacto, identifica el comercio, asume la categoría semántica y pre-llena el formulario de transacción.
+* 👁️ **Statement Intelligence (Vision & Sync)**: Motor de importación inteligente. Extrae transacciones, sincroniza automáticamente el **Límite de Crédito** de tus tarjetas y detecta diferidos duplicados mediante un motor de idempotencia criptográfica.
 * ✨ **Simulador "What-If" (Máquina del Tiempo)**: Motor de proyección condicional. Le preguntas a la IA: *"¿Qué pasa con mi liquidez si saco un préstamo de $10,000 al 12% a 3 años para comprar un auto?"*. El simulador inyecta esa deuda hipotética y recalcula toda tu gráfica de flujo de caja proyectada a 90 días en el Dashboard.
 * 🔎 **AI Anomaly Scanner**: Auditoría profunda que rastrea pagos duplicados, micropagos silenciosos (suscripciones olvidadas) y desviaciones estándar aberrantes en tu comportamiento de gasto mensual.
 * 🧠 **Continual Pattern Learning**: Sistema de aprendizaje pasivo que detecta cuando el usuario corrige una categoría. El motor de IA aprende de esta corrección para futuras transacciones similares, refinando la precisión semántica sin intervención manual.
