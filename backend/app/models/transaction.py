@@ -57,6 +57,7 @@ class Transaction(Base):
     fingerprint = Column(String, unique=True, index=True, nullable=True)  # Hash único robusto
     import_log_id = Column(String(36), ForeignKey("import_logs.id", ondelete="SET NULL"), nullable=True)
     beneficiary = Column(String, nullable=True)  # Beneficiario/pagador (ej: "DLC UBER RIDES", "376653XXXXXX0754")
+    is_internal = Column(Boolean, default=False, nullable=False, server_default="0") # FASE: Integridad 360 - Ignorado en ingresos/gastos reales
 
     # Relationships
     category = relationship("Category", back_populates="transactions")
