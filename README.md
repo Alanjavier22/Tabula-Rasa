@@ -209,4 +209,5 @@ TABULA-RASA/
 > Te invitamos a leer el archivo **`HISTORIAL.md`** adjunto en este repositorio para comprender a detalle el progreso cronológico de las optimizaciones, resoluciones de bugs, "refactorings" de código y las decisiones arquitectónicas clave (ADRs) documentadas semana a semana a lo largo de este proyecto de alto calibre.
 
 ---
-*Desarrollado con una obsesión irreductible por el detalle, la limpieza del código y el derecho universal a la soberanía financiera local.* 🏛️✨
+Desarrollado con ☕ y 🧠 por **Alan Javier Mejia Alvarez**
+*Soberanía financiera, precisión técnica y privacidad absoluta.* 🏛️✨
