@@ -12,6 +12,7 @@ from datetime import datetime, date
 from decimal import Decimal
 import csv
 import io
+import json
 import logging
 from database import get_db
 from app.api.auth import get_current_device
@@ -283,81 +284,102 @@ def get_fiscal_trend(
         raise HTTPException(status_code=500, detail=f"Error generating fiscal trend: {str(e)}")
 
 
-@router.get("/sri-annex")
-def export_sri_annex(year: int = Query(...), db: Session = Depends(get_db)):
+@router.get("/export-declaracion-sri")
+def export_declaracion_sri(
+    year: int = Query(...),
+    format: str = Query("xml", regex="^(xml|json)$"),
+    db: Session = Depends(get_db)
+):
     """
-    Export SRI annex as CSV for a given year.
+    Exporta la declaración de gastos personales del SRI en formato XML o JSON.
+    Mapea las categorías internas a los códigos de Concepto oficiales.
     """
     try:
-        # Query all expense transactions for the year
+        from app.services.sri_classifier import SRIClassifier
+        
+        # 1. Obtener transacciones de gasto del año
         start_date = datetime(year, 1, 1)
         end_date = datetime(year, 12, 31)
         
-        print(f"Exporting SRI annex for year {year}")
-        print(f"Date range: {start_date} to {end_date}")
-        
-        transactions = db.query(Transaction, Category).join(
-            Category, Transaction.category_id == Category.id
-        ).filter(
+        transactions = db.query(Transaction).filter(
             Transaction.transaction_type == "expense",
             Transaction.is_deleted == False,
             Transaction.date >= start_date,
             Transaction.date <= end_date
         ).all()
-        
-        print(f"Found {len(transactions)} transactions")
-        
-        # Create CSV content with UTF-8 BOM for Excel compatibility
-        output = io.StringIO()
-        # Add UTF-8 BOM for proper encoding in Excel
-        output.write('\ufeff')
-        writer = csv.writer(output)
-        
-        # CSV headers (SRI format)
-        writer.writerow([
-            "Fecha",
-            "Descripción",
-            "Categoría",
-            "Monto",
-            "IVA",
-            "Tipo de Comprobante"
-        ])
-        
-        # Write transaction rows
-        for txn, category in transactions:
-            # En Tabula Rasa, txn.amount ya está en la unidad principal (dólares)
-            # si viene de la base de datos como se configuró en modelos previos.
-            # Pero para asegurar consistencia con el sistema de centavos:
-            amount_val = float(txn.amount)
-            iva_val = amount_val * float(get_iva_rate(db))
+
+        # 2. Mapeo de categorías a conceptos SRI
+        # Estos son los códigos oficiales según el requerimiento
+        CONCEPTS = {
+            "Salud": "3290",
+            "Alimentación": "3300",
+            "Vivienda": "3310",
+            "Educación, Arte y Cultura": "5040",
+            "Vestimenta": "3320",
+            "Turismo": "3325",
+            "Total Deducciones": "3330"
+        }
+
+        # Inicializar acumuladores
+        totals = {code: Decimal("0.00") for code in CONCEPTS.values()}
+
+        # 3. Clasificar y Sumar
+        # Nota: Usamos una lógica de palabras clave simple para el mapeo si no hay campo SRI
+        for txn in transactions:
+            cat_name = txn.category.name.lower() if txn.category else ""
+            # Convertir de centavos a dólares (dividido por 100)
+            amount = Decimal(str(txn.amount)) / Decimal("100")
             
-            # Clean category name: remove emojis and empty parentheses, keep accents
-            category_name = category.name if category else ""
-            import re
-            # Remove emojis (Unicode emoji ranges) but keep accented characters
-            category_name_clean = re.sub(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251]+', '', category_name)
-            category_name_clean = re.sub(r'\s*\(\s*\)', '', category_name_clean)  # Remove empty parentheses
-            category_name_clean = category_name_clean.strip()
+            sri_code = None
+            if any(k in cat_name for k in ["salud", "medic", "farmac", "hospit"]):
+                sri_code = CONCEPTS["Salud"]
+            elif any(k in cat_name for k in ["aliment", "restaur", "comida", "supermer"]):
+                sri_code = CONCEPTS["Alimentación"]
+            elif any(k in cat_name for k in ["vivien", "arriend", "luz", "agua", "alicuot"]):
+                sri_code = CONCEPTS["Vivienda"]
+            elif any(k in cat_name for k in ["educac", "art", "cultur", "cole", "univers", "curs"]):
+                sri_code = CONCEPTS["Educación, Arte y Cultura"]
+            elif any(k in cat_name for k in ["vestim", "ropa", "zapat"]):
+                sri_code = CONCEPTS["Vestimenta"]
+            elif any(k in cat_name for k in ["turism", "viaje", "hotel", "vuel"]):
+                sri_code = CONCEPTS["Turismo"]
             
-            writer.writerow([
-                txn.date.strftime("%Y-%m-%d"),
-                txn.description or "",
-                category_name_clean,
-                f"{amount_val:.2f}",
-                f"{iva_val:.2f}",
-                "Factura"  # Default document type
-            ])
-        
-        # Create response with CSV content
-        csv_content = output.getvalue()
-        print(f"CSV content length: {len(csv_content)}")
+            if sri_code:
+                totals[sri_code] += amount
+                totals[CONCEPTS["Total Deducciones"]] += amount
+
+        # Limpiar conceptos con valor 0 (excepto el RUC Contador si se requiere)
+        # El SRI dice que si no hay info, no se envía el tag.
+        final_data = {k: v for k, v in totals.items() if (isinstance(v, Decimal) and v > 0) or k == "100"}
+
+        # 4. Generar Archivo
+        if format == "json":
+            content = json.dumps({"detallesDeclaracion": {k: f"{v:.2f}" if isinstance(v, Decimal) else v for k, v in final_data.items()}}, indent=2)
+            media_type = "application/json"
+            filename = f"declaracion_sri_{year}.json"
+        else:
+            # XML Generation
+            import xml.etree.ElementTree as ET
+            root = ET.Element("detallesDeclaracion")
+            for k, v in final_data.items():
+                val_str = f"{v:.2f}" if isinstance(v, Decimal) else str(v)
+                child = ET.SubElement(root, "detalle", concepto=k)
+                child.text = val_str
+            
+            # Formatear XML con declaración
+            xml_str = ET.tostring(root, encoding='utf-8', method='xml')
+            content = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + xml_str
+            media_type = "application/xml"
+            filename = f"declaracion_sri_{year}.xml"
+
         return Response(
-            content=csv_content.encode('utf-8'),
-            media_type="text/csv; charset=utf-8",
+            content=content if isinstance(content, bytes) else content.encode('utf-8'),
+            media_type=media_type,
             headers={
-                "Content-Disposition": f"attachment; filename=anexo_gastos_sri_{year}.csv"
+                "Content-Disposition": f"attachment; filename={filename}"
             }
         )
+
     except Exception as e:
-        print(f"Error exporting SRI annex: {str(e)}")
-        raise e
+        logger.error(f"Error generando declaración SRI: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
