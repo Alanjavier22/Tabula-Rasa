@@ -50,6 +50,7 @@ A diferencia de otros sistemas, las personalidades de Tabula Rasa no usan respue
 
 ### 🔬 Herramientas de IA Especializadas (Tools)
 * 👁️ **Statement Intelligence (Vision & Sync)**: Motor de importación inteligente. Extrae transacciones, sincroniza automáticamente el **Límite de Crédito** de tus tarjetas y detecta diferidos duplicados mediante un motor de idempotencia criptográfica.
+* 🏛️ **SRI Automated Compliance**: Generador nativo de declaraciones de Impuesto a la Renta. Clasifica automáticamente tus consumos y genera archivos **XML y JSON** con los códigos de concepto oficiales (3290, 3300, etc.) listos para ser presentados ante la autoridad tributaria.
 * ✨ **Simulador "What-If" (Máquina del Tiempo)**: Motor de proyección condicional. Le preguntas a la IA: *"¿Qué pasa con mi liquidez si saco un préstamo de $10,000 al 12% a 3 años para comprar un auto?"*. El simulador inyecta esa deuda hipotética y recalcula toda tu gráfica de flujo de caja proyectada a 90 días en el Dashboard.
 * 🔎 **AI Anomaly Scanner**: Auditoría profunda que rastrea pagos duplicados, micropagos silenciosos (suscripciones olvidadas) y desviaciones estándar aberrantes en tu comportamiento de gasto mensual.
 * 🧠 **Continual Pattern Learning**: Sistema de aprendizaje pasivo que detecta cuando el usuario corrige una categoría. El motor de IA aprende de esta corrección para futuras transacciones similares, refinando la precisión semántica sin intervención manual.
