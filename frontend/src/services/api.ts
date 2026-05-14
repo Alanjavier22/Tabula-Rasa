@@ -221,6 +221,11 @@ export const fiscalAPI = {
     api.get('/fiscal/report', { params: { start_date: startDate, end_date: endDate, category_ids: categoryIds } }),
   getTrend: (startDate: string, endDate: string, categoryIds?: string) => 
     api.get('/fiscal/trend', { params: { start_date: startDate, end_date: endDate, category_ids: categoryIds } }),
+  exportDeclaracionSRI: (year: number, format: 'xml' | 'json') => 
+    api.get('/fiscal/export-declaracion-sri', { 
+      params: { year, format },
+      responseType: 'blob' 
+    }),
 };
 
 export const aiAPI = {
