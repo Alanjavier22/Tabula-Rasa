@@ -38,6 +38,24 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
     });
   }, []);
 
+  // Recalcular automáticamente la responsabilidad cuando cambian las transacciones seleccionadas o compartidas
+  useEffect(() => {
+    if (statementMetadata && extractedTransactions.length > 0) {
+      const totalShared = extractedTransactions
+        .filter(t => t.selected && t.shared_amount)
+        .reduce((sum, t) => sum + (t.shared_amount || 0), 0);
+      
+      const newUserShare = Math.max(0, statementMetadata.statement_balance_cents - totalShared);
+      
+      if (newUserShare !== statementMetadata.user_share_cents) {
+        setStatementMetadata((prev: any) => ({
+          ...prev,
+          user_share_cents: newUserShare
+        }));
+      }
+    }
+  }, [extractedTransactions, statementMetadata?.statement_balance_cents]);
+
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -146,12 +164,13 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       setTimeout(() => {
         onSuccess(response.data.imported_count);
         onClose();
+        // Solo después de que se supone que el modal se cierra o el proceso termina totalmente
+        setSaving(false);
       }, 2000);
     } catch (error: any) {
       console.error('Save error:', error);
       const detail = error.response?.data?.detail || 'Error al guardar el estado de cuenta.';
       setResult({ success: false, message: detail });
-    } finally {
       setSaving(false);
     }
   };
@@ -342,18 +361,31 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                 <div className="bg-slate-900/50 rounded-2xl border border-slate-700 overflow-hidden">
                   <div className="flex items-center justify-between p-4 bg-slate-800/50 border-b border-slate-700">
                     <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Transacciones Detectadas ({extractedTransactions.length})</h3>
-                    <button
-                      onClick={() => {
-                        setFile(null);
-                        setExtractedTransactions([]);
-                        setStatementMetadata(null);
-                        setResult(null);
-                      }}
-                      className="flex items-center text-slate-400 hover:text-white text-sm bg-slate-800 px-3 py-1 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Descartar y Rehacer
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {extractedTransactions.some(t => t.is_duplicate) && (
+                        <button
+                          onClick={() => {
+                            setExtractedTransactions(prev => prev.filter(t => !t.is_duplicate));
+                          }}
+                          className="flex items-center gap-2 text-rose-400 hover:text-rose-300 text-[10px] font-bold uppercase bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20 transition-all"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Limpiar Duplicados
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setFile(null);
+                          setExtractedTransactions([]);
+                          setStatementMetadata(null);
+                          setResult(null);
+                        }}
+                        className="flex items-center gap-2 text-slate-400 hover:text-white text-[10px] font-bold uppercase bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 transition-all"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Descartar y Rehacer
+                      </button>
+                    </div>
                   </div>
                   
                   <div className="max-h-[40vh] overflow-y-auto relative">
@@ -480,7 +512,12 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                       disabled={saving || !extractedTransactions.some(t => t.selected)}
                       className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-500 hover:to-blue-500 font-bold shadow-lg shadow-purple-500/20 transition-all disabled:opacity-50 flex items-center gap-2"
                     >
-                      {saving ? 'Aplicando...' : 'Confirmar Importación'}
+                      {saving ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          Aplicando...
+                        </>
+                      ) : 'Confirmar Importación'}
                     </button>
                   </div>
                 </div>
