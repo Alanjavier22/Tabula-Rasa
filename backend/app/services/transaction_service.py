@@ -147,6 +147,13 @@ def create_transaction_with_splits(
             validate_splits(splits_data, transaction_data["amount"])
 
         # --- persist -----------------------------------------------------
+        # GOLDEN RULE: Any income to a credit card is an internal payment, not real income.
+        if transaction_data.get("transaction_type") == "income" and transaction_data.get("account_id"):
+            from app.models.account import Account, AccountType
+            account = db.query(Account).filter(Account.id == transaction_data["account_id"]).first()
+            if account and account.account_type == AccountType.CREDIT_CARD:
+                transaction_data["is_internal"] = True
+
         db_transaction = Transaction(**transaction_data)
         db.add(db_transaction)
         db.flush()
