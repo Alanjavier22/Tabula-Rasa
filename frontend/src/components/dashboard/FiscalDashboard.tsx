@@ -21,8 +21,8 @@ import {
 } from 'recharts';
 import { formatMoney, toNumber } from '../../utils/money';
 import { fiscalAPI } from '../../services/api';
-import { StreamedExporter, streamedExporter } from '../../utils/StreamedExporter';
-import { Download } from 'lucide-react';
+import { Download, FileJson, FileCode } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Chart colors - accessible palette
 const COLORS = {
@@ -97,7 +97,6 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   const [trendData, setTrendData] = useState<Array<any>>([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
 
   // Load data on mount or date change
   React.useEffect(() => {
@@ -122,23 +121,33 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
     loadData();
   }, [startDate, endDate, categoryIds]);
 
-  // FASE 4: Export SRI Annex
-  const handleExportSRIAnnex = async () => {
+  // FASE 4: Export Declaración SRI (XML/JSON)
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'xml' | 'json'>('xml');
+
+  const handleExportSRI = async () => {
     const year = new Date(endDate).getFullYear();
     setExporting(true);
-    setExportProgress(0);
 
     try {
-      const blob = await streamedExporter.exportSRIAnnex(year);
-      setExportProgress(100);
-
-      const filename = `anexo_gastos_sri_${year}.csv`;
-      StreamedExporter.downloadBlob(blob, filename);
+      const response = await fiscalAPI.exportDeclaracionSRI(year, exportFormat);
+      
+      // Crear link de descarga
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `declaracion_sri_${year}.${exportFormat}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      setShowExportModal(false);
     } catch (error) {
-      console.error('[FiscalDashboard] Error exporting SRI annex:', error);
+      console.error('[FiscalDashboard] Error exporting SRI declaration:', error);
+      alert('Error al generar la declaración fiscal');
     } finally {
       setExporting(false);
-      setExportProgress(0);
     }
   };
 
@@ -216,30 +225,85 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-white">Resumen Fiscal</h3>
         <button
-          onClick={handleExportSRIAnnex}
+          onClick={() => setShowExportModal(true)}
           disabled={exporting}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-blue-500/5"
         >
           <Download className="w-4 h-4" />
-          {exporting ? `Exportando... ${exportProgress}` : 'Descargar Anexo SRI'}
+          {exporting ? 'Generando...' : 'Descargar Anexo SRI'}
         </button>
       </div>
 
-      {/* Export Progress */}
-      {exporting && (
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-slate-400">Generando anexo SRI...</span>
-            <span className="text-sm font-medium text-white">{exportProgress} registros</span>
+      {/* SRI Export Modal */}
+      <AnimatePresence>
+        {showExportModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-slate-900 border border-white/10 rounded-[2rem] p-8 max-w-md w-full shadow-2xl"
+            >
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-500/20 shadow-inner">
+                  <Download className="w-8 h-8 text-blue-400" />
+                </div>
+                <h2 className="text-2xl font-black text-white">Exportación SRI</h2>
+                <p className="text-slate-400 mt-2">Selecciona el formato para tu declaración de Impuesto a la Renta {new Date(endDate).getFullYear()}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                <button
+                  onClick={() => setExportFormat('xml')}
+                  className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${
+                    exportFormat === 'xml'
+                      ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-lg shadow-blue-500/10'
+                      : 'bg-slate-800/50 border-transparent text-slate-500 hover:border-slate-700 hover:text-slate-300'
+                  }`}
+                >
+                  <FileCode className="w-8 h-8" />
+                  <span className="font-bold">SRI XML</span>
+                </button>
+                <button
+                  onClick={() => setExportFormat('json')}
+                  className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${
+                    exportFormat === 'json'
+                      ? 'bg-purple-600/20 border-purple-500 text-purple-400 shadow-lg shadow-purple-500/10'
+                      : 'bg-slate-800/50 border-transparent text-slate-500 hover:border-slate-700 hover:text-slate-300'
+                  }`}
+                >
+                  <FileJson className="w-8 h-8" />
+                  <span className="font-bold">JSON Data</span>
+                </button>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="flex-1 px-6 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl hover:bg-slate-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleExportSRI}
+                  disabled={exporting}
+                  className="flex-2 px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {exporting && <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />}
+                  Confirmar
+                </button>
+              </div>
+
+              <div className="mt-6 p-4 bg-slate-800/30 rounded-xl border border-white/5">
+                <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest font-bold">
+                  Nota: El archivo incluirá los conceptos mapeados (3290, 3300, etc.) para gastos personales.
+                </p>
+              </div>
+            </motion.div>
           </div>
-          <div className="w-full bg-slate-700 rounded-full h-2">
-            <div 
-              className="bg-green-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: '100%' }}
-            />
-          </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
 
       {/* KPI Cards - FASE 5: Mobile-first vertical stacking */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
