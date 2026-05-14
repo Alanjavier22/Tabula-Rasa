@@ -4,10 +4,18 @@ import { FiscalDashboard } from '../components/dashboard/FiscalDashboard';
 import { Receipt, Info } from 'lucide-react';
 
 const FiscalPage: React.FC = () => {
-  // Current month range for default view
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  const [selectedYear, setSelectedYear] = React.useState(new Date().getFullYear());
+  
+  // Calculate dates for the selected fiscal year
+  const firstDay = `${selectedYear}-01-01`;
+  const lastDay = `${selectedYear}-12-31`;
+
+  const availableYears = [
+    selectedYear + 1,
+    selectedYear,
+    selectedYear - 1,
+    selectedYear - 2
+  ];
 
   return (
     <motion.div
@@ -23,8 +31,25 @@ const FiscalPage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-3xl font-black text-white tracking-tight">Centro Fiscal SRI</h1>
-            <p className="text-slate-400 text-sm font-medium">Gestión tributaria, anexos y proyecciones de IVA</p>
+            <p className="text-slate-400 text-sm font-medium">Año Fiscal {selectedYear}</p>
           </div>
+        </div>
+
+        {/* Year Selector */}
+        <div className="flex items-center bg-slate-800/50 p-1 rounded-xl border border-slate-700/50">
+          {availableYears.sort().map(year => (
+            <button
+              key={year}
+              onClick={() => setSelectedYear(year)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                selectedYear === year 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              {year}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -35,9 +60,8 @@ const FiscalPage: React.FC = () => {
         </div>
         <div>
           <p className="text-sm text-blue-200/80 leading-relaxed">
-            Este panel consolida tus gastos deducibles y proyecciones de IVA basadas en las categorías configuradas. 
-            Recuerda que para una correcta exportación del <strong>Anexo SRI</strong>, debes tener tus transacciones 
-            correctamente categorizadas como gastos personales.
+            Visualizando datos del periodo fiscal <strong>{selectedYear}</strong>. 
+            Este panel consolida tus gastos deducibles y proyecciones de IVA. Recuerda que el límite de gastos personales para el periodo actual depende de tus cargas familiares y el valor de la Canasta Básica.
           </p>
         </div>
       </div>
