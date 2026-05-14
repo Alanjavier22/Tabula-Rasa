@@ -1,5 +1,20 @@
-# 🏛️ TABULA RASA
-### Infraestructura de Soberanía Financiera Agentizada (Grado Industrial)
+<div align="center">
+
+# 🏛️ Tabula Rasa
+### Sistema Operativo Financiero Soberano & AI-Agentic Ecosystem
+
+*Privacidad blindada, integridad matemática absoluta (Zero-Floating-Point) y orquestación autónoma impulsada exclusivamente por **Gemini 3.1 Flash-Lite**.*
+
+![React](https://img.shields.io/badge/React_19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-109989?style=for-the-badge&logo=fastapi&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite_WAL-%2307405e.svg?style=for-the-badge&logo=sqlite&logoColor=white)
+![Gemini AI](https://img.shields.io/badge/🤖_Gemini_3.1_Flash--Lite-orange?style=for-the-badge)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS_Glassmorphism-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
+![TanStack Query](https://img.shields.io/badge/React_Query-FF4154?style=for-the-badge&logo=react-query&logoColor=white)
+
+</div>
 
 > **"Finanzas limpias. Privacidad absoluta. Inteligencia implacable."**
 
