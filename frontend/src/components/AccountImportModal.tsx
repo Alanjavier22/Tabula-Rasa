@@ -143,12 +143,12 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
       setTimeout(() => {
         onSuccess(response.data.imported_count);
         onClose();
+        setSaving(false);
       }, 2000);
     } catch (error: any) {
       console.error('Save error:', error);
       const detail = error.response?.data?.detail || 'Error al guardar los movimientos.';
       setResult({ success: false, message: detail });
-    } finally {
       setSaving(false);
     }
   };
@@ -397,7 +397,12 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                     disabled={saving || !extractedTransactions.some(t => t.selected)}
                     className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-500 hover:to-teal-500 font-bold shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 flex items-center gap-2"
                   >
-                    {saving ? 'Aplicando...' : 'Confirmar Importación'}
+                    {saving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        Aplicando...
+                      </>
+                    ) : 'Confirmar Importación'}
                   </button>
                 </div>
               </div>
