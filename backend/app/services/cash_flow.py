@@ -159,19 +159,20 @@ class CashFlowService:
             recent_income_query = (
                 db.query(Transaction)
                 .filter(Transaction.is_deleted == False)
+                .filter(Transaction.is_internal == False) # MANDATORY: Ignore CC payments/transfers
                 .filter(Transaction.transaction_type == "income")
                 .filter(Transaction.date >= ninety_days_ago)
             )
             
             # EXCLUSION LOGIC: Remove noise from salary projection
-            # We ignore internal transfers, refunds, and partner contributions to get a "pure" salary average
             if ignored_ids:
                 recent_income_query = recent_income_query.filter(Transaction.category_id.not_in(ignored_ids))
             
-            # String filters for common non-salary keywords
+            # Legacy/Manual safety blacklist
+            blacklist = ["DENNIS", "DANIEL", "META", "TRANSFERENCIA", "PAGO EN OFIC", "MUCHAS GRACIAS", "TRANSF. DEUDA", "SU PAGO", "ABONO"]
             recent_income = [
                 t for t in recent_income_query.all()
-                if not any(k in t.description.upper() for k in ["DENNIS", "DANIEL", "META", "TRANSFERENCIA", "PAGO EN OFIC", "MUCHAS GRACIAS"])
+                if not any(k in (t.description or "").upper() for k in blacklist)
             ]
 
             total_income = sum(t.amount for t in recent_income)
