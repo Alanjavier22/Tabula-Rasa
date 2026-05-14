@@ -389,24 +389,44 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         
         current_month_str = f"{current_year}-{current_month:02d}"
 
-        # Current month totals - RAW DATA INTEGRITY (No filters)
-        income_result = db.query(
-            func.coalesce(func.sum(case((Transaction.transaction_type == "income", Transaction.amount), else_=0)), 0)
-        ).filter(
+        # Current month totals - CLEAN DATA (Excluding transfers/CC payments)
+        ignored_categories = db.query(Category.id).filter(
+            (Category.name.ilike("%Transferencia%")) | 
+            (Category.name.ilike("%Ajuste%")) |
+            (Category.name.ilike("%Meta%"))
+        ).all()
+        ignored_ids = [c[0] for c in ignored_categories]
+        
+        blacklist = ["%PAGO EN OFIC%", "%MUCHAS GRACIAS%", "%TRANSF. DEUDA%", "%SU PAGO%", "%ABONO%"]
+        
+        # EXCLUSION LOGIC: Use 'is_internal' flag for structural integrity + legacy keywords
+        income_query = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
             Transaction.is_deleted == False,
+            Transaction.is_internal == False, # Structural filter
+            Transaction.transaction_type == "income",
             Transaction.date >= datetime(current_year, current_month, 1),
             Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
-        ).scalar()
-        total_income = Decimal(str(income_result))
+        )
+        
+        expense_query = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
+            Transaction.is_deleted == False,
+            Transaction.is_internal == False, # Structural filter
+            Transaction.transaction_type == "expense",
+            Transaction.date >= datetime(current_year, current_month, 1),
+            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
+        )
 
-        expense_result = db.query(
-            func.coalesce(func.sum(case((Transaction.transaction_type == "expense", Transaction.amount), else_=0)), 0)
-        ).filter(
-            Transaction.is_deleted == False,
-            Transaction.date >= datetime(current_year, current_month, 1),
-            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
-        ).scalar()
-        total_expenses = Decimal(str(expense_result))
+        if ignored_ids:
+            income_query = income_query.filter(Transaction.category_id.not_in(ignored_ids))
+            expense_query = expense_query.filter(Transaction.category_id.not_in(ignored_ids))
+        
+        # Legacy safety: also filter by common keywords for manual/old transactions
+        for pattern in blacklist:
+            income_query = income_query.filter(Transaction.description.not_ilike(pattern))
+            expense_query = expense_query.filter(Transaction.description.not_ilike(pattern))
+
+        total_income = Decimal(str(income_query.scalar()))
+        total_expenses = Decimal(str(expense_query.scalar()))
 
         expense_breakdown_query = db.query(
             func.coalesce(Category.name, 'Sin Categoría').label("name"),
