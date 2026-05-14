@@ -4,6 +4,9 @@
 # Proyecto: Tabula Rasa
 # ==========================================
 
+# --- Agentes y Habilidades (CRÍTICO: No ignorar) ---
+!.agents/
+
 # --- Dependencias ---
 node_modules/
 venv/
