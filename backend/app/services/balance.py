@@ -56,14 +56,50 @@ def recalculate_account_balance(db: Session, account_id: str, initial_balance: i
     if not account:
         return 0
 
-    # 1. Look for the 'Anchor Transaction' (the latest one with a verified running balance)
+    # --- SUPER ANCHOR: Credit Card Statements ---
+    # For credit cards, the latest statement balance is the ULTIMATE TRUTH.
+    from app.models.credit_card_statement import CreditCardStatement
+    latest_stmt = db.query(CreditCardStatement).filter(
+        CreditCardStatement.account_id == account_id,
+        CreditCardStatement.is_deleted == False
+    ).order_by(CreditCardStatement.year.desc(), CreditCardStatement.month.desc()).first()
+
+    # 1. Look for the 'Anchor Transaction'
     anchor_tx = db.query(Transaction).filter(
         Transaction.account_id == account_id,
         Transaction.running_balance.isnot(None),
         Transaction.is_deleted == False
     ).order_by(Transaction.date.desc(), Transaction.created_at.desc()).first()
 
-    if anchor_tx:
+    # Determine which anchor is more recent/reliable
+    use_stmt_anchor = False
+    if account.account_type == "credit_card" and latest_stmt:
+        # If statement exists, we compare it with transaction anchor
+        # For now, if a statement exists, it OVERRIDES anything else as the base.
+        use_stmt_anchor = True
+
+    if use_stmt_anchor and latest_stmt:
+        # Base balance is the statement balance (stored as positive debt in CC context, 
+        # but account.balance is negative debt)
+        base_balance = -latest_stmt.statement_balance
+        anchor_date = latest_stmt.cut_off_date or date(latest_stmt.year, latest_stmt.month, 28)
+        
+        # Get transactions NEWER than the statement cut-off
+        newer_transactions = db.query(Transaction).filter(
+            Transaction.account_id == account_id,
+            Transaction.is_deleted == False,
+            Transaction.date > anchor_date
+        ).all()
+        
+        new_balance = base_balance
+        for txn in newer_transactions:
+            txn_amount = txn.amount
+            if txn.transaction_type == TransactionType.EXPENSE:
+                new_balance -= txn_amount
+            else:
+                new_balance += txn_amount
+
+    elif anchor_tx:
         # We found an anchor! This is the bank's absolute truth at that point in time.
         base_balance = anchor_tx.running_balance
         anchor_date = anchor_tx.date
