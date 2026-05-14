@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import Decimal from 'decimal.js-light';
-import { accountsAPI, statementsAPI, metricsAPI, budgetsAPI, snapshotsAPI, alertsAPI, transactionsAPI, subscriptionsAPI as subsAPI, categoriesAPI, goalsAPI, iousAPI } from '../services/api';
+import { accountsAPI, statementsAPI, metricsAPI, budgetsAPI, snapshotsAPI, alertsAPI, transactionsAPI, subscriptionsAPI as subsAPI, categoriesAPI, goalsAPI, iousAPI, maintenanceAPI } from '../services/api';
 import { formatMoney, toDecimal, clampZero } from '../utils/money';
 import Toast from '../components/Toast';
 import type { Account, CreditCardStatement, SafeToSpendResponse, NetWorthResponse, VehicleTelemetryResponse, CashFlowForecastResponse, DashboardSummaryResponse, AlertsResponse } from '../types';
@@ -27,6 +27,7 @@ import SkeletonCard from '../components/dashboard/SkeletonCard';
 import SkeletonChart from '../components/dashboard/SkeletonChart';
 import { WhatIfModal } from '../components/AIAssistant/WhatIfModal';
 import { AIAnomalyScanner } from '../components/AIAssistant/AIAnomalyScanner';
+import { IntegrityStatus } from '../components/IntegrityStatus';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, LineChart, Line, ReferenceLine,
@@ -176,6 +177,19 @@ const Dashboard = () => {
       } else {
         setToast({ message: 'Error generando análisis', type: 'error' });
       }
+    }
+  });
+
+  const healBalancesMutation = useMutation({
+    mutationFn: () => maintenanceAPI.healBalances(),
+    onSuccess: () => {
+      setToast({ message: 'Balances sincronizados con éxito', type: 'success' });
+      // Refetch relevant data
+      results[1].refetch(); // accounts
+      results[11].refetch(); // summary
+    },
+    onError: () => {
+      setToast({ message: 'Error al sincronizar balances', type: 'error' });
     }
   });
 
@@ -333,9 +347,25 @@ const Dashboard = () => {
               Centro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">Control</span>
             </h1>
             <p className="text-slate-400 text-sm lg:text-base font-medium">Tus finanzas personales, simplificadas</p>
+            <div className="mt-2">
+              <IntegrityStatus accounts={accounts} statements={statements} isLoading={results[1].isLoading || results[2].isLoading} />
+            </div>
           </motion.div>
           
           <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => healBalancesMutation.mutate()}
+              disabled={healBalancesMutation.isPending}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border transition-all group ${
+                healBalancesMutation.isPending
+                  ? 'bg-emerald-500/10 border-emerald-500/50 cursor-wait'
+                  : 'bg-slate-800/50 border-slate-700/50 text-white hover:border-emerald-500/50 hover:bg-emerald-500/10'
+              }`}
+              title="Sincronizar y Sanar Balances"
+            >
+              <RefreshCw className={`w-4 h-4 text-emerald-500 ${healBalancesMutation.isPending ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+              <span className="text-sm font-semibold">{healBalancesMutation.isPending ? 'Sanando...' : 'Integridad'}</span>
+            </button>
             <button
               onClick={() => setShowAnomalyScanner(true)}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50 text-white hover:border-yellow-500/50 hover:bg-yellow-500/10 transition-all group"
