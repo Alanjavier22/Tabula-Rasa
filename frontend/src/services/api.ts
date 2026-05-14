@@ -405,6 +405,10 @@ export const authAPI = {
   revokeDevice: (id: string) => api.delete(`/auth/devices/${id}`),
 };
 
+export const maintenanceAPI = {
+  healBalances: () => api.post('/maintenance/heal-balances'),
+};
+
 
 
 export default api;
