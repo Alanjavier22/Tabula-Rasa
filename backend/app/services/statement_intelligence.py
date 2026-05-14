@@ -14,6 +14,7 @@ from app.models.import_log import ImportLog
 from app.models.credit_card_statement import CreditCardStatement, StatementStatus
 from app.models.category import Category
 from app.models.debt_share import DebtShare
+from app.models.account import Account
 from app.models.iou import IOU, IOUType, IOUStatus
 from app.services.categorizer import get_semantic_category
 
@@ -247,6 +248,7 @@ class StatementIntelligenceService:
                         fingerprint=tx_data['fingerprint'],
                         import_log_id=log.id,
                         is_manual=False,
+                        is_internal=tx_data['transaction_type'] == 'income', # CC income is always an internal payment
                         metadata_json=json.dumps({
                             "is_deferred": tx_data.get('is_deferred'),
                             "deferred_info": tx_data.get('deferred_info')
@@ -282,22 +284,38 @@ class StatementIntelligenceService:
                                 total_inst = int(parts[1])
                             except ValueError: pass
                         
-                        # Crear el registro de diferido para seguimiento futuro
-                        new_deferred = DeferredPayment(
-                            account_id=log.account_id,
-                            name=tx_data['description'],
-                            total_amount=abs(tx_data['amount_cents']) * total_inst, # Estimación
-                            installment_amount=abs(tx_data['amount_cents']),
-                            total_installments=total_inst,
-                            current_installment=current_inst,
-                            remaining_balance=abs(tx_data['amount_cents']) * (total_inst - current_inst + 1),
-                            is_shared=True if tx_data.get('shared_with') else False,
-                            shared_with=tx_data.get('shared_with'),
-                            shared_amount=int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None,
-                            start_date=dt,
-                            is_active=True
-                        )
-                        self.db.add(new_deferred)
+                        # DEDUPLICATION: Check if this deferred installment already exists for this account/month
+                        # We use name, installment_amount, and current_installment to match
+                        existing_def = self.db.query(DeferredPayment).filter(
+                            DeferredPayment.account_id == log.account_id,
+                            DeferredPayment.installment_amount == abs(tx_data['amount_cents']),
+                            DeferredPayment.current_installment == current_inst,
+                            DeferredPayment.total_installments == total_inst,
+                            DeferredPayment.is_active == True
+                        ).filter(DeferredPayment.name.ilike(f"%{tx_data['description'][:10]}%")).first()
+
+                        if not existing_def:
+                            # Crear el registro de diferido para seguimiento futuro
+                            new_deferred = DeferredPayment(
+                                account_id=log.account_id,
+                                name=tx_data['description'],
+                                total_amount=abs(tx_data['amount_cents']) * total_inst, # Estimación
+                                installment_amount=abs(tx_data['amount_cents']),
+                                total_installments=total_inst,
+                                current_installment=current_inst,
+                                remaining_balance=abs(tx_data['amount_cents']) * (total_inst - current_inst + 1),
+                                is_shared=True if tx_data.get('shared_with') else False,
+                                shared_with=tx_data.get('shared_with'),
+                                shared_amount=int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None,
+                                start_date=dt,
+                                is_active=True
+                            )
+                            self.db.add(new_deferred)
+                        else:
+                            # Opcionalmente actualizar el estado compartido si cambió
+                            existing_def.is_shared = True if tx_data.get('shared_with') else False
+                            existing_def.shared_with = tx_data.get('shared_with')
+                            existing_def.shared_amount = int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None
 
                     new_txs_count += 1
 
@@ -348,6 +366,12 @@ class StatementIntelligenceService:
                         status=StatementStatus.PENDING
                     )
                     self.db.add(new_stmt)
+
+                # --- NUEVO: Sincronizar Cupo de Crédito (Credit Limit) de la cuenta ---
+                if statement_metadata.get('credit_limit_cents'):
+                    account = self.db.query(Account).filter(Account.id == log.account_id).first()
+                    if account:
+                        account.credit_limit = int(statement_metadata['credit_limit_cents'])
                     self.db.flush()
 
                 # Procesar DebtShares (Gente que debe parte del total del mes)
@@ -367,26 +391,32 @@ class StatementIntelligenceService:
                         self.db.add(new_share)
 
             log.status = 'processed'
-            
-            # Actualizar límite de crédito si se detectó uno nuevo
-            if statement_metadata and statement_metadata.get('credit_limit_cents'):
-                from app.models.account import Account
-                acc = self.db.query(Account).filter(Account.id == log.account_id).first()
-                if acc:
-                    acc.credit_limit = int(statement_metadata['credit_limit_cents'])
 
             self.db.commit()
 
+            # Force balance reconciliation to the bank's truth
+            if statement_metadata and statement_metadata.get('statement_balance_cents'):
+                from app.services.balance import recalculate_account_balance
+                
+                # First, ensure the account itself is updated with the statement's truth
+                acc = self.db.query(Account).filter(Account.id == log.account_id).first()
+                if acc:
+                    # Account balance in DB is negative for debt, statement_balance is positive debt.
+                    target_balance = -int(statement_metadata['statement_balance_cents'])
+                    acc.balance = target_balance
+                    self.db.commit()
+                
             # Disparamos la sanación de snapshots si hubo cambios en el pasado
             if new_txs_count > 0:
                 from app.services.snapshot_service import mark_snapshots_as_stale
+                # earliest_date is already a date object from dt.date()
                 mark_snapshots_as_stale(self.db, earliest_date.month, earliest_date.year)
-                # Recalcular saldo de la cuenta
-                from app.services.balance import recalculate_account_balance
-                recalculate_account_balance(self.db, log.account_id)
 
             return new_txs_count
         except Exception as e:
+            import traceback
+            print(f"❌ ERROR EN CONFIRM-IMPORT: {str(e)}")
+            traceback.print_exc()
             self.db.rollback()
             log.status = 'error'
             log.error_message = str(e)
