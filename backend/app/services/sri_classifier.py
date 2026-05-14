@@ -18,6 +18,18 @@ class SRIClassifier:
         "No Deducible"
     ]
 
+    # Mapeo oficial SRI para Declaración de Impuesto a la Renta
+    SRI_CONCEPTS = {
+        "Educación, Arte y Cultura": "5040",
+        "Salud": "3290",
+        "Alimentación": "3300",
+        "Vivienda": "3310",
+        "Vestimenta": "3320",
+        "Turismo": "3325",
+        "Total Deducciones": "3330",
+        "RUC Contador": "100"
+    }
+
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.client = genai.Client(api_key=api_key)
