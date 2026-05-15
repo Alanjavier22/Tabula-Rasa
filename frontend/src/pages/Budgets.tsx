@@ -14,8 +14,6 @@ import {
   RefreshCw, 
   TrendingUp, 
   AlertCircle, 
-  ChevronRight,
-  Calendar,
   Wallet
 } from 'lucide-react';
 import Toast from '../components/Toast';
@@ -63,6 +61,18 @@ const Budgets = () => {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
+
+  // Bloquear scroll del body cuando cualquier modal esté abierto
+  useEffect(() => {
+    if (showCreateModal || showEditModal || showPaymentModal || showRecurringModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showCreateModal, showEditModal, showPaymentModal, showRecurringModal]);
 
   useEffect(() => {
     fetchBudgets();
@@ -511,19 +521,19 @@ const Budgets = () => {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-slate-900 rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-slate-900 rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
               onClick={e => e.stopPropagation()}
             >
-              <div className="p-8 border-b border-white/5 flex items-center justify-between">
+              <div className="p-6 md:p-8 border-b border-white/5 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
                     {showRecurringModal ? <RefreshCw className="w-5 h-5 text-purple-400" /> : <Plus className="w-5 h-5 text-purple-400" />}
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-white tracking-tight">
+                    <h2 className="text-lg md:text-xl font-black text-white tracking-tight">
                       {showCreateModal ? 'Nuevo Límite' : showEditModal ? 'Ajustar Límite' : 'Generar Recurrente'}
                     </h2>
-                    <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">Configuración de Presupuesto</p>
+                    <p className="text-[10px] text-slate-500 font-medium tracking-wide uppercase">Configuración de Presupuesto</p>
                   </div>
                 </div>
                 <button 
@@ -539,7 +549,7 @@ const Budgets = () => {
               </div>
 
               {showCreateModal && (
-                <form onSubmit={handleCreateSubmit} className="p-8 space-y-6">
+                <form onSubmit={handleCreateSubmit} className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar overscroll-contain">
                   <div className="space-y-4">
                     <div>
                       <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Nombre del Presupuesto</label>
@@ -616,7 +626,7 @@ const Budgets = () => {
               )}
 
               {showEditModal && (
-                <form onSubmit={handleEditSubmit} className="p-8 space-y-6">
+                <form onSubmit={handleEditSubmit} className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar overscroll-contain">
                   <div className="space-y-4">
                     <div>
                       <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Nombre</label>
@@ -691,7 +701,7 @@ const Budgets = () => {
               )}
 
               {showRecurringModal && (
-                <form onSubmit={handleGenerateRecurring} className="p-8 space-y-6">
+                <form onSubmit={handleGenerateRecurring} className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar overscroll-contain">
                   <div className="p-5 bg-emerald-500/5 rounded-3xl border border-emerald-500/10 mb-2">
                     <div className="flex gap-4">
                       <div className="p-2 h-fit bg-emerald-500/10 rounded-xl text-emerald-400">
