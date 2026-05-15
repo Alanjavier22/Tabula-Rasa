@@ -49,6 +49,18 @@ const Subscriptions = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
   const [payingId, setPayingId] = useState<string | null>(null);
+  
+  // Bloquear scroll del body cuando el modal está abierto
+  useEffect(() => {
+    if (showModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showModal]);
 
   useEffect(() => {
     fetchAll();
@@ -478,7 +490,7 @@ const Subscriptions = () => {
 
               <form 
                 onSubmit={(e) => { e.preventDefault(); handleSubmit(form); }} 
-                className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar"
+                className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar overscroll-contain"
               >
                 <div className="space-y-6">
                   <div>
