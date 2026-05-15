@@ -13,6 +13,11 @@
 ![TailwindCSS](https://img.shields.io/badge/TailwindCSS_Glassmorphism-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
 ![TanStack Query](https://img.shields.io/badge/React_Query-FF4154?style=for-the-badge&logo=react-query&logoColor=white)
+![Recharts](https://img.shields.io/badge/Recharts-22b5bf?style=for-the-badge&logo=recharts&logoColor=white)
+![Lucide](https://img.shields.io/badge/Lucide_React-F1502F?style=for-the-badge&logo=lucide&logoColor=white)
+![Python 3.12](https://img.shields.io/badge/Python_3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Pydantic](https://img.shields.io/badge/Pydantic-E92063?style=for-the-badge&logo=pydantic&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-D71F00?style=for-the-badge&logo=sqlalchemy&logoColor=white)
 
 </div>
 
@@ -32,14 +37,14 @@ El núcleo de Tabula Rasa fue concebido para operar bajo un estrés constante de
 *   **Backend (El Motor Lógico)**: Construido en **FastAPI (Python 3.12)**. Elegido por su insuperable capacidad de procesamiento asíncrono y la validación de datos estricta mediante **Pydantic**.
 *   **Frontend (Centro de Mando UI)**: Desarrollado en **React 19** impulsado por **Vite** y estandarizado con **Tailwind CSS**. La interfaz aplica principios de diseño **Glassmorphism**, creando un entorno inmersivo, responsivo y visualmente premium, con micro-animaciones fluidas a 60FPS potenciadas por **Framer Motion**.
 *   **Persistencia (El Búnker de Datos)**: Emplea **SQLite en modo WAL (Write-Ahead Logging)**. A diferencia de un SQLite tradicional que bloquea la base en cada escritura, el modo WAL permite lecturas y escrituras concurrentes, combinando la ligereza de un motor local de un solo archivo con la robustez requerida para transacciones asíncronas y scripts en background.
-*   **Orquestación de IA**: Integración directa (vía SDK nativo) con **Gemini 3.1 Flash-Lite / Pro**, habilitando análisis multimodal (Vision), ejecución estructurada de herramientas (Function Calling) y generación de contenido altamente tipado y determinista.
+*   **Orquestación de IA**: Integración directa (vía SDK nativo) con **Gemini 3.1 Flash-Lite**, habilitando análisis multimodal (Vision), ejecución estructurada de herramientas (Function Calling), procesamiento de voz y generación de contenido altamente tipado y determinista.
 
 ### 📐 Principios de Integridad y Robustez (Core Rules)
 1.  **Aritmética de Centavos (Cero Coma Flotante)**: Es la regla de oro del motor matemático. Todos los cálculos internos, balances, deducciones y registros monetarios en la base de datos se almacenan y operan en **enteros (centavos)**. Esto erradica matemáticamente los errores de redondeo binario que destruyen las aplicaciones financieras amateurs. Solo se convierten a dólares (`/ 100`) en la capa final de presentación de la UI.
 2.  **Idempotencia Criptográfica**: El motor de importación (`transaction_importer.py` y `statement_intelligence.py`) jamás inserta datos a ciegas. Genera un *hash SHA-256* único por transacción (combinando fecha, monto, emisor y tokens de descripción). Si el usuario sube el mismo extracto bancario CSV o PDF diez veces, el sistema ignorará los duplicados con precisión quirúrgica, previniendo el envenenamiento de los datos de flujo de caja.
 3.  **Soft Deletes (Borrado Lógico Inmutable)**: Los registros nunca se eliminan físicamente de la base de datos (`is_deleted = True`). Esto permite la reconstrucción total de historiales de auditoría en caso de errores del usuario y evita rupturas silenciosas en las restricciones de las claves foráneas (Foreign Keys).
-4.  **Soberanía de Datos (Local-First)**: Tus balances, historiales, deudas y configuración jamás salen de tu red local. La base de datos reside únicamente en tu disco duro. Cuando el sistema "piensa" usando la IA, se aplica un protocolo de desinfección, enviando únicamente el contexto necesario (anonimizado) para que el LLM opere como un "motor semántico ciego".
-5.  **Arquitectura PWA y Sync de Red Local**: El frontend está diseñado como una Progressive Web App (PWA) e intercepta su propio tráfico (Service Workers / IndexedDB) permitiendo un mecanismo de "Zero-Trust Pairing" mediante códigos QR para acceder a tu propia PC desde tu teléfono móvil dentro de tu misma red Wi-Fi.
+4.  **Soberanía de Datos (Local-First)**: Tus balances, historiales, deudas y configuración jamás salen de tu red local. La base de datos reside únicamente en tu disco duro. Cuando el sistema "piensa" usando la IA, se aplica un protocolo de desinfección en `privacy.py`, enviando únicamente el contexto necesario (anonimizado) para que el LLM opere como un "motor semántico ciego".
+5.  **Local-Network Sync & PIN Pairing**: El sistema permite la vinculación de dispositivos secundarios (móviles/tablets) dentro de la misma red local. La seguridad se gestiona mediante un **PIN de vinculación dinámico**, eliminando la necesidad de exponer puertos a internet o depender de nubes externas para la sincronización.
 
 ---
 
@@ -48,10 +53,12 @@ El núcleo de Tabula Rasa fue concebido para operar bajo un estrés constante de
 La IA en Tabula Rasa no es un "chatbot" superficial; es un **ecosistema de agentes autónomos y reactivos** con "ojos" (multimodalidad), "manos" (Function Calling) y una memoria estructurada de tus hábitos financieros. 
 
 ### 👁️ Capacidades Multimodales y Background Autónomo
-1.  **Statement Intelligence (Motor Vision)**: El sistema utiliza IA visual para ingerir y leer extractos de tarjetas de crédito en PDF o imágenes fotográficas. Es capaz de extraer sin intervención manual la fecha de corte, fecha de pago, pago mínimo, cupo utilizado y desglose de cuotas (diferidos) sin depender de plantillas rígidas pre-programadas por banco.
-2.  **Sentinel Agent (`sentinel_service.py`)**: Un orquestador que vigila tu base de datos en segundo plano. Analiza tus ritmos de gasto ("burn rate"), evalúa tu liquidez contra tus deudas inminentes, y genera un "Health Score" (Score de Salud) dinámico. Despliega advertencias proactivas si detecta que la trayectoria de tus gastos excederá tu proyección de ingresos.
-3.  **AI Anomaly Scanner (`anomaly_detector.py`)**: Auditoría profunda constante que rastrea pagos duplicados silenciosos, "gastos hormiga" no detectados, suscripciones olvidadas y desviaciones estándar aberrantes en tu comportamiento de gasto mensual.
-4.  **Continual Pattern Learning**: Sistema de aprendizaje pasivo. Si el usuario corrige una categoría sugerida erróneamente por el importador, el motor de IA aprende de esta corrección manual y actualiza su base de pesos de similitud semántica para clasificar perfectamente transacciones similares en el futuro.
+1.  **Statement Intelligence (AI Vision)**: Utiliza `ai_vision.py` y `statement_intelligence.py` para ingerir extractos bancarios en PDF o imágenes. Extrae fechas de corte, pagos mínimos, y desgloses de diferidos con precisión absoluta.
+2.  **Sentinel Agent & Health Monitoring**: El orquestador `sentinel_service.py` vigila la base de datos 24/7. Genera un "Health Score" proactivo basado en liquidez, deudas inminentes y trayectoria de ahorro.
+3.  **AI Insights & Anomaly Detector**: `ai_insights.py` y `anomaly_detector.py` realizan auditorías constantes buscando pagos duplicados, desviaciones en el "burn rate" y sugerencias de optimización fiscal.
+4.  **AI Audio Interface**: Integración en `ai_audio.py` para procesamiento de comandos de voz, permitiendo una interacción manos libres con el asistente financiero.
+5.  **Autonomous Background Snapshotter**: El servicio `autonomous_snapshot.py` garantiza que tu patrimonio neto se documente automáticamente al final de cada ciclo, sin intervención humana.
+6.  **AI Goal Optimization**: `ai_goals.py` analiza dinámicamente tus metas y recalcula probabilidades de éxito basándose en tu comportamiento de gasto real de los últimos 90 días.
 
 ### 🎭 Las 6 Personalidades del Cerebro Financiero
 El orquestador de chat de la aplicación adapta su comportamiento estructural, léxico y profundidad de razonamiento según la faceta de asesoría que selecciones:
@@ -97,54 +104,59 @@ La IA de Tabula Rasa tiene **estrictamente prohibido alucinar sumas matemáticas
 
 ## 🗺️ 3. Topografía de Módulos (Rayos X Operativo)
 
-El frontend de Tabula Rasa abarca toda la complejidad de la contabilidad de partida doble, escondiéndola detrás de 9 módulos lógicos altamente especializados.
+El frontend de Tabula Rasa abarca toda la complejidad de la contabilidad de partida doble, estructurada en 12 módulos lógicos altamente especializados que garantizan una visibilidad total del patrimonio.
 
-### 📈 1. Panel de Control (Dashboard)
-El centro de mando neurálgico estratégico.
-*   **Métrica Estrella: Safe-to-Spend**: No te dice "cuánto dinero hay en el banco". El algoritmo suma tus saldos, le resta tus presupuestos comprometidos del mes, le resta las suscripciones que están por cobrarse, le resta un "colchón de seguridad" configurable, y te dice *cuánto dinero líquido puedes gastar HOY sin arruinar tu planificación mensual*.
-*   **Diagrama Sankey en Vivo**: Visualización termodinámica de tu flujo de fondos. Observa gráficamente los "ríos" de dinero entrando a tus cuentas y cómo se ramifican hacia tus distintas categorías de gasto, pasivos o ahorros.
-*   **Integridad Matemática (Health Indicator)**: Un pequeño widget superior que audita el 100% de la base de datos. Si baja de 100%, significa que tienes transacciones huérfanas o saldos manuales que no empatan con el libro mayor.
-*   **Simulador "What-If" (Máquina del Tiempo)**: Módulo de proyección condicional. Interfaz donde puedes probar escenarios futuros (ej. *"¿Qué pasa con mi liquidez si saco un préstamo de $10,000 al 12% para un auto y aumenta mi seguro mensual?"*) e inyecta estas deudas hipotéticas para recalcular toda tu gráfica de flujo de caja.
+### 📈 1. Panel de Control (Dashboard Estratégico)
+El centro de mando neurálgico diseñado para la toma de decisiones inmediatas.
+*   **Métrica Estrella: Safe-to-Spend**: No te dice "cuánto hay", te dice cuánto puedes gastar hoy. El algoritmo cruza saldos, presupuestos comprometidos, suscripciones próximas y un colchón de seguridad.
+*   **Sankey Dynamic Flow**: Visualización termodinámica del flujo de fondos, mostrando cómo el ingreso se ramifica hacia gastos, deudas y ahorro.
+*   **Sentinel Health Indicator**: Widget de auditoría en tiempo real que monitorea la integridad de la base de datos y tu solvencia financiera.
+*   **Simulador What-If**: Proyecta escenarios hipotéticos (ej. compras grandes o préstamos) para ver su impacto en la liquidez futura a 12 meses.
 
-### 💸 2. Transacciones
-El "Libro Mayor" inmutable de tus finanzas.
-*   **Categorizador Semántico (`categorizer.py`)**: Asignación predictiva de categorías basada en reglas KNN de historial pasado.
-*   **Bandera de Integridad `is_internal`**: Un mecanismo vital. Te permite marcar un pago de tu banco A hacia tu tarjeta B como "Interno". El sistema lo procesará, pero lo excluirá de los cálculos estadísticos de "Gastos Mensuales" para no inflar artificialmente tu percepción de consumo.
-*   **Sistema de Splits (Divisiones)**: Si vas a un hipermercado y compras comida, papel higiénico y comida para perro, puedes abrir el ticket de esa sola transacción y crear múltiples "splits" internos para que cada fracción afecte al presupuesto correcto (Alimentación, Hogar, Mascotas).
+### 💸 2. Transacciones e Inteligencia de Importación
+*   **Idempotencia Criptográfica (SHA-256)**: Cada transacción genera un hash único. Puedes subir el mismo extracto 100 veces y el sistema ignorará duplicados con precisión quirúrgica.
+*   **Categorización Semántica**: Motor KNN que aprende de tus correcciones manuales para clasificar automáticamente nuevos movimientos.
+*   **Sistema de Splits (Divisiones)**: Permite desglosar un solo pago (ej. supermercado) en múltiples categorías (Alimentación, Hogar, Mascotas).
+*   **Internal Transfer Logic**: Marca movimientos entre cuentas propias para evitar la inflación artificial de las métricas de gasto.
 
-### 🏛️ 3. Módulo Fiscal SRI (Cumplimiento Automatizado)
-Específicamente adaptado para contribuyentes fiscales (enfocado en las complejas normas del SRI de Ecuador, extensible a otros).
-*   **Mapeo SRI en Background**: A través de `sri_classifier.py`, el sistema toma de forma silenciosa tus consumos del año y los asocia automáticamente con los Conceptos Oficiales deducibles definidos por la ley (ej. 3290 Salud, 3300 Alimentación, 3310 Vivienda, 5040 Educación). Ignora automáticamente consumos de Ocio o categorías no deducibles.
-*   **Generador Multiformato (Anexos)**: Cuenta con un motor de exportación que traduce tus transacciones y las empaqueta en formatos estrictos **XML y JSON**, respetando las jerarquías de etiquetas (`<detallesDeclaracion>`), normalizando decimales con separación de punto `.`, excluyendo campos nulos e integrando RUCs contables. Descarga archivos 100% listos para importar al portal tributario.
+### 🏛️ 3. Módulo Fiscal SRI (Cumplimiento Proactivo)
+*   **Clasificador de Rubros Deducibles**: Mapeo automático de gastos hacia categorías oficiales del SRI (Salud, Educación, Vivienda, Alimentación, Vestimenta).
+*   **Exportación Certificada**: Generador de archivos **XML y JSON** listos para ser importados en el portal tributario sin ediciones manuales.
 
 ### 💳 4. Cuentas y Tarjetas (Account Intelligence)
-Gestión del ecosistema bancario completo.
-*   **Diferenciación de Naturaleza**: Separa matemáticamente cuentas líquidas (Checking/Savings) de líneas de crédito.
-*   **Cálculo de Deuda Neta**: Calcula tu posición real neta cruzando el dinero físico que posees contra los pasivos corrientes de tarjetas.
-*   **Statement Intelligence**: Registra las fechas de corte de las tarjetas para mover tus pagos entre meses lógicos y no meses calendario.
+*   **Diferenciación de Naturaleza**: Gestión separada de cuentas líquidas (Checking/Savings) y líneas de crédito.
+*   **Net Worth Engine**: Cruce automático de saldos contra pasivos de tarjetas para obtener la posición neta real en milisegundos.
+*   **Ciclos de Corte**: Inteligencia que mueve gastos entre meses lógicos basados en fechas de corte y no solo meses calendario.
 
-### 🎯 5. Metas y 📊 6. Presupuestos
-Ingeniería predictiva del futuro.
-*   **Presupuestos Proactivos**: Establecimiento de techos de gasto por categoría con barras de progreso que cambian de color (verde, amarillo, rojo) según el ritmo de "quemado" diario.
-*   **Metas Inteligentes**: Definiendo un objetivo (ej. "Fondo de Emergencia - $5000"), el sistema analiza de forma dinámica tu ratio real de ahorro (ingresos netos - gastos netos promediados) y calcula exactamente la fecha (mes/año) en la que alcanzarás la meta si mantienes tu disciplina.
+### 🎯 5. Metas de Ahorro e Inversión
+*   **Proyección Temporal**: El sistema analiza tu ratio de ahorro real histórico y predice la fecha exacta (mes/año) en la que alcanzarás tu objetivo.
+*   **Visualización de Progreso**: Tracking dinámico de contribuciones y estados de cumplimiento.
 
-### 🕰️ 7. Recordatorios y Suscripciones
-Protección contra recargos e impagos.
-*   **Automatización de Obligaciones**: Cargas las fechas y periodicidades de Spotify, Netflix, la luz, el agua o el alquiler.
-*   **Impacto de Liquidez**: Estas deudas fijas no son solo notificaciones pasivas; el sistema las absorbe y deduce de tu proyección "Safe-to-Spend" a 30 días, garantizando que ese dinero quede inmovilizado virtualmente y no creas que "te sobra plata".
+### 📊 6. Presupuestos Operativos
+*   **Burning Rate dinámico**: Barras de progreso con lógica de semáforo que alertan si tu ritmo de gasto diario superará el techo mensual antes de tiempo.
+*   **Presupuestos por Categoría**: Control granular del flujo de salida de efectivo.
 
-### 🤝 8. Economía Colaborativa (IOUs & Debt Shares)
-Manejo exhaustivo del dinero P2P ("Peer to Peer") en tu círculo social.
-*   **IOU (I Owe You / They Owe Me)**: Sistema dual para registrar el dinero líquido informal que prestas o que te prestan amigos y familiares.
-*   **Debt Shares (Consolidador de Deudas)**: Si sales a comer, pagas toda la cuenta con tu tarjeta de crédito para sumar millas, y luego tus 4 amigos te transfieren su parte. Tabula Rasa vincula esas transferencias entrantes ("Debt Shares") al saldo original de la tarjeta, reconociendo que tu deuda real sobre ese consumo es solo tu fracción, evitando la corrupción de tu balance de Deuda Neta.
+### 🕰️ 7. Recordatorios y 📱 8. Suscripciones
+*   **Deducción Preventiva**: Estas obligaciones no son solo avisos; el sistema las "bloquea" virtualmente de tu liquidez disponible para garantizar que el dinero esté ahí cuando llegue el cobro.
+*   **Análisis de Fugas**: Identificación de suscripciones olvidadas o duplicadas.
 
-### 🏎️ 9. Telemetría de Vehículos
-*   **Interceptación Paramétrica**: Cuando el sistema detecta que has registrado un consumo categorizado como "Combustible" o "Mantenimiento Vehicular", habilita un campo metadata especial para que introduzcas la lectura actual de tu odómetro (Kilometraje).
-*   **Analíticas Vehiculares**: Con esos datos a través del tiempo, Tabula Rasa cruza la distancia recorrida contra los dólares invertidos para darte tu **Costo Real por Kilómetro** histórico, al tiempo que dispara un pronóstico regresivo avisando cuántos kilómetros te faltan para el crítico mantenimiento de los 5,000 KM.
+### 🤝 9. Economía Colaborativa (IOUs & Debt Shares)
+*   **Gestión P2P (IOUs)**: Registro dual de dinero prestado y adeudado a terceros (amigos, familiares).
+*   **Debt Shares**: Consolidador de gastos compartidos. Si pagas una cuenta grupal, el sistema vincula los reembolsos de tus amigos a la deuda original de tu tarjeta, manteniendo tu balance personal intacto.
 
-### 📸 10. Snapshots de Patrimonio (Net Worth)
-*   **Fotografía Mensual**: En los últimos minutos del último día de cada mes, el sistema crea un "Snapshot" inmutable y consolidado de todos tus activos, pasivos y posiciones financieras, formando el gran libro mayor histórico de tu crecimiento económico.
-*   **Depreciación Activa de Activos Físicos (`asset_depreciation.py`)**: Puedes registrar propiedades, computadoras o vehículos en la sección "Activos Físicos". El algoritmo contable de Tabula Rasa aplicará fórmulas de depreciación mensual (amortización temporal) para rebajar el valor de ese teléfono o ese auto conforme pasan los meses. Tu curva de Patrimonio Neto reflejará una realidad financiera dura pero precisa, evitando ilusiones de riqueza líquida basadas en bienes que se están devaluando.
+### 🏎️ 10. Telemetría Vehicular
+*   **Costo Real por KM**: Intercepta consumos de combustible y mantenimiento, cruzándolos con el odómetro para dar métricas de eficiencia.
+*   **Mantenimiento Preventivo**: Pronósticos de servicios técnicos (aceite, frenos, llantas) basados en tendencias de kilometraje.
+
+### 📸 11. Snapshots y Patrimonio Neto (Net Worth)
+*   **Fotografía Mensual Inmutable**: Cierre automático de mes que consolida activos y pasivos en un registro histórico de crecimiento.
+*   **Depreciación de Activos (`asset_depreciation.py`)**: Aplica amortización temporal a bienes físicos (autos, tech, propiedades) para que tu patrimonio neto sea una realidad financiera dura y no una ilusión.
+
+### 📂 12. Categorías y Personalización Semántica
+*   **Taxonomía Flexible**: Gestión de iconos, colores y reglas de mapeo que alimentan al motor de IA para una clasificación perfecta.
+
+### 🔗 13. Vinculación Local (Pairing)
+*   **Zero-Trust Local Sync**: Sistema de emparejamiento mediante **PIN dinámico** para conectar dispositivos móviles dentro de la misma red Wi-Fi, garantizando que tus datos nunca toquen la nube.
 
 ---
 
