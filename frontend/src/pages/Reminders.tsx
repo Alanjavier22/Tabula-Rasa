@@ -9,12 +9,10 @@ import {
   Edit, 
   Bell, 
   CheckCircle2, 
-  Clock, 
   Calendar, 
   X, 
   AlertCircle,
   RefreshCw,
-  MoreVertical,
   CalendarDays,
   Zap,
   Check
@@ -45,6 +43,18 @@ const Reminders = () => {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
+
+  // Bloquear scroll del body cuando el modal está abierto
+  useEffect(() => {
+    if (showCreateModal || showEditModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showCreateModal, showEditModal]);
 
   useEffect(() => {
     fetchReminders();
@@ -466,19 +476,19 @@ const Reminders = () => {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-slate-900 rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-slate-900 rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
               onClick={e => e.stopPropagation()}
             >
-              <div className="p-10 border-b border-white/5 flex items-center justify-between">
+              <div className="p-6 md:p-10 border-b border-white/5 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20 text-orange-400">
-                    <Bell className="w-6 h-6" />
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20 text-orange-400">
+                    <Bell className="w-5 h-5 md:w-6 md:h-6" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black text-white tracking-tight">
+                    <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">
                       {showCreateModal ? 'Nueva Alerta' : 'Editar Recordatorio'}
                     </h2>
-                    <p className="text-xs text-slate-500 font-bold tracking-widest uppercase">Planificación de Tareas</p>
+                    <p className="text-[10px] text-slate-500 font-bold tracking-widest uppercase">Planificación de Tareas</p>
                   </div>
                 </div>
                 <button 
@@ -486,15 +496,15 @@ const Reminders = () => {
                     setShowCreateModal(false);
                     setShowEditModal(false);
                   }} 
-                  className="w-12 h-12 rounded-2xl hover:bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-all"
+                  className="w-10 h-10 md:w-12 md:h-12 rounded-2xl hover:bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-all"
                 >
-                  <X className="w-8 h-8" />
+                  <X className="w-6 h-6 md:w-8 md:h-8" />
                 </button>
               </div>
 
               <form 
                 onSubmit={showCreateModal ? handleCreateSubmit : handleEditSubmit} 
-                className="p-10 space-y-8"
+                className="p-6 md:p-10 space-y-6 md:space-y-8 overflow-y-auto custom-scrollbar overscroll-contain"
               >
                 <div className="space-y-6">
                   <div>
