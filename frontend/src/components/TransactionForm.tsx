@@ -53,6 +53,14 @@ const TransactionForm = ({
     { amount: '', category_id: '', description: '' }
   ]);
 
+  // Bloquear scroll del body cuando el modal está activo
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   useEffect(() => {
     setForm(initialData);
   }, [initialData]);
@@ -116,10 +124,10 @@ const TransactionForm = ({
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-xl max-h-[92vh] flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative"
+        className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-xl max-h-[90vh] flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
       >
         {/* Header con estilo Glass */}
-        <div className="relative flex items-center justify-between p-7 border-b border-white/5">
+        <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-white/5 shrink-0">
           <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-blue-500/5 to-purple-500/5 pointer-events-none"></div>
           <div>
             <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-3">
@@ -137,7 +145,7 @@ const TransactionForm = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-7 space-y-8 custom-scrollbar">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
           
           {/* SECCIÓN HERO: MONTO */}
           <div className="relative group">
