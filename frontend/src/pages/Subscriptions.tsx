@@ -17,7 +17,6 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Smartphone,
-  ExternalLink,
   Loader2,
   Zap
 } from 'lucide-react';
