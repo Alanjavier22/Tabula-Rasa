@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Decimal from 'decimal.js-light';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -52,6 +52,18 @@ const Accounts = () => {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
+
+  // Bloquear scroll del body cuando el modal está activo
+  useEffect(() => {
+    if (showCreateModal || showEditModal || showStatementModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showCreateModal, showEditModal, showStatementModal]);
 
   // --- React Query: Data Fetching ---
   const { data: accounts = [], isLoading: accountsLoading } = useQuery<Account[]>({
@@ -533,10 +545,10 @@ const Accounts = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+              className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
             >
               {/* Header */}
-              <div className="relative flex items-center justify-between p-7 border-b border-white/5">
+              <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-white/5 shrink-0">
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-indigo-500/5 to-emerald-500/5 pointer-events-none"></div>
                 <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
@@ -549,7 +561,7 @@ const Accounts = () => {
                 </button>
               </div>
 
-              <form onSubmit={handleCreateSubmit} className="flex-1 overflow-y-auto p-7 space-y-8 custom-scrollbar">
+              <form onSubmit={handleCreateSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
                 
                 {/* VISTA PREVIA DE TARJETA VIRTUAL */}
                 <div className="space-y-3">
@@ -789,10 +801,10 @@ const Accounts = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+              className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
             >
               {/* Header */}
-              <div className="relative flex items-center justify-between p-7 border-b border-white/5">
+              <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-white/5 shrink-0">
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-blue-500/5 to-purple-500/5 pointer-events-none"></div>
                 <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
@@ -805,7 +817,7 @@ const Accounts = () => {
                 </button>
               </div>
 
-              <form onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto p-7 space-y-8 custom-scrollbar">
+              <form onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
                 
                 {/* VISTA PREVIA DE TARJETA VIRTUAL */}
                 <div className="space-y-3">
@@ -1033,14 +1045,14 @@ const Accounts = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+              className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
             >
               {/* Header */}
-              <div className="relative flex items-center justify-between p-7 border-b border-white/5">
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-emerald-500/5 to-teal-500/5 pointer-events-none"></div>
+              <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-white/5 shrink-0">
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-500/5 to-rose-500/5 pointer-events-none"></div>
                 <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                    <Layers className="w-5 h-5 text-emerald-400" />
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                    <Layers className="w-5 h-5 text-purple-400" />
                   </div>
                   {editingStatement ? 'Editar Estado' : 'Nuevo Estado'}
                 </h2>
@@ -1049,7 +1061,7 @@ const Accounts = () => {
                 </button>
               </div>
 
-              <form onSubmit={handleStatementSubmit} className="flex-1 overflow-y-auto p-7 space-y-6 custom-scrollbar">
+              <form onSubmit={handleStatementSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
