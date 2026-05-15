@@ -1,6 +1,5 @@
 import api from './api';
 import { prepareForAI, hydrateAIResponse } from '../utils/privacy';
-import { toCents } from '../utils/money';
 
 export interface AICategorySuggestion {
   transaction_id: string;
@@ -18,11 +17,18 @@ export interface WhatIfProjection {
 export interface WhatIfScenario {
   scenario_title: string;
   summary: string;
+  one_time_impact: number;
+  monthly_impact_change: number;
+  impact_type: "expense" | "saving" | "investment" | "income";
+  risk_score: number;
+  optimization_tip?: string;
   projection: WhatIfProjection[];
+  key_assumptions?: string[];
 }
 
 export interface ZombieSubscription {
   description: string;
+  merchant_name?: string;
   estimated_amount: number;
   confidence: number;
   reasoning: string;
@@ -32,6 +38,7 @@ export interface SpendingSpike {
   category_id: string;
   normal_average: number;
   current_spike: number;
+  percent_deviation?: number;
   reasoning: string;
 }
 
@@ -86,7 +93,8 @@ export class AIAgentService {
     fixedExpenses: number = 0,
     totalDebt: number = 0,
     monthlyDebtPayment: number = 0,
-    monthlyCashFlow: number = 0
+    monthlyCashFlow: number = 0,
+    goals: any[] = []
   ): Promise<WhatIfScenario> {
     const { sanitized: sanitizedTxns, hydrationMap } = prepareForAI(categoryTransactions);
 
@@ -104,6 +112,7 @@ export class AIAgentService {
         total_debt: Math.round(totalDebt),
         monthly_debt_payment: Math.round(monthlyDebtPayment),
         monthly_cash_flow: Math.round(monthlyCashFlow),
+        goals: goals.map(g => ({ name: g.name, target_amount: g.target_amount, current_amount: g.current_amount })),
       },
       {
         headers: {
