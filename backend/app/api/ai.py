@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import json
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 import google.genai as genai
 from google.genai import types
 from sqlalchemy.orm import Session
@@ -11,8 +11,10 @@ from database import get_db
 from app.api.auth import get_current_device
 from app.models.config import Config
 from app.models.category import Category
+from app.models.transaction import Transaction
 import os
 from app.services.ai_prompts import get_current_time_context, CORE_RULES
+from collections import defaultdict
 
 router = APIRouter(
     prefix="/api/ai", 
@@ -72,6 +74,7 @@ class WhatIfScenarioRequest(BaseModel):
     total_debt: int  # BLINDAJE DE CENTAVOS: int (cents) no float
     monthly_debt_payment: int  # BLINDAJE DE CENTAVOS: int (cents) no float
     monthly_cash_flow: int  # BLINDAJE DE CENTAVOS: int (cents) no float (income - expenses)
+    goals: Optional[List[dict]] = []
 
 
 class WhatIfScenarioResponse(BaseModel):
@@ -79,20 +82,26 @@ class WhatIfScenarioResponse(BaseModel):
     summary: str
     one_time_impact: int = 0 # in cents
     monthly_impact_change: int = 0 # in cents
+    impact_type: str = "expense" # "expense", "saving", "investment", "income"
+    risk_score: int = 1
+    optimization_tip: Optional[str] = None
     projection: List[WhatIfProjection]
+    key_assumptions: List[str] = []
 
 
 class ZombieSubscription(BaseModel):
     description: str
-    estimated_amount: int  # BLINDAJE DE CENTAVOS: int (cents) no float
+    merchant_name: Optional[str] = None # Deducido por IA
+    estimated_amount: int
     confidence: float
     reasoning: str
 
 
 class SpendingSpike(BaseModel):
     category_id: str
-    normal_average: int  # BLINDAJE DE CENTAVOS: int (cents) no float
-    current_spike: int  # BLINDAJE DE CENTAVOS: int (cents) no float
+    normal_average: int
+    current_spike: int
+    percent_deviation: float # e.g. 400.0
     reasoning: str
 
 
@@ -141,29 +150,12 @@ async def suggest_categories(
 ):
     """
     AI-powered transaction categorization with Human-in-the-Loop safety.
-    
-    Proxy endpoint that:
-    1. Receives sanitized transactions from frontend
-    2. Calls LLM with structured system prompt
-    3. Returns category suggestions with confidence scores
-    4. Forces LLM to use only provided category IDs (no hallucinations)
     """
-    
     api_key = get_gemini_key(db)
     
-    # Build category context for LLM
-    category_context = "\n".join([
-        f"- {cat.id}: {cat.name}"
-        for cat in request.categories
-    ])
+    category_context = "\n".join([f"- {cat.id}: {cat.name}" for cat in request.categories])
+    transaction_context = "\n".join([f"ID: {txn.id} | Description: {txn.description} | Amount: {txn.amount}" for txn in request.transactions])
     
-    # Build transaction context
-    transaction_context = "\n".join([
-        f"ID: {txn.id} | Description: {txn.description} | Amount: {txn.amount}"
-        for txn in request.transactions
-    ])
-    
-    # Structured system prompt enforcing strict category ID usage
     time_context = get_current_time_context()
     system_prompt = f"""{time_context}
 {CORE_RULES}
@@ -175,18 +167,27 @@ AVAILABLE CATEGORIES (use ONLY these IDs):
 
 STRICT RULES:
 1. You MUST return ONLY category IDs from the list above.
-2. If a transaction is highly ambiguous (e.g. "Transfer" without context), suggest the most likely ID but explain the ambiguity in "reasoning".
-3. Return confidence score (0.0 to 1.0) based on description clarity.
-4. Provide brief reasoning for each classification.
-5. Return valid JSON array.
+2. Confidence score (0.0 to 1.0) based on description clarity.
+3. Return valid JSON array.
 
 TRANSACTIONS TO CLASSIFY:
 {transaction_context}
 """
-    
     suggestions = await call_gemini_json(system_prompt, api_key, response_schema=List[CategorySuggestion])
-    
     return suggestions
+
+
+class ImpactAnalysis(BaseModel):
+    scenario_title: str
+    summary: str
+    one_time_impact: int
+    monthly_impact_change: int
+    impact_type: str
+    risk_score: int
+    estimated_roi_annual: float = 0.0
+    optimization_tip: str
+    key_assumptions: List[str]
+    projection: List[WhatIfProjection]
 
 
 @router.post("/simulate-what-if", response_model=WhatIfScenarioResponse)
@@ -195,7 +196,7 @@ async def simulate_what_if(
     db: Session = Depends(get_db)
 ):
     """
-    AI-powered What-If scenario simulation with deterministic math.
+    AI-powered What-If scenario simulation v5.0: The Oracle Engine (Dynamic Projections).
     """
     api_key = get_gemini_key(db)
     
@@ -203,86 +204,59 @@ async def simulate_what_if(
     system_prompt = f"""{time_context}
 {CORE_RULES}
 
-You are an expert financial impact analyzer. Analyze the user's scenario and identify the ONE-TIME cost/income and the MONTHLY change in cash flow for a 12-month horizon.
+You are the 'Financial Oracle Engine'. Your task is to perform a DYNAMIC financial simulation for 12 months.
 
-CURRENT FINANCIAL STATE:
-- Current Net Worth: ${request.current_net_worth / 100:,.2f} USD
-- Monthly Cash Flow: ${request.monthly_cash_flow / 100:,.2f} USD
+CURRENT STATE:
+- Net Worth: ${request.current_net_worth / 100:,.2f}
+- Base Monthly Cash Flow: ${request.monthly_cash_flow / 100:,.2f} (Income - Expenses)
+- Avg Monthly Spend: ${request.avg_monthly_spend / 100:,.2f}
+
+FINANCIAL GOALS:
+{request.goals if request.goals else "No predefined goals."}
 
 USER SCENARIO:
 {request.user_prompt}
 
-ANALYSIS REQUIREMENTS:
-1. Identify 'one_time_impact': How much does this cost or earn RIGHT NOW? (Use negative for costs).
-2. Identify 'monthly_impact_change': How much does this change the monthly cash flow? (e.g., a new subscription is a negative change).
-3. ALL JSON values MUST be in CENTS (multiply by 100).
-4. Provide summary in SPANISH explaining the impact and the recovery time clearly.
-5. Provide a scenario_title in SPANISH.
+YOUR MISSION:
+1. 'projection': GENERATE the 12-month net worth projection YOURSELF. 
+2. 'summary': Professional analysis in SPANISH. Mention impact on GOALS.
+3. 'key_assumptions': List 2-3 assumptions you made.
+
+STRICT RULES:
+- All money amounts in CENTS.
+- The projection MUST have exactly 12 months.
 """
     
     try:
         client = genai.Client(api_key=api_key)
-        
-        # We define a temporary internal schema for the AI to return just the impacts
-        class ImpactAnalysis(BaseModel):
-            scenario_title: str
-            summary: str
-            one_time_impact: int
-            monthly_impact_change: int
-
         response = client.models.generate_content(
                 model="gemini-3.1-flash-lite",
             contents=system_prompt,
             config=types.GenerateContentConfig(
-                temperature=0.2, # Very low temperature for math-like stability
+                temperature=0.2,
                 response_mime_type="application/json",
                 response_schema=ImpactAnalysis
             )
         )
         
         impact_data = json.loads(response.text)
-        
-        # DETERMINISTIC MATH: Calculate the 12-month projection in code
-        projection = []
-        current_baseline = request.current_net_worth
-        current_projected = request.current_net_worth + impact_data.get("one_time_impact", 0)
-        
-        base_cash_flow = request.monthly_cash_flow
-        new_cash_flow = base_cash_flow + impact_data.get("monthly_impact_change", 0)
-        
-        for month in range(1, 13):
-            current_baseline += base_cash_flow
-            current_projected += new_cash_flow
-            
-            projection.append({
-                "month": month,
-                "baseline_net_worth": current_baseline,
-                "projected_net_worth": current_projected
-            })
-            
         return WhatIfScenarioResponse(
-            scenario_title=impact_data["scenario_title"],
-            summary=impact_data["summary"],
-            one_time_impact=impact_data["one_time_impact"],
-            monthly_impact_change=impact_data["monthly_impact_change"],
-            projection=projection
+            scenario_title=impact_data.get("scenario_title", "Simulación Dinámica"),
+            summary=impact_data.get("summary", "Sin resumen"),
+            one_time_impact=impact_data.get("one_time_impact", 0),
+            monthly_impact_change=impact_data.get("monthly_impact_change", 0),
+            impact_type=impact_data.get("impact_type", "expense"),
+            risk_score=impact_data.get("risk_score", 1),
+            optimization_tip=impact_data.get("optimization_tip"),
+            projection=impact_data.get("projection", []),
+            key_assumptions=impact_data.get("key_assumptions", [])
         )
-        
     except Exception as e:
-        print(f"Error in WhatIf simulation: {e}")
-        # Fallback
+        print(f"Error in Oracle Engine: {e}")
         return WhatIfScenarioResponse(
-            scenario_title="Error en simulación",
-            summary="No se pudo procesar la simulación matemática correctamente.",
-            one_time_impact=0,
-            monthly_impact_change=0,
-            projection=[
-                WhatIfProjection(
-                    month=m, 
-                    baseline_net_worth=request.current_net_worth, 
-                    projected_net_worth=request.current_net_worth
-                ) for m in range(1, 25)
-            ]
+            scenario_title="Error de Simulación",
+            summary=f"El Motor Oracle no pudo proyectar el escenario: {str(e)}",
+            projection=[WhatIfProjection(month=m, baseline_net_worth=request.current_net_worth, projected_net_worth=request.current_net_worth) for m in range(1, 13)]
         )
 
 
@@ -292,88 +266,92 @@ async def scan_anomalies(
     db: Session = Depends(get_db)
 ):
     """
-    AI-powered anomaly detection for zombie subscriptions and spending spikes.
-    
-    Proxy endpoint that:
-    1. Receives recent transactions and current subscriptions
-    2. Calls LLM with forensic auditor system prompt
-    3. Detects zombie subscriptions (recurring charges not in subscription list)
-    4. Detects spending spikes (category spend exceeds historical average)
+    AI-powered Forensic Audit v4.0: Deep SQL History (6 months) + Price Spike Detection.
     """
-    
     api_key = get_gemini_key(db)
+    six_months_ago = datetime.now() - timedelta(days=180)
     
-    # Build category mapping
-    category_map = {}
-    if request.categories:
-        for cat in request.categories:
-            category_map[cat.id] = cat.name
-    else:
-        # Fallback to description proxy if not provided
-        for txn in request.transactions:
-            if txn.category_id and txn.category_id not in category_map:
-                category_map[txn.category_id] = txn.description[:50]
+    # FETCH DEEP HISTORY: Get 6 months of data directly from DB
+    all_txns = db.query(Transaction).filter(
+        Transaction.date >= six_months_ago.strftime("%Y-%m-%d"),
+        Transaction.is_deleted == False
+    ).order_by(Transaction.date.asc()).all()
     
-    category_context = "\n".join([
-        f"- ID: {cat_id} | Nombre: {name}"
-        for cat_id, name in category_map.items()
-    ])
+    # 1. CATEGORY AUDIT: Calculate real 6-month averages
+    cat_history = defaultdict(list)
+    for t in all_txns:
+        cat_history[t.category_id].append(t.amount)
     
-    subscription_context = "\n".join([
-        f"- {sub.get('name', 'Unknown')}: ${sub.get('amount', 0):.2f}"
-        for sub in request.subscriptions
-    ])
+    cat_baselines = {}
+    for cid, amounts in cat_history.items():
+        if len(amounts) > 1:
+            cat_baselines[cid] = sum(amounts) / len(amounts)
     
-    goal_context = "\n".join([
-        f"- {g.get('name', 'Meta')}: Objetivo ${g.get('target_amount', 0)/100:.2f} | Actual ${g.get('current_amount', 0)/100:.2f}"
-        for g in (request.goals or [])
-    ])
+    # 2. PRICE HIKE DETECTION: Look for recurring charges that increased
+    desc_history = defaultdict(list)
+    for t in all_txns:
+        desc_history[t.description.lower()].append(t.amount)
+    
+    price_hikes = []
+    for desc, prices in desc_history.items():
+        if len(prices) >= 2:
+            last_price = prices[-1]
+            prev_price = prices[-2]
+            if last_price > prev_price * 1.05: # > 5% increase
+                 price_hikes.append(f"- INCREMENTO DETECTADO: '{desc}' subió de ${prev_price/100:,.2f} a ${last_price/100:,.2f}.")
 
-    # Build category mapping for easy lookup
+    # 3. ZOMBIE & MISCATEGORIZATION AUDIT
     cat_lookup = {cat.id: cat.name for cat in (request.categories or [])}
-
-    transaction_context = "\n".join([
-        f"ID: {txn.id} | Desc: {txn.description} | Cat: {cat_lookup.get(txn.category_id, 'Sin Categoría')} | Amt: {txn.amount} | Date: {txn.date}"
-        for txn in request.transactions
-    ])
+    audit_evidence = []
     
-    time_context = get_current_time_context()
-    system_prompt = f"""{time_context}
+    for txn in request.transactions:
+        baseline = cat_baselines.get(txn.category_id, 0)
+        if baseline > 0 and txn.amount > baseline * 1.8: # 80% spike over 6-month avg
+            audit_evidence.append(
+                f"- PICO EN {cat_lookup.get(txn.category_id, 'Categoría')}: ${txn.amount/100:,.2f} (Promedio 6 meses: ${baseline/100:,.2f})"
+            )
+        audit_evidence.append(f"CHECK_SEMANTIC: Desc='{txn.description}' Cat='{cat_lookup.get(txn.category_id, 'Sin Categoría')}'")
+
+    zombie_leads = []
+    for desc, amnts in desc_history.items():
+        if len(amnts) >= 3: # Appears monthly for at least a quarter
+            is_sub = any(desc in s.get('name', '').lower() for s in request.subscriptions)
+            if not is_sub:
+                zombie_leads.append(f"- POSIBLE ZOMBIE: '{desc}' detectado por 3 meses consecutivos (${amnts[-1]/100:,.2f}).")
+
+        subscription_context = "\n".join([f"- {sub.get('name', 'Unknown')}: ${sub.get('amount', 0):.2f}" for sub in request.subscriptions])
+
+    system_prompt = f"""{get_current_time_context()}
 {CORE_RULES}
 
-You are a forensic financial auditor. Your task is to detect anomalies (spending spikes and zombie subscriptions).
+You are the 'Sovereign Financial Auditor'. Your mission is to perform a HIGH-INTEGRITY forensic analysis. 
 
-CONTEXTO DE SUBSCRIPCIONES (Gastos recurrentes conocidos):
-{subscription_context}
+EVIDENCIAS MATEMÁTICAS (6 MESES):
+{chr(10).join(audit_evidence[:30])}
 
-CONTEXTO DE METAS (Para identificar ahorros/retiros de metas):
-{goal_context}
+ALZAS DE PRECIOS Y REPETICIONES:
+{chr(10).join(price_hikes)}
+{chr(10).join(zombie_leads)}
 
-MAPEO DE CATEGORÍAS DISPONIBLES:
-{category_context}
+STRICT BUSINESS LOGIC & INTELLIGENCE:
+1. DISCARD NONSENSE: If an evidence looks like a SALARY (high amount, 'S.A.', 'Viamatica', 'Payroll'), DISCARD IT. Salaries are NOT subscriptions.
+2. DISCARD NOISE: Ignore any 'IVA' or tax-only charges under $5.00.
+3. DEDUCE WITH CAUTION: Only provide a 'merchant_name' if you are 95% certain based on the string. 
+4. CRITICAL THINKING: You have the power to IGNORE any mathematical evidence if, as a senior auditor, you deem it irrelevant or a false positive.
+5. 'spending_spikes': Only report spikes that represent UNUSUAL behavior.
+6. 'zombie_subscriptions': Only report recurring expenses that look like LEAKED money (Streaming, Apps, Gyms, Services).
 
-RECENT TRANSACTIONS (Data to analyze):
-{transaction_context}
-
-STRICT AUDIT RULES:
-1. ZOMBIE SUBSCRIPTIONS: Identify recurring charges (~30 days) that are NOT in the 'CONTEXTO DE SUBSCRIPCIONES'.
-2. SPENDING SPIKES: Detect when a category's total spend significantly exceeds its normal average. 
-3. CREDIT CARD PAYMENTS (CRITICAL): If a transaction category (Cat) is 'Transferencia', 'Pago de Deuda', or the description indicates a Credit Card Payment (e.g., "Pago tarjeta"), IGNORE it for 'Spending Spikes'. Debt payments are NOT consumption spikes.
-4. CATEGORY INTEGRITY: Do not attribute a 'Pago tarjeta' to 'Salud Médica' even if you see a medical subscription. They are different things.
-5. CONTEXT AWARENESS: If an expense matches a Goal name, it is a planned movement, not an anomaly.
-6. Output MUST be in SPANISH.
-7. Amounts in JSON MUST be in CENTS (multiply by 100).
+Output in SPANISH. Be elegant, brief, and highly strategic.
 """
     
     anomalies = await call_gemini_json(system_prompt, api_key, response_schema=AnomalyScanResponse)
-    
     return anomalies
-
 
 
 class AudioToTxnRequest(BaseModel):
     audio_base64: str
     audio_format: str = "webm"
+
 
 class TransactionExtracted(BaseModel):
     description: str
@@ -382,6 +360,7 @@ class TransactionExtracted(BaseModel):
     date: str  # ISO YYYY-MM-DD
     category_id: Optional[str] = None
     account_id: Optional[str] = None
+
 
 class AudioToTxnResponse(BaseModel):
     transactions: List[TransactionExtracted]
@@ -393,42 +372,24 @@ async def audio_to_txns(
     db: Session = Depends(get_db)
 ):
     api_key = get_gemini_key(db)
-
     try:
         client = genai.Client(api_key=api_key)
         today_str = datetime.now().strftime("%Y-%m-%d")
-        
-        # Fetch context
         from app.models.account import Account
         categories = db.query(Category).filter(Category.is_deleted == False).all()
         accounts = db.query(Account).filter(Account.is_deleted == False, Account.is_active == True).all()
-        
         cat_ctx = "\n".join([f"- {c.id}: {c.name}" for c in categories])
         acc_ctx = "\n".join([f"- {a.id}: {a.name}" for a in accounts])
 
         system_instruction = (
             f"Eres un asistente financiero experto. Extrae de este audio las transacciones financieras. Hoy es {today_str}. "
             f"\nCATEGORÍAS:\n{cat_ctx}\nCUENTAS:\n{acc_ctx}\n"
-            "Reglas críticas:\n"
-            "1. El monto (amount) debe ser un entero en CENTAVOS (ej. $25.00 -> 2500).\n"
-            "2. transaction_type debe ser 'expense' o 'income'.\n"
-            "3. La fecha (date) debe ser YYYY-MM-DD.\n"
-            "4. category_id y account_id: Mapea a los IDs reales proporcionados si se mencionan.\n"
         )
-        
         audio_bytes = base64.b64decode(request.audio_base64)
-        
         response = client.models.generate_content(
                 model="gemini-3.1-flash-lite",
-            contents=[
-                system_instruction,
-                types.Part.from_bytes(data=audio_bytes, mime_type=f"audio/{request.audio_format}")
-            ],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=AudioToTxnResponse,
-                temperature=0.1
-            )
+            contents=[system_instruction, types.Part.from_bytes(data=audio_bytes, mime_type=f"audio/{request.audio_format}")],
+            config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=AudioToTxnResponse, temperature=0.1)
         )
         return json.loads(response.text)
     except Exception as e:
@@ -441,103 +402,31 @@ async def parse_receipt(
     db: Session = Depends(get_db)
 ):
     api_key = get_gemini_key(db)
-
     try:
         client = genai.Client(api_key=api_key)
         today_str = datetime.now().strftime("%Y-%m-%d")
-        
-        system_instruction = (
-            f"Eres un auditor experto extrayendo datos de recibos. Hoy es {today_str}. "
-            "Reglas críticas:\n"
-            "1. Extrae el TOTAL final a pagar. El monto debe ser entero en CENTAVOS (ej. Total $25.50 -> 2550).\n"
-            "2. transaction_type es siempre 'expense'.\n"
-            "3. Extrae la fecha del recibo (YYYY-MM-DD). Si no hay fecha legible, usa hoy.\n"
-            "4. description debe ser el nombre del comercio."
-        )
-        
+        system_instruction = f"Eres un auditor experto extrayendo datos de recibos. Hoy es {today_str}. Reglas: Montos en CENTAVOS, fecha YYYY-MM-DD."
         image_bytes = await file.read()
-        
         response = client.models.generate_content(
                 model="gemini-3.1-flash-lite",
-            contents=[
-                system_instruction,
-                types.Part.from_bytes(data=image_bytes, mime_type=file.content_type or "image/jpeg")
-            ],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=AudioToTxnResponse,
-                temperature=0.1
-            )
+            contents=[system_instruction, types.Part.from_bytes(data=image_bytes, mime_type=file.content_type or "image/jpeg")],
+            config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=AudioToTxnResponse, temperature=0.1)
         )
         return json.loads(response.text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analizando recibo: {str(e)}")
+
+
 @router.get("/test-component")
 async def test_component(component: str, db: Session = Depends(get_db)):
     """
-    DIAGNOSTIC: Test if an AI component is responding correctly using mock data.
+    DIAGNOSTIC: Test if an AI component is responding correctly.
     """
-    config = db.query(Config).filter(Config.key == 'gemini_api_key').first()
-    if not config or not config.value:
-        return {"status": "error", "message": "API Key not configured"}
-
-    client = genai.Client(api_key=config.value)
-    
+    api_key = get_gemini_key(db)
+    client = genai.Client(api_key=api_key)
     try:
-        if component == "sentinel":
-            # Test Sentinel logic with dummy context
-            prompt = "Eres un guardián financiero. Di 'OK' si recibes este mensaje de prueba."
-            response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
-                contents=prompt
-            )
-            return {"status": "success", "message": response.text.strip()}
-            
-        elif component == "anomaly":
-            # Test Anomaly detection logic
-            prompt = "Analiza este gasto de $500 en 'Dulces' cuando el mes pasado fue $5. Resume en 1 frase."
-            response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
-                contents=prompt
-            )
-            return {"status": "success", "message": response.text.strip()}
-
-        elif component == "fiscal":
-            # Test Fiscal intelligence
-            prompt = "Calcula el 15% de IVA para $100. Responde solo el número."
-            response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
-                contents=prompt
-            )
-            return {"status": "success", "message": response.text.strip()}
-
-        elif component == "whatif":
-            # Test Simulation logic
-            prompt = "Si ahorro $100 mensuales por 12 meses con 0% interes, ¿cuanto tengo? Responde solo el numero."
-            response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
-                contents=prompt
-            )
-            return {"status": "success", "message": response.text.strip()}
-
-        elif component == "audio":
-            # Test Audio/OCR prompt logic
-            prompt = "Eres un transcriptor. De esta frase: 'Gaste 5 dolares en pan', extrae monto y concepto en JSON."
-            response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
-                contents=prompt
-            )
-            return {"status": "success", "message": response.text.strip()}
-
-        elif component == "categorization":
-            # Test Semantic Mapping
-            prompt = "Categoriza 'Netflix' en una palabra (ej. Entretenimiento, Comida, Salud)."
-            response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
-                contents=prompt
-            )
-            return {"status": "success", "message": response.text.strip()}
-
-        return {"status": "error", "message": "Unknown component"}
+        prompt = f"Test {component} component. Respond OK."
+        response = client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
+        return {"status": "success", "message": response.text.strip()}
     except Exception as e:
         return {"status": "error", "message": str(e)}
