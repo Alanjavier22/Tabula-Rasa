@@ -781,17 +781,19 @@ const Budgets = () => {
         onCancel={() => setDeleteConfirm({ isOpen: false, id: null })}
       />
 
-      {showPaymentModal && paymentBudget && (
-        <TransactionForm
-          initialData={paymentForm}
-          categories={categories}
-          accounts={accounts}
-          onSubmit={handlePaymentSubmit}
-          onCancel={() => setShowPaymentModal(false)}
-          saving={saving}
-          title="Registro de Gasto Presupuestado"
-        />
-      )}
+      <AnimatePresence>
+        {showPaymentModal && paymentBudget && (
+          <TransactionForm
+            initialData={paymentForm}
+            categories={categories}
+            accounts={accounts}
+            onSubmit={handlePaymentSubmit}
+            onCancel={() => setShowPaymentModal(false)}
+            saving={saving}
+            title="Registro de Gasto Presupuestado"
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
