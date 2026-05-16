@@ -5,7 +5,7 @@ from app.api.auth import get_current_device
 from app.models.deferred_payment import DeferredPayment
 from app.models.account import Account
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from datetime import datetime
 import uuid
 
@@ -60,11 +60,11 @@ def advance_installment(payment_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Deferred payment not found")
     
     if payment.current_installment >= payment.total_installments:
-        payment.is_active = False
-        payment.remaining_balance = 0
+        payment.is_active = cast(Any, False)
+        payment.remaining_balance = cast(Any, 0)
     else:
-        payment.current_installment += 1
-        payment.remaining_balance = max(0, payment.remaining_balance - payment.installment_amount)
+        payment.current_installment = cast(Any, payment.current_installment + 1)
+        payment.remaining_balance = cast(Any, max(0, payment.remaining_balance - payment.installment_amount))
     
     db.commit()
     return {"message": "Installment advanced", "current": payment.current_installment, "remaining": payment.remaining_balance}
@@ -74,6 +74,6 @@ def delete_deferred_payment(payment_id: str, db: Session = Depends(get_db)):
     payment = db.query(DeferredPayment).filter(DeferredPayment.id == payment_id).first()
     if not payment:
         raise HTTPException(status_code=404, detail="Deferred payment not found")
-    payment.is_deleted = True
+    payment.is_deleted = cast(Any, True)
     db.commit()
     return {"message": "Deleted successfully"}
