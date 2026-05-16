@@ -30,7 +30,7 @@ export default function SafeToSpendCard({ data }: SafeToSpendCardProps) {
                 <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 shadow-inner">
                   <Zap className="w-3 h-3 text-indigo-300 fill-indigo-300/10" />
                 </div>
-                <span className="text-[11px] font-black text-white/50 uppercase tracking-[0.15em] font-mono">Presupuesto Disponible</span>
+                <span className="text-[11px] font-black text-white/50 uppercase tracking-[0.15em] font-mono">Presupuesto Proyectado</span>
               </div>
               <div className="relative flex items-center gap-3">
                 <p className="text-3xl lg:text-4xl font-black text-white tracking-tighter drop-shadow-2xl flex items-baseline">
@@ -60,7 +60,7 @@ export default function SafeToSpendCard({ data }: SafeToSpendCardProps) {
             </div>
             
             <div className="bg-white/[0.04] backdrop-blur-md border border-white/10 p-3 rounded-xl hover:bg-white/[0.08] transition-all group/item shadow-lg">
-              <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider mb-1 block">Ingresos</span>
+              <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider mb-1 block">Ingresos Proyectados</span>
               <span className="text-base font-bold text-emerald-400 group-hover/item:text-emerald-300 transition-colors tracking-tight flex items-center">
                 <span className="text-sm text-emerald-400 mr-1 font-mono">$</span>
                 {formatMoney(monthlyIncome)}
