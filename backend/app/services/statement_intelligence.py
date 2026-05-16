@@ -1,7 +1,7 @@
 import json
 import hashlib
 import os
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 import google.genai as genai
 from google.genai import types
@@ -49,20 +49,20 @@ class StatementIntelligenceService:
 
     def _get_api_key(self) -> Optional[str]:
         config = self.db.query(Config).filter(Config.key == "gemini_api_key").first()
-        return config.value if config else None
+        return cast(Optional[str], config.value) if config else None
 
     def generate_fingerprint(self, date: str, description: str, amount_cents: int, account_id: str, deferred_info: str = "", index: int = 0) -> str:
         """Generates a unique hash, including deferred info and index to disambiguate identical transactions."""
         raw_str = f"{date}|{description.strip().upper()}|{amount_cents}|{account_id}|{deferred_info}|{index}"
         return hashlib.sha256(raw_str.encode()).hexdigest()
 
-    async def parse_statement(self, file_path: str, account_id: str, expected_bank_name: str = None) -> Dict:
+    async def parse_statement(self, file_path: str, account_id: str, expected_bank_name: Optional[str] = None) -> Dict:
         """Usa Gemini 1.5 Flash para extraer transacciones de un PDF o Imagen."""
         api_key = self._get_api_key()
         if not api_key:
             raise ValueError("GEMINI_API_KEY no configurada en el sistema.")
 
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=cast(str, api_key))
         
         # Leemos el archivo para enviarlo a la IA
         with open(file_path, "rb") as f:
@@ -70,7 +70,7 @@ class StatementIntelligenceService:
 
         # Obtener categorías actuales para que la IA sepa qué opciones tiene
         categories = self.db.query(Category).all()
-        cat_list = [c.name for c in categories]
+        cat_list = [str(c.name) for c in categories]
 
         system_instruction = f"""Eres un auditor financiero experto en Ecuador. Tu tarea es extraer con PRECISIÓN ABSOLUTA las transacciones de este estado de cuenta.
         
@@ -94,7 +94,12 @@ class StatementIntelligenceService:
            - Pagos/Abonos/Notas de Crédito -> transaction_type: 'income' (Monto negativo para el balance de deuda).
         5. CATEGORIZACIÓN: Elige la mejor categoría de la lista proporcionada.
         6. DIFERIDOS: Identifica si la descripción indica una cuota (ej: 'Cuota 2 de 6', '3/12').
-        7. INTEGRIDAD: No inventes transacciones ni balances. Extrae el mes y año contable precisos.
+        7. AUDITORÍA DE COSTOS (CRÍTICO): Identifica específicamente cobros por:
+           - Seguros (ej: 'Seguro de Desgravamen', 'Protección Fraude').
+           - Comisiones (ej: 'Mantenimiento de cuenta', 'Emisión de estado de cuenta').
+           - Intereses (ej: 'Interés por mora', 'Interés de financiamiento').
+           Si encuentras alguno, asegúrate de extraerlo con su descripción literal exacta.
+        8. INTEGRIDAD: No inventes transacciones ni balances. Extrae el mes y año contable precisos.
         """
 
         prompt = "Analiza este documento y extrae todas las transacciones del periodo. Asegúrate de incluir pagos y consumos."
@@ -106,15 +111,16 @@ class StatementIntelligenceService:
         import time
         max_retries = 5
         last_error = None
+        parsed_data = cast(Any, {'transactions': []})
         
         for attempt in range(max_retries):
             try:
                 response = client.models.generate_content(
                     model='gemini-3.1-flash-lite', 
-                    contents=[
+                    contents=cast(Any, [
                         types.Part.from_bytes(data=file_data, mime_type=mime_type),
-                        prompt
-                    ],
+                        types.Part.from_text(text=prompt)
+                    ]),
                     config=types.GenerateContentConfig(
                         system_instruction=system_instruction,
                         response_mime_type="application/json",
@@ -122,7 +128,8 @@ class StatementIntelligenceService:
                     )
                 )
                 # Si llegamos aquí, la llamada fue exitosa
-                parsed_data = json.loads(response.text)
+                response_text = (response.text or "{}").strip()
+                parsed_data = json.loads(response_text)
                 break
             except Exception as e:
                 last_error = e
@@ -181,10 +188,18 @@ class StatementIntelligenceService:
             tx_dict['fingerprint'] = fp
             
             # Usar resultado del batch para categorización
-            cat_id = cat_results.get(idx)
-            tx_dict['category_id'] = cat_id
-            if cat_id in categories_dict:
-                tx_dict['category_name'] = categories_dict[cat_id]
+            cat_tuple = cat_results.get(idx)
+            if cat_tuple:
+                cat_id, clarification = cat_tuple
+                tx_dict['category_id'] = cat_id
+                tx_dict['needs_clarification'] = clarification
+                if cat_id in categories_dict:
+                    tx_dict['category_name'] = categories_dict[cat_id]
+            
+            # Identificar si es un cobro auditable (Seguro/Comisión/Interés)
+            desc_lower = tx['description'].lower()
+            if any(k in desc_lower for k in ['seguro', 'comision', 'comisión', 'interes', 'interés', 'mantenimiento', 'mora']):
+                tx_dict['needs_clarification'] = True # Forzamos revisión para que el usuario audite el cobro
             
             # Verificar duplicados reales en DB (solo si el fingerprint exacto ya existe)
             existing = self.db.query(Transaction).filter(Transaction.fingerprint == fp, Transaction.is_deleted == False).first()
@@ -248,6 +263,7 @@ class StatementIntelligenceService:
                         fingerprint=tx_data['fingerprint'],
                         import_log_id=log.id,
                         is_manual=False,
+                        needs_clarification=tx_data.get('needs_clarification', False),
                         is_internal=tx_data['transaction_type'] == 'income', # CC income is always an internal payment
                         metadata_json=json.dumps({
                             "is_deferred": tx_data.get('is_deferred'),
@@ -304,18 +320,18 @@ class StatementIntelligenceService:
                                 total_installments=total_inst,
                                 current_installment=current_inst,
                                 remaining_balance=abs(tx_data['amount_cents']) * (total_inst - current_inst + 1),
-                                is_shared=True if tx_data.get('shared_with') else False,
-                                shared_with=tx_data.get('shared_with'),
-                                shared_amount=int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None,
+                                is_shared=cast(Any, True if tx_data.get('shared_with') else False),
+                                shared_with=cast(Any, tx_data.get('shared_with')),
+                                shared_amount=cast(Any, int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None),
                                 start_date=dt,
-                                is_active=True
+                                is_active=cast(Any, True)
                             )
                             self.db.add(new_deferred)
                         else:
                             # Opcionalmente actualizar el estado compartido si cambió
-                            existing_def.is_shared = True if tx_data.get('shared_with') else False
-                            existing_def.shared_with = tx_data.get('shared_with')
-                            existing_def.shared_amount = int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None
+                            existing_def.is_shared = cast(Any, True if tx_data.get('shared_with') else False)
+                            existing_def.shared_with = cast(Any, tx_data.get('shared_with'))
+                            existing_def.shared_amount = cast(Any, int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None)
 
                     new_txs_count += 1
 
@@ -349,21 +365,21 @@ class StatementIntelligenceService:
 
                 if existing_stmt:
                     # Actualizar si existe
-                    existing_stmt.statement_balance = stmt_balance
-                    existing_stmt.user_share = int(statement_metadata.get('user_share_cents', stmt_balance))
-                    if due_date: existing_stmt.payment_due_date = due_date
-                    if cut_date: existing_stmt.cut_off_date = cut_date
+                    existing_stmt.statement_balance = cast(Any, stmt_balance)
+                    existing_stmt.user_share = cast(Any, int(statement_metadata.get('user_share_cents', stmt_balance)))
+                    if due_date: existing_stmt.payment_due_date = cast(Any, due_date)
+                    if cut_date: existing_stmt.cut_off_date = cast(Any, cut_date)
                 else:
                     # Crear nuevo
                     new_stmt = CreditCardStatement(
                         account_id=log.account_id,
-                        statement_balance=stmt_balance,
-                        user_share=int(statement_metadata.get('user_share_cents', stmt_balance)),
-                        payment_due_date=due_date,
-                        cut_off_date=cut_date,
+                        statement_balance=cast(Any, stmt_balance),
+                        user_share=cast(Any, int(statement_metadata.get('user_share_cents', stmt_balance))),
+                        payment_due_date=cast(Any, due_date),
+                        cut_off_date=cast(Any, cut_date),
                         month=stmt_month,
                         year=stmt_year,
-                        status=StatementStatus.PENDING
+                        status=cast(Any, StatementStatus.PENDING)
                     )
                     self.db.add(new_stmt)
 
@@ -371,7 +387,7 @@ class StatementIntelligenceService:
                 if statement_metadata.get('credit_limit_cents'):
                     account = self.db.query(Account).filter(Account.id == log.account_id).first()
                     if account:
-                        account.credit_limit = int(statement_metadata['credit_limit_cents'])
+                        account.credit_limit = cast(Any, int(statement_metadata['credit_limit_cents']))
                     self.db.flush()
 
                 # Procesar DebtShares (Gente que debe parte del total del mes)
@@ -390,7 +406,7 @@ class StatementIntelligenceService:
                         )
                         self.db.add(new_share)
 
-            log.status = 'processed'
+            log.status = cast(Any, 'processed')
 
             self.db.commit()
 
@@ -403,7 +419,7 @@ class StatementIntelligenceService:
                 if acc:
                     # Account balance in DB is negative for debt, statement_balance is positive debt.
                     target_balance = -int(statement_metadata['statement_balance_cents'])
-                    acc.balance = target_balance
+                    acc.balance = cast(Any, target_balance)
                     self.db.commit()
                 
             # Disparamos la sanación de snapshots si hubo cambios en el pasado
@@ -418,8 +434,8 @@ class StatementIntelligenceService:
             print(f"❌ ERROR EN CONFIRM-IMPORT: {str(e)}")
             traceback.print_exc()
             self.db.rollback()
-            log.status = 'error'
-            log.error_message = str(e)
+            log.status = cast(Any, 'error')
+            log.error_message = cast(Any, str(e))
             self.db.commit()
             raise e
         finally:
