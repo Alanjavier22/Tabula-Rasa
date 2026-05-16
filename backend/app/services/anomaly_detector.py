@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict
+from typing import List, Dict, Any, cast
 
 from app.models.transaction import Transaction
 from app.models.category import Category
@@ -51,16 +51,17 @@ def detect_anomalies(db: Session) -> List[Dict]:
     # Mapear mes anterior por descripcion exacta
     prev_map = {}
     for t in prev_full_txns:
-        desc = t.description.strip().lower()
+        desc = str(t.description).strip().lower()
         # Guardamos el monto maximo si hay varios (ej. 2 pagos de uber, tomamos el mayor o la suma, mejor el maximo para suscripciones)
-        if desc not in prev_map or t.amount > prev_map[desc]:
-            prev_map[desc] = t.amount
+        amt = cast(int, t.amount)
+        if desc not in prev_map or amt > prev_map[desc]:
+            prev_map[desc] = amt
 
     for t in curr_txns:
-        desc = t.description.strip().lower()
+        desc = str(t.description).strip().lower()
         if desc in prev_map:
             prev_amount = prev_map[desc]
-            curr_amount = t.amount
+            curr_amount = cast(int, t.amount)
             
             # Si el monto subió más de un 5% en un pago recurrente/idéntico
             if prev_amount > 0 and curr_amount > prev_amount * 105 // 100:
@@ -75,7 +76,7 @@ def detect_anomalies(db: Session) -> List[Dict]:
     # 2. BURN RATE (Velocidad de Gasto por Categoría)
     # ---------------------------------------------------------
     # Gasto por categoria mes anterior hasta este día
-    prev_cat_spending = {}
+    prev_cat_spending: Dict[str, int] = {}
     prev_txns_period = db.query(Transaction).filter(
         Transaction.transaction_type == "expense",
         Transaction.is_deleted == False,
@@ -85,14 +86,16 @@ def detect_anomalies(db: Session) -> List[Dict]:
     
     for t in prev_txns_period:
         if t.category_id:
-            prev_cat_spending[t.category_id] = prev_cat_spending.get(t.category_id, 0) + t.amount
+            cid = str(t.category_id)
+            prev_cat_spending[cid] = prev_cat_spending.get(cid, 0) + cast(int, t.amount)
 
-    curr_cat_spending = {}
+    curr_cat_spending: Dict[str, int] = {}
     for t in curr_txns:
         if t.category_id:
-            curr_cat_spending[t.category_id] = curr_cat_spending.get(t.category_id, 0) + t.amount
+            cid = str(t.category_id)
+            curr_cat_spending[cid] = curr_cat_spending.get(cid, 0) + cast(int, t.amount)
 
-    categories = {c.id: c.name for c in db.query(Category).all()}
+    categories = {str(c.id): str(c.name) for c in db.query(Category).all()}
     
     for cat_id, curr_spent in curr_cat_spending.items():
         prev_spent = prev_cat_spending.get(cat_id, 0)
@@ -134,13 +137,17 @@ def calculate_anomaly_leak_total(db: Session) -> int:
     curr_txns = db.query(Transaction).filter(Transaction.transaction_type == "expense", Transaction.is_deleted == False, Transaction.date >= curr_start).all()
     prev_txns = db.query(Transaction).filter(Transaction.transaction_type == "expense", Transaction.is_deleted == False, Transaction.date >= prev_start, Transaction.date <= prev_end).all()
     
-    curr_cat = {}
+    curr_cat: Dict[str, int] = {}
     for t in curr_txns:
-        if t.category_id: curr_cat[t.category_id] = curr_cat.get(t.category_id, 0) + t.amount
+        if t.category_id:
+            cid = str(t.category_id)
+            curr_cat[cid] = curr_cat.get(cid, 0) + cast(int, t.amount)
         
-    prev_cat = {}
+    prev_cat: Dict[str, int] = {}
     for t in prev_txns:
-        if t.category_id: prev_cat[t.category_id] = prev_cat.get(t.category_id, 0) + t.amount
+        if t.category_id:
+            cid = str(t.category_id)
+            prev_cat[cid] = prev_cat.get(cid, 0) + cast(int, t.amount)
         
     total_leak = 0
     for cat_id, curr_spent in curr_cat.items():
