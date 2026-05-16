@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from typing import cast, Any
 from datetime import datetime, timedelta, timezone
 from app.models.transaction import Transaction
 import google.genai as genai
@@ -74,7 +75,7 @@ class AuditService:
                     response_mime_type="application/json"
                 )
             )
-            result = json.loads(response.text)
+            result = json.loads(cast(str, response.text))
             return result.get("is_duplicate", False)
         except:
             return False
