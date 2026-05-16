@@ -1,5 +1,5 @@
 import { useState, memo, useDeferredValue, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { transactionsAPI, categoriesAPI, accountsAPI, goalsAPI } from '../services/api';
 import type { TransactionType, PaymentMethod, ExpenseType } from '../types';
@@ -564,18 +564,20 @@ const Transactions = () => {
         />
       )}
 
-      {showStatementModal && (
-        <StatementImportModal
-          onClose={() => setShowStatementModal(false)}
-          onSuccess={(count) => {
-            setToast({ message: `¡Excelente! ${count} transacciones importadas y balance de tarjeta actualizado.`, type: 'success' });
-            refetchTransactions();
-            queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-            queryClient.invalidateQueries({ queryKey: ['statements'] });
-            queryClient.invalidateQueries({ queryKey: ['accounts'] });
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {showStatementModal && (
+          <StatementImportModal
+            onClose={() => setShowStatementModal(false)}
+            onSuccess={(count) => {
+              setToast({ message: `¡Excelente! ${count} transacciones importadas y balance de tarjeta actualizado.`, type: 'success' });
+              refetchTransactions();
+              queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+              queryClient.invalidateQueries({ queryKey: ['statements'] });
+              queryClient.invalidateQueries({ queryKey: ['accounts'] });
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {toast && (
         <Toast
