@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from database import get_db
 from app.api.auth import get_current_device
 from app.models.transaction_split import TransactionSplit
@@ -65,13 +65,13 @@ def create_transaction_split(split: TransactionSplitCreate, db: Session = Depend
     ).all()
     existing_sum = sum((s.amount for s in existing_splits), 0)
 
-    if existing_sum + split.amount > transaction.amount:
+    if transaction and existing_sum + split.amount > cast(int, transaction.amount or 0):
         raise HTTPException(
             status_code=400,
             detail=f"Split sum ({existing_sum + split.amount}) exceeds transaction amount ({transaction.amount})"
         )
 
-    db_split = TransactionSplit(**split.dict())
+    db_split = TransactionSplit(**split.model_dump())
     db.add(db_split)
     db.commit()
     db.refresh(db_split)
@@ -101,6 +101,8 @@ def update_transaction_split(split_id: str, split: TransactionSplitUpdate, db: S
         raise HTTPException(status_code=404, detail="Transaction split not found")
 
     transaction = db.query(Transaction).filter(Transaction.id == db_split.transaction_id).first()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
 
     if split.category_id:
         if not db.query(Category).filter(Category.id == split.category_id).first():
@@ -120,13 +122,13 @@ def update_transaction_split(split_id: str, split: TransactionSplitUpdate, db: S
         ).all()
         existing_sum = sum((s.amount for s in existing_splits), 0)
 
-        if existing_sum + split.amount > transaction.amount:
+        if transaction and existing_sum + split.amount > cast(int, transaction.amount or 0):
             raise HTTPException(
                 status_code=400,
                 detail=f"Split sum ({existing_sum + split.amount}) exceeds transaction amount ({transaction.amount})"
             )
 
-    for key, value in split.dict(exclude_unset=True).items():
+    for key, value in split.model_dump(exclude_unset=True).items():
         setattr(db_split, key, value)
     db.commit()
     db.refresh(db_split)
@@ -183,7 +185,7 @@ def create_transaction_splits_batch(
         if split_data.category_id:
             if not db.query(Category).filter(Category.id == split_data.category_id).first():
                 raise HTTPException(status_code=404, detail="Category not found")
-        db_split = TransactionSplit(**split_data.dict())
+        db_split = TransactionSplit(**split_data.model_dump())
         db.add(db_split)
         db.flush()
         created_splits.append(db_split)
