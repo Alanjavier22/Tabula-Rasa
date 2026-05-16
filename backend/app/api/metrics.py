@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, cast
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
@@ -61,7 +61,7 @@ def get_safe_to_spend(db: Session = Depends(get_db)):
         anomaly_leaks = Decimal(str(calculate_anomaly_leak_total(db)))
         buffer_config = db.query(Config).filter(Config.key == 'safe_to_spend_buffer').first()
         # Buffer config is stored as dollars in the UI, convert to cents for math
-        buffer_val = float(buffer_config.value) if buffer_config and buffer_config.value else 0
+        buffer_val = float(cast(Any, buffer_config.value)) if buffer_config and buffer_config.value else 0
         safe_to_spend_buffer = Decimal(str(int(buffer_val * 100)))
 
         # Get fiscal burden (IVA/Retenciones)
@@ -126,14 +126,14 @@ def get_net_worth(db: Session = Depends(get_db)):
     physical_assets = db.query(Asset).filter(Asset.is_deleted == False).all()
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     for asset in physical_assets:
-        current_val = asset_depreciation_service.get_current_value(asset, now)
-        assets += Decimal(str(current_val))
+        current_val_result = asset_depreciation_service.calculate_current_value(db, cast(str, asset.id), now)
+        assets += Decimal(str(current_val_result.current_value_cents))
 
     liabilities_accounts = db.query(Account).filter(
         Account.is_active == 1, Account.is_deleted == False, Account.account_type == "credit_card"
     ).all()
     liabilities = Decimal(str(sum(
-        (abs(acc.balance) for acc in liabilities_accounts if acc.balance < 0),
+        (abs(cast(int, acc.balance)) for acc in liabilities_accounts if acc.balance < 0),
         0
     )))
 
@@ -204,7 +204,7 @@ def get_vehicle_telemetry(db: Session = Depends(get_db)):
     vehicle_category_ids = []
     if config_entry and config_entry.value:
         try:
-            vehicle_category_ids = json.loads(config_entry.value)
+            vehicle_category_ids = json.loads(cast(str, config_entry.value))
         except json.JSONDecodeError:
             pass
 
@@ -238,7 +238,7 @@ def get_vehicle_telemetry(db: Session = Depends(get_db)):
         total_historical_cost += Decimal(str(txn.amount))
         if txn.metadata_json:
             try:
-                meta = json.loads(txn.metadata_json)
+                meta = json.loads(cast(str, txn.metadata_json))
                 if "odometer" in meta:
                     odometer_readings.append({"date": txn.date, "val": meta["odometer"]})
             except: continue
@@ -267,7 +267,7 @@ def get_vehicle_telemetry(db: Session = Depends(get_db)):
         last_maint_odo = 0
         if last_maint_txn and last_maint_txn.metadata_json:
             try:
-                m_meta = json.loads(last_maint_txn.metadata_json)
+                m_meta = json.loads(cast(str, last_maint_txn.metadata_json))
                 last_maint_odo = m_meta.get("odometer", 0)
             except: pass
         
@@ -350,7 +350,7 @@ def get_cash_flow_forecast(days: int = 30, db: Session = Depends(get_db)):
             "projected_balance": projected_balance
         })
 
-    has_negative_balance = any(f["projected_balance"] < 0 for f in forecast)
+    has_negative_balance = any(float(cast(Any, f["projected_balance"])) < 0 for f in forecast)
 
     return CashFlowForecastResponse(
         forecast=forecast,
@@ -399,13 +399,14 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         
         blacklist = ["%PAGO EN OFIC%", "%MUCHAS GRACIAS%", "%TRANSF. DEUDA%", "%SU PAGO%", "%ABONO%"]
         
-        # EXCLUSION LOGIC: Use 'is_internal' flag for structural integrity + legacy keywords
+        end_date = datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
+        
         income_query = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
             Transaction.is_deleted == False,
             Transaction.is_internal == False, # Structural filter
             Transaction.transaction_type == "income",
             Transaction.date >= datetime(current_year, current_month, 1),
-            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
+            Transaction.date < end_date
         )
         
         expense_query = db.query(func.coalesce(func.sum(Transaction.amount), 0)).filter(
@@ -413,7 +414,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             Transaction.is_internal == False, # Structural filter
             Transaction.transaction_type == "expense",
             Transaction.date >= datetime(current_year, current_month, 1),
-            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
+            Transaction.date < end_date
         )
 
         if ignored_ids:
@@ -435,7 +436,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             Transaction.transaction_type == "expense",
             Transaction.is_deleted == False,
             Transaction.date >= datetime(current_year, current_month, 1),
-            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
+            Transaction.date < end_date
         ).group_by(
             func.coalesce(Category.name, 'Sin Categoría')
         ).order_by(func.sum(Transaction.amount).desc()).limit(10).all()
@@ -452,7 +453,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             Transaction.transaction_type == "expense",
             Transaction.is_deleted == False,
             Transaction.date >= datetime(current_year, current_month, 1),
-            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
+            Transaction.date < end_date
         ).group_by(func.date(Transaction.date)).order_by("date").all()
 
         daily_spending = [
@@ -566,7 +567,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         vehicle_category_ids = []
         if config_entry and config_entry.value:
             try:
-                vehicle_category_ids = json.loads(config_entry.value)
+                vehicle_category_ids = json.loads(cast(str, config_entry.value))
             except json.JSONDecodeError:
                 pass
 
@@ -583,9 +584,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             Transaction.is_deleted == False,
             Transaction.category_id.in_(vehicle_category_ids),
             Transaction.date >= datetime(current_year, current_month, 1),
-            Transaction.date < datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
+            Transaction.date < end_date
         ).scalar()
-        vehicle_cost = float(vehicle_cost_result)
+        vehicle_cost = float(cast(Any, vehicle_cost_result))
         
         alerts = detect_anomalies(db)
 
