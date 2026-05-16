@@ -155,20 +155,20 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-700 bg-slate-800/80 sticky top-0 z-10 backdrop-blur-md">
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto shadow-2xl">
+        <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800/80 sticky top-0 z-10 backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/20 rounded-lg">
-              <Wallet className="w-6 h-6 text-emerald-400" />
+            <div className="p-1.5 bg-emerald-500/20 rounded-lg">
+              <Wallet className="w-5 h-5 text-emerald-400" />
             </div>
-            <h2 className="text-xl font-black text-white tracking-tight">Importador IA <span className="text-emerald-400 font-medium text-sm ml-2 px-2 py-1 bg-emerald-500/10 rounded-full">Movimientos</span></h2>
+            <h2 className="text-lg font-black text-white tracking-tight">Importador IA <span className="text-emerald-400 font-medium text-xs ml-2 px-2 py-0.5 bg-emerald-500/10 rounded-full">Movimientos</span></h2>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 md:p-5 space-y-4 md:space-y-5">
           {/* Paso 1: Selección y Upload */}
           {!extractedTransactions.length && (
             <div className="space-y-6">
@@ -180,8 +180,8 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                 </div>
               ) : (
                 <>
-                  <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700">
-                    <label className="block text-sm font-bold text-slate-300 mb-2 uppercase tracking-wider">Cuenta Destino</label>
+                  <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700">
+                    <label className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Cuenta Destino</label>
                     <Select
                       value={accountId}
                       onChange={(value) => setAccountId(value)}
@@ -194,8 +194,8 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                     onDragLeave={handleDrag}
                     onDragOver={handleDrag}
                     onDrop={handleDrop}
-                    className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-300 ${
-                      dragActive ? 'border-emerald-500 bg-emerald-500/10 scale-[1.02]' : 'border-slate-600 hover:border-emerald-500 hover:bg-slate-800/50'
+                    className={`border-2 border-dashed rounded-2xl p-5 md:p-6 text-center transition-all duration-300 ${
+                      dragActive ? 'border-emerald-500 bg-emerald-500/10 scale-[1.01]' : 'border-slate-600 hover:border-emerald-500 hover:bg-slate-800/50'
                     }`}
                   >
                     <input
@@ -206,13 +206,13 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                       id="account-upload"
                     />
                     <label htmlFor="account-upload" className="cursor-pointer flex flex-col items-center">
-                      <div className={`${dragActive ? 'text-emerald-400 scale-110' : 'text-slate-400'} transition-all duration-300 mb-4`}>
-                        <FileSpreadsheet className="w-16 h-16" />
+                      <div className={`${dragActive ? 'text-emerald-400 scale-110' : 'text-slate-400'} transition-all duration-300 mb-2`}>
+                        <FileSpreadsheet className="w-12 h-12" />
                       </div>
-                      <p className="text-xl text-white font-bold mb-2">
+                      <p className="text-base text-white font-bold mb-1">
                         {file ? file.name : 'Arrastra tu archivo CSV o Excel aquí'}
                       </p>
-                      <p className="text-slate-400 text-sm">
+                      <p className="text-slate-400 text-xs">
                         {file ? 'Haz clic abajo para analizar' : 'Soporta cualquier formato exportado de tu banco (.csv, .xlsx)'}
                       </p>
                     </label>
@@ -222,16 +222,16 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                     <button
                       onClick={handleProcess}
                       disabled={processing}
-                      className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-lg hover:shadow-lg hover:shadow-emerald-500/20 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm hover:shadow-lg hover:shadow-emerald-500/20 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
                     >
                       {processing ? (
                         <>
-                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                           Analizando con IA...
                         </>
                       ) : (
                         <>
-                          <Upload className="w-5 h-5" />
+                          <Upload className="w-4 h-4" />
                           Extraer Movimientos Inteligente
                         </>
                       )}
