@@ -68,8 +68,9 @@ const Dashboard = () => {
       const res = await alertsAPI.getPaymentReminders(30); // 30 days ahead
       return res.data;
     },
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   // React Query: Fetch multiple metrics and data in parallel
@@ -78,22 +79,72 @@ const Dashboard = () => {
       {
         queryKey: ['pendingIOUs'],
         queryFn: () => iousAPI.getPending().then(res => res.data),
-        refetchOnWindowFocus: true,
-        refetchOnMount: true
+        staleTime: 30000,
+        refetchOnWindowFocus: false,
       },
-      { queryKey: ['accounts'], queryFn: () => accountsAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
-      { queryKey: ['statements'], queryFn: () => statementsAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
-      { queryKey: ['safeToSpend'], queryFn: async () => {
-        const res = await metricsAPI.getSafeToSpend();
-        return res.data;
-      }, refetchOnWindowFocus: true, refetchOnMount: true },
-      { queryKey: ['netWorth'], queryFn: () => metricsAPI.getNetWorth().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
-      { queryKey: ['vehicleTelemetry'], queryFn: () => metricsAPI.getVehicleTelemetry().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
-      { queryKey: ['budgets'], queryFn: () => budgetsAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
-      { queryKey: ['cashFlowForecast', forecastDays], queryFn: () => metricsAPI.getCashFlowForecast(forecastDays).then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
-      { queryKey: ['transactions'], queryFn: () => transactionsAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
-      { queryKey: ['subscriptions'], queryFn: () => subsAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
-      { queryKey: ['categories'], queryFn: () => categoriesAPI.getAll().then(res => res.data), refetchOnWindowFocus: true, refetchOnMount: true },
+      { 
+        queryKey: ['accounts'], 
+        queryFn: () => accountsAPI.getAll().then(res => res.data), 
+        staleTime: 30000, 
+        refetchOnWindowFocus: false 
+      },
+      { 
+        queryKey: ['statements'], 
+        queryFn: () => statementsAPI.getAll().then(res => res.data), 
+        staleTime: 30000, 
+        refetchOnWindowFocus: false 
+      },
+      { 
+        queryKey: ['safeToSpend'], 
+        queryFn: async () => {
+          const res = await metricsAPI.getSafeToSpend();
+          return res.data;
+        }, 
+        staleTime: 30000, 
+        refetchOnWindowFocus: false 
+      },
+      { 
+        queryKey: ['netWorth'], 
+        queryFn: () => metricsAPI.getNetWorth().then(res => res.data), 
+        staleTime: 30000, 
+        refetchOnWindowFocus: false 
+      },
+      { 
+        queryKey: ['vehicleTelemetry'], 
+        queryFn: () => metricsAPI.getVehicleTelemetry().then(res => res.data), 
+        staleTime: 30000, 
+        refetchOnWindowFocus: false 
+      },
+      { 
+        queryKey: ['budgets'], 
+        queryFn: () => budgetsAPI.getAll().then(res => res.data), 
+        staleTime: 30000, 
+        refetchOnWindowFocus: false 
+      },
+      { 
+        queryKey: ['cashFlowForecast', forecastDays], 
+        queryFn: () => metricsAPI.getCashFlowForecast(forecastDays).then(res => res.data), 
+        staleTime: 30000, 
+        refetchOnWindowFocus: false 
+      },
+      { 
+        queryKey: ['transactions'], 
+        queryFn: () => transactionsAPI.getAll().then(res => res.data), 
+        staleTime: 30000, 
+        refetchOnWindowFocus: false 
+      },
+      { 
+        queryKey: ['subscriptions'], 
+        queryFn: () => subsAPI.getAll().then(res => res.data), 
+        staleTime: 30000, 
+        refetchOnWindowFocus: false 
+      },
+      { 
+        queryKey: ['categories'], 
+        queryFn: () => categoriesAPI.getAll().then(res => res.data), 
+        staleTime: 30000, 
+        refetchOnWindowFocus: false 
+      },
       { 
         queryKey: ['dashboardSummary'], 
         queryFn: async () => {
@@ -105,8 +156,8 @@ const Dashboard = () => {
             return null;
           }
         },
-        refetchOnWindowFocus: true,
-        refetchOnMount: true
+        staleTime: 30000,
+        refetchOnWindowFocus: false,
       },
       {
         queryKey: ['configIVA'],
@@ -134,13 +185,15 @@ const Dashboard = () => {
           } catch (err) {
             return null;
           }
-        }
+        },
+        staleTime: 600000, // 10 minutes cache for static config rates
+        refetchOnWindowFocus: false
       },
       {
         queryKey: ['goals'],
         queryFn: () => goalsAPI.getAll().then(res => res.data),
-        refetchOnWindowFocus: true,
-        refetchOnMount: true
+        staleTime: 30000,
+        refetchOnWindowFocus: false
       }
     ]
   });
