@@ -127,7 +127,7 @@ def get_statement(statement_id: str, db: Session = Depends(get_db)):
 
 @router.post("/")
 def create_statement(data: StatementCreate, db: Session = Depends(get_db)):
-    stmt_data = data.dict(exclude={"debt_shares"})
+    stmt_data = data.model_dump(exclude={"debt_shares"})
     if stmt_data.get("payment_due_date"):
         stmt_data["payment_due_date"] = datetime.fromisoformat(stmt_data["payment_due_date"])
     if stmt_data.get("cut_off_date"):
@@ -136,7 +136,7 @@ def create_statement(data: StatementCreate, db: Session = Depends(get_db)):
     db.add(stmt)
     db.flush()
     for share in (data.debt_shares or []):
-        ds = DebtShare(statement_id=stmt.id, **share.dict())
+        ds = DebtShare(statement_id=stmt.id, **share.model_dump())
         db.add(ds)
     db.commit()
     db.refresh(stmt)
@@ -148,7 +148,7 @@ def update_statement(statement_id: str, data: StatementUpdate, db: Session = Dep
     stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
         raise HTTPException(status_code=404, detail="Statement not found")
-    update_data = data.dict(exclude_unset=True)
+    update_data = data.model_dump(exclude_unset=True)
     if "payment_due_date" in update_data and update_data["payment_due_date"]:
         update_data["payment_due_date"] = datetime.fromisoformat(update_data["payment_due_date"])
     if "cut_off_date" in update_data and update_data["cut_off_date"]:
@@ -175,7 +175,7 @@ def add_debt_share(statement_id: str, data: DebtShareBase, db: Session = Depends
     stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
         raise HTTPException(status_code=404, detail="Statement not found")
-    ds = DebtShare(statement_id=statement_id, **data.dict())
+    ds = DebtShare(statement_id=statement_id, **data.model_dump())
     db.add(ds)
     db.commit()
     db.refresh(ds)
@@ -192,7 +192,7 @@ def update_debt_share(share_id: str, data: DebtShareBase, db: Session = Depends(
     ds = db.query(DebtShare).filter(DebtShare.id == share_id).first()
     if not ds:
         raise HTTPException(status_code=404, detail="Debt share not found")
-    for key, value in data.dict(exclude_unset=True).items():
+    for key, value in data.model_dump(exclude_unset=True).items():
         setattr(ds, key, value)
     db.commit()
     db.refresh(ds)
