@@ -3,7 +3,7 @@ import json
 import time
 import sys
 import hashlib
-from typing import Optional
+from typing import Optional, Any, cast
 from database import SessionLocal
 import google.genai as genai
 from google.genai import types
@@ -28,6 +28,7 @@ class AICategorizationBatchItem(BaseModel):
     category_id: str = Field(description="El ID ÚNICO de la categoría seleccionada.")
     confidence: float = Field(description="Nivel de confianza de la predicción, entre 0.0 y 1.0.")
     reasoning: str = Field(description="Breve justificación de la elección.")
+    needs_clarification: bool = Field(default=False, description="¿La IA tiene dudas y requiere que el usuario confirme?")
 
 
 class AICategorizationBatchResponse(BaseModel):
@@ -51,7 +52,7 @@ def is_generic_description(description: str) -> bool:
     return normalize_description(description) in GENERIC_DESCRIPTIONS
 
 
-def get_pattern_based_category(description: str, db_session, beneficiary: str = None) -> Optional[str]:
+def get_pattern_based_category(description: str, db_session, beneficiary: Optional[str] = None) -> Optional[str]:
     """
     LAYER 1: Pattern Memory (DB lookup).
     Checks the category_patterns table for a matching pattern.
@@ -115,7 +116,7 @@ def get_pattern_based_category(description: str, db_session, beneficiary: str = 
     return None
 
 
-def learn_category_pattern(db_session, description: str, category_id: str, beneficiary: str = None):
+def learn_category_pattern(db_session, description: str, category_id: str, beneficiary: Optional[str] = None):
     """
     Learn a new pattern from a user's manual recategorization.
     
@@ -184,7 +185,7 @@ def _extract_beneficiary_key(beneficiary: str) -> str:
 
 
 
-def get_semantic_category(description: str, amount: int, db_session=None, transaction_type: str = None) -> Optional[int]:
+def get_semantic_category(description: str, amount: int, db_session=None, transaction_type: Optional[str] = None) -> Optional[int]:
     """
     Fallback for single-transaction categorization (UI usage).
     """
@@ -240,13 +241,13 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
             # Tier 0: Heuristics (Instant)
             heuristic_id = get_heuristic_category(desc, db, tx.get('transaction_type'))
             if heuristic_id:
-                results[i] = heuristic_id
+                results[i] = (heuristic_id, False) # Heuristics are 100% certain
                 continue
 
             # Tier 1: Pattern Memory (DB lookup)
             pattern_id = get_pattern_based_category(desc, db, benef)
             if pattern_id:
-                results[i] = pattern_id
+                results[i] = (pattern_id, False) # Learned patterns are 100% certain
             else:
                 pending_ai.append((i, tx))
         
@@ -255,7 +256,8 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
             if not AI_ENABLED and pending_ai:
                 otros_cat = db.query(Category).filter(Category.name == "Otros (🔄)").first()
                 for idx, _ in pending_ai:
-                    results[idx] = otros_cat.id if otros_cat else None
+                    cat_id = str(otros_cat.id) if otros_cat else "unknown"
+                    results[idx] = (cat_id, True)
             return results
 
         # 2. Prepare AI context
@@ -267,16 +269,16 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
         
         from app.models.config import Config
         config_entry = db.query(Config).filter(Config.key == "gemini_api_key").first()
-        api_key = config_entry.value if config_entry else None
+        api_key = config_entry.value if config_entry and config_entry.value else None
         
         if not api_key:
             # Fallback to 'Otros' if no API key
             otros_cat = next((c for c in categories if "Otros" in c.name), categories[0])
             for idx, _ in pending_ai:
-                results[idx] = str(otros_cat.id)
+                results[idx] = (str(otros_cat.id), True)
             return results
 
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=cast(str, api_key))
         
         # Tier 4: Batch Processing with Throttling to respect 15 RPM
         # Usamos un tamaño de lote de 80: Ideal para precisión en modelos Lite y cuotas RPM
@@ -318,7 +320,8 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
                 "1. reasoning: Breve (máximo 15 palabras).\n"
                 "2. category_id: Usa ÚNICAMENTE los IDs proporcionada.\n"
                 "3. index: Mantén el índice original para mapear correctamente.\n"
-                "4. Si no estás seguro, usa el ID de la categoría 'Otros'.\n"
+                "4. Si no estás seguro o la descripción es ambigua (ej: 'COMPRA VARIOS'), usa el ID de la categoría 'Otros' y pon 'needs_clarification' en true.\n"
+                "5. Si el nombre del comercio en el beneficiario no te es familiar, marca 'needs_clarification' en true.\n"
             )
 
             max_retries = 5
@@ -335,7 +338,8 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
                         )
                     )
                     
-                    batch_results = json.loads(response.text)
+                    response_text = (response.text or "{}").strip()
+                    batch_results = json.loads(response_text)
                     category_by_id = {str(cat.id): cat for cat in categories}
                     otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
 
@@ -345,10 +349,13 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
                         cat_id = item.get("category_id")
                         
                         if idx is not None:
+                            # Estructura del resultado: (category_id, needs_clarification)
                             if conf >= 0.45 and cat_id in category_by_id:
-                                results[idx] = cat_id
+                                # Si la confianza es media (0.45 a 0.70), marcamos para aclaración aunque hayamos elegido una
+                                clarification = item.get("needs_clarification", False) or (conf < 0.70)
+                                results[idx] = (cat_id, clarification)
                             else:
-                                results[idx] = otros_cat_id
+                                results[idx] = (otros_cat_id, True)
                     
                     break # Success! Exit retry loop
                 
@@ -363,14 +370,14 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
                         # Fallback to 'Otros' for this chunk
                         otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
                         for idx, _ in chunk:
-                            results[idx] = otros_cat_id
+                            results[idx] = (otros_cat_id, True)
                         break # Other errors don't trigger retry
 
             # Final check: if we hit max retries or some other exit, ensure chunk is categorized
             otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
             for idx, _ in chunk:
                 if idx not in results:
-                    results[idx] = otros_cat_id
+                    results[idx] = (otros_cat_id, True)
 
         return results
     finally:
@@ -378,12 +385,12 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
             db.close()
 
 
-def calculate_fingerprint(description: str, amount: int, date: str, transaction_type: str = None, account_id: str = None) -> str:
+def calculate_fingerprint(description: str, amount: int, date: str, transaction_type: Optional[str] = None, account_id: Optional[str] = None) -> str:
     payload = f"{description}|{amount}|{date}|{transaction_type}|{account_id}"
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def detect_duplicates(description: str, amount: int, date: str, db, transaction_type: str = None, running_balance: int = None, account_id: str = None, fingerprint: str = None) -> bool:
+def detect_duplicates(description: str, amount: int, date: str, db, transaction_type: Optional[str] = None, running_balance: Optional[int] = None, account_id: Optional[str] = None, fingerprint: Optional[str] = None) -> bool:
     if not fingerprint:
         fingerprint = calculate_fingerprint(description, amount, date, transaction_type, account_id)
     
