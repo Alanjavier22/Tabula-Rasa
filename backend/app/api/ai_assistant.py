@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any, Dict, cast
 import os
 import google.genai as genai
 from google.genai import types
@@ -70,13 +70,14 @@ def get_budget_status(db: Session, category_name: str) -> dict:
         Transaction.date >= datetime(current_year, current_month, 1, tzinfo=timezone.utc)
     ).all()
     
-    actual_spent = sum(t.amount for t in transactions)
-    remaining = budget.amount - actual_spent
-    percent_used = (actual_spent / budget.amount * 100) if budget.amount > 0 else 0
+    actual_spent = cast(int, sum(t.amount for t in transactions))
+    budget_amt = cast(int, budget.amount)
+    remaining = budget_amt - actual_spent
+    percent_used = (actual_spent / budget_amt * 100) if budget_amt > 0 else 0
     
     return {
-        "category": category.name,
-        "budget_amount": budget.amount,
+        "category": str(category.name),
+        "budget_amount": budget_amt,
         "actual_spent": actual_spent,
         "remaining": remaining,
         "percent_used": round(percent_used, 2)
@@ -103,13 +104,14 @@ def get_all_budgets_status(db: Session) -> dict:
             Transaction.is_deleted == False,
             Transaction.date >= datetime(current_year, current_month, 1, tzinfo=timezone.utc)
         ).all()
-        actual_spent = sum(t.amount for t in transactions)
+        actual_spent = cast(int, sum(t.amount for t in transactions))
+        budget_amt = cast(int, b.amount)
         results.append({
             "category": b.category.name if b.category else "Unknown",
-            "budget_amount": b.amount,
+            "budget_amount": budget_amt,
             "actual_spent": actual_spent,
-            "remaining": b.amount - actual_spent,
-            "percent_used": round((actual_spent / b.amount * 100), 2) if b.amount > 0 else 0
+            "remaining": budget_amt - actual_spent,
+            "percent_used": round(actual_spent / budget_amt * 100, 2) if budget_amt > 0 else 0
         })
     return {"budgets": results}
 
@@ -121,10 +123,10 @@ def get_account_balance(db: Session, account_name: str) -> dict:
         return {"error": f"Cuenta '{account_name}' no encontrada"}
     
     return {
-        "account_name": account.name,
-        "account_type": account.account_type,
-        "balance": account.balance,
-        "is_active": account.is_active
+        "account_name": str(account.name),
+        "account_type": str(account.account_type),
+        "balance": cast(int, account.balance),
+        "is_active": bool(account.is_active)
     }
 
 
@@ -135,7 +137,7 @@ def get_total_balance(db: Session) -> dict:
         Account.account_type.in_(["checking", "savings"])
     ).all()
     
-    total_balance = sum(acc.balance for acc in accounts)
+    total_balance = cast(int, sum(acc.balance for acc in accounts))
     
     return {
         "total_balance": total_balance,
@@ -257,9 +259,9 @@ def get_active_goals(db: Session) -> dict:
             {
                 "id": g.id,
                 "name": g.name,
-                "target_amount": g.target_amount,
-                "current_amount": g.current_amount,
-                "progress_pct": round((g.current_amount / g.target_amount * 100), 2) if g.target_amount > 0 else 0,
+                "target_amount": cast(int, g.target_amount),
+                "current_amount": cast(int, g.current_amount),
+                "progress_pct": round(cast(int, g.current_amount) / cast(int, g.target_amount) * 100, 2) if cast(int, g.target_amount) > 0 else 0,
                 "target_date": g.target_date.isoformat() if g.target_date else None
             } for g in goals
         ]
@@ -480,7 +482,7 @@ def get_financial_executive_summary(db: Session, api_key: str) -> dict:
         "net_liquid_cents": liquidity.get("net_liquid"),
         "top_concerns": health_report.get("top_concerns"),
         "recommended_action": health_report.get("recommended_action"),
-        "projected_balance_3_months": projection["timeline"][-1]["projected_balance"] if projection.get("timeline") else 0
+        "projected_balance_3_months": cast(int, projection["timeline"][-1]["projected_balance"]) if projection.get("timeline") else 0
     }
 
 
@@ -517,7 +519,8 @@ async def chat_with_assistant(request: ChatRequest, db: Session = Depends(get_db
     
     # Check DB first, fallback to env var
     config_api_key = db.query(Config).filter(Config.key == "gemini_api_key").first()
-    api_key = config_api_key.value if config_api_key and config_api_key.value else os.getenv("GEMINI_API_KEY")
+    raw_api_key = config_api_key.value if config_api_key and config_api_key.value else os.getenv("GEMINI_API_KEY")
+    api_key = cast(str, raw_api_key) if raw_api_key else None
     
     if not api_key:
         raise HTTPException(status_code=400, detail="Gemini API Key not configured")
@@ -726,7 +729,7 @@ async def chat_with_assistant(request: ChatRequest, db: Session = Depends(get_db
         # --- SYSTEM PROMPT CONSTRUCTION ---
         time_context = get_current_time_context()
         config_persona = db.query(Config).filter(Config.key == 'ai_persona').first()
-        persona_value = config_persona.value if config_persona and config_persona.value else "professional"
+        persona_value = str(config_persona.value) if config_persona and config_persona.value else "professional"
         persona_instruction = get_persona_prompt(persona_value)
 
         system_instruction = f"""{time_context}
@@ -776,9 +779,9 @@ GUÍA DE HERRAMIENTAS:
         )
         
         # Function to execute tool calls (READ-ONLY ONLY)
-        def execute_function_call(function_call: dict) -> dict:
-            function_name = function_call.name
-            args = function_call.args
+        def execute_function_call(function_call: Any) -> Any:
+            function_name = getattr(function_call, 'name', None)
+            args = getattr(function_call, 'args', {})
             
             # Context manager ensures session is closed/returned to pool instantly after query
             with SessionLocal() as db:
@@ -849,26 +852,26 @@ GUÍA DE HERRAMIENTAS:
         turn = 0
         
         while response.function_calls and turn < max_turns:
-            parts = []
-            for function_call in response.function_calls:
+            tool_responses = []
+            for fc in response.function_calls:
                 function_calls_made.append({
-                    "name": function_call.name,
-                    "args": dict(function_call.args)
+                    "name": fc.name,
+                    "args": dict(fc.args or {})
                 })
                 
                 # Execute the function
-                function_result = execute_function_call(function_call)
+                function_result = execute_function_call(fc)
                 
-                # Add to parts
-                parts.append(
+                # Add to tool responses
+                tool_responses.append(
                     types.Part.from_function_response(
-                        name=function_call.name,
+                        name=cast(str, fc.name),
                         response=function_result
                     )
                 )
             
             # Send the function results back to the model
-            response = chat.send_message(parts)
+            response = chat.send_message(cast(Any, tool_responses))
             turn += 1
             
         # FAIL-FAST: No mutation tracking needed since AI is read-only
