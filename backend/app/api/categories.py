@@ -46,7 +46,7 @@ class CategoryResponse(BaseModel):
 
 @router.post("/", response_model=CategoryResponse)
 def create_category(category: CategoryCreate, db: Session = Depends(get_db)):
-    db_category = Category(**category.dict())
+    db_category = Category(**category.model_dump())
     db.add(db_category)
     db.commit()
     db.refresh(db_category)
@@ -93,7 +93,7 @@ def update_category(category_id: str, category: CategoryUpdate, db: Session = De
     if not db_category:
         raise HTTPException(status_code=404, detail="Category not found")
     
-    update_data = category.dict(exclude_unset=True)
+    update_data = category.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_category, key, value)
     
