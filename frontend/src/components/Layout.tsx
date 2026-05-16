@@ -13,7 +13,9 @@ import {
   Settings as SettingsIcon,
   Calendar,
   CreditCard,
-  Receipt
+  Receipt,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import CommandPalette from './CommandPalette';
 import { SentinelBubble } from './SentinelBubble';
@@ -21,6 +23,15 @@ import { SentinelBubble } from './SentinelBubble';
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('tabula_sidebar_collapsed') === 'true';
+  });
+
+  const handleToggleSidebar = () => {
+    const newState = !sidebarCollapsed;
+    setSidebarCollapsed(newState);
+    localStorage.setItem('tabula_sidebar_collapsed', String(newState));
+  };
 
   const navItems = [
     { path: '/', label: 'Panel Principal', icon: LayoutDashboard },
@@ -107,14 +118,30 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       </div>
 
       {/* Desktop Sidebar */}
-      <aside className="w-64 bg-slate-800/50 backdrop-blur-xl border-r border-slate-700/50 fixed h-full z-10 hidden lg:block overflow-y-auto scrollbar-hide">
-        <div className="p-6 border-b border-slate-700/50 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-black text-white tracking-tighter">
-              TABULA <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">RASA</span>
-            </h1>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Ecosistema Privado</p>
-          </div>
+      <aside 
+        style={{ willChange: 'width' }}
+        className={`transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-20' : 'w-64'} bg-slate-800/50 backdrop-blur-xl border-r border-slate-700/50 fixed h-full z-10 hidden lg:block overflow-y-auto scrollbar-hide`}
+      >
+        <div className={`p-6 border-b border-slate-700/50 flex ${sidebarCollapsed ? 'flex-col gap-4 justify-center items-center px-2 py-6' : 'justify-between items-center'}`}>
+          {!sidebarCollapsed ? (
+            <div>
+              <h1 className="text-xl font-black text-white tracking-tighter">
+                TABULA <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">RASA</span>
+              </h1>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Ecosistema Privado</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <span className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">T</span>
+              <span className="text-xs font-black text-white">R</span>
+            </div>
+          )}
+          <button
+            onClick={handleToggleSidebar}
+            className="p-1.5 rounded-lg bg-slate-800 border border-slate-700/50 text-slate-400 hover:text-white transition-colors"
+          >
+            {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
         </div>
         <nav className="mt-4">
           {navItems.map((item) => {
@@ -124,14 +151,17 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center px-6 py-4 transition-all duration-200 ${
+                title={sidebarCollapsed ? item.label : undefined}
+                className={`flex items-center transition-all duration-200 ${
+                  sidebarCollapsed ? 'justify-center py-4 px-0' : 'px-6 py-4'
+                } ${
                   isActive
                     ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white border-l-4 border-purple-400'
                     : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
                 }`}
               >
-                <Icon className="w-5 h-5 mr-3" />
-                <span className="font-medium">{item.label}</span>
+                <Icon className={`w-5 h-5 ${sidebarCollapsed ? '' : 'mr-3'}`} />
+                {!sidebarCollapsed && <span className="font-medium">{item.label}</span>}
               </Link>
             );
           })}
@@ -139,7 +169,10 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 pt-16 pb-20 lg:pt-8 lg:pb-8 p-4 overflow-x-hidden w-full">
+      <main 
+        style={{ willChange: 'margin-left' }}
+        className={`transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} flex-1 pt-16 pb-20 lg:pt-8 lg:pb-8 p-4 overflow-x-hidden w-full`}
+      >
         {children}
       </main>
     </div>
