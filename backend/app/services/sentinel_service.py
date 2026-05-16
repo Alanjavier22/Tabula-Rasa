@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from typing import Any, cast
 from datetime import datetime, timezone, timedelta
 import json
 from app.services.anomaly_detector import detect_anomalies
@@ -46,6 +47,23 @@ class SentinelService:
         subs = _build_subscription_summary(self.db, now)
         reminders = _build_reminder_summary(self.db, now)
         
+        # 0. Burn Rate Analysis (Proactive Alarms)
+        from app.models.budget import Budget
+        from app.services.budget_service import compute_budget_pacing
+        
+        budgets = self.db.query(Budget).filter(Budget.month == now.month, Budget.year == now.year).all()
+        burn_rate_alarms = []
+        for b in budgets:
+            pacing = compute_budget_pacing(b, now)
+            if pacing["is_over_pacing"]:
+                burn_rate_alarms.append({
+                    "category": b.name,
+                    "spent": b.spent / 100,
+                    "expected": pacing["expected_spend"] / 100,
+                    "remaining": pacing["remaining"] / 100,
+                    "pacing_status": pacing["pacing_status"]
+                })
+        
         try:
             fiscal = get_fiscal_summary(self.db)
         except:
@@ -65,7 +83,8 @@ class SentinelService:
             "iva_proyectado_mes": fiscal["iva_projected"] / 100,
             "retenciones_proyectadas": fiscal["retencion_projected"] / 100,
             "tendencia_patrimonio_neto": historical_trends,
-            "proyeccion_3_meses": projection["timeline"][-1]["projected_balance"] / 100
+            "proyeccion_3_meses": projection["timeline"][-1]["projected_balance"] / 100,
+            "alarmas_ritmo_gasto": burn_rate_alarms
         }
         
         # 3. Prompt Agentico para el Sentinel
@@ -80,6 +99,7 @@ class SentinelService:
         - PROHIBIDO usar "Capacidad de respuesta ante proyecciones". Usa "Flexibilidad ante imprevistos" o "Margen de maniobra futuro".
         - Sé directo, protector y omnisciente. No eres un asesor, eres el sistema mismo hablándole a su dueño.
         - Eres un observador de solo lectura. No intentes sugerir acciones que impliquen que tú harás algo; tú solo reportas la verdad.
+        - ALERTAS DE GASTO: Si 'alarmas_ritmo_gasto' no está vacío, genera avisos específicos en 'warnings' indicando que el usuario va por encima de lo esperado en esas categorías.
 
         Tu objetivo es generar:
         1. Un "health_score" (0-100).
@@ -135,7 +155,7 @@ class SentinelService:
                         )
                     )
                     # Si llegamos aquí, la llamada fue exitosa
-                    report = json.loads(response.text)
+                    report = json.loads(cast(str, response.text))
                     report["timestamp"] = datetime.now(timezone.utc).isoformat()
                     return report
                 except Exception as e:
@@ -148,8 +168,10 @@ class SentinelService:
                         # Si ya no hay más reintentos o es un error fatal, disparamos el fallback heurístico
                         return self._generate_heuristic_fallback(context, persona, str(e))
             
+            # If for finishes without returning (should be covered by else in except)
+            return self._generate_heuristic_fallback(context, persona, str(last_error) if last_error else "Max retries reached")
         except Exception as e:
-            # FALLBACK: Heuristic-based health report (No AI Mode)
+            # Absolute fallback (No AI Mode)
             return self._generate_heuristic_fallback(context, persona, str(e))
 
     def _generate_heuristic_fallback(self, context: dict, persona: str, error_msg: str) -> dict:
