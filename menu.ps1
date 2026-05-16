@@ -44,29 +44,36 @@ function Install-Requirement {
     }
 }
 
+# Función para refrescar el PATH de la sesión actual
+function Refresh-SessionPath {
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+}
+
 # Validación de versión de Python (requerido: 3.12+)
 function Test-PythonVersion {
-    $pythonVersion = python --version 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $pythonCmd) {
         if (Install-Requirement "Python 3.12" "Python.Python.3.12") {
-            # Intentamos refrescar el PATH para la sesión actual
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            Refresh-SessionPath
+        } else {
+            exit 1
         }
     }
     
-    # Volvemos a probar después de la posible instalación
-    $pythonVersion = python --version 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ Python aún no es reconocido. Por favor, reinicia la terminal." -ForegroundColor Red
-        exit 1
-    }
-
-    $versionStr = $pythonVersion -replace "Python ", ""
+    $pythonVersionOutput = python --version 2>&1
+    $versionStr = $pythonVersionOutput -replace "Python ", ""
+    
     try {
         $version = [version]$versionStr
         $minVersion = [version]"3.12.0"
         if ($version -lt $minVersion) {
-            Write-Host "⚠️  Versión de Python antigua ($versionStr). Se recomienda 3.12+." -ForegroundColor Yellow
+            Write-Host "⚠️  Versión de Python antigua ($versionStr). Se requiere 3.12+." -ForegroundColor Yellow
+            if (Install-Requirement "Python 3.12" "Python.Python.3.12") {
+                Refresh-SessionPath
+                Write-Host "✅ Python ha sido actualizado. Por favor, reinicia este menú para usar la nueva versión." -ForegroundColor Green
+                Read-Host "Presiona Enter para salir..."
+                exit 0
+            }
         } else {
             Write-Host "✅ Python $versionStr detectado" -ForegroundColor Green
         }
@@ -76,18 +83,23 @@ function Test-PythonVersion {
 }
 
 function Test-NodeVersion {
-    $nodeVersion = node --version 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $nodeCmd) {
         if (Install-Requirement "Node.js" "OpenJS.NodeJS") {
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            Refresh-SessionPath
+        } else {
+            exit 1
         }
     }
     
-    $nodeVersion = node --version 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    # Re-verificar después de posible instalación
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $nodeCmd) {
         Write-Host "❌ Node.js aún no es reconocido. Por favor, reinicia la terminal." -ForegroundColor Red
         exit 1
     }
+
+    $nodeVersion = node --version
     Write-Host "✅ Node.js $nodeVersion detectado" -ForegroundColor Green
 }
 
