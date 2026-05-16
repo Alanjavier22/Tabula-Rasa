@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from datetime import datetime, timezone
 import json
 import os
@@ -27,6 +27,7 @@ class NetWorthSnapshotCreate(BaseModel):
     month: int
     year: int
     metadata_json: Optional[str] = None
+    lock: Optional[bool] = False
 
 
 class NetWorthSnapshotResponse(BaseModel):
@@ -53,7 +54,7 @@ def create_snapshot(
     """
     from app.services.snapshot_service import SnapshotService
     try:
-        return SnapshotService.create_or_update_snapshot(db, data.month, data.year)
+        return SnapshotService.create_or_update_snapshot(db, data.month, data.year, lock=bool(data.lock))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating snapshot: {str(e)}")
 
@@ -120,7 +121,7 @@ def analyze_month(snapshot_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Gemini API Key not configured")
 
     try:
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=cast(str, api_key))
 
         # Values are int centavos; convert to display dollars for prompt
         s_assets = snapshot.total_assets / 100
@@ -142,11 +143,11 @@ def analyze_month(snapshot_id: str, db: Session = Depends(get_db)):
             "previous_month": f"{prev_month}/{prev_year}",
             "current": {
                 "total_assets": s_assets, "total_liabilities": s_liab, "net_worth": s_nw,
-                "metadata": json.loads(snapshot.metadata_json) if snapshot.metadata_json else {}
+                "metadata": json.loads(cast(str, snapshot.metadata_json)) if snapshot.metadata_json else {}
             },
             "previous": {
                 "total_assets": p_assets, "total_liabilities": p_liab, "net_worth": p_nw,
-                "metadata": json.loads(previous_snapshot.metadata_json) if previous_snapshot.metadata_json else {}
+                "metadata": json.loads(cast(str, previous_snapshot.metadata_json)) if previous_snapshot.metadata_json else {}
             },
             "changes": changes
         }
@@ -211,3 +212,15 @@ def reconcile_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reconciling snapshot: {str(e)}")
+        
+
+@router.post("/{snapshot_id}/lock")
+def lock_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
+    """Manually lock a snapshot to prevent any further changes."""
+    snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.id == snapshot_id).first()
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    
+    snapshot.is_locked = cast(Any, True)
+    db.commit()
+    return {"message": "Snapshot locked successfully", "id": snapshot_id}
