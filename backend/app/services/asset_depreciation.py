@@ -5,7 +5,7 @@ Precision: multiply first, divide later to avoid cent loss
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from sqlalchemy.orm import Session
 from app.models.asset import Asset
 
@@ -70,38 +70,38 @@ class AssetDepreciationService:
         if not asset or asset.is_deleted:
             raise ValueError(f"Asset not found: {asset_id}")
 
-        purchase_date = datetime.fromisoformat(asset.purchase_date) if isinstance(asset.purchase_date, str) else asset.purchase_date
+        purchase_date = cast(datetime, datetime.fromisoformat(asset.purchase_date) if isinstance(asset.purchase_date, str) else asset.purchase_date)
         months_elapsed = AssetDepreciationService.calculate_months_elapsed(purchase_date, as_of_date)
 
         # Base depreciable: purchase_price - residual_value
-        depreciable_base = asset.purchase_price_cents - asset.residual_value_cents
+        depreciable_base = cast(int, asset.purchase_price_cents) - cast(int, asset.residual_value_cents)
 
         current_value: int
         depreciation_accumulated: int
         is_fully_depreciated = False
 
-        if months_elapsed >= asset.estimated_life_months:
+        if months_elapsed >= cast(int, asset.estimated_life_months):
             # Asset fully depreciated - value = residual_value (minimum, never negative)
-            current_value = asset.residual_value_cents
+            current_value = cast(int, asset.residual_value_cents)
             depreciation_accumulated = depreciable_base
             is_fully_depreciated = True
         else:
             # Precision: multiply first, divide later to avoid cent loss
             # depreciation = (depreciable_base * months_elapsed) / estimated_life_months
-            depreciation = (depreciable_base * months_elapsed) // asset.estimated_life_months
-            current_value = asset.purchase_price_cents - depreciation
+            depreciation = (depreciable_base * months_elapsed) // cast(int, asset.estimated_life_months)
+            current_value = cast(int, asset.purchase_price_cents) - depreciation
             depreciation_accumulated = depreciation
 
             # Safety: ensure current value never below residual
-            if current_value < asset.residual_value_cents:
-                current_value = asset.residual_value_cents
+            if current_value < cast(int, asset.residual_value_cents):
+                current_value = cast(int, asset.residual_value_cents)
                 depreciation_accumulated = depreciable_base
                 is_fully_depreciated = True
 
         return AssetValueResult(
-            asset_id=asset.id,
-            asset_name=asset.name,
-            purchase_price_cents=asset.purchase_price_cents,
+            asset_id=str(asset.id),
+            asset_name=str(asset.name),
+            purchase_price_cents=cast(int, asset.purchase_price_cents),
             current_value_cents=current_value,
             depreciation_accumulated_cents=depreciation_accumulated,
             months_elapsed=months_elapsed,
@@ -120,7 +120,7 @@ class AssetDepreciationService:
         total_value = 0
 
         for asset in assets:
-            result = AssetDepreciationService.calculate_current_value(db, asset.id, as_of_date)
+            result = AssetDepreciationService.calculate_current_value(db, str(asset.id), as_of_date)
             total_value += result.current_value_cents
 
         return total_value
@@ -137,7 +137,7 @@ class AssetDepreciationService:
         results = []
 
         for asset in assets:
-            value = AssetDepreciationService.calculate_current_value(db, asset.id, as_of_date)
+            value = AssetDepreciationService.calculate_current_value(db, str(asset.id), as_of_date)
             results.append(value.to_dict())
 
         return results
