@@ -1,4 +1,6 @@
 from sqlalchemy.orm import Session
+from typing import Optional, Any, cast
+from datetime import date
 
 from app.models.account import Account
 from app.models.transaction import Transaction, TransactionType
@@ -31,20 +33,20 @@ def apply_transaction_to_balance(db: Session, transaction: Transaction, reverse:
     if account.account_type == "credit_card":
         # Credit card: expenses increase debt (negative balance), income (payments) decrease debt
         if transaction.transaction_type == TransactionType.EXPENSE:
-            account.balance -= amount  # negative balance grows
+            account.balance = cast(Any, cast(int, account.balance) - amount)  # negative balance grows
         else:  # INCOME (payment)
-            account.balance += amount  # debt reduced
+            account.balance = cast(Any, cast(int, account.balance) + amount)  # debt reduced
     else:
         # Checking/savings: income adds, expense subtracts
         if transaction.transaction_type == TransactionType.INCOME:
-            account.balance += amount
+            account.balance = cast(Any, cast(int, account.balance) + amount)
         else:  # EXPENSE
-            account.balance -= amount
+            account.balance = cast(Any, cast(int, account.balance) - amount)
     
     db.flush()
 
 
-def recalculate_account_balance(db: Session, account_id: str, initial_balance: int = None) -> int:
+def recalculate_account_balance(db: Session, account_id: str, initial_balance: Optional[int] = None) -> int:
     """
     Recalculate an account's balance with 'Anchor Logic'.
     
@@ -82,7 +84,7 @@ def recalculate_account_balance(db: Session, account_id: str, initial_balance: i
         # Base balance is the statement balance (stored as positive debt in CC context, 
         # but account.balance is negative debt)
         base_balance = -latest_stmt.statement_balance
-        anchor_date = latest_stmt.cut_off_date or date(latest_stmt.year, latest_stmt.month, 28)
+        anchor_date = latest_stmt.cut_off_date or date(cast(int, latest_stmt.year), cast(int, latest_stmt.month), 28)
         
         # Get transactions NEWER than the statement cut-off
         newer_transactions = db.query(Transaction).filter(
@@ -154,6 +156,6 @@ def recalculate_account_balance(db: Session, account_id: str, initial_balance: i
                 else:
                     new_balance -= txn_amount
     
-    account.balance = new_balance
+    account.balance = cast(Any, new_balance)
     db.commit()
-    return new_balance
+    return cast(int, new_balance)
