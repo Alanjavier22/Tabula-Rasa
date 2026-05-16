@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from database import get_db
 from app.api.auth import get_current_device
 from app.models.account import Account, AccountType
@@ -64,7 +64,7 @@ class AccountResponse(BaseModel):
 
 @router.post("/", response_model=AccountResponse)
 def create_account(account: AccountCreate, db: Session = Depends(get_db)):
-    db_account = Account(**account.dict())
+    db_account = Account(**account.model_dump())
     db.add(db_account)
     db.commit()
     db.refresh(db_account)
@@ -91,9 +91,9 @@ def update_account(account_id: str, account: AccountUpdate, db: Session = Depend
     if not db_account:
         raise HTTPException(status_code=404, detail="Account not found")
     
-    update_data = account.dict(exclude_unset=True)
+    update_data = account.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        setattr(db_account, key, value)
+        setattr(db_account, key, cast(Any, value))
     
     db.commit()
     db.refresh(db_account)
@@ -121,7 +121,7 @@ def set_balance(account_id: str, payload: SetBalanceRequest, db: Session = Depen
     db_account = db.query(Account).filter(Account.id == account_id).first()
     if not db_account:
         raise HTTPException(status_code=404, detail="Account not found")
-    db_account.balance = payload.balance
+    db_account.balance = cast(Any, payload.balance)
     db.commit()
     db.refresh(db_account)
     return db_account
