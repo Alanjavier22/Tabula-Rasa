@@ -2,6 +2,7 @@ import sys
 import os
 import signal
 import asyncio
+from typing import Any, cast
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import logging
@@ -56,6 +57,7 @@ def setup_logging():
     
     # Suppress noisy asyncio connection-reset errors on Windows (WinError 10054)
     logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+    logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.ERROR)
     
     return root_logger
 
@@ -148,18 +150,23 @@ init_db()
 
 app = FastAPI(title="Personal Finance API", version="1.0.0", lifespan=lifespan)
 
+# Security middleware for local handshake
+security_middleware = SecurityMiddleware()
+app.middleware("http")(security_middleware)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Expandir CORS para admitir IPs locales dinámicas en desarrollo
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://localhost:5173",
+        "https://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Security middleware for local handshake
-security_middleware = SecurityMiddleware()
-app.middleware("http")(security_middleware)
 
 # Include routers
 app.include_router(transactions.router)
@@ -209,7 +216,8 @@ def health_check():
         db = SessionLocal()
         try:
             # Execute PRAGMA integrity_check on SQLite
-            integrity_result = db.execute(text("PRAGMA integrity_check;")).fetchone()[0]
+            res = db.execute(text("PRAGMA integrity_check;")).fetchone()
+            integrity_result = res[0] if res else "unknown"
             
             # Check if integrity is OK
             if integrity_result != "ok":
@@ -220,7 +228,8 @@ def health_check():
                 }, 500
             
             # Check WAL mode
-            journal_mode = db.execute(text("PRAGMA journal_mode;")).fetchone()[0]
+            res_wal = db.execute(text("PRAGMA journal_mode;")).fetchone()
+            journal_mode = res_wal[0] if res_wal else "unknown"
             
             # Check system memory usage
             memory = psutil.virtual_memory()
@@ -291,3 +300,4 @@ if __name__ == "__main__":
         ssl_certfile=cert_path,
         reload=True
     )
+# Force reload: 1
