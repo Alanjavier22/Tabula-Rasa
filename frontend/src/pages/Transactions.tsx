@@ -547,22 +547,26 @@ const Transactions = () => {
           )}
         </div>
 
-      {showImportModal && (
-        <AccountImportModal
-          onClose={() => setShowImportModal(false)}
-          onSuccess={handleImportSuccess}
-        />
-      )}
+      <AnimatePresence>
+        {showImportModal && (
+          <AccountImportModal
+            onClose={() => setShowImportModal(false)}
+            onSuccess={handleImportSuccess}
+          />
+        )}
+      </AnimatePresence>
 
-      {showDocumentImportModal && (
-        <DocumentImportModal
-          onClose={() => setShowDocumentImportModal(false)}
-          onSuccess={() => {
-            setToast({ message: 'Recibo procesado y guardado con éxito', type: 'success' });
-            refetchTransactions();
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {showDocumentImportModal && (
+          <DocumentImportModal
+            onClose={() => setShowDocumentImportModal(false)}
+            onSuccess={() => {
+              setToast({ message: 'Recibo procesado y guardado con éxito', type: 'success' });
+              refetchTransactions();
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showStatementModal && (
@@ -595,23 +599,25 @@ const Transactions = () => {
         onCancel={() => setDeleteConfirm({ isOpen: false, id: null })}
       />
 
-      {showModal && (
-        <TransactionForm
-          initialData={form}
-          initialSplits={editingTransaction?.splits}
-          onSubmit={handleSubmit}
-          onCancel={() => {
-            setShowModal(false);
-            setEditingTransaction(null);
-            setForm(emptyForm);
-          }}
-          saving={false}
-          title={editingTransaction ? 'Editar Transacción' : 'Nueva Transacción'}
-          categories={categories || []}
-          accounts={accounts || []}
-          goals={goals || []}
-        />
-      )}
+      <AnimatePresence>
+        {showModal && (
+          <TransactionForm
+            initialData={form}
+            initialSplits={editingTransaction?.splits}
+            onSubmit={handleSubmit}
+            onCancel={() => {
+              setShowModal(false);
+              setEditingTransaction(null);
+              setForm(emptyForm);
+            }}
+            saving={false}
+            title={editingTransaction ? 'Editar Transacción' : 'Nueva Transacción'}
+            categories={categories || []}
+            accounts={accounts || []}
+            goals={goals || []}
+          />
+        )}
+      </AnimatePresence>
     </div>
   </div>
 );
