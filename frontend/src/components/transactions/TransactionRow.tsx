@@ -5,7 +5,8 @@ import {
   ArrowDownLeft, 
   Edit2, 
   Trash,
-  Tag
+  Tag,
+  HelpCircle
 } from 'lucide-react';
 import { formatMoney } from '../../utils/money';
 import type { LocalTransaction } from '../../db/db';
@@ -25,6 +26,7 @@ const arePropsEqual = (prevProps: TransactionRowProps, nextProps: TransactionRow
     prev.version === next.version &&
     prev.hash === next.hash &&
     prev.needs_review === next.needs_review &&
+    prev.needs_clarification === next.needs_clarification &&
     prev.amount === next.amount &&
     prev.description === next.description &&
     prev.date === next.date &&
@@ -62,6 +64,12 @@ export const TransactionRow = memo<TransactionRowProps>(({ transaction, onEdit, 
             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-700/50 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
               <Tag className="w-2.5 h-2.5" />
               {transaction.category.name}
+            </span>
+          )}
+          {transaction.needs_clarification && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/20 text-[10px] font-black text-amber-400 uppercase animate-pulse cursor-help" title="La IA no está segura de esta categoría o detectó un cobro auditable. Haz clic en editar para confirmar.">
+              <HelpCircle className="w-2.5 h-2.5" />
+              Revisar
             </span>
           )}
         </div>
