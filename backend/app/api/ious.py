@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from database import get_db
 from app.api.auth import get_current_device
 from app.models.iou import IOU, IOUType, IOUStatus
@@ -62,7 +62,7 @@ def create_iou(iou: IOUCreate, db: Session = Depends(get_db)):
         transaction = db.query(Transaction).filter(Transaction.id == iou.transaction_id).first()
         if not transaction:
             raise HTTPException(status_code=404, detail="Transaction not found")
-    db_iou = IOU(**iou.dict())
+    db_iou = IOU(**iou.model_dump())
     db.add(db_iou)
     db.commit()
     db.refresh(db_iou)
@@ -97,7 +97,7 @@ def update_iou(iou_id: str, iou: IOUUpdate, db: Session = Depends(get_db)):
     db_iou = db.query(IOU).filter(IOU.id == iou_id).first()
     if not db_iou:
         raise HTTPException(status_code=404, detail="IOU not found")
-    for key, value in iou.dict(exclude_unset=True).items():
+    for key, value in iou.model_dump(exclude_unset=True).items():
         setattr(db_iou, key, value)
     db.commit()
     db.refresh(db_iou)
@@ -120,7 +120,7 @@ def settle_iou(iou_id: str, settle_data: IOUSettle, db: Session = Depends(get_db
         account = db.query(Account).filter(Account.id == settle_data.account_id).first()
         if not account:
             raise HTTPException(status_code=404, detail="Account not found")
-        db_iou.status = IOUStatus.SETTLED
+        db_iou.status = cast(Any, IOUStatus.SETTLED)
         from app.models.transaction import Transaction as Txn, TransactionType, PaymentMethod
         from datetime import datetime, timezone
         from app.services.balance import apply_transaction_to_balance
