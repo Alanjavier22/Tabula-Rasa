@@ -49,6 +49,7 @@ class Transaction(Base):
     version = Column(Integer, default=1, nullable=False)  # FASE 1: Versioning para OCC conflict resolution
     hash = Column(String(64), nullable=True)  # FASE 1: SHA-256 hash for deduplication/handshake
     needs_review = Column(Boolean, default=False, nullable=False)  # FASE 1: Conflict flag
+    needs_clarification = Column(Boolean, default=False, nullable=False)  # FASE: IA Curiosa - Requiere feedback humano
     
     # FASE: Evolución Agentica
     sri_category = Column(String, nullable=True)  # Categoría deducible SRI Ecuador
