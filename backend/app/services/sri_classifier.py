@@ -70,7 +70,8 @@ class SRIClassifier:
                     }
                 )
             )
-            result = json.loads(response.text)
+            response_text = (response.text or "{}").strip()
+            result = json.loads(response_text)
             return result.get("sri_category", "No Deducible")
         except:
             return "No Deducible"
