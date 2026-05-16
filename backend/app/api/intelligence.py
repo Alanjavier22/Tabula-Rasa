@@ -4,7 +4,7 @@ import os
 import uuid
 import hashlib
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any, cast
 from pydantic import BaseModel
 from database import get_db
 from app.api.auth import get_current_device
@@ -38,7 +38,7 @@ async def upload_statement(
         raise HTTPException(status_code=400, detail="Este estado de cuenta ya ha sido procesado previamente.")
 
     # 2. Guardar temporalmente
-    file_ext = os.path.splitext(file.filename)[1]
+    file_ext = os.path.splitext(cast(str, file.filename))[1]
     temp_filename = f"{uuid.uuid4()}{file_ext}"
     temp_path = os.path.join(UPLOAD_DIR, temp_filename)
     
@@ -63,14 +63,15 @@ async def upload_statement(
     # 4. Procesar con IA
     try:
         account = db.query(Account).filter(Account.id == account_id).first()
-        expected_bank = account.bank_name if account else None
+        expected_bank = cast(Optional[str], account.bank_name) if account else None
         
         service = StatementIntelligenceService(db)
         parsed_data = await service.parse_statement(temp_path, account_id, expected_bank_name=expected_bank)
         
         # Guardamos metadatos en el log
         log = db.query(ImportLog).filter(ImportLog.id == log_id).first()
-        log.metadata_json = json.dumps(parsed_data)
+        if log:
+            log.metadata_json = cast(Any, json.dumps(parsed_data))
         db.commit()
 
         return {
@@ -79,8 +80,9 @@ async def upload_statement(
         }
     except Exception as e:
         log = db.query(ImportLog).filter(ImportLog.id == log_id).first()
-        log.status = 'error'
-        log.error_message = str(e)
+        if log:
+            log.status = cast(Any, 'error')
+            log.error_message = cast(Any, str(e))
         db.commit()
         raise HTTPException(status_code=500, detail=f"Error al procesar con IA: {str(e)}")
     finally:
@@ -139,13 +141,13 @@ async def parse_account_document(
 
     try:
         account = db.query(Account).filter(Account.id == account_id).first()
-        expected_bank = account.bank_name if account else None
+        expected_bank = cast(Optional[str], account.bank_name) if account else None
         
         service = AccountIntelligenceService(db)
-        parsed_data = await service.parse_account_document(content, file.filename, account_id, expected_bank_name=expected_bank)
+        parsed_data = await service.parse_account_document(content, cast(str, file.filename), account_id, expected_bank_name=expected_bank)
         
         log = db.query(ImportLog).filter(ImportLog.id == log_id).first()
-        log.metadata_json = json.dumps(parsed_data)
+        if log: log.metadata_json = cast(Any, json.dumps(parsed_data))
         db.commit()
 
         return {
@@ -154,8 +156,9 @@ async def parse_account_document(
         }
     except Exception as e:
         log = db.query(ImportLog).filter(ImportLog.id == log_id).first()
-        log.status = 'error'
-        log.error_message = str(e)
+        if log:
+            log.status = cast(Any, 'error')
+            log.error_message = cast(Any, str(e))
         db.commit()
         raise HTTPException(status_code=500, detail=f"Error al procesar con IA: {str(e)}")
 
