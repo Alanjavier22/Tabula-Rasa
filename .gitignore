@@ -86,3 +86,7 @@ backups/
 # --- Temporales del Proyecto ---
 backend/temp_uploads/
 scratch/
+
+# --- Herramientas de Análisis Local ---
+.ignore
+pyrefly.toml
