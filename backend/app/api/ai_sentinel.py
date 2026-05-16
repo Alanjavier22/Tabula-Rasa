@@ -5,7 +5,7 @@ from app.api.auth import get_current_device
 from app.models.config import Config
 from app.services.sentinel_service import SentinelService
 from pydantic import BaseModel
-from typing import List
+from typing import List, Any, cast
 
 router = APIRouter(
     prefix="/api/ai-sentinel", 
@@ -39,5 +39,5 @@ def get_sentinel_health(db: Session = Depends(get_db)):
     config_persona = db.query(Config).filter(Config.key == 'ai_persona').first()
     persona = config_persona.value if config_persona else "professional"
     
-    sentinel = SentinelService(db, config.value)
-    return sentinel.generate_health_report(persona=persona)
+    sentinel = SentinelService(db, cast(str, config.value))
+    return sentinel.generate_health_report(persona=cast(str, persona))
