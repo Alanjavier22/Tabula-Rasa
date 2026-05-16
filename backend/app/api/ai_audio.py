@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any, cast
 import google.genai as genai
 from google.genai import errors, types
 import os
@@ -82,7 +82,7 @@ def get_gemini_key(db: Session) -> str:
             status_code=400,
             detail="IA en mantenimiento. Configura tu Gemini API Key en la página de Configuración."
         )
-    return config.value
+    return cast(str, config.value)
 
 
 @router.post("/audio-to-txns", response_model=AudioToTransactionsResponse)
@@ -145,13 +145,13 @@ Return ONLY the JSON response matching the schema."""
         # Generate content with audio
         response = client.models.generate_content(
             model="gemini-3.1-flash-lite",
-            contents=[
-                prompt,
-                types.Part.from_data(
+            contents=cast(Any, [
+                types.Part.from_text(text=prompt),
+                types.Part.from_bytes(
                     data=audio_bytes,
                     mime_type=f"audio/{audio_format}"
                 )
-            ],
+            ]),
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema={
@@ -180,7 +180,7 @@ Return ONLY the JSON response matching the schema."""
         )
         
         # Parse response
-        result = json.loads(response.text)
+        result = json.loads(response.text or "{}")
         
         # Validate and convert to Pydantic model
         transactions_data = []
@@ -271,13 +271,13 @@ Return ONLY the JSON response matching the schema."""
         # Generate content with document (vision)
         response = client.models.generate_content(
             model="gemini-3.1-flash-lite",
-            contents=[
-                prompt,
-                types.Part.from_data(
+            contents=cast(Any, [
+                types.Part.from_text(text=prompt),
+                types.Part.from_bytes(
                     data=document_bytes,
                     mime_type=document_type
                 )
-            ],
+            ]),
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema={
@@ -306,7 +306,7 @@ Return ONLY the JSON response matching the schema."""
         )
         
         # Parse response
-        result = json.loads(response.text)
+        result = json.loads(response.text or "{}")
         
         # Validate and convert to Pydantic model
         transactions_data = []
@@ -402,7 +402,7 @@ Return ONLY the JSON response matching the schema: {{"mapping": {{"description":
         )
         
         # Parse response
-        result = json.loads(response.text)
+        result = json.loads(response.text or "{}")
         mapping = result.get("mapping", {})
         
         # Validate category IDs exist
