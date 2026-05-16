@@ -78,7 +78,7 @@ class BudgetResponse(BaseModel):
 
 @router.post("/", response_model=BudgetResponse)
 def create_budget(budget: BudgetCreate, db: Session = Depends(get_db)):
-    db_budget = Budget(**budget.dict())
+    db_budget = Budget(**budget.model_dump())
     db.add(db_budget)
     db.commit()
     db.refresh(db_budget)
@@ -132,7 +132,7 @@ def update_budget(budget_id: str, budget: BudgetUpdate, db: Session = Depends(ge
     if not db_budget:
         raise HTTPException(status_code=404, detail="Budget not found")
 
-    update_data = budget.dict(exclude_unset=True)
+    update_data = budget.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_budget, key, value)
 
