@@ -15,6 +15,7 @@ from app.models.transaction import Transaction
 import os
 from app.services.ai_prompts import get_current_time_context, CORE_RULES
 from collections import defaultdict
+from typing import List, Optional, Any, cast
 
 router = APIRouter(
     prefix="/api/ai", 
@@ -25,7 +26,7 @@ router = APIRouter(
 def get_gemini_key(db: Session) -> str:
     config_entry = db.query(Config).filter(Config.key == "gemini_api_key").first()
     if config_entry and config_entry.value:
-        return config_entry.value
+        return str(config_entry.value)
     env_key = os.getenv("GEMINI_API_KEY")
     if env_key:
         return env_key
@@ -117,6 +118,16 @@ class AnomalyScanResponse(BaseModel):
     spending_spikes: List[SpendingSpike]
 
 
+class SuggestedScenario(BaseModel):
+    title: str
+    description: str
+    user_prompt: str
+
+
+class SuggestedScenariosResponse(BaseModel):
+    scenarios: List[SuggestedScenario]
+
+
 async def call_gemini_json(prompt: str, api_key: str, response_schema: Optional[type] = None) -> dict:
     """
     Shared utility function to call Gemini API with strict production rules.
@@ -134,6 +145,9 @@ async def call_gemini_json(prompt: str, api_key: str, response_schema: Optional[
             )
         )
         
+        if not response.text:
+            raise HTTPException(status_code=500, detail="Gemini returned an empty response")
+            
         return json.loads(response.text)
     except TimeoutError:
         raise HTTPException(status_code=504, detail="LLM request timed out")
@@ -239,6 +253,9 @@ STRICT RULES:
             )
         )
         
+        if not response.text:
+             raise ValueError("Empty response from Oracle Engine")
+             
         impact_data = json.loads(response.text)
         return WhatIfScenarioResponse(
             scenario_title=impact_data.get("scenario_title", "Simulación Dinámica"),
@@ -258,6 +275,52 @@ STRICT RULES:
             summary=f"El Motor Oracle no pudo proyectar el escenario: {str(e)}",
             projection=[WhatIfProjection(month=m, baseline_net_worth=request.current_net_worth, projected_net_worth=request.current_net_worth) for m in range(1, 13)]
         )
+
+
+@router.get("/whatif/suggest-scenarios", response_model=List[SuggestedScenario])
+async def suggest_whatif_scenarios(db: Session = Depends(get_db)):
+    """
+    Genera 3 sugerencias dinámicas de simulación basadas en los patrones de gasto reales.
+    """
+    api_key = get_gemini_key(db)
+    from sqlalchemy import func
+    
+    # Obtener top gastos del último mes
+    month_ago = datetime.now() - timedelta(days=30)
+    top_expenses = db.query(
+        Category.name, 
+        func.sum(Transaction.amount).label("total")
+    ).join(Transaction).filter(
+        Transaction.date >= month_ago,
+        Transaction.transaction_type == "expense",
+        Transaction.is_deleted == False
+    ).group_by(Category.name).order_by(func.sum(Transaction.amount).desc()).limit(5).all()
+    
+    expenses_context = "\n".join([f"- {name}: ${total/100:,.2f}" for name, total in top_expenses])
+    
+    system_prompt = f"""
+    Eres un estratega financiero. Basado en estos gastos reales del último mes, sugiere 3 escenarios 'What-If' (¿Qué pasaría si...?) que tendrían un impacto significativo en la riqueza del usuario.
+    
+    GASTOS TOP:
+    {expenses_context}
+    
+    REGLAS:
+    1. Las sugerencias deben ser realistas (ej: reducir un 20% en una categoría alta, eliminar un gasto recurrente).
+    2. 'user_prompt' debe ser la instrucción exacta que el usuario le daría al simulador.
+    3. Output en ESPAÑOL.
+    """
+    
+    try:
+        response_data = await call_gemini_json(system_prompt, api_key, response_schema=SuggestedScenariosResponse)
+        scenarios = response_data.get("scenarios", [])
+        return [SuggestedScenario(**s) if isinstance(s, dict) else s for s in scenarios][:3]
+    except Exception as e:
+        print(f"Error sugiriendo escenarios: {e}")
+        return [
+            SuggestedScenario(title="Ahorro en Comida", description="¿Qué pasa si cocino más en casa?", user_prompt="Reducir mi gasto en Restaurantes y Comida un 30%"),
+            SuggestedScenario(title="Inversión Mensual", description="Simular inversión recurrente", user_prompt="Invertir $100 adicionales cada mes en un fondo con 8% de retorno"),
+            SuggestedScenario(title="Eliminar Suscripciones", description="Limpiar gastos hormiga", user_prompt="Eliminar todas mis suscripciones de streaming y ahorrar ese dinero")
+        ]
 
 
 @router.post("/scan-anomalies", response_model=AnomalyScanResponse)
@@ -305,12 +368,15 @@ async def scan_anomalies(
     audit_evidence = []
     
     for txn in request.transactions:
-        baseline = cat_baselines.get(txn.category_id, 0)
+        # Use a fallback key to ensure dict.get receives a string
+        safe_cid = txn.category_id or "Uncategorized"
+        # Cast safe_cid to Any to bypass Column vs str ambiguity in cat_baselines
+        baseline = cat_baselines.get(cast(Any, safe_cid), 0)
         if baseline > 0 and txn.amount > baseline * 1.8: # 80% spike over 6-month avg
             audit_evidence.append(
-                f"- PICO EN {cat_lookup.get(txn.category_id, 'Categoría')}: ${txn.amount/100:,.2f} (Promedio 6 meses: ${baseline/100:,.2f})"
+                f"- PICO EN {cat_lookup.get(safe_cid, 'Categoría')}: ${txn.amount/100:,.2f} (Promedio 6 meses: ${baseline/100:,.2f})"
             )
-        audit_evidence.append(f"CHECK_SEMANTIC: Desc='{txn.description}' Cat='{cat_lookup.get(txn.category_id, 'Sin Categoría')}'")
+        audit_evidence.append(f"CHECK_SEMANTIC: Desc='{txn.description}' Cat='{cat_lookup.get(safe_cid, 'Sin Categoría')}'")
 
     zombie_leads = []
     for desc, amnts in desc_history.items():
@@ -388,9 +454,12 @@ async def audio_to_txns(
         audio_bytes = base64.b64decode(request.audio_base64)
         response = client.models.generate_content(
                 model="gemini-3.1-flash-lite",
-            contents=[system_instruction, types.Part.from_bytes(data=audio_bytes, mime_type=f"audio/{request.audio_format}")],
+            contents=cast(Any, [system_instruction, types.Part.from_bytes(data=audio_bytes, mime_type=f"audio/{request.audio_format}")]),
             config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=AudioToTxnResponse, temperature=0.1)
         )
+        if not response.text:
+            raise ValueError("Empty audio response")
+            
         return json.loads(response.text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error procesando audio: {str(e)}")
@@ -409,9 +478,12 @@ async def parse_receipt(
         image_bytes = await file.read()
         response = client.models.generate_content(
                 model="gemini-3.1-flash-lite",
-            contents=[system_instruction, types.Part.from_bytes(data=image_bytes, mime_type=file.content_type or "image/jpeg")],
+            contents=cast(Any, [system_instruction, types.Part.from_bytes(data=image_bytes, mime_type=file.content_type or "image/jpeg")]),
             config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=AudioToTxnResponse, temperature=0.1)
         )
+        if not response.text:
+            raise ValueError("Empty receipt response")
+            
         return json.loads(response.text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analizando recibo: {str(e)}")
@@ -427,6 +499,7 @@ async def test_component(component: str, db: Session = Depends(get_db)):
     try:
         prompt = f"Test {component} component. Respond OK."
         response = client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
-        return {"status": "success", "message": response.text.strip()}
+        text = response.text or "OK"
+        return {"status": "success", "message": text.strip()}
     except Exception as e:
         return {"status": "error", "message": str(e)}
