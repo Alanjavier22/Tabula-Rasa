@@ -32,14 +32,14 @@ class ReminderCreate(ReminderBase):
 
 
 class ReminderUpdate(BaseModel):
-    name: str = None
-    amount: int = None
-    due_date: datetime = None
-    frequency: ReminderFrequency = None
-    status: ReminderStatus = None
-    description: str = None
-    category_id: str = None
-    is_active: bool = None
+    name: str | None = None
+    amount: int | None = None
+    due_date: datetime | None = None
+    frequency: ReminderFrequency | None = None
+    status: ReminderStatus | None = None
+    description: str | None = None
+    category_id: str | None = None
+    is_active: bool | None = None
 
 
 class ReminderResponse(ReminderBase):
@@ -62,7 +62,7 @@ class ReminderResponse(ReminderBase):
 def create_reminder(reminder: ReminderCreate, db: Session = Depends(get_db)):
     if reminder.due_date.date() < date.today():
         raise HTTPException(status_code=400, detail="Due date cannot be in the past")
-    db_reminder = Reminder(**reminder.dict())
+    db_reminder = Reminder(**reminder.model_dump())
     db.add(db_reminder)
     db.commit()
     db.refresh(db_reminder)
@@ -89,7 +89,7 @@ def update_reminder(reminder_id: str, reminder: ReminderUpdate, db: Session = De
         raise HTTPException(status_code=404, detail="Reminder not found")
     if reminder.due_date and reminder.due_date.date() < date.today():
         raise HTTPException(status_code=400, detail="Due date cannot be in the past")
-    for key, value in reminder.dict(exclude_unset=True).items():
+    for key, value in reminder.model_dump(exclude_unset=True).items():
         setattr(db_reminder, key, value)
     db.commit()
     db.refresh(db_reminder)
