@@ -11,7 +11,7 @@ Uses UUIDv5 for deterministic ID generation from legacy numeric IDs.
 """
 
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from app.utils.uuid_mapping import generate_uuid_from_legacy_id
@@ -107,10 +107,10 @@ class MigrationLoader:
             existing = self.db.query(Category).filter(Category.id == new_uuid).first()
             if existing:
                 # Update existing record
-                existing.name = legacy_record["name"]
-                existing.icon = legacy_record.get("icon", "default")
-                existing.created_at = legacy_record.get("created_at", existing.created_at)
-                existing.updated_at = legacy_record.get("updated_at", existing.updated_at)
+                existing.name = cast(Any, legacy_record["name"])
+                existing.icon = cast(Any, legacy_record.get("icon", "default"))
+                existing.created_at = cast(Any, legacy_record.get("created_at", existing.created_at))
+                existing.updated_at = cast(Any, legacy_record.get("updated_at", existing.updated_at))
             else:
                 # Create new record
                 category = Category(
@@ -157,14 +157,14 @@ class MigrationLoader:
             
             if existing:
                 # Update existing record (preserve balance, will be recalculated)
-                existing.name = legacy_record["name"]
-                existing.account_type = account_type
-                existing.currency = legacy_record.get("currency", "USD")
-                existing.description = legacy_record.get("description")
-                existing.bank_name = legacy_record.get("bank_name")
-                existing.is_active = legacy_record.get("is_active", 1)
-                existing.created_at = legacy_record.get("created_at", existing.created_at)
-                existing.updated_at = legacy_record.get("updated_at", existing.updated_at)
+                existing.name = cast(Any, legacy_record["name"])
+                existing.account_type = cast(Any, account_type)
+                existing.currency = cast(Any, legacy_record.get("currency", "USD"))
+                existing.description = cast(Any, legacy_record.get("description"))
+                existing.bank_name = cast(Any, legacy_record.get("bank_name"))
+                existing.is_active = cast(Any, legacy_record.get("is_active", 1))
+                existing.created_at = cast(Any, legacy_record.get("created_at", existing.created_at))
+                existing.updated_at = cast(Any, legacy_record.get("updated_at", existing.updated_at))
             else:
                 # Create new record
                 account = Account(
@@ -238,18 +238,18 @@ class MigrationLoader:
             
             if existing:
                 # Update existing record
-                existing.amount = int(round(float(legacy_record["amount"]) * 100))
-                existing.description = legacy_record["description"]
-                existing.transaction_type = transaction_type
-                existing.expense_type = expense_type
-                existing.payment_method = payment_method
-                existing.date = legacy_record["date"]
-                existing.category_id = new_category_uuid
-                existing.account_id = new_account_uuid
-                existing.metadata_json = legacy_record.get("metadata_json")
-                existing.is_deleted = legacy_record.get("is_deleted", False)
-                existing.created_at = legacy_record.get("created_at", existing.created_at)
-                existing.updated_at = legacy_record.get("updated_at", existing.updated_at)
+                existing.amount = cast(Any, int(round(float(legacy_record["amount"]) * 100)))
+                existing.description = cast(Any, legacy_record["description"])
+                existing.transaction_type = cast(Any, transaction_type)
+                existing.expense_type = cast(Any, expense_type)
+                existing.payment_method = cast(Any, payment_method)
+                existing.date = cast(Any, legacy_record["date"])
+                existing.category_id = cast(Any, new_category_uuid)
+                existing.account_id = cast(Any, new_account_uuid)
+                existing.metadata_json = cast(Any, legacy_record.get("metadata_json"))
+                existing.is_deleted = cast(Any, legacy_record.get("is_deleted", False))
+                existing.created_at = cast(Any, legacy_record.get("created_at", existing.created_at))
+                existing.updated_at = cast(Any, legacy_record.get("updated_at", existing.updated_at))
             else:
                 # Create new record
                 transaction = Transaction(
@@ -586,9 +586,9 @@ def verify_migration_integrity(expected_total_cents: int) -> Dict[str, Any]:
         
         # Sum all active account balances
         from app.models.account import Account
-        actual_total = db.query(func.sum(Account.balance)).filter(
+        actual_total = cast(Any, db.query(func.sum(Account.balance)).filter(
             Account.is_deleted == False
-        ).scalar()
+        ).scalar())
         
         actual_total = actual_total if actual_total is not None else 0
         
