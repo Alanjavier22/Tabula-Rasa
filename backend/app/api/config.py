@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from datetime import datetime
 from database import get_db
 from app.api.auth import get_current_device
@@ -53,7 +53,7 @@ def create_config(config: ConfigCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail=f"Config with key '{config.key}' already exists")
     
-    db_config = Config(**config.dict())
+    db_config = Config(**config.model_dump())
     db.add(db_config)
     db.commit()
     db.refresh(db_config)
@@ -116,7 +116,7 @@ def update_config(
     if not db_config:
         raise HTTPException(status_code=404, detail="Config not found")
     
-    update_data = config.dict(exclude_unset=True)
+    update_data = config.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_config, key, value)
     
@@ -189,8 +189,8 @@ def set_google_drive_credentials(credentials: GoogleDriveCredentials, db: Sessio
     # Client ID
     client_id_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_ID").first()
     if client_id_config:
-        client_id_config.value = credentials.client_id
-        client_id_config.updated_at = datetime.now()
+        client_id_config.value = cast(Any, credentials.client_id)
+        client_id_config.updated_at = cast(Any, datetime.now())
     else:
         client_id_config = Config(
             key="GOOGLE_DRIVE_CLIENT_ID",
@@ -204,8 +204,8 @@ def set_google_drive_credentials(credentials: GoogleDriveCredentials, db: Sessio
     # Client Secret
     client_secret_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_SECRET").first()
     if client_secret_config:
-        client_secret_config.value = credentials.client_secret
-        client_secret_config.updated_at = datetime.now()
+        client_secret_config.value = cast(Any, credentials.client_secret)
+        client_secret_config.updated_at = cast(Any, datetime.now())
     else:
         client_secret_config = Config(
             key="GOOGLE_DRIVE_CLIENT_SECRET",
@@ -219,8 +219,8 @@ def set_google_drive_credentials(credentials: GoogleDriveCredentials, db: Sessio
     # Refresh Token
     refresh_token_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
     if refresh_token_config:
-        refresh_token_config.value = credentials.refresh_token
-        refresh_token_config.updated_at = datetime.now()
+        refresh_token_config.value = cast(Any, credentials.refresh_token)
+        refresh_token_config.updated_at = cast(Any, datetime.now())
     else:
         refresh_token_config = Config(
             key="GOOGLE_DRIVE_REFRESH_TOKEN",
