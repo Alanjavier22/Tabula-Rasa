@@ -158,6 +158,12 @@ El centro de mando neurálgico diseñado para la toma de decisiones inmediatas.
 ### 🔗 13. Vinculación Local (Pairing)
 *   **Zero-Trust Local Sync**: Sistema de emparejamiento mediante **PIN dinámico** para conectar dispositivos móviles dentro de la misma red Wi-Fi, garantizando que tus datos nunca toquen la nube.
 
+### ⚡ 14. Motor de Renderizado Optimizado por GPU & UI Fluida
+*   **Menú Lateral Colapsable**: Implementación de navegación lateral contraíble con persistencia en `localStorage`. Cuenta con un modo compacto iconográfico, logo inteligente sintetizado `"T R"`, tooltips contextuales flotantes de alta gama y micro-interacciones hover.
+*   **GPU Layer Compositing (will-change)**: Incorporación de directivas nativas `will-change: width, margin-left` en la estructura de maquetación para transferir las costosas transiciones de dimensiones del procesador de la CPU directamente a la memoria de video de la GPU. Esto previene reordenamientos innecesarios en el hilo principal (**Layout Reflows**) y elimina el lag visual por completo.
+*   **Modales en AnimatePresence**: Integración del ciclo de vida de desmontado de Framer Motion en el modal de **Auditoría Forense IA** e **Importación de Estados de Tarjetas**. Los fondos difuminados translúcidos y las tarjetas de control escalan y se deslizan verticalmente de forma progresiva en 200ms (`y: 15` a `y: 0` y `y: 20` de salida), dosificando la carga de renderizado del difuminado de cristal para garantizar unos impecables y constantes 60-120 FPS.
+
+
 ---
 
 ## 🚀 4. Orquestación y DevOps (Zero-Friction Setup)
