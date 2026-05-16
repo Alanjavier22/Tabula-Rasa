@@ -5,7 +5,7 @@ Uses Decimal for IEEE 754-safe arithmetic and SHA-256 hash validation
 """
 from decimal import Decimal, getcontext
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from sqlalchemy.orm import Session
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.transaction import Transaction
@@ -37,7 +37,7 @@ class SnapshotReconciler:
         seed = f"{transaction.account_id}:{transaction.date}:{transaction.description}:{transaction.amount}"
         expected_hash = hashlib.sha256(seed.encode()).hexdigest()
         
-        return transaction.hash == expected_hash
+        return cast(bool, transaction.hash == expected_hash)
 
     @staticmethod
     def calculate_month_totals(
@@ -164,15 +164,15 @@ class SnapshotReconciler:
             try:
                 # Recalculate totals for the snapshot's month/year
                 totals = SnapshotReconciler.calculate_month_totals(
-                    db, snapshot.month, snapshot.year
+                    db, cast(int, snapshot.month), cast(int, snapshot.year)
                 )
                 
                 # Update snapshot with recalculated values
-                snapshot.total_assets = totals['total_assets_cents']
-                snapshot.total_liabilities = totals['total_liabilities_cents']
-                snapshot.net_worth = totals['net_worth_cents']
-                snapshot.is_stale = False
-                snapshot.updated_at = datetime.now(timezone.utc)
+                snapshot.total_assets = cast(Any, totals['total_assets_cents'])
+                snapshot.total_liabilities = cast(Any, totals['total_liabilities_cents'])
+                snapshot.net_worth = cast(Any, totals['net_worth_cents'])
+                snapshot.is_stale = cast(Any, False)
+                snapshot.updated_at = cast(Any, datetime.now(timezone.utc))
                 
                 db.commit()
                 reconciled_count += 1
@@ -204,14 +204,14 @@ class SnapshotReconciler:
         
         try:
             totals = SnapshotReconciler.calculate_month_totals(
-                db, snapshot.month, snapshot.year
+                db, cast(int, snapshot.month), cast(int, snapshot.year)
             )
             
-            snapshot.total_assets = totals['total_assets_cents']
-            snapshot.total_liabilities = totals['total_liabilities_cents']
-            snapshot.net_worth = totals['net_worth_cents']
-            snapshot.is_stale = False
-            snapshot.updated_at = datetime.now(timezone.utc)
+            snapshot.total_assets = cast(Any, totals['total_assets_cents'])
+            snapshot.total_liabilities = cast(Any, totals['total_liabilities_cents'])
+            snapshot.net_worth = cast(Any, totals['net_worth_cents'])
+            snapshot.is_stale = cast(Any, False)
+            snapshot.updated_at = cast(Any, datetime.now(timezone.utc))
             
             db.commit()
             db.refresh(snapshot)
