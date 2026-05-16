@@ -5,7 +5,7 @@ from app.api.auth import get_current_device
 import google.genai as genai
 from google.genai import types
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 import os
 import json
 from app.models.config import Config
@@ -35,7 +35,7 @@ def get_smart_goal_recommendations(db: Session = Depends(get_db)):
     if not config_api or not config_api.value:
         raise HTTPException(status_code=400, detail="Gemini API Key not configured")
 
-    client = genai.Client(api_key=config_api.value)
+    client = genai.Client(api_key=cast(str, config_api.value))
 
     # Get Safe-to-Spend
     safe_to_spend_response = get_safe_to_spend(db)
@@ -119,7 +119,10 @@ def get_smart_goal_recommendations(db: Session = Depends(get_db)):
             )
         )
         
-        result = json.loads(response.text.strip())
+        response_text = (response.text or "").strip()
+        if not response_text:
+            response_text = "{}"
+        result = json.loads(response_text)
         return SmartGoalResponse(**result)
 
     except Exception as e:
