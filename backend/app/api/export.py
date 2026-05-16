@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from typing import Any, cast
 import csv
 import io
 from datetime import datetime
@@ -48,7 +49,7 @@ def export_transactions(db: Session = Depends(get_db)):
             account_name = txn.account.name if txn.account else "Sin Cuenta"
             
             # Convert cents to units
-            amount = float(txn.amount) / 100
+            amount = float(cast(Any, txn.amount)) / 100
             
             writer.writerow([
                 txn.date.strftime("%Y-%m-%d") if txn.date else "",
@@ -84,7 +85,7 @@ def export_accounts(db: Session = Depends(get_db)):
         writer.writerow(["Nombre", "Tipo", "Saldo", "Moneda", "Descripción"])
 
         for acc in accounts:
-            balance = float(acc.balance) / 100
+            balance = float(cast(Any, acc.balance)) / 100
             writer.writerow([
                 acc.name,
                 acc.account_type,
@@ -116,8 +117,8 @@ def export_assets(db: Session = Depends(get_db)):
         writer.writerow(["Nombre", "Tipo", "Valor Actual", "Valor Compra", "Fecha Compra"])
 
         for asset in assets:
-            current_val = float(asset.current_value) / 100
-            purchase_val = float(asset.purchase_value) / 100 if asset.purchase_value else 0
+            current_val = float(cast(Any, asset.current_value)) / 100
+            purchase_val = float(cast(Any, asset.purchase_value)) / 100 if asset.purchase_value else 0
             writer.writerow([
                 asset.name,
                 asset.asset_type,
@@ -149,9 +150,9 @@ def export_snapshots(db: Session = Depends(get_db)):
         writer.writerow(["Fecha", "Activos Totales", "Pasivos Totales", "Patrimonio Neto"])
 
         for snap in snapshots:
-            assets = float(snap.total_assets) / 100
-            liabilities = float(snap.total_liabilities) / 100
-            net = float(snap.net_worth) / 100
+            assets = float(cast(Any, snap.total_assets)) / 100
+            liabilities = float(cast(Any, snap.total_liabilities)) / 100
+            net = float(cast(Any, snap.net_worth)) / 100
             writer.writerow([
                 snap.date.strftime("%Y-%m-%d") if snap.date else "",
                 f"{assets:.2f}",
