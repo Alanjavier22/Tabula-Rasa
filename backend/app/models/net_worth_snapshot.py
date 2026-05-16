@@ -20,6 +20,7 @@ class NetWorthSnapshot(Base):
     snapshot_date = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
     metadata_json = Column(String, nullable=True)  # JSON string with account details at snapshot time
     is_stale = Column(Boolean, default=False, nullable=False, index=True)  # Flag for auto-healing
+    is_locked = Column(Boolean, default=False, nullable=False, index=True) # User-locked month (Manual override protection)
 
     is_deleted = Column(Boolean, default=False, server_default="0", nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
