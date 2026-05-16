@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from database import get_db
 from app.api.auth import get_current_device
 from app.models.goal import Goal, GoalStatus
@@ -30,14 +30,14 @@ def recalculate_goal_progress(goal_id: str, db: Session):
     ).all()
     
     total_amount = sum(t.amount for t in transactions)
-    goal.current_amount = total_amount
+    goal.current_amount = cast(Any, total_amount)
     db.commit()
 
 
 class GoalBase(BaseModel):
     name: str
     target_amount: int
-    target_date: datetime = None
+    target_date: Optional[datetime] = None
     status: GoalStatus = GoalStatus.ACTIVE
     description: Optional[str] = None
     version: int = 1
@@ -69,7 +69,7 @@ class GoalResponse(GoalBase):
 
 @router.post("/", response_model=GoalResponse)
 def create_goal(goal: GoalCreate, db: Session = Depends(get_db)):
-    db_goal = Goal(**goal.dict())
+    db_goal = Goal(**goal.model_dump())
     db.add(db_goal)
     db.commit()
     db.refresh(db_goal)
@@ -96,7 +96,7 @@ def update_goal(goal_id: str, goal: GoalUpdate, db: Session = Depends(get_db)):
     if not db_goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
-    update_data = goal.dict(exclude_unset=True)
+    update_data = goal.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_goal, key, value)
     
@@ -143,7 +143,7 @@ def delete_goal(goal_id: str, db: Session = Depends(get_db)):
             apply_transaction_to_balance(db, refund_transaction, reverse=False)
     
     # Soft delete the goal
-    db_goal.is_deleted = True
+    db_goal.is_deleted = cast(Any, True)
     db.commit()
     return {"message": "Goal deleted successfully"}
 
@@ -153,5 +153,5 @@ def recalculate_all_goals_progress(db: Session = Depends(get_db)):
     """Recalcula el progreso de todas las metas basado en las transacciones asignadas"""
     goals = db.query(Goal).filter(Goal.is_deleted == False).all()
     for goal in goals:
-        recalculate_goal_progress(goal.id, db)
+        recalculate_goal_progress(cast(str, goal.id), db)
     return {"message": f"Recalculated progress for {len(goals)} goals"}
