@@ -2,7 +2,7 @@ import enum
 from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, DateTime, Numeric
 from sqlalchemy.orm import relationship
 from database import Base
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 class DeferredPayment(Base):
@@ -24,12 +24,12 @@ class DeferredPayment(Base):
     shared_with = Column(String, nullable=True)
     shared_amount = Column(Integer, nullable=True)  # centavos (cuota compartida)
     
-    start_date = Column(DateTime, default=datetime.utcnow)
+    start_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_active = Column(Boolean, default=True)
     is_deleted = Column(Boolean, default=False)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     version = Column(Integer, default=1)
 
     account = relationship("Account")
