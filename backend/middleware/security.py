@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from database import SessionLocal
 from app.models.device import PairedDevice
 import os
+from datetime import datetime, timezone
+from typing import cast, Any
 
 # JWT Config (Must match auth.py)
 JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-local-finance-key-change-in-production")
@@ -74,7 +76,7 @@ class SecurityMiddleware:
                 )
             
             # Update last_sync
-            device.last_sync = datetime.now(timezone.utc)
+            device.last_sync = cast(Any, datetime.now(timezone.utc))
             db.commit()
                 
         finally:
