@@ -3,9 +3,10 @@ import shutil
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any, cast
 from sqlalchemy.orm import Session
-from database import SessionLocal, _DB_PATH
+from database import SessionLocal, _DB_PATH, engine
+from sqlalchemy import text
 
 # Configure logging for backup operations
 backup_logger = logging.getLogger(__name__)
@@ -21,6 +22,18 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import googleapiclient.http
+
+def checkpoint_db():
+    """
+    Force a WAL checkpoint to flush all changes from -wal file to the main .db file.
+    This ensures the .db file is consistent for physical file copy backups.
+    """
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
+            backup_logger.info("[DATABASE] WAL checkpoint (TRUNCATE) completed successfully")
+    except Exception as e:
+        backup_logger.warning(f"[DATABASE] WAL checkpoint failed: {e}. Backup might be slightly inconsistent.")
 
 
 def rotate_local_backups(keep_count: int = 2):
@@ -92,6 +105,9 @@ def create_physical_backup() -> str:
     backup_filename = f"finance_backup_{timestamp}.db"
     backup_path = os.path.join(backup_dir, backup_filename)
     
+    # Step 0: Force checkpoint to ensure .db file is up-to-date
+    checkpoint_db()
+    
     # Copy database file (physical snapshot)
     try:
         shutil.copy2(_DB_PATH, backup_path)
@@ -114,14 +130,14 @@ def set_maintenance_lock(db: Session, locked: bool) -> None:
     config = db.query(Config).filter(Config.key == "SYSTEM_MAINTENANCE_LOCK").first()
     
     if config:
-        config.value = "true" if locked else "false"
-        config.updated_at = datetime.now()
+        config.value = cast(Any, "true" if locked else "false")
+        config.updated_at = cast(Any, datetime.now())
     else:
         config = Config(
             key="SYSTEM_MAINTENANCE_LOCK",
-            value="true" if locked else "false",
-            created_at=datetime.now(),
-            updated_at=datetime.now()
+            value=cast(Any, "true" if locked else "false"),
+            created_at=cast(Any, datetime.now()),
+            updated_at=cast(Any, datetime.now())
         )
         db.add(config)
     
@@ -238,6 +254,7 @@ def get_google_drive_credentials() -> Optional[tuple[str, str, str]]:
     Returns:
         Tuple of (client_id, client_secret, refresh_token) if all are configured, None otherwise
     """
+    db = None
     try:
         db = SessionLocal()
         from app.models.config import Config
@@ -258,12 +275,12 @@ def get_google_drive_credentials() -> Optional[tuple[str, str, str]]:
             backup_logger.warning("[GOOGLE_DRIVE] Google Drive credentials contain empty values.")
             return None
         
-        return (client_id, client_secret, refresh_token)
+        return (str(client_id), str(client_secret), str(refresh_token))
     except Exception as e:
         backup_logger.error(f"[GOOGLE_DRIVE] Error retrieving credentials from database: {e}")
         return None
     finally:
-        if 'db' in locals():
+        if db is not None:
             db.close()
 
 
@@ -299,7 +316,7 @@ def test_google_drive_connection() -> dict:
         creds.refresh(Request())
         
         # Optional: Try to list a file to be 100% sure
-        drive_service = build('drive', 'v3', credentials=creds)
+        drive_service = cast(Any, build('drive', 'v3', credentials=creds))
         drive_service.about().get(fields="user").execute()
         
         return {"success": True, "message": "Conexión con Google Drive exitosa."}
@@ -325,7 +342,8 @@ def get_or_create_drive_folder(drive_service) -> Optional[str]:
     """
     try:
         # Search for existing folder
-        results = drive_service.files().list(
+        ds = cast(Any, drive_service)
+        results = ds.files().list(
             q="name='tabula_rasa_backup' and mimeType='application/vnd.google-apps.folder'",
             spaces='drive',
             fields='files(id, name)'
@@ -390,6 +408,9 @@ def create_external_backup() -> Optional[str]:
         os.makedirs(local_backup_dir, exist_ok=True)
         local_backup_path = os.path.join(local_backup_dir, backup_filename)
         
+        # Step 0: Force checkpoint to ensure .db file is up-to-date
+        checkpoint_db()
+        
         # Copy database file locally
         shutil.copy2(_DB_PATH, local_backup_path)
         backup_logger.info(f"[GOOGLE_DRIVE] Local backup created: {local_backup_path}")
@@ -419,7 +440,7 @@ def create_external_backup() -> Optional[str]:
                 return None
             
             # Build Drive service
-            drive_service = build('drive', 'v3', credentials=creds)
+            drive_service = cast(Any, build('drive', 'v3', credentials=creds))
             backup_logger.info("[GOOGLE_DRIVE] Authenticated with Google Drive API")
             
         except Exception as auth_error:
@@ -446,8 +467,8 @@ def create_external_backup() -> Optional[str]:
             }
             
             media = MediaFileUpload(local_backup_path, resumable=True)
-            
-            file = drive_service.files().create(
+            ds = cast(Any, drive_service)
+            file = ds.files().create(
                 body=file_metadata,
                 media_body=media,
                 fields='id'
@@ -498,7 +519,8 @@ def rotate_google_drive_backups(drive_service, folder_id: str) -> None:
     """
     try:
         # List all backup files in the folder
-        results = drive_service.files().list(
+        ds = cast(Any, drive_service)
+        results = ds.files().list(
             q=f"'{folder_id}' in parents and name contains 'tabula_rasa_backup_'",
             spaces='drive',
             fields='files(id, name, createdTime)',
@@ -520,8 +542,10 @@ def rotate_google_drive_backups(drive_service, folder_id: str) -> None:
             file_id = files[i]['id']
             file_name = files[i]['name']
             try:
-                drive_service.files().delete(fileId=file_id).execute()
+                ds = cast(Any, drive_service)
+                ds.files().delete(fileId=file_id).execute()
                 backup_logger.info(f"[GOOGLE_DRIVE] Deleted old backup: {file_name} (ID: {file_id})")
+                
             except Exception as e:
                 backup_logger.warning(f"[GOOGLE_DRIVE] Failed to delete old backup {file_name}: {e}")
                 
@@ -568,7 +592,7 @@ def list_external_backups() -> list[dict]:
         creds.refresh(Request())
 
         # Build Drive service
-        drive_service = build('drive', 'v3', credentials=creds)
+        drive_service = cast(Any, build('drive', 'v3', credentials=creds))
 
         # Get backup folder
         folder_id = get_or_create_drive_folder(drive_service)
@@ -577,7 +601,8 @@ def list_external_backups() -> list[dict]:
             return []
 
         # List backup files in the folder
-        results = drive_service.files().list(
+        ds = cast(Any, drive_service)
+        results = ds.files().list(
             q=f"'{folder_id}' in parents and name contains 'tabula_rasa_backup_'",
             spaces='drive',
             fields='files(id, name, createdTime, size)',
@@ -627,10 +652,11 @@ def download_backup_from_drive(backup_id: str) -> Optional[str]:
         creds.refresh(Request())
 
         # Build Drive service
-        drive_service = build('drive', 'v3', credentials=creds)
+        drive_service = cast(Any, build('drive', 'v3', credentials=creds))
+        ds = cast(Any, drive_service)
 
         # Get file metadata
-        file_metadata = drive_service.files().get(
+        file_metadata = ds.files().get(
             fileId=backup_id,
             fields='name, createdTime, size'
         ).execute()
@@ -645,7 +671,7 @@ def download_backup_from_drive(backup_id: str) -> Optional[str]:
         download_path = os.path.join(temp_dir, backup_filename)
 
         # Download file
-        request = drive_service.files().get_media(fileId=backup_id)
+        request = ds.files().get_media(fileId=backup_id)
         with open(download_path, 'wb') as f:
             downloader = googleapiclient.http.MediaIoBaseDownload(f, request)
             done = False
@@ -712,6 +738,11 @@ def restore_from_backup(backup_path: str, create_pre_restore_backup: bool = True
     pre_restore_backup_path = None
 
     try:
+        # Step 0: Force checkpoint to empty WAL file before restoration
+        # This ensures that even if we can't delete the WAL file (due to locks),
+        # it will be empty and won't override the restored database upon restart.
+        checkpoint_db()
+
         # Step 1: Create pre-restore backup of current database
         if create_pre_restore_backup:
             backup_logger.info("[RESTORE] Creating pre-restore backup of current database...")
@@ -725,28 +756,45 @@ def restore_from_backup(backup_path: str, create_pre_restore_backup: bool = True
             backup_logger.info(f"[RESTORE] Pre-restore backup created: {pre_restore_backup_path}")
 
         # Step 2: Compare timestamps to warn if backup is older
-        backup_timestamp = datetime.fromtimestamp(os.path.getmtime(backup_path))
+        backup_timestamp = parse_backup_timestamp(os.path.basename(backup_path))
+        if not backup_timestamp:
+             backup_timestamp = datetime.fromtimestamp(os.path.getmtime(backup_path))
+        
         current_timestamp = get_current_db_timestamp()
 
+        time_diff_hours = 0
         if current_timestamp:
             time_diff = current_timestamp - backup_timestamp
-            backup_logger.warning(f"[RESTORE] Backup is {time_diff.total_seconds() / 3600:.1f} hours old")
+            time_diff_hours = time_diff.total_seconds() / 3600
+            backup_logger.warning(f"[RESTORE] Backup is {time_diff_hours:.1f} hours old")
 
         # Step 3: Close all database connections
-        backup_logger.info("[RESTORE] Closing database connections...")
-        # Note: We can't force-close all connections from here, but SQLite handles this gracefully
-        # The file copy will work as long as no write transactions are in progress
+        backup_logger.info("[RESTORE] Closing database connections and disposing engine...")
+        engine.dispose() # Close connections in the pool
 
-        # Step 4: Restore backup
+        # Step 4: Delete WAL and SHM files of the CURRENT database
+        # This is CRITICAL to prevent SQLite from "recovering" old state from the WAL file
+        # over the newly restored database file.
+        wal_path = f"{_DB_PATH}-wal"
+        shm_path = f"{_DB_PATH}-shm"
+        for extra_file in [wal_path, shm_path]:
+            if os.path.exists(extra_file):
+                try:
+                    os.remove(extra_file)
+                    backup_logger.info(f"[RESTORE] Deleted auxiliary file: {extra_file}")
+                except Exception as e:
+                    backup_logger.warning(f"[RESTORE] Could not delete {extra_file}: {e}. This might cause consistency issues.")
+
+        # Step 5: Restore backup
         backup_logger.info(f"[RESTORE] Restoring from backup: {backup_path}")
         shutil.copy2(backup_path, _DB_PATH)
         backup_logger.info("[RESTORE] Database restored successfully")
 
         return {
             "success": True,
-            "message": "Base de datos restaurada exitosamente",
+            "message": "Base de datos restaurada exitosamente. Se eliminaron los archivos temporales de caché (WAL/SHM).",
             "pre_restore_backup_path": pre_restore_backup_path,
-            "backup_age_hours": time_diff.total_seconds() / 3600 if current_timestamp else None
+            "backup_age_hours": time_diff_hours
         }
 
     except Exception as e:
