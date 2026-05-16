@@ -1,20 +1,20 @@
 from sqlalchemy.orm import Session
 from app.models.budget import Budget
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 import logging
 
 logger = logging.getLogger(__name__)
 
 # Default recurring budget items (can be customized per user in the future)
 DEFAULT_RECURRING_BUDGETS = [
-    {'name': 'Google One', 'amount': 22.98},
-    {'name': 'Gym', 'amount': 22.50},
-    {'name': 'Tuenti', 'amount': 10.00},
-    {'name': 'Netflix', 'amount': 6.00},
-    {'name': 'Fiboeduc', 'amount': 50.00},
-    {'name': 'Laptop Dennis', 'amount': 10.00},
-    {'name': 'Deprati', 'amount': 11.63},
-    {'name': 'Saludsa', 'amount': 45.19},
+    {'name': 'Google One', 'amount': 2298},
+    {'name': 'Gym', 'amount': 2250},
+    {'name': 'Tuenti', 'amount': 1000},
+    {'name': 'Netflix', 'amount': 600},
+    {'name': 'Fiboeduc', 'amount': 5000},
+    {'name': 'Laptop Dennis', 'amount': 1000},
+    {'name': 'Deprati', 'amount': 1163},
+    {'name': 'Saludsa', 'amount': 4519},
 ]
 
 
@@ -87,7 +87,7 @@ def generate_recurring_budgets(
     for item in budget_items:
         new_budget = Budget(
             name=item['name'],
-            amount=item['amount'],
+            amount=cast(Any, item['amount']),
             month=month,
             year=year
         )
@@ -145,13 +145,13 @@ def update_recurring_budgets(
         ).first()
         
         if existing:
-            existing.amount = item['amount']
+            existing.amount = cast(Any, item['amount'])
             updated_budgets.append(existing)
             logger.info(f"Updated budget: {item['name']} - ${item['amount']} for {month}/{year}")
         else:
             new_budget = Budget(
                 name=item['name'],
-                amount=item['amount'],
+                amount=cast(Any, item['amount']),
                 month=month,
                 year=year
             )
