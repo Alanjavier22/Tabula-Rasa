@@ -123,19 +123,15 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
     return 'bg-rose-500';
   };
 
-  // Debug logs to trace the new v3.0 fields
-  console.log('[WhatIf Debug] Impact Type:', scenario.impact_type);
-  console.log('[WhatIf Debug] Risk Score:', scenario.risk_score);
-  console.log('[WhatIf Debug] Opt Tip:', scenario.optimization_tip);
 
   return (
     <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Top Section: Analysis & Verdict */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         {/* Main Analysis Card */}
-        <div className="lg:col-span-8 bg-gradient-to-br from-slate-900 to-slate-950 p-8 rounded-[2.5rem] border border-white/10 shadow-2xl relative overflow-hidden group">
+        <div className="lg:col-span-8 bg-gradient-to-br from-slate-900 to-slate-950 p-4 md:p-6 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 blur-[100px] rounded-full -mr-32 -mt-32" />
-          <div className="relative z-10 space-y-6">
+          <div className="relative z-10 space-y-4">
             <div className="flex items-center justify-between">
               <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 Impacto {scenario.impact_type === 'saving' ? 'de Ahorro' : scenario.impact_type === 'investment' ? 'de Inversión' : scenario.impact_type === 'income' ? 'de Ingreso' : 'de Gasto'}
@@ -153,24 +149,24 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
               </div>
             </div>
             
-            <div className="space-y-4">
-              <h3 className="text-2xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 leading-tight">
+            <div className="space-y-2">
+              <h3 className="text-xl md:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 leading-tight">
                 {scenario.scenario_title}
               </h3>
-              <p className="text-slate-400 text-lg font-medium leading-relaxed whitespace-pre-wrap">
+              <p className="text-slate-400 text-sm font-medium leading-relaxed whitespace-pre-wrap">
                 {scenario.summary}
               </p>
             </div>
 
             {(scenario.optimization_tip || "").length > 0 && (
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 flex items-center gap-6 relative overflow-hidden group/tip mt-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-center gap-4 relative overflow-hidden group/tip mt-2">
                 <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/5 to-amber-500/0 translate-x-[-100%] group-hover/tip:translate-x-[100%] transition-transform duration-1000"></div>
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/20 flex items-center justify-center shrink-0 border border-amber-500/30 shadow-lg shadow-amber-500/10">
-                  <Sparkles className="w-7 h-7 text-amber-500" />
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0 border border-amber-500/30 shadow-lg shadow-amber-500/10">
+                  <Sparkles className="w-5 h-5 text-amber-500" />
                 </div>
                 <div className="relative z-10">
-                  <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em] mb-1.5">Estrategia de Optimización</p>
-                  <p className="text-slate-200 text-base font-bold leading-snug">{scenario.optimization_tip}</p>
+                  <p className="text-[9px] font-black text-amber-500 uppercase tracking-[0.2em] mb-0.5">Estrategia de Optimización</p>
+                  <p className="text-slate-200 text-sm font-bold leading-tight">{scenario.optimization_tip}</p>
                 </div>
               </div>
             )}
@@ -178,27 +174,27 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
         </div>
 
         {/* Verdict Side Card */}
-        <div className={`lg:col-span-4 ${verdict.bg} ${verdict.border} border p-10 rounded-[2.5rem] flex flex-col justify-center items-center text-center backdrop-blur-sm relative overflow-hidden shadow-2xl`}>
+        <div className={`lg:col-span-4 ${verdict.bg} ${verdict.border} border p-6 rounded-3xl flex flex-col justify-center items-center text-center backdrop-blur-sm relative overflow-hidden shadow-2xl`}>
           <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Análisis de Viabilidad</p>
-          <span className={`${verdict.color} text-5xl font-black mb-4 tracking-tighter drop-shadow-sm`}>{verdict.label}</span>
-          <p className="text-slate-400 text-sm leading-relaxed font-semibold px-2 mb-8">{verdict.desc}</p>
+          <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Análisis de Viabilidad</p>
+          <span className={`${verdict.color} text-3xl font-black mb-2 tracking-tighter drop-shadow-sm`}>{verdict.label}</span>
+          <p className="text-slate-400 text-[11px] leading-snug font-semibold px-2 mb-4">{verdict.desc}</p>
           
-          <div className="pt-8 border-t border-white/10 w-full space-y-6">
+          <div className="pt-4 border-t border-white/10 w-full space-y-4">
             {scenario.impact_type === 'saving' || scenario.impact_type === 'investment' ? (
               <div className="animate-in fade-in zoom-in duration-500">
-                <p className="text-[10px] text-emerald-500/60 uppercase font-black tracking-widest mb-2">Plus Patrimonial (12m)</p>
-                <p className="text-3xl font-black text-white tracking-tight">{formatFullCurrency(finalDelta * 100)}</p>
+                <p className="text-[9px] text-emerald-500/60 uppercase font-black tracking-widest mb-1">Plus Patrimonial (12m)</p>
+                <p className="text-xl font-black text-white tracking-tight">{formatFullCurrency(finalDelta * 100)}</p>
               </div>
             ) : monthsToRecover > 0 ? (
               <div className="animate-in fade-in zoom-in duration-500">
-                <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-2">Tiempo de recuperación</p>
-                <p className="text-3xl font-black text-white tracking-tight">{monthsToRecover} meses</p>
+                <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1">Tiempo de recuperación</p>
+                <p className="text-xl font-black text-white tracking-tight">{monthsToRecover} meses</p>
               </div>
             ) : (
               <div className="animate-in fade-in zoom-in duration-500">
-                <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-2">Impacto Neto</p>
-                <p className="text-3xl font-black text-white tracking-tight">{formatFullCurrency(finalDelta * 100)}</p>
+                <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1">Impacto Neto</p>
+                <p className="text-xl font-black text-white tracking-tight">{formatFullCurrency(finalDelta * 100)}</p>
               </div>
             )}
           </div>
@@ -207,16 +203,16 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
 
       {/* Assumptions Section - FULL WIDTH BELOW */}
       {scenario.key_assumptions && scenario.key_assumptions.length > 0 && (
-        <div className="bg-slate-900/50 border border-white/5 rounded-[2.5rem] p-10 relative overflow-hidden backdrop-blur-md shadow-inner">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-10">
-            <div className="space-y-2 min-w-[280px]">
-              <h4 className="text-xs font-black text-blue-400 uppercase tracking-[0.4em] flex items-center gap-3">
-                <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-                Suposiciones Críticas
+        <div className="bg-slate-900/50 border border-white/5 rounded-3xl p-6 relative overflow-hidden backdrop-blur-md shadow-inner">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+            <div className="space-y-1 min-w-[200px]">
+              <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em] flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
+                Suposiciones
               </h4>
-              <p className="text-[11px] text-slate-500 font-semibold italic max-w-[240px] leading-snug">Lógica estratégica utilizada por el motor Oracle para esta proyección.</p>
+              <p className="text-[9px] text-slate-500 font-semibold italic max-w-[200px] leading-tight">Lógica Oracle para esta proyección.</p>
             </div>
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {scenario.key_assumptions.map((assumption, i) => (
                 <div key={i} className="flex items-start gap-4 group cursor-default">
                   <span className="text-blue-500/20 text-3xl font-black group-hover:text-blue-500/50 transition-all duration-500 transform group-hover:scale-110">0{i+1}</span>
@@ -230,12 +226,12 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
         </div>
       )}
 
-      <div className="bg-slate-950/40 p-10 rounded-[2.5rem] border border-white/5 backdrop-blur-sm relative min-h-[450px] w-full min-w-0 mt-4">
+      <div className="bg-slate-950/40 p-4 md:p-6 rounded-3xl border border-white/5 backdrop-blur-sm relative min-h-[300px] w-full min-w-0 mt-2">
         <div className="absolute top-10 left-10 z-20">
           <p className="text-xs font-black text-slate-500 uppercase tracking-[0.3em]">Evolución del Patrimonio (12 Meses)</p>
           <p className="text-[11px] text-slate-600 mt-2 font-medium italic">Análisis comparativo entre tu tendencia actual y el escenario simulado.</p>
         </div>
-        <ResponsiveContainer width="100%" height={340}>
+        <ResponsiveContainer width="100%" height={240}>
           <AreaChart data={scenario.projection} margin={{ top: 40, right: 30, left: 10, bottom: 20 }}>
             <defs>
               <linearGradient id="colorBaseline" x1="0" y1="0" x2="0" y2="1">
