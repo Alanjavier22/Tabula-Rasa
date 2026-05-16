@@ -198,17 +198,32 @@ const Dashboard = () => {
       return; // Guard: prevent concurrent calls
     }
     
+    // Prudence: We usually want to close the PREVIOUS month, not the one in progress.
+    const now = new Date();
+    let month = now.getMonth(); // getMonth() is 0-indexed (Jan=0), so this is the previous month index.
+    let year = now.getFullYear();
+    
+    if (month === 0) { // If it's January, previous month was December of last year
+      month = 12;
+      year -= 1;
+    }
+    
+    const monthName = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date(year, month - 1));
+    const confirmMessage = `¿Deseas cerrar el mes de ${monthName.toUpperCase()} ${year}?\n\nSe generará un Snapshot 'CONGELADO' para tu historial patrimonial.`;
+    
+    if (!window.confirm(confirmMessage)) return;
+
     setCreatingSnapshot(true);
     isRefetchingRef.current = true;
     
     try {
-      const now = new Date();
-      const month = now.getMonth() + 1; // 1-12
-      const year = now.getFullYear();
+      // Use the newly implemented lock: true to protect this historical record
+      await snapshotsAPI.create({ month, year, lock: true });
+      setToast({ message: `Mes de ${monthName} cerrado y bloqueado exitosamente`, type: 'success' });
       
-      await snapshotsAPI.create({ month, year });
-      setToast({ message: 'Mes contable cerrado exitosamente', type: 'success' });
-      
+      // Refresh snapshots list if it exists in results
+      results[11].refetch(); // dashboardSummary
+      results[13].refetch(); // goals (might be affected by net worth)
     } catch (error) {
       console.error('Error creating snapshot:', error);
       setToast({ message: 'Error al cerrar mes contable', type: 'error' });
@@ -216,7 +231,7 @@ const Dashboard = () => {
       setCreatingSnapshot(false);
       isRefetchingRef.current = false;
     }
-  }, [creatingSnapshot]);
+  }, [creatingSnapshot, results]);
 
   // Reducciones Decimal-safe memoizadas: solo se recalculan cuando accounts/statements/dashboardSummary cambian
   const totalBalance = useMemo(() => accounts
@@ -718,7 +733,7 @@ const Dashboard = () => {
 
         {/* Income vs Expenses Bar */}
         <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Ingresos vs Gastos</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">Histórico de Ingresos vs Gastos</h3>
           {dashboardSummary && monthlyComparison.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={monthlyComparison} barGap={8}>
@@ -988,10 +1003,17 @@ const Dashboard = () => {
       />
 
       {/* AnomalyScanner Modal */}
-      {showAnomalyScanner && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 rounded-2xl border border-slate-700 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+      <AnimatePresence>
+        {showAnomalyScanner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            style={{ willChange: 'opacity, backdrop-filter' }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <div className="w-full max-w-3xl">
               <AIAnomalyScanner
                 recentTransactions={transactions}
                 currentSubscriptions={subscriptions}
@@ -1001,9 +1023,9 @@ const Dashboard = () => {
                 onClose={() => setShowAnomalyScanner(false)}
               />
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <footer className="fixed bottom-4 right-6 opacity-30 hover:opacity-100 transition-opacity duration-700">
         <p className="text-slate-500 text-[9px] uppercase tracking-[0.2em] font-medium">
