@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { intelligenceAPI, accountsAPI, categoriesAPI } from '../services/api';
 import { Upload, X, CheckCircle, AlertCircle, FileSpreadsheet, Trash2, Calendar, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 import type { Account } from '../types';
@@ -154,8 +155,21 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto shadow-2xl">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: "easeInOut" }}
+      style={{ willChange: 'opacity, backdrop-filter' }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+    >
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.98, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.98, y: 15 }}
+        transition={{ duration: 0.25, ease: "easeInOut" }}
+        className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto shadow-2xl"
+      >
         <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800/80 sticky top-0 z-10 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <div className="p-1.5 bg-emerald-500/20 rounded-lg">
@@ -419,8 +433,8 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
