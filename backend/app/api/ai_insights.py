@@ -20,7 +20,7 @@ import google.genai as genai
 from google.genai import errors, types
 import json
 from pydantic import BaseModel
-from typing import List
+from typing import List, Any, cast
 from app.services.ai_prompts import get_current_time_context, CORE_RULES, get_persona_prompt
 
 from app.api.auth import get_current_device
@@ -388,7 +388,7 @@ def _build_historical_trends(db: Session, now: datetime) -> dict:
     return {
         "current_month_total": current_total,
         "previous_3_months_avg": int(avg_previous),
-        "trend_percent": round(trend_percent, 1),
+        "trend_percent": round(float(cast(Any, trend_percent)), 1),
         "is_increasing": trend_percent > 10,
         "is_decreasing": trend_percent < -10,
     }
@@ -407,7 +407,7 @@ def get_insights(db: Session = Depends(get_db)):
     api_key = config.value
 
     # 2. Configure Gemini with new SDK
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=cast(str, api_key))
 
     # 3. Collect ANONYMOUS financial data (no PII: no names, no account numbers)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -493,7 +493,7 @@ SAFE-TO-SPEND (Liquidez disponible):
     time_context = get_current_time_context()
     config_persona = db.query(Config).filter(Config.key == 'ai_persona').first()
     persona_value = config_persona.value if config_persona and config_persona.value else "professional"
-    persona_instruction = get_persona_prompt(persona_value)
+    persona_instruction = get_persona_prompt(cast(str, persona_value))
 
     user_prompt = f"""{time_context}
 {CORE_RULES}
@@ -514,7 +514,7 @@ RESUMEN FINANCIERO:
     try:
         response = client.models.generate_content(
             model="gemini-3.1-flash-lite",
-            contents=user_prompt,
+            contents=cast(Any, [types.Part.from_text(text=user_prompt)]),
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema={
@@ -529,7 +529,7 @@ RESUMEN FINANCIERO:
             ),
         )
 
-        result = json.loads(response.text.strip())
+        result = json.loads((response.text or "{}").strip())
 
         insights = result.get("insights", [])
         alerts = result.get("alerts", [])
@@ -591,7 +591,7 @@ def get_financial_warnings(db: Session = Depends(get_db)):
     api_key = config.value
 
     # 2. Configure Gemini with new SDK
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=cast(str, api_key))
 
     # 3. Collect compact financial data (optimized for token efficiency)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -655,7 +655,7 @@ Datos: {json.dumps(compact_data)}"""
     try:
         response = client.models.generate_content(
             model="gemini-3.1-flash-lite",
-            contents=user_prompt,
+            contents=cast(Any, [types.Part.from_text(text=user_prompt)]),
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema={
@@ -672,7 +672,7 @@ Datos: {json.dumps(compact_data)}"""
             ),
         )
 
-        result = json.loads(response.text.strip())
+        result = json.loads((response.text or "{}").strip())
         
         # Ensure it's a list
         if not isinstance(result, list):
