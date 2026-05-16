@@ -80,6 +80,8 @@ def import_transactions(
     from app.services.balance import apply_transaction_to_balance
     
     skipped = 0
+    existing_rb_set = set()
+    existing_base_set = set()
     
     if skip_duplicates:
         # Build fingerprint sets for deduplication.
@@ -97,9 +99,8 @@ def import_transactions(
             Transaction.is_deleted == False
         ).all()
         
-        existing_rb_set = set()   # fingerprints with running_balance
-        existing_base_set = set() # fingerprints without running_balance (amount+date+account+type)
-        
+
+        # Build fingerprints
         for desc, amt, date_str, acc_id, txn_type, run_bal in existing_txs:
             # Always add base fingerprint for all transactions
             # Use txn_type.value to get the string value ('expense', 'income') instead of enum name
