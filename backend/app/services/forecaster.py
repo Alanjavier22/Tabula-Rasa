@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any, cast
 
 from app.models.transaction import Transaction
 from app.models.account import Account
@@ -39,12 +39,12 @@ def calculate_historical_averages(db: Session, months_back: int = 3):
     
     for t in txns:
         if t.transaction_type == "income":
-            total_income += t.amount
+            total_income += cast(Any, t.amount)
         elif t.transaction_type == "expense":
             if t.expense_type == "fixed":
-                total_fixed += t.amount
+                total_fixed += cast(Any, t.amount)
             else:
-                total_variable += t.amount
+                total_variable += cast(Any, t.amount)
     
     return {
         "avg_income": total_income // months_back if months_back > 0 else 0,
@@ -58,7 +58,7 @@ def get_current_liquidity(db: Session) -> int:
         Account.is_active == 1,
         Account.account_type.in_(["checking", "savings"])
     ).all()
-    return sum((acc.balance for acc in accounts), 0)
+    return int(cast(Any, sum((acc.balance for acc in accounts), 0)))
 
 
 def get_financial_projection(
