@@ -5,7 +5,8 @@ Source of truth: net_worth_snapshots for aggregates
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Any, cast
+import json
 from sqlalchemy.orm import Session
 from app.models.account import Account
 from app.models.iou import IOU
@@ -60,7 +61,7 @@ class BalanceSheetService:
             .filter(Account.account_type.in_(["checking", "savings"]))
             .all()
         )
-        return sum(acc.balance or 0 for acc in accounts)
+        return cast(int, sum(cast(int, acc.balance or 0) for acc in accounts))
 
     @staticmethod
     def get_ious_pending_value(db: Session) -> int:
@@ -72,7 +73,7 @@ class BalanceSheetService:
             .filter(IOU.iou_type == "i_owe")
             .all()
         )
-        return sum((iou.amount or 0) - (iou.amount_paid or 0) for iou in ious)
+        return cast(int, sum((cast(int, iou.amount or 0)) - (cast(int, iou.amount_paid or 0)) for iou in ious))
 
     @staticmethod
     def get_credit_card_balances(db: Session) -> int:
@@ -94,7 +95,7 @@ class BalanceSheetService:
         cc_accounts = db.query(Account).filter(Account.account_type == "credit_card", Account.is_deleted == False).all()
         live_cc_balance = sum(acc.balance or 0 for acc in cc_accounts)
         
-        return stmt_balance + live_cc_balance
+        return cast(int, stmt_balance + live_cc_balance)
 
     @staticmethod
     def get_balance_sheet(db: Session, month: int, year: int) -> Optional[dict]:
@@ -135,7 +136,7 @@ class BalanceSheetService:
                 "total_liabilities_cents": total_liabilities_cents,
             },
             equity_cents=equity_cents,
-            is_stale=snapshot.is_stale,
+            is_stale=cast(bool, snapshot.is_stale),
         )
 
         return balance_sheet.to_dict()
@@ -188,7 +189,7 @@ class BalanceSheetService:
         for snapshot in snapshots:
             # TRY TO EXTRACT DATA FROM METADATA (The "Photo" taken at that time)
             try:
-                metadata = json.loads(snapshot.metadata_json) if snapshot.metadata_json else {}
+                metadata = json.loads(cast(str, snapshot.metadata_json)) if snapshot.metadata_json else {}
                 
                 # Check if we have detailed account data in metadata
                 accounts_meta = metadata.get("accounts", [])
@@ -203,7 +204,7 @@ class BalanceSheetService:
 
             # Calculate historical physical assets value at THAT time
             snapshot_date = datetime.fromisoformat(snapshot.snapshot_date.isoformat()) if hasattr(snapshot.snapshot_date, 'isoformat') else snapshot.snapshot_date
-            physical_assets_cents = asset_depreciation_service.get_total_assets_value(db, snapshot_date)
+            physical_assets_cents = asset_depreciation_service.get_total_assets_value(db, cast(datetime, snapshot_date))
             
             # Recalculate equity based on snapshot's verified totals
             total_assets_cents = snapshot.total_assets
@@ -215,14 +216,14 @@ class BalanceSheetService:
                 "year": snapshot.year,
                 "date": snapshot.snapshot_date.isoformat() if hasattr(snapshot.snapshot_date, 'isoformat') else snapshot.snapshot_date,
                 "assets": {
-                    "cash_accounts_cents": int(cash_accounts_cents),
-                    "physical_assets_cents": int(physical_assets_cents),
-                    "total_assets_cents": int(total_assets_cents),
+                    "cash_accounts_cents": int(cast(Any, cash_accounts_cents)),
+                    "physical_assets_cents": int(cast(Any, physical_assets_cents)),
+                    "total_assets_cents": int(cast(Any, total_assets_cents)),
                 },
                 "liabilities": {
-                    "total_liabilities_cents": int(total_liabilities_cents),
+                    "total_liabilities_cents": int(cast(Any, total_liabilities_cents)),
                 },
-                "equity_cents": int(equity_cents),
+                "equity_cents": int(cast(Any, equity_cents)),
                 "is_stale": snapshot.is_stale,
             }
 
