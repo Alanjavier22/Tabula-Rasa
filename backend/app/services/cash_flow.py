@@ -5,7 +5,8 @@ Operates on aggregates only (fast, no 50k transaction scans)
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Any, cast
+import statistics
 from sqlalchemy.orm import Session
 from app.models.account import Account
 from app.models.transaction import Transaction
@@ -108,7 +109,7 @@ class CashFlowService:
             )
 
             if month_income:
-                return sum(t.amount for t in month_income)
+                return int(cast(Any, sum(t.amount for t in month_income)))
 
             # Fallback: use 90-day average / 3
             ninety_days_ago = datetime.now() - timedelta(days=90)
@@ -121,7 +122,7 @@ class CashFlowService:
             )
 
             total_income = sum(t.amount for t in recent_income)
-            return total_income // 3
+            return int(cast(Any, total_income // 3))
         except Exception as e:
             print(f"[CashFlowService] Error getting monthly income proxy: {e}")
             return 0
@@ -141,46 +142,107 @@ class CashFlowService:
             ).all()
             current_balance = sum(acc.balance or 0 for acc in accounts)
 
-            # 2. Projected income (90-day average)
-            # CRITICAL: We exclude internal transfers and refunds to prevent budget inflation.
+            # 2. Projected income (Intelligence: Recurrence-based analysis)
+            # We look at 180 days to identify STABLE recurring income sources.
             from app.models.category import Category
+            from collections import defaultdict
             
-            ninety_days_ago = now - timedelta(days=90)
+            lookback_days = 180
+            history_start = now - timedelta(days=lookback_days)
             
             # Subquery to get IDs of categories to ignore
             ignored_categories = db.query(Category.id).filter(
-                (Category.name.ilike("%Transferencia Interna%")) | 
+                (Category.name.ilike("%Transferencia%")) | 
                 (Category.name.ilike("%Devolucion%")) | 
                 (Category.name.ilike("%Ajuste%")) |
                 (Category.name.ilike("%Meta%"))
             ).all()
             ignored_ids = [c[0] for c in ignored_categories]
 
-            recent_income_query = (
+            income_txns_query = (
                 db.query(Transaction)
                 .filter(Transaction.is_deleted == False)
-                .filter(Transaction.is_internal == False) # MANDATORY: Ignore CC payments/transfers
+                .filter(Transaction.is_internal == False) # Ignore CC payments/transfers
                 .filter(Transaction.transaction_type == "income")
-                .filter(Transaction.date >= ninety_days_ago)
+                .filter(Transaction.date >= history_start)
             )
             
-            # EXCLUSION LOGIC: Remove noise from salary projection
             if ignored_ids:
-                recent_income_query = recent_income_query.filter(Transaction.category_id.not_in(ignored_ids))
+                income_txns_query = income_txns_query.filter(Transaction.category_id.not_in(ignored_ids))
             
-            # Legacy/Manual safety blacklist
+            all_income = income_txns_query.all()
+            
+            # Group by normalized description to find recurring sources
+            sources = defaultdict(list)
             blacklist = ["DENNIS", "DANIEL", "META", "TRANSFERENCIA", "PAGO EN OFIC", "MUCHAS GRACIAS", "TRANSF. DEUDA", "SU PAGO", "ABONO"]
-            recent_income = [
-                t for t in recent_income_query.all()
-                if not any(k in (t.description or "").upper() for k in blacklist)
-            ]
-
-            total_income = sum(t.amount for t in recent_income)
-            avg_daily_income = total_income / 90 if recent_income else 0
             
-            # PRUDENCE: Apply a 0.7 safety factor (70%) to projected income.
-            # This ensures we don't over-rely on historical averages that might include one-time windfalls.
-            projected_income = round(avg_daily_income * days * 0.7)
+            for t in all_income:
+                desc = (t.description or "").upper().strip()
+                if any(k in desc for k in blacklist):
+                    continue
+                sources[desc].append(t)
+            
+            total_recurring_monthly = 0
+            for desc, txns in sources.items():
+                # Count distinct months this source appeared in
+                months_present = set(t.date.strftime("%Y-%m") for t in txns)
+                num_months = len(months_present)
+                
+                # RULE 1: Must be present in at least 2 distinct months in lookback window to be a monthly recurring income
+                if num_months < 2:
+                    continue
+                
+                # --- UNIVERSAL SCORING ENGINE ---
+                # We look for the "mathematical signature" of a salary/recurring income
+                score = 0
+                
+                # Semantic Shortcut for verified Salaries and Wages (Ecuador/LATAM-aware)
+                salary_keywords = ["SUELDO", "NOMINA", "PAYROLL", "SALARY", "HONORARIOS", "VIAMATICA", "PAGO DIRECTO"]
+                has_salary_keyword = any(k in desc for k in salary_keywords)
+                
+                if has_salary_keyword and num_months >= 2:
+                    # Verified paycheck: bypass strict volatility checks to allow biweekly/variable amounts
+                    score = 100
+                else:
+                    # 1. Recurrence Score (Max 40 points)
+                    presence_ratio = num_months / (lookback_days / 30)
+                    score += min(40, presence_ratio * 40)
+                    
+                    # 2. Temporal Consistency (Max 30 points)
+                    # Does it happen on the same days each month? Allow slightly wider window for standard transactions
+                    if len(txns) >= 2:
+                        days_of_month = [t.date.day for t in txns]
+                        try:
+                            std_dev_days = statistics.stdev(days_of_month)
+                            if std_dev_days < 5: score += 30     # Highly consistent
+                            elif std_dev_days < 10: score += 15   # Moderately consistent
+                        except statistics.StatisticsError: pass
+                    
+                    # 3. Amount Stability (Max 20 points)
+                    # Allow up to 20% standard deviation variance for standard bills/invoices
+                    amounts = [float(t.amount) for t in txns]
+                    if len(amounts) >= 2:
+                        avg_amt = sum(amounts) / len(amounts)
+                        try:
+                            std_dev_amt = statistics.stdev(amounts)
+                            variation_coeff = std_dev_amt / avg_amt if avg_amt > 0 else 1
+                            if variation_coeff < 0.2: score += 20   # Very stable
+                            elif variation_coeff < 0.4: score += 10 # Stable
+                        except statistics.StatisticsError: pass
+                    
+                    # 4. Semantic Bonus (Max 10 points)
+                    # No keywords matched above, keep as 0
+
+                # --- DECISION ENGINE ---
+                if score >= 45:
+                    total_source_amount = sum(t.amount for t in txns)
+                    expected_monthly = total_source_amount / (lookback_days / 30)
+                    
+                    # Trust factor based on score (Score 45-100 -> 0.6-0.95 safety)
+                    safety = 0.6 + ((score - 45) / 55) * 0.35
+                    total_recurring_monthly += (expected_monthly * safety)
+
+            projected_income = round((total_recurring_monthly / 30) * days)
 
             # 3. Subscriptions due in period
             subscriptions = (
@@ -236,17 +298,17 @@ class CashFlowService:
             # FINAL RESULTS IN CENTS (Standard)
             return ProjectedBalanceResult(
                 days=days,
-                current_balance=int(current_balance),
-                projected_balance=int(projected_balance),
-                projected_income=int(projected_income),
-                projected_expenses=int(projected_expenses),
-                seasonal_adjustment=int(seasonal_adjustment),
+                current_balance=int(cast(Any, current_balance)),
+                projected_balance=int(cast(Any, projected_balance)),
+                projected_income=int(cast(Any, projected_income)),
+                projected_expenses=int(cast(Any, projected_expenses)),
+                seasonal_adjustment=int(cast(Any, seasonal_adjustment)),
                 breakdown={
-                    "subscriptions": int(subscription_cost),
-                    "ious": int(iou_expense - iou_recovery), # Net IOU position
-                    "credit_cards": int(cc_total_debt),
-                    "debt_shares": int(debt_recovery),
-                    "seasonal": int(seasonal_adjustment),
+                    "subscriptions": int(cast(Any, subscription_cost)),
+                    "ious": int(cast(Any, iou_expense - iou_recovery)), # Net IOU position
+                    "credit_cards": int(cast(Any, cc_total_debt)),
+                    "debt_shares": int(cast(Any, debt_recovery)),
+                    "seasonal": int(cast(Any, seasonal_adjustment)),
                 },
             )
         except Exception as e:
