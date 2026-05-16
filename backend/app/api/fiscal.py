@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any, cast
 from datetime import datetime, date
 from decimal import Decimal
 import csv
@@ -34,7 +34,7 @@ def get_iva_rate(db: Session) -> Decimal:
     config = db.query(Config).filter(Config.key == "iva_rate").first()
     if config and config.value:
         try:
-            return Decimal(config.value)
+            return Decimal(cast(str, config.value))
         except:
             return Decimal("0.15")
     
@@ -56,7 +56,7 @@ def get_retention_source_rate(db: Session) -> Decimal:
     config = db.query(Config).filter(Config.key == "retencion_source_rate").first()
     if config and config.value:
         try:
-            return Decimal(config.value)
+            return Decimal(cast(str, config.value))
         except:
             return Decimal("0.01")
     
@@ -77,7 +77,7 @@ def get_retention_iva_rate(db: Session) -> Decimal:
     config = db.query(Config).filter(Config.key == "retencion_iva_rate").first()
     if config and config.value:
         try:
-            return Decimal(config.value)
+            return Decimal(cast(str, config.value))
         except:
             return Decimal("0.30")
     
@@ -287,7 +287,7 @@ def get_fiscal_trend(
 @router.get("/export-declaracion-sri")
 def export_declaracion_sri(
     year: int = Query(...),
-    format: str = Query("xml", regex="^(xml|json)$"),
+    format: str = Query("xml", pattern="^(xml|json)$"),
     db: Session = Depends(get_db)
 ):
     """
