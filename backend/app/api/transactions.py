@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, cast
 import datetime
 from database import get_db
 from app.api.auth import get_current_device
@@ -16,7 +16,7 @@ from app.services.transaction_service import (
 )
 from app.services.transaction_importer import import_transactions
 from app.services.ai_background import categorize_transactions_background
-from pydantic import BaseModel, StrictInt, validator
+from pydantic import BaseModel, StrictInt, field_validator
 import pandas as pd
 import io
 
@@ -105,7 +105,8 @@ class TransactionResponse(BaseModel):
     beneficiary: Optional[str] = None
     version: int  # FASE 7: OCC versioning
 
-    @validator('transaction_type', pre=True)
+    @field_validator('transaction_type', mode='before')
+    @classmethod
     def normalize_type(cls, v):
         if v is None: return v
         return str(v).lower()
@@ -116,8 +117,8 @@ class TransactionResponse(BaseModel):
 
 @router.post("/", response_model=TransactionResponse)
 def create_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
-    transaction_data = transaction.dict(exclude={'splits'})
-    splits_data = [split.dict() for split in transaction.splits] if transaction.splits else None
+    transaction_data = transaction.model_dump(exclude={'splits'})
+    splits_data = [split.model_dump() for split in transaction.splits] if transaction.splits else None
     
     return create_transaction_with_splits(db, transaction_data, splits_data)
 
@@ -126,7 +127,7 @@ def create_transaction(transaction: TransactionCreate, db: Session = Depends(get
 def get_transactions(
     skip: int = 0,
     limit: int = 10000,
-    transaction_type: TransactionType = None,
+    transaction_type: Optional[TransactionType] = None,
     db: Session = Depends(get_db)
 ):
     query = db.query(Transaction).filter(Transaction.is_deleted == False)
@@ -150,8 +151,8 @@ def update_transaction(
     transaction: TransactionUpdate,
     db: Session = Depends(get_db)
 ):
-    update_data = transaction.dict(exclude_unset=True)
-    splits_data = [split.dict() for split in transaction.splits] if transaction.splits is not None else None
+    update_data = transaction.model_dump(exclude_unset=True)
+    splits_data = [split.model_dump() for split in transaction.splits] if transaction.splits is not None else None
     
     return update_transaction_with_splits(db, transaction_id, update_data, splits_data)
 
@@ -264,7 +265,7 @@ def cleanup_duplicate_transactions(db: Session = Depends(get_db)):
             
             # Keep the first one, delete the rest
             for tx in matching_txs[1:]:
-                tx.is_deleted = True
+                tx.is_deleted = cast(Any, True)
                 affected_accounts.add(tx.account_id)
                 deleted_count += 1
         
@@ -272,7 +273,7 @@ def cleanup_duplicate_transactions(db: Session = Depends(get_db)):
         
         # Recalculate balances for affected accounts
         for account_id in affected_accounts:
-            recalculate_account_balance(db, account_id)
+            recalculate_account_balance(db, cast(str, account_id))
         
         return {
             "success": True,
