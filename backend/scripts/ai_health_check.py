@@ -3,6 +3,7 @@ import os
 import json
 import time
 from datetime import datetime
+from typing import Any, cast
 
 # Añadir el path base para importar módulos de la app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,7 +19,7 @@ def run_health_checks():
     
     db = SessionLocal()
     config = db.query(Config).filter(Config.key == "gemini_api_key").first()
-    api_key = config.value if config else None
+    api_key = str(config.value) if config and config.value else None
     
     if not api_key:
         print("? ERROR: No Gemini API Key found in database.")
