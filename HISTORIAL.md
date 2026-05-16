@@ -1,4 +1,14 @@
-## Fecha: 08 de Mayo de 2026 (Sesión Actual)
+## Fecha: 16 de Mayo de 2026 (Sesión Actual)
+
+### 1. Robustez del Orquestador (DevOps & DX)
+* **Actualización Inteligente de Python:** Se rediseñó la función `Test-PythonVersion` para que no solo detecte la ausencia de Python, sino que evalúe la versión instalada. Si es inferior a la **3.12.0** (ej. 3.9.0), el script ofrece e inicia una actualización automática vía `Winget`.
+* **Saneamiento de Detección de Node.js:** Se migró la verificación de Node.js al comando nativo `Get-Command`. Esto elimina los errores "CommandNotFoundException" (texto rojo en pantalla) que aparecían antes de intentar la instalación automática.
+* **Mecanismo de Refresco de PATH:** Implementación de `Refresh-SessionPath`, una función que intenta actualizar las variables de entorno en la sesión actual de PowerShell tras una instalación exitosa, reduciendo la fricción para el usuario.
+* **Validación de Dependencias Silenciosa:** Se optimizó el flujo de inicio para que las verificaciones iniciales sean silenciosas y solo informativas, mejorando la estética del arranque.
+
+---
+
+## Fecha: 08 de Mayo de 2026
 
 ### 1. Integridad Financiera y Reconstrucción Histórica
 * **Normalización de Tipos de Transacción:** Se migró el campo `transaction_type` de un Enum estricto a un formato de `String` flexible, eliminando errores de sincronización entre el backend y el dashboard. Ahora todas las transacciones se almacenan en minúsculas (`income`/`expense`).
