@@ -9,13 +9,14 @@ import os
 import sys
 import sqlite3
 from datetime import datetime
+from typing import Any, Dict
 from pathlib import Path
 
 # Set AI_ENABLED=false for cold load migration
 os.environ["AI_ENABLED"] = "false"
 
 
-def extract_legacy_data(legacy_db_path: str) -> dict[str, any]:
+def extract_legacy_data(legacy_db_path: str) -> dict[str, Any]:
     """
     Extract data from legacy_finance.db in READ-ONLY mode.
     
