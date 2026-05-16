@@ -285,7 +285,7 @@ export const intelligenceAPI = {
 };
 
 export const snapshotsAPI = {
-  create: (data: { month: number; year: number }) => api.post('/snapshots/create', data),
+  create: (data: { month: number; year: number; lock?: boolean }) => api.post('/snapshots/create', data),
   getAll: (params?: any) => api.get('/snapshots/', { params }),
   getById: (id: string) => api.get(`/snapshots/${id}`),
   getByMonthYear: (month: number, year: number) => api.get(`/snapshots/month/${month}/year/${year}`),
