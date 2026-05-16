@@ -68,7 +68,7 @@ export default function SummaryCards({ balance, creditCardDebt, income, expenses
           <div className="flex items-start justify-between">
             <div className="flex flex-col gap-1">
               <span className="text-[10px] font-black text-white/30 uppercase tracking-widest font-mono leading-none">Flujo Mensual</span>
-              <span className="text-xs font-bold text-emerald-400 group-hover:text-emerald-300 transition-colors">Ingresos Totales</span>
+              <span className="text-xs font-bold text-emerald-400 group-hover:text-emerald-300 transition-colors">Ingresos Mensuales</span>
             </div>
             <div className="relative bg-white/5 p-2 rounded-xl border border-white/10 shadow-inner group-hover:scale-105 transition-transform">
               <ArrowUpRight className="w-4 h-4 text-emerald-400" />
