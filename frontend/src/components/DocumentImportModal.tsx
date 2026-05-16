@@ -34,8 +34,15 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       accountsAPI.getAll(),
       categoriesAPI.getAll()
     ]).then(([accRes, catRes]) => {
-      setAccounts(accRes.data);
+      // Filtrar solo cuentas corrientes, de ahorros y efectivo
+      const bankAccounts = accRes.data.filter((acc: Account) => 
+        ['savings', 'checking', 'cash'].includes(acc.account_type)
+      );
+      setAccounts(bankAccounts);
       setCategories(catRes.data);
+      if (bankAccounts.length > 0) {
+        setAccountId(bankAccounts[0].id);
+      }
     });
   }, []);
 
@@ -92,12 +99,14 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
     try {
       const response = await aiAPI.parseReceipt(file);
 
-      if (response.data.splits && response.data.splits.length > 0) {
-        const transactions = response.data.splits.map((split: any) => ({
-          description: split.description,
-          amount: split.amount,
-          category_id: split.suggested_category_id || null,
-          transaction_type: 'expense',
+      // El backend devuelve response.data.transactions en su esquema AudioToTxnResponse
+      const txnsList = response.data.transactions || [];
+      if (txnsList.length > 0) {
+        const transactions = txnsList.map((tx: any) => ({
+          description: tx.description,
+          amount: tx.amount, // Ya está en centavos
+          category_id: tx.category_id || null,
+          transaction_type: tx.transaction_type || 'expense',
           selected: true
         }));
         setExtractedTransactions(transactions);
@@ -163,18 +172,23 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-slate-700">
-          <h2 className="text-xl font-bold text-white">Importar Documento (IA)</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto shadow-2xl relative">
+        <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 sticky top-0 z-[60] backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 bg-blue-500/20 rounded-lg">
+              <FileText className="w-5 h-5 text-blue-400" />
+            </div>
+            <h2 className="text-lg font-black text-white tracking-tight">Importador IA <span className="text-blue-400 font-medium text-xs ml-2 px-2 py-0.5 bg-blue-500/10 rounded-full">Documento</span></h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-4 md:p-5 space-y-4 md:space-y-5">
           {/* Account Selection */}
-          <div>
-            <label className="block text-sm text-slate-300 mb-2">Cuenta destino</label>
+          <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700">
+            <label className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Cuenta destino</label>
             <Select
               value={accountId.toString()}
               onChange={(value) => setAccountId(parseInt(value))}
@@ -189,8 +203,8 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
-                dragActive ? 'border-purple-500 bg-purple-500/10' : 'border-slate-600 hover:border-purple-500'
+              className={`border-2 border-dashed rounded-2xl p-5 md:p-6 text-center transition-all duration-300 ${
+                dragActive ? 'border-blue-500 bg-blue-500/10 scale-[1.01]' : 'border-slate-600 hover:border-blue-500 hover:bg-slate-800/50'
               }`}
             >
               <input
@@ -200,15 +214,15 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                 className="hidden"
                 id="document-upload"
               />
-              <label htmlFor="document-upload" className="cursor-pointer">
-                <div className={`${dragActive ? 'text-purple-400' : 'text-slate-400'} mx-auto mb-3`}>
+              <label htmlFor="document-upload" className="cursor-pointer flex flex-col items-center">
+                <div className={`${dragActive ? 'text-blue-400 scale-110' : 'text-slate-400'} transition-all duration-300 mb-2`}>
                   {getFileIcon()}
                 </div>
-                <p className="text-white font-medium">
+                <p className="text-base text-white font-bold mb-1">
                   {file ? file.name : 'Arrastra tu documento aquí'}
                 </p>
-                <p className="text-slate-400 text-sm mt-1">
-                  {file ? 'Archivo seleccionado' : 'Imágenes (JPEG, PNG, WebP) o PDF'}
+                <p className="text-slate-400 text-xs">
+                  {file ? 'Haz clic abajo para analizar' : 'Imágenes (JPEG, PNG, WebP) o PDF'}
                 </p>
               </label>
             </div>
@@ -216,9 +230,9 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
 
           {/* Preview */}
           {file && preview && !extractedTransactions.length && (
-            <div className="bg-slate-700/30 rounded-lg p-3">
-              <p className="text-sm text-slate-300 mb-2">Vista previa:</p>
-              <img src={preview} alt="Preview" className="max-h-64 mx-auto rounded-lg" />
+            <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-700/50">
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Vista previa:</p>
+              <img src={preview} alt="Preview" className="max-h-48 mx-auto rounded-lg shadow-md border border-slate-600" />
             </div>
           )}
 
@@ -227,17 +241,27 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
             <button
               onClick={handleProcess}
               disabled={processing}
-              className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:from-blue-700 hover:to-cyan-700 text-sm disabled:opacity-50"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm hover:shadow-lg hover:shadow-blue-500/20 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
             >
-              {processing ? 'Procesando con IA...' : 'Extraer Transacciones con IA'}
+              {processing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Procesando con IA...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  Extraer Transacciones con IA
+                </>
+              )}
             </button>
           )}
 
           {/* Extracted Transactions Table */}
           {extractedTransactions.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white">Transacciones Extraídas</h3>
+                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Transacciones Extraídas</h3>
                 <button
                   onClick={() => {
                     setFile(null);
@@ -245,18 +269,18 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                     setExtractedTransactions([]);
                     setResult(null);
                   }}
-                  className="flex items-center text-slate-400 hover:text-white text-sm"
+                  className="flex items-center gap-2 text-slate-400 hover:text-white text-[10px] font-bold uppercase bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 transition-all"
                 >
-                  <Trash2 className="w-4 h-4 mr-1" />
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
                   Nuevo documento
                 </button>
               </div>
               
-              <div className="bg-slate-700/30 rounded-lg overflow-hidden">
+              <div className="bg-slate-900/50 rounded-2xl border border-slate-700 overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-slate-700/50">
+                  <thead className="bg-slate-800/80 sticky top-0 z-10 backdrop-blur-md shadow-sm">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">
                         <input
                           type="checkbox"
                           checked={extractedTransactions.every(t => t.selected)}
@@ -265,33 +289,33 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                               prev.map(txn => ({ ...txn, selected: e.target.checked }))
                             );
                           }}
-                          className="mr-2"
+                          className="mr-2 accent-blue-500 rounded"
                         />
-                        Seleccionar
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase">Descripción</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase">Monto</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase">Tipo</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase">Categoría</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Descripción</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Monto</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Tipo</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Categoría</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-600/50">
+                  <tbody className="divide-y divide-slate-700/50">
                     {extractedTransactions.map((txn, index) => (
-                      <tr key={index} className={txn.selected ? 'bg-purple-500/10' : ''}>
+                      <tr key={index} className={`transition-colors ${txn.selected ? 'bg-blue-500/5' : 'hover:bg-slate-700/30'}`}>
                         <td className="px-4 py-3">
                           <input
                             type="checkbox"
                             checked={txn.selected}
                             onChange={() => toggleTransactionSelection(index)}
+                            className="accent-blue-500 rounded"
                           />
                         </td>
-                        <td className="px-4 py-3 text-sm text-white">{txn.description}</td>
-                        <td className="px-4 py-3 text-sm text-white">${(txn.amount / 100).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-white font-medium">{txn.description}</td>
+                        <td className="px-4 py-3 text-sm font-bold text-slate-200">${(txn.amount / 100).toFixed(2)}</td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
+                          <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
                             txn.transaction_type === 'income'
-                              ? 'bg-green-500/20 text-green-400'
-                              : 'bg-red-500/20 text-red-400'
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : 'bg-rose-500/20 text-rose-400'
                           }`}>
                             {txn.transaction_type === 'income' ? 'Ingreso' : 'Gasto'}
                           </span>
@@ -307,33 +331,41 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                 </table>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !extractedTransactions.some(t => t.selected)}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 text-sm disabled:opacity-50"
-                >
-                  {saving ? 'Guardando...' : `Guardar ${extractedTransactions.filter(t => t.selected).length} transacción(es)`}
-                </button>
+              <div className="flex items-center justify-between pt-4 border-t border-slate-700">
+                <p className="text-slate-400 text-sm">
+                  Se importarán <strong className="text-white">{extractedTransactions.filter(t => t.selected).length}</strong> transacciones.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={onClose}
+                    className="px-6 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving || !extractedTransactions.some(t => t.selected)}
+                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:from-blue-500 hover:to-cyan-500 font-bold shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {saving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        Guardando...
+                      </>
+                    ) : 'Confirmar Importación'}
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
           {/* Result */}
           {result && (
-            <div className={`rounded-lg p-3 ${
-              result.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+            <div className={`rounded-xl p-4 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 ${
+              result.success ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
             }`}>
-              <div className="flex items-center gap-2">
-                {result.success ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                <span className="font-medium">{result.message}</span>
-              </div>
+              {result.success ? <CheckCircle className="w-6 h-6 flex-shrink-0" /> : <AlertCircle className="w-6 h-6 flex-shrink-0" />}
+              <span className="font-semibold">{result.message}</span>
             </div>
           )}
         </div>
