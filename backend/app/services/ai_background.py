@@ -41,8 +41,10 @@ def categorize_transactions_background(transaction_ids: list[str]):
         # Apply results to transactions
         for i, tx in enumerate(uncategorized):
             if i in results:
-                tx.category_id = results[i]
-                logger.info(f"Categorized transaction {tx.id}: category_id={results[i]}")
+                cat_id, clarification = results[i]
+                tx.category_id = cat_id
+                tx.needs_clarification = clarification
+                logger.info(f"Categorized transaction {tx.id}: category_id={cat_id}, clarification={clarification}")
         
         db.commit()
         logger.info(f"Batch categorization completed for {len(uncategorized)} transactions")
