@@ -9,7 +9,7 @@ Invariants enforced:
 """
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from datetime import datetime, timezone
 
 from app.models.transaction import Transaction, TransactionType
@@ -146,11 +146,11 @@ def create_transaction_with_splits(
         if splits_data:
             validate_splits(splits_data, transaction_data["amount"])
 
-        # --- persist -----------------------------------------------------
+        # persist
         # GOLDEN RULE: Any income to a credit card is an internal payment, not real income.
         if transaction_data.get("transaction_type") == "income" and transaction_data.get("account_id"):
-            from app.models.account import Account, AccountType
             account = db.query(Account).filter(Account.id == transaction_data["account_id"]).first()
+            from app.models.account import AccountType
             if account and account.account_type == AccountType.CREDIT_CARD:
                 transaction_data["is_internal"] = True
 
@@ -168,16 +168,16 @@ def create_transaction_with_splits(
                 process_cross_payment(db, db_transaction, source_account)
 
         if splits_data:
-            create_splits(db, db_transaction.id, splits_data)
+            create_splits(db, cast(str, db_transaction.id), splits_data)
 
         # Recalculate goal progress if transaction is assigned to a goal
         if db_transaction.goal_id:
             from app.api.goals import recalculate_goal_progress
-            recalculate_goal_progress(db_transaction.goal_id, db)
+            recalculate_goal_progress(cast(str, db_transaction.goal_id), db)
 
         # Disparamos la sanación de snapshots si la transacción es del pasado o afecta el histórico
         from app.services.snapshot_service import mark_snapshots_as_stale
-        mark_snapshots_as_stale(db, db_transaction.date.month, db_transaction.date.year)
+        mark_snapshots_as_stale(db, cast(int, db_transaction.date.month), cast(int, db_transaction.date.year))
 
         db.commit()
         db.refresh(db_transaction)
@@ -232,12 +232,15 @@ def update_transaction_with_splits(
         for key, value in transaction_data.items():
             setattr(db_transaction, key, value)
 
-        db_transaction.updated_at = datetime.now(timezone.utc)
+        db_transaction.updated_at = cast(Any, datetime.now(timezone.utc))
         
         # Learn from user's recategorization (only when category actually changed)
         if new_category_id and new_category_id != old_category_id:
             from app.services.categorizer import learn_category_pattern
-            learn_category_pattern(db, db_transaction.description, new_category_id, db_transaction.beneficiary)
+            learn_category_pattern(db, cast(str, db_transaction.description), new_category_id, cast(Optional[str], db_transaction.beneficiary))
+
+        # Reset clarification flag when manually updated (User confirmation)
+        db_transaction.needs_clarification = cast(Any, False)
 
         # --- validate splits against the (possibly new) amount -----------
         if splits_data is not None:
@@ -246,7 +249,7 @@ def update_transaction_with_splits(
             ).delete()
 
             if splits_data:
-                validate_splits(splits_data, db_transaction.amount)
+                validate_splits(splits_data, cast(int, db_transaction.amount))
                 create_splits(db, transaction_id, splits_data)
 
         # Apply new transaction effect on balance
@@ -259,14 +262,14 @@ def update_transaction_with_splits(
         
         if old_goal_id and old_goal_id != new_goal_id:
             from app.api.goals import recalculate_goal_progress
-            recalculate_goal_progress(old_goal_id, db)
+            recalculate_goal_progress(cast(str, old_goal_id), db)
         if new_goal_id and new_goal_id != old_goal_id:
             from app.api.goals import recalculate_goal_progress
-            recalculate_goal_progress(new_goal_id, db)
+            recalculate_goal_progress(cast(str, new_goal_id), db)
 
         # Disparamos la sanación de snapshots para el mes de la transacción
         from app.services.snapshot_service import mark_snapshots_as_stale
-        mark_snapshots_as_stale(db, db_transaction.date.month, db_transaction.date.year)
+        mark_snapshots_as_stale(db, cast(int, db_transaction.date.month), cast(int, db_transaction.date.year))
 
         db.commit()
         db.refresh(db_transaction)
@@ -304,16 +307,16 @@ def delete_transaction_with_balance(db: Session, transaction_id: str) -> dict:
     goal_id = db_transaction.goal_id
     
     # Soft delete: mark as deleted instead of physically deleting
-    db_transaction.is_deleted = True
+    db_transaction.is_deleted = cast(Any, True)
     # Disparamos la sanación de snapshots para el mes de la transacción eliminada
     from app.services.snapshot_service import mark_snapshots_as_stale
-    mark_snapshots_as_stale(db, db_transaction.date.month, db_transaction.date.year)
+    mark_snapshots_as_stale(db, cast(int, db_transaction.date.month), cast(int, db_transaction.date.year))
 
     db.commit()
     
     if goal_id:
         from app.api.goals import recalculate_goal_progress
-        recalculate_goal_progress(goal_id, db)
+        recalculate_goal_progress(cast(str, goal_id), db)
     
     return {"message": "Transaction deleted successfully"}
 
