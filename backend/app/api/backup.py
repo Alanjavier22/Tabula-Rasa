@@ -4,7 +4,7 @@ Backup API endpoints for manual backup operations and Google Drive management.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any, cast
 from database import get_db
 from app.api.auth import get_current_device
 from app.utils.backup import (
@@ -160,7 +160,7 @@ def list_google_drive_backups(db: Session = Depends(get_db)):
 
 
 @router.post("/restore/{backup_id}", dependencies=[Depends(get_current_device)], response_model=RestoreResponse)
-def restore_from_drive(backup_id: str, request: RestoreRequest = None, db: Session = Depends(get_db)):
+def restore_from_drive(backup_id: str, request: Optional[RestoreRequest] = None, db: Session = Depends(get_db)):
     """
     Restore database from a specific Google Drive backup with safety validations.
 
@@ -192,7 +192,7 @@ def restore_from_drive(backup_id: str, request: RestoreRequest = None, db: Sessi
 
         # Perform restore with pre-restore backup
         result = restore_from_google_drive(
-            backup_id=request.backup_id,
+            backup_id=cast(str, request.backup_id),
             create_pre_restore_backup=request.create_pre_restore_backup
         )
 
