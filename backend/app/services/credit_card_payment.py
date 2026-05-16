@@ -6,7 +6,7 @@ Works for both manual and import flows.
 """
 import re
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Any, cast
 from sqlalchemy.orm import Session
 
 from app.models.account import Account
@@ -112,12 +112,12 @@ def find_target_credit_card(
     for card in credit_cards:
         if card.linked_account_id == source_account.id:
             # Check if description matches this card's name or brand
-            if _match_card_by_name(description, card.name):
+            if _match_card_by_name(description, cast(str, card.name)):
                 return card
 
     # 2. Card name mentioned in description
     for card in credit_cards:
-        if _match_card_by_name(description, card.name):
+        if _match_card_by_name(description, cast(str, card.name)):
             return card
 
     # 3. Brand match + same bank
@@ -201,7 +201,7 @@ def process_cross_payment(
     db.flush()
 
     # Update the credit card balance (INCOME reduces debt)
-    target_card.balance += transaction.amount
+    target_card.balance = cast(Any, target_card.balance) + cast(Any, transaction.amount)
     db.flush()
 
     logger.info(
