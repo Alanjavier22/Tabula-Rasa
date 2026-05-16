@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 from datetime import datetime, timezone
 from database import get_db
 from app.api.auth import get_current_device
@@ -58,7 +58,7 @@ def create_subscription(subscription: SubscriptionCreate, db: Session = Depends(
     if subscription.category_id:
         if not db.query(Category).filter(Category.id == subscription.category_id).first():
             raise HTTPException(status_code=404, detail="Category not found")
-    db_sub = Subscription(**subscription.dict())
+    db_sub = Subscription(**subscription.model_dump())
     db.add(db_sub)
     db.commit()
     db.refresh(db_sub)
@@ -92,9 +92,9 @@ def update_subscription(subscription_id: str, subscription: SubscriptionUpdate, 
     if subscription.category_id:
         if not db.query(Category).filter(Category.id == subscription.category_id).first():
             raise HTTPException(status_code=404, detail="Category not found")
-    for key, value in subscription.dict(exclude_unset=True).items():
+    for key, value in subscription.model_dump(exclude_unset=True).items():
         setattr(db_sub, key, value)
-    db_sub.updated_at = datetime.now(timezone.utc)
+    db_sub.updated_at = cast(Any, datetime.now(timezone.utc))
     db.commit()
     db.refresh(db_sub)
     return db_sub
@@ -154,9 +154,9 @@ def pay_subscription(subscription_id: str, db: Session = Depends(get_db)):
                 SubscriptionFrequency.QUARTERLY: relativedelta(months=3),
                 SubscriptionFrequency.YEARLY: relativedelta(years=1),
             }
-            db_sub.next_billing_date = db_sub.next_billing_date + freq_delta.get(
-                db_sub.frequency, relativedelta(months=1)
-            )
+            db_sub.next_billing_date = cast(Any, db_sub.next_billing_date + freq_delta.get(
+                cast(SubscriptionFrequency, db_sub.frequency), relativedelta(months=1)
+            ))
         else:
             # If no billing date was set, set it to now + frequency
             freq_delta = {
@@ -165,11 +165,11 @@ def pay_subscription(subscription_id: str, db: Session = Depends(get_db)):
                 SubscriptionFrequency.QUARTERLY: relativedelta(months=3),
                 SubscriptionFrequency.YEARLY: relativedelta(years=1),
             }
-            db_sub.next_billing_date = datetime.now(timezone.utc) + freq_delta.get(
-                db_sub.frequency, relativedelta(months=1)
-            )
+            db_sub.next_billing_date = cast(Any, datetime.now(timezone.utc) + freq_delta.get(
+                cast(SubscriptionFrequency, db_sub.frequency), relativedelta(months=1)
+            ))
 
-        db_sub.updated_at = datetime.now(timezone.utc)
+        db_sub.updated_at = cast(Any, datetime.now(timezone.utc))
         db.commit()
         db.refresh(db_sub)
 
