@@ -4,7 +4,7 @@ import os
 import io
 import re
 import pandas as pd
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 import google.genai as genai
 from google.genai import types
@@ -42,7 +42,9 @@ class AccountIntelligenceService:
 
     def _get_api_key(self) -> Optional[str]:
         config = self.db.query(Config).filter(Config.key == "gemini_api_key").first()
-        return config.value if config else None
+        if config and config.value:
+            return str(config.value)
+        return None
 
     def generate_fingerprint(self, date: str, description: str, amount_cents: int, account_id: str, balance_cents: Optional[int] = None, suffix: str = "") -> str:
         """Generates a unique hash to prevent duplicates, including balance to disambiguate identical transactions."""
@@ -69,7 +71,7 @@ class AccountIntelligenceService:
         except Exception as e:
             raise ValueError(f"No se pudo procesar el archivo {filename}: {str(e)}")
 
-    def local_extract_transactions(self, file_data: bytes, filename: str) -> List[Dict]:
+    def local_extract_transactions(self, file_data: bytes, filename: str) -> Dict[str, Any]:
         """Intenta extraer transacciones localmente usando heurísticas de Pandas para evitar llamada a la IA."""
         try:
             if filename.lower().endswith('.csv'):
@@ -149,55 +151,44 @@ class AccountIntelligenceService:
                     skipped_count += 1
                     continue
                     
-                amount_cents = 0
                 transaction_type = 'expense'
                 
-                def parse_money(val) -> int:
+                # Move parse_money outside or define it more robustly
+                def safe_parse_money(val: Any) -> int:
                     if pd.isna(val): return 0
                     s = str(val).strip()
                     if not s: return 0
                     
-                    # Manejo de coma decimal (Ecuador) vs punto decimal
-                    # Si hay una coma y un punto, asumimos punto es miles y coma es decimal
-                    # Si solo hay coma, es decimal.
                     if ',' in s and '.' in s:
-                        # Estilo 1.234,56 -> 1234.56
                         s = s.replace('.', '').replace(',', '.')
                     elif ',' in s:
-                        # Estilo 22,99 -> 22.99
                         s = s.replace(',', '.')
                     
                     clean = re.sub(r'[^\d.-]', '', s)
                     try:
-                        return int(round(float(clean) * 100))
-                    except:
+                        return round(float(clean) * 100)
+                    except (ValueError, TypeError):
                         return 0
 
                 # Detectar tipo priorizando la columna de TIPO si existe
                 forced_type = None
-                is_deposit = False
                 if type_col_idx != -1 and pd.notna(row.iloc[type_col_idx]):
                     tv = str(row.iloc[type_col_idx]).lower()
                     if 'ingreso' in tv or 'abono' in tv: 
                         forced_type = 'income'
                     elif 'deposito' in tv or 'depósito' in tv:
                         forced_type = 'income'
-                        is_deposit = True # Lo marcamos para la precisión del resumen
                     elif 'egreso' in tv or 'retiro' in tv or 'cargo' in tv or 'débito' in tv or 'debito' in tv: 
                         forced_type = 'expense'
 
                 if amount_col_idx != -1:
-                    raw_cents = parse_money(row.iloc[amount_col_idx])
+                    raw_cents = safe_parse_money(row.iloc[amount_col_idx])
                     if raw_cents == 0: 
                         skipped_count += 1
                         continue
                     
                     if forced_type:
-                        # REGLA MAESTRA DE PRECISIÓN:
-                        # 1. Ingresos y Abonos son SIEMPRE income (oficiales para el banco)
-                        # 2. Depósitos son deposit (positivos pero no "ingresos oficiales")
-                        # 3. Egresos son expense EXCEPTO si son transferencias internas
-                        
+                        # ...
                         tv_clean = str(row.iloc[type_col_idx]).lower()
                         desc_clean = desc_val.lower()
                         
@@ -206,7 +197,6 @@ class AccountIntelligenceService:
                         elif 'egreso' in tv_clean or 'retiro' in tv_clean or 'cargo' in tv_clean or 'débito' in tv_clean or 'debito' in tv_clean:
                             transaction_type = 'expense'
                         else:
-                            # Ingreso o Abono (Incluyendo transferencias internas y reversos oficiales)
                             transaction_type = 'income'
                         
                         amount_cents = abs(raw_cents)
@@ -218,8 +208,8 @@ class AccountIntelligenceService:
                             transaction_type = 'expense'
                             amount_cents = abs(raw_cents)
                 else:
-                    cargo_cents = parse_money(row.iloc[cargo_col_idx]) if cargo_col_idx != -1 else 0
-                    abono_cents = parse_money(row.iloc[abono_col_idx]) if abono_col_idx != -1 else 0
+                    cargo_cents = safe_parse_money(row.iloc[cargo_col_idx]) if cargo_col_idx != -1 else 0
+                    abono_cents = safe_parse_money(row.iloc[abono_col_idx]) if abono_col_idx != -1 else 0
                     
                     if cargo_cents != 0:
                         amount_cents = abs(cargo_cents)
@@ -233,7 +223,7 @@ class AccountIntelligenceService:
 
                 balance_cents = None
                 if balance_col_idx != -1:
-                    balance_cents = parse_money(row.iloc[balance_col_idx])
+                    balance_cents = safe_parse_money(row.iloc[balance_col_idx])
                 
                 # Extraer beneficiario si existe la columna
                 beneficiary = ""
@@ -255,16 +245,27 @@ class AccountIntelligenceService:
             
             # --- EXTRACCIÓN DE RESUMEN OFICIAL (SI EXISTE) ---
             official_income = official_expense = None
+            # Refined money parser for summary extraction
+            def summary_money_parser(v: Any) -> int:
+                if pd.isna(v): return 0
+                s = str(v).strip()
+                if not s: return 0
+                if ',' in s and '.' in s: s = s.replace('.', '').replace(',', '.')
+                elif ',' in s: s = s.replace(',', '.')
+                clean = re.sub(r'[^\d.-]', '', s)
+                try: return round(float(clean) * 100)
+                except (ValueError, TypeError): return 0
+
             for idx, row in df.head(15).iterrows():
                 row_str = " ".join([str(v).lower() for v in row if pd.notna(v)])
                 # Buscamos filas de resumen que contengan el valor al lado
                 if 'ingresos' in row_str and 'resumen' not in row_str:
                     for v in row:
-                        val = parse_money(v)
+                        val = summary_money_parser(v)
                         if val > 100: official_income = val # Evitamos ruidos pequeños
                 if 'egresos' in row_str:
                     for v in row:
-                        val = parse_money(v)
+                        val = summary_money_parser(v)
                         if val > 100: official_expense = val
 
             # Calcular resumen con precisión bancaria (Sin trampas)
@@ -275,8 +276,8 @@ class AccountIntelligenceService:
             
             for t in transactions:
                 # Buscamos el tipo crudo que vino del banco (si lo detectamos)
-                raw_type = t.get("_raw_type", "").lower()
-                amt = t['amount_cents']
+                raw_type = str(t.get("_raw_type") or "").lower()
+                amt = cast(int, t['amount_cents'])
                 
                 if t['transaction_type'] == 'income':
                     # Solo sumamos al "Ingreso del Periodo" si el banco lo llamó Ingreso
@@ -295,7 +296,9 @@ class AccountIntelligenceService:
             if official_income is not None: income_total = official_income
             if official_expense is not None: expense_total = official_expense
 
-            dates = [t['date'] for t in transactions]
+            dates = [str(t['date']) for t in transactions if t.get('date')]
+            if not dates:
+                return {}
             
             return {
                 "bank_name": "Extractor Local",
@@ -311,14 +314,14 @@ class AccountIntelligenceService:
             print(f"[LocalParser] Error extrayendo localmente: {e}")
             return {}
 
-    async def parse_account_document(self, file_data: bytes, filename: str, account_id: str, expected_bank_name: str = None) -> Dict:
+    async def parse_account_document(self, file_data: bytes, filename: str, account_id: str, expected_bank_name: Optional[str] = None) -> Dict[str, Any]:
         api_key = self._get_api_key()
         if not api_key:
             raise ValueError("GEMINI_API_KEY no configurada en el sistema.")
 
         client = genai.Client(api_key=api_key)
         
-        parsed_data = {"transactions": []}
+        parsed_data: Dict[str, Any] = {"transactions": []}
         
         # --- NUEVO: Extracción Híbrida (Local First) ---
         print("[AccountIntelligence] Intentando extracción heurística local...")
@@ -371,6 +374,9 @@ class AccountIntelligenceService:
                         )
                     )
                     # Si llegamos aquí, la llamada fue exitosa
+                    if not response.text:
+                        raise ValueError("Gemini returned an empty response")
+                        
                     parsed_data = json.loads(response.text)
                     break
                 except Exception as e:
@@ -422,10 +428,13 @@ class AccountIntelligenceService:
             tx_dict['fingerprint'] = fp
             
             # Usar resultado del batch
-            cat_id = cat_results.get(idx)
-            tx_dict['category_id'] = cat_id
-            if cat_id in categories_dict:
-                tx_dict['category_name'] = categories_dict[cat_id]
+            cat_tuple = cat_results.get(idx)
+            if cat_tuple:
+                cat_id, clarification = cat_tuple
+                tx_dict['category_id'] = cat_id
+                tx_dict['needs_clarification'] = clarification
+                if cat_id in categories_dict:
+                    tx_dict['category_name'] = categories_dict[cat_id]
             
             # Re-evaluar duplicados con el fingerprint final
             existing = self.db.query(Transaction).filter(Transaction.fingerprint == fp, Transaction.is_deleted == False).first()
@@ -477,18 +486,19 @@ class AccountIntelligenceService:
                         import_log_id=log.id,
                         running_balance=tx_data.get('balance_cents'),
                         beneficiary=tx_data.get('beneficiary'),
-                        is_manual=False
+                        is_manual=False,
+                        needs_clarification=tx_data.get('needs_clarification', False)
                     )
                     self.db.add(new_tx)
                     
                     # Aprender el patrón basándose en la confirmación del usuario
                     if category_id:
                         from app.services.categorizer import learn_category_pattern
-                        learn_category_pattern(self.db, new_tx.description, category_id, new_tx.beneficiary)
+                        learn_category_pattern(self.db, cast(Any, new_tx.description), cast(Any, category_id), cast(Any, new_tx.beneficiary))
 
                     new_txs_count += 1
 
-            log.status = 'processed'
+            log.status = cast(Any, 'processed')
             self.db.commit()
 
             if new_txs_count > 0:
@@ -496,13 +506,13 @@ class AccountIntelligenceService:
                 mark_snapshots_as_stale(self.db, earliest_date.month, earliest_date.year)
                 # Recalcular saldos
                 from app.services.balance import recalculate_account_balance
-                recalculate_account_balance(self.db, log.account_id)
+                recalculate_account_balance(self.db, cast(Any, log.account_id))
 
             return new_txs_count
         except Exception as e:
             self.db.rollback()
-            log.status = 'error'
-            log.error_message = str(e)
+            log.status = cast(Any, 'error')
+            log.error_message = cast(Any, str(e))
             self.db.commit()
             raise e
         finally:
