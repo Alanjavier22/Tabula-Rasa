@@ -5,7 +5,7 @@ from app.api.auth import get_current_device
 from app.models.config import Config
 from app.services.audit_service import AuditService
 from pydantic import BaseModel
-from typing import List
+from typing import List, Any, cast
 
 router = APIRouter(
     prefix="/api/ai-audit", 
@@ -33,7 +33,7 @@ def get_potential_duplicates(days: int = 7, db: Session = Depends(get_db)):
     if not config or not config.value:
         raise HTTPException(status_code=400, detail="Gemini API Key not configured")
     
-    audit = AuditService(db, config.value)
+    audit = AuditService(db, cast(str, config.value))
     duplicates = audit.scan_for_duplicates(days=days)
     
     return {
