@@ -5,7 +5,7 @@ from app.api.auth import get_current_device
 import google.genai as genai
 from google.genai import types
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any, cast
 import os
 from app.models.config import Config
 
@@ -35,7 +35,7 @@ async def parse_receipt(file: UploadFile = File(...), db: Session = Depends(get_
     if not config or not config.value:
         raise HTTPException(status_code=400, detail="Gemini API Key not configured")
 
-    client = genai.Client(api_key=config.value)
+    client = genai.Client(api_key=cast(str, config.value))
     
     try:
         content_bytes = await file.read()
@@ -54,10 +54,10 @@ async def parse_receipt(file: UploadFile = File(...), db: Session = Depends(get_
 
         response = client.models.generate_content(
             model="gemini-3.1-flash-lite",
-            contents=[
+            contents=cast(Any, [
                 types.Part.from_bytes(data=content_bytes, mime_type=mime_type),
-                "Extrae los datos de esta factura."
-            ],
+                types.Part.from_text(text="Extrae los datos de esta factura.")
+            ]),
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 response_mime_type="application/json",
@@ -87,7 +87,10 @@ async def parse_receipt(file: UploadFile = File(...), db: Session = Depends(get_
         )
         
         import json
-        result = json.loads(response.text.strip())
+        response_text = (response.text or "").strip()
+        if not response_text:
+            response_text = "{}"
+        result = json.loads(response_text)
         return ReceiptParseResponse(**result)
 
     except Exception as e:
