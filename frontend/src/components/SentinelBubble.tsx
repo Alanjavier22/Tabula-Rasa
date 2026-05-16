@@ -9,12 +9,21 @@ interface SentinelWarning {
   message: string;
 }
 
+interface SentinelBurnAlarm {
+  category: string;
+  spent: number;
+  expected: number;
+  remaining: number;
+  pacing_status: string;
+}
+
 interface SentinelHealth {
   health_score: number;
   status_summary: string;
   top_concerns: string[];
   recommended_action: string;
   warnings: SentinelWarning[];
+  alarmas_ritmo_gasto?: SentinelBurnAlarm[];
   timestamp: string;
 }
 
@@ -239,6 +248,32 @@ export const SentinelBubble: React.FC = () => {
                         ))}
                       </div>
                     </motion.div>
+
+                    {/* Burn Rate Alarms */}
+                    {health.alarmas_ritmo_gasto && health.alarmas_ritmo_gasto.length > 0 && (
+                      <motion.div variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }} className="space-y-6">
+                        <h4 className="text-[9px] font-black text-rose-500 uppercase tracking-[0.5em] flex items-center gap-4 font-mono">
+                          Ritmo de Gasto Excedido
+                          <div className="flex-1 h-[1px] bg-gradient-to-r from-rose-500/20 to-transparent" />
+                        </h4>
+                        <div className="space-y-4">
+                          {health.alarmas_ritmo_gasto.map((alarm, idx) => (
+                            <div key={idx} className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-4">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-black text-rose-400 uppercase tracking-widest">{alarm.category}</span>
+                                <span className="text-[10px] font-mono text-rose-300/50">+{Math.round(((alarm.spent - alarm.expected) / alarm.expected) * 100)}% vs esperado</span>
+                              </div>
+                              <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden mb-2">
+                                <div className="h-full bg-rose-500 w-full animate-pulse" />
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                                Has gastado <span className="text-rose-300">${alarm.spent.toFixed(2)}</span>. El sistema esperaba <span className="text-slate-300">${alarm.expected.toFixed(2)}</span> para hoy.
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
 
                     {/* Critical Alerts */}
                     <motion.div variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }} className="space-y-6">
