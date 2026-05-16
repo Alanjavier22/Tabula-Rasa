@@ -4,6 +4,7 @@ import { Upload, X, CheckCircle, AlertCircle, FileText, Trash2, CreditCard, Cale
 import type { Account } from '../types';
 import Select from './common/Select';
 import { formatMoney } from '../utils/money';
+import { motion } from 'framer-motion';
 
 interface StatementImportModalProps {
   onClose: () => void;
@@ -177,21 +178,34 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto shadow-2xl relative">
-          <div className="flex items-center justify-between p-5 border-b border-slate-700 bg-slate-800 sticky top-0 z-[60] backdrop-blur-md">
+      <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: "easeInOut" }}
+      style={{ willChange: 'opacity, backdrop-filter' }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 15, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 15, scale: 0.98 }}
+        transition={{ duration: 0.25, ease: "easeInOut" }}
+        className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto shadow-2xl relative"
+      >
+          <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 sticky top-0 z-[60] backdrop-blur-md">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/20 rounded-lg">
-                <CreditCard className="w-6 h-6 text-purple-400" />
+              <div className="p-1.5 bg-purple-500/20 rounded-lg">
+                <CreditCard className="w-5 h-5 text-purple-400" />
               </div>
-              <h2 className="text-xl font-black text-white tracking-tight">Importador IA <span className="text-purple-400 font-medium text-sm ml-2 px-2 py-1 bg-purple-500/10 rounded-full">Estados de Cuenta</span></h2>
+              <h2 className="text-lg font-black text-white tracking-tight">Importador IA <span className="text-purple-400 font-medium text-xs ml-2 px-2 py-0.5 bg-purple-500/10 rounded-full">Estados de Cuenta</span></h2>
             </div>
             <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="p-4 md:p-5 space-y-4 md:space-y-5">
             {/* Paso 1: Selección y Upload */}
             {!extractedTransactions.length && (
               <div className="space-y-6">
@@ -203,8 +217,8 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                   </div>
                 ) : (
                   <>
-                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700">
-                      <label className="block text-sm font-bold text-slate-300 mb-2 uppercase tracking-wider">Tarjeta Destino</label>
+                    <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700">
+                      <label className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Tarjeta Destino</label>
                       <Select
                         value={accountId}
                         onChange={(value) => setAccountId(value)}
@@ -217,8 +231,8 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                       onDragLeave={handleDrag}
                       onDragOver={handleDrag}
                       onDrop={handleDrop}
-                      className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-300 ${
-                        dragActive ? 'border-purple-500 bg-purple-500/10 scale-[1.02]' : 'border-slate-600 hover:border-purple-500 hover:bg-slate-800/50'
+                      className={`border-2 border-dashed rounded-2xl p-5 md:p-6 text-center transition-all duration-300 ${
+                        dragActive ? 'border-purple-500 bg-purple-500/10 scale-[1.01]' : 'border-slate-600 hover:border-purple-500 hover:bg-slate-800/50'
                       }`}
                     >
                       <input
@@ -229,13 +243,13 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                         id="statement-upload"
                       />
                       <label htmlFor="statement-upload" className="cursor-pointer flex flex-col items-center">
-                        <div className={`${dragActive ? 'text-purple-400 scale-110' : 'text-slate-400'} transition-all duration-300 mb-4`}>
-                          <FileText className="w-16 h-16" />
+                        <div className={`${dragActive ? 'text-purple-400 scale-110' : 'text-slate-400'} transition-all duration-300 mb-2`}>
+                          <FileText className="w-12 h-12" />
                         </div>
-                        <p className="text-xl text-white font-bold mb-2">
+                        <p className="text-base text-white font-bold mb-1">
                           {file ? file.name : 'Arrastra tu PDF aquí'}
                         </p>
-                        <p className="text-slate-400 text-sm">
+                        <p className="text-slate-400 text-xs">
                           {file ? 'Haz clic abajo para analizar' : 'Soporta PDFs y capturas de imagen'}
                         </p>
                       </label>
@@ -245,16 +259,16 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                       <button
                         onClick={handleProcess}
                         disabled={processing}
-                        className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold text-lg hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold text-sm hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
                       >
                         {processing ? (
                           <>
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                             Auditando Estado de Cuenta...
                           </>
                         ) : (
                           <>
-                            <Upload className="w-5 h-5" />
+                            <Upload className="w-4 h-4" />
                             Analizar con Inteligencia Artificial
                           </>
                         )}
@@ -534,8 +548,8 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
               </div>
             )}
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
       
       {/* Mini-Modal para repartir gasto (Premium replacement for prompt) */}
       {sharingTransaction && (
