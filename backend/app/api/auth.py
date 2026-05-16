@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Any, cast
 import random
 import socket
 import string
@@ -85,7 +85,7 @@ def get_current_device(credentials: HTTPAuthorizationCredentials = Depends(secur
         raise HTTPException(status_code=401, detail="Device has been deleted")
         
     # Update last_sync
-    device.last_sync = datetime.now(timezone.utc)
+    device.last_sync = cast(Any, datetime.now(timezone.utc))
     db.commit()
     
     return device
@@ -174,8 +174,8 @@ def consume_pairing_code(req: PairRequest, db: Session = Depends(get_db)):
     # Registrar el dispositivo en BD
     new_device = PairedDevice(
         device_name=req.device_name,
-        is_active=True,
-        last_sync=now
+        is_active=cast(Any, True),
+        last_sync=cast(Any, now)
     )
     db.add(new_device)
     db.commit()
@@ -222,15 +222,15 @@ def pair_localhost(request: Request, db: Session = Depends(get_db)):
     )
 
     if device:
-        device.is_active = True
-        device.last_sync = now
+        device.is_active = cast(Any, True)
+        device.last_sync = cast(Any, now)
         db.commit()
         db.refresh(device)
     else:
         device = PairedDevice(
             device_name="Host-PC",
-            is_active=True,
-            last_sync=now,
+            is_active=cast(Any, True),
+            last_sync=cast(Any, now),
         )
         db.add(device)
         db.commit()
@@ -302,7 +302,7 @@ def revoke_device(device_id: str, request: Request, db: Session = Depends(get_db
     if not device:
         raise HTTPException(status_code=404, detail="Dispositivo no encontrado")
     
-    device.is_active = False
-    device.is_deleted = True
+    device.is_active = cast(Any, False)
+    device.is_deleted = cast(Any, True)
     db.commit()
     return {"message": f"Acceso revocado para {device.device_name}"}
