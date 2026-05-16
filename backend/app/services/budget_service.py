@@ -5,7 +5,7 @@ All monetary arithmetic uses Decimal. All date logic uses UTC.
 """
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
+from typing import Optional, Any, cast
 import calendar
 
 from app.models.budget import Budget
@@ -41,13 +41,13 @@ def compute_budget_pacing(budget: Budget, now: Optional[datetime] = None) -> dic
     spent  = budget.spent
 
     # --- month progress ---------------------------------------------------
-    budget_year  = budget.year
-    budget_month = budget.month
+    budget_year  = cast(int, budget.year)
+    budget_month = cast(int, budget.month)
 
-    if (budget_year, budget_month) < (now.year, now.month):
+    if cast(Any, (budget_year, budget_month)) < (now.year, now.month):
         # Past month → 100 %
         month_progress = Decimal("100")
-    elif (budget_year, budget_month) > (now.year, now.month):
+    elif cast(Any, (budget_year, budget_month)) > (now.year, now.month):
         # Future month → 0 %
         month_progress = Decimal("0")
     else:
@@ -63,7 +63,7 @@ def compute_budget_pacing(budget: Budget, now: Optional[datetime] = None) -> dic
     if amount == 0:
         expected_spend = 0
     else:
-        expected_spend = int((Decimal(amount) * month_progress / Decimal("100")).quantize(
+        expected_spend = int((Decimal(cast(Any, amount)) * month_progress / Decimal("100")).quantize(
             Decimal("1"), rounding=ROUND_HALF_UP
         ))
 
@@ -77,10 +77,10 @@ def compute_budget_pacing(budget: Budget, now: Optional[datetime] = None) -> dic
             is_over_pacing = False
             pacing_status = "on_track"
     else:
-        if Decimal(spent) > Decimal(expected_spend) * _OVER_PACING_THRESHOLD:
+        if Decimal(cast(Any, spent)) > Decimal(expected_spend) * _OVER_PACING_THRESHOLD:
             is_over_pacing = True
             pacing_status = "over_pacing"
-        elif Decimal(spent) < Decimal(expected_spend) * Decimal("0.95"):
+        elif Decimal(cast(Any, spent)) < Decimal(expected_spend) * Decimal("0.95"):
             is_over_pacing = False
             pacing_status = "under_pacing"
         else:
