@@ -16,6 +16,7 @@ from app.models.category import Category
 from app.models.config import Config
 from app.models.reminder import Reminder
 from app.models.credit_card_statement import CreditCardStatement
+from app.models.subscription import Subscription
 from app.models.transaction_split import TransactionSplit
 from app.models.iou import IOU, IOUType, IOUStatus
 from app.models.debt_share import DebtShare
@@ -306,20 +307,81 @@ def get_cash_flow_forecast(days: int = 30, db: Session = Depends(get_db)):
     ).all()
     current_balance = Decimal(str(sum((acc.balance for acc in accounts), 0)))
 
+    # Use today's beginning to include today's reminders
+    start_time = datetime.combine(today, datetime.min.time())
+    end_time = datetime.combine(today + timedelta(days=days), datetime.max.time())
+
     reminders = db.query(Reminder).filter(
         Reminder.status == "pending",
-        Reminder.due_date >= now,
-        Reminder.due_date <= now + timedelta(days=days)
+        Reminder.due_date >= start_time,
+        Reminder.due_date <= end_time
     ).all()
 
     statements = db.query(CreditCardStatement).filter(
         CreditCardStatement.status.in_(["pending", "partial"]),
-        CreditCardStatement.payment_due_date >= now,
-        CreditCardStatement.payment_due_date <= now + timedelta(days=days)
+        CreditCardStatement.payment_due_date >= start_time,
+        CreditCardStatement.payment_due_date <= end_time
     ).all()
+
+    # Fetch active subscriptions
+    subscriptions = db.query(Subscription).filter(
+        Subscription.is_active == True,
+        Subscription.is_deleted == False
+    ).all()
+
+    # Map active subscription occurrences to dates in the forecast window
+    daily_subscriptions = {}
+    start_proj = today + timedelta(days=1)
+    end_proj = today + timedelta(days=days)
+
+    for sub in subscriptions:
+        if not sub.next_billing_date or not sub.amount:
+            continue
+        
+        curr_billing = sub.next_billing_date.date()
+        freq = sub.frequency
+        if hasattr(freq, "value"):
+            freq = freq.value
+        freq = str(freq).lower()
+
+        # Iterate forward to find occurrences in the projection window
+        limit = 0
+        while curr_billing <= end_proj and limit < 100:
+            limit += 1
+            if curr_billing >= start_proj:
+                daily_subscriptions[curr_billing] = daily_subscriptions.get(curr_billing, Decimal("0")) + Decimal(str(sub.amount))
+            
+            # Increment based on frequency
+            if freq == "weekly":
+                curr_billing += timedelta(days=7)
+            elif freq == "monthly":
+                m = curr_billing.month - 1 + 1
+                y = curr_billing.year + m // 12
+                m = m % 12 + 1
+                d = min(curr_billing.day, calendar.monthrange(y, m)[1])
+                curr_billing = curr_billing.replace(year=y, month=m, day=d)
+            elif freq == "quarterly":
+                m = curr_billing.month - 1 + 3
+                y = curr_billing.year + m // 12
+                m = m % 12 + 1
+                d = min(curr_billing.day, calendar.monthrange(y, m)[1])
+                curr_billing = curr_billing.replace(year=y, month=m, day=d)
+            elif freq == "yearly":
+                try:
+                    curr_billing = curr_billing.replace(year=curr_billing.year + 1)
+                except ValueError:
+                    curr_billing = curr_billing.replace(year=curr_billing.year + 1, day=curr_billing.day - 1)
+            else:
+                curr_billing += timedelta(days=30)
 
     forecast = []
     projected_balance = current_balance
+
+    # Include today as day 0 baseline
+    forecast.append({
+        "date": today.strftime("%Y-%m-%d"),
+        "projected_balance": projected_balance
+    })
 
     for day_offset in range(1, days + 1):
         forecast_date = today + timedelta(days=day_offset)
@@ -331,11 +393,14 @@ def get_cash_flow_forecast(days: int = 30, db: Session = Depends(get_db)):
             0
         )))
 
+        # Take absolute value of negative reminders to avoid double negation
         daily_expense = Decimal(str(sum(
-            (r.amount for r in reminders
+            (abs(r.amount) for r in reminders
              if r.due_date.date() == forecast_date and r.amount and r.amount < 0),
             0
         )))
+
+        daily_sub = daily_subscriptions.get(forecast_date, Decimal("0"))
 
         daily_cc_payment = Decimal(str(sum(
             (s.user_share - s.amount_paid for s in statements
@@ -343,7 +408,7 @@ def get_cash_flow_forecast(days: int = 30, db: Session = Depends(get_db)):
             0
         )))
 
-        projected_balance += daily_income - daily_expense - daily_cc_payment
+        projected_balance += daily_income - daily_expense - daily_sub - daily_cc_payment
 
         forecast.append({
             "date": forecast_date_str,
