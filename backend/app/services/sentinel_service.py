@@ -130,6 +130,7 @@ class SentinelService:
                         model="gemini-3.1-flash-lite",
                         contents=system_instruction + "\n\n" + prompt,
                         config=types.GenerateContentConfig(
+                            temperature=0.0,
                             response_mime_type="application/json",
                             response_schema={
                                 "type": "object",
