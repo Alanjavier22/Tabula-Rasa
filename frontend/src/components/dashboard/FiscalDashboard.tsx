@@ -2,7 +2,7 @@
  * FiscalDashboard - FASE 3: Analytics Layer for Tabula Rasa
  * FASE 4: Added SRI Annex export with progress tracking
  * Visualizes fiscal data using Recharts with performance optimizations
- * Data bucketization at service level, aggressive memoization, mobile-first
+ * Redesigned with custom SVG gradients, Glassmorphism, and Donut-centered stats
  */
 
 import React, { useMemo, useState } from 'react';
@@ -11,7 +11,6 @@ import {
   Bar,
   PieChart,
   Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -21,18 +20,16 @@ import {
 } from 'recharts';
 import { formatMoney, toNumber } from '../../utils/money';
 import { fiscalAPI } from '../../services/api';
-import { Download, FileJson, FileCode } from 'lucide-react';
+import { Download, FileJson, FileCode, Percent, Receipt, ArrowUpRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Chart colors - accessible palette
+// Chart colors - hex values for Recharts legend
 const COLORS = {
-  iva15: '#ef4444', // red
-  iva0: '#10b981', // green
-  exempt: '#3b82f6', // blue
-  deductible: '#8b5cf6', // purple
-  nonDeductible: '#6b7280', // gray
-  income: '#10b981', // green
-  expense: '#ef4444', // red
+  iva15: '#ef4444',
+  iva0: '#10b981',
+  deductible: '#8b5cf6',
+  income: '#10b981',
+  expense: '#ec4899',
 };
 
 interface FiscalDashboardProps {
@@ -46,14 +43,33 @@ interface KPICardProps {
   value: string;
   subtitle: string;
   color: string;
+  icon: React.ReactNode;
+  glowColor: string;
 }
 
-const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, color }) => (
-  <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4">
-    <h3 className="text-sm font-medium text-slate-400 mb-1">{title}</h3>
-    <p className="text-2xl font-bold" style={{ color }}>{value}</p>
-    <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
-  </div>
+const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, color, icon, glowColor }) => (
+  <motion.div 
+    whileHover={{ y: -5, scale: 1.02 }}
+    transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+    className="relative overflow-hidden bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 flex flex-col justify-between h-36 group shadow-2xl transition-all duration-300"
+  >
+    {/* Background Glow */}
+    <div 
+      className="absolute -right-10 -top-10 w-24 h-24 rounded-full opacity-10 blur-2xl group-hover:scale-150 transition-all duration-500"
+      style={{ backgroundColor: glowColor }}
+    />
+    
+    <div className="flex justify-between items-start">
+      <div>
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{title}</h3>
+        <p className="text-3xl font-black tracking-tight" style={{ color }}>{value}</p>
+      </div>
+      <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 group-hover:text-white group-hover:bg-white/10 transition-colors">
+        {icon}
+      </div>
+    </div>
+    <p className="text-xs text-slate-400 font-semibold mt-2">{subtitle}</p>
+  </motion.div>
 );
 
 /**
@@ -61,7 +77,6 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, color }) => (
  */
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    // Format label from "2026-04" to "Abril de 2026"
     const formattedLabel = (() => {
       if (!label) return label;
       const [year, month] = label.split('-');
@@ -71,12 +86,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     })();
 
     return (
-      <div className="bg-slate-800 p-3 rounded-lg shadow-xl border border-slate-700">
-        <p className="text-sm font-medium text-white mb-1">{formattedLabel}</p>
+      <div className="bg-slate-900/90 backdrop-blur-xl p-4 rounded-2xl shadow-2xl border border-white/10">
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{formattedLabel}</p>
         {payload.map((entry: any, index: number) => (
-          <p key={index} className="text-xs font-semibold" style={{ color: entry.color }}>
-            {entry.name}: {formatMoney(entry.value)}
-          </p>
+          <div key={index} className="flex items-center gap-2 mt-1">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color === 'url(#colorIncome)' ? '#10b981' : entry.color === 'url(#colorExpenses)' ? '#8b5cf6' : entry.color === 'url(#colorIva15)' ? '#ef4444' : '#10b981' }} />
+            <p className="text-sm font-semibold text-white">
+              {entry.name}: <span className="font-mono">${formatMoney(entry.value)}</span>
+            </p>
+          </div>
         ))}
       </div>
     );
@@ -84,10 +102,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-/**
- * Fiscal Dashboard Component
- * Displays KPIs, BarChart for monthly trends, PieChart for tax breakdown
- */
 export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   startDate,
   endDate,
@@ -121,7 +135,6 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
     loadData();
   }, [startDate, endDate, categoryIds]);
 
-  // FASE 4: Export Declaración SRI (XML/JSON)
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<'xml' | 'json'>('xml');
 
@@ -132,7 +145,6 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
     try {
       const response = await fiscalAPI.exportDeclaracionSRI(year, exportFormat);
       
-      // Crear link de descarga
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -159,22 +171,30 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   const pieChartConfig = useMemo(() => ({
     cx: '50%',
     cy: '50%',
+    innerRadius: 75,
+    outerRadius: 95,
+    paddingAngle: 4,
+    cornerRadius: 6,
     labelLine: false,
-    label: (entry: any) => `${entry.name}: ${formatMoney(entry.value)}`,
-    outerRadius: 80,
+    label: false,
   }), []);
 
-  // Calculate tax breakdown for PieChart
+  // Calculate actual base spending breakdown (0% vs 15% VAT base)
+  // Recharts Pie automatically maps the 'fill' key of each data object to style each slice natively
   const taxBreakdown = useMemo(() => {
     if (!report) return [];
     
-    // Use backend API totals directly
-    const iva15 = report.totals.iva_pagado_15;
-    const iva0 = report.totals.total_deductible - report.totals.iva_pagado_15;
+    // We get actual IVA 15% amount paid. The base spending for it is amount / 0.15
+    const iva15Paid = toNumber(report.totals.iva_pagado_15);
+    const baseIva15 = iva15Paid / 0.15;
+    
+    // The remaining deductible spending carries 0% IVA
+    const totalDeductible = toNumber(report.totals.total_deductible);
+    const baseIva0 = Math.max(0, totalDeductible - baseIva15);
 
     return [
-      { name: 'IVA 15%', value: toNumber(iva15), color: COLORS.iva15 },
-      { name: 'IVA 0%', value: toNumber(iva0), color: COLORS.iva0 },
+      { name: 'Base con IVA 15%', value: baseIva15, color: '#ef4444', fill: 'url(#colorIva15)' },
+      { name: 'Base con IVA 0%', value: baseIva0, color: '#10b981', fill: 'url(#colorIva0)' },
     ].filter(item => item.value > 0);
   }, [report]);
 
@@ -187,22 +207,23 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
     return ((income - totalOutflow) / income) * 100;
   }, [report]);
 
-  // Handle outliers: cap Y-axis at 95th percentile for mobile legibility
-  // FASE 5: More aggressive cap on mobile (<768px) to prevent horizontal scroll
+  // Cap Y-axis correctly using exact trendData fields
   const yDomain = useMemo(() => {
     if (trendData.length === 0) return [0, 0];
     
     const isMobile = window.innerWidth < 768;
-    const percentile = isMobile ? 0.85 : 0.95; // More aggressive on mobile
+    const percentile = isMobile ? 0.85 : 0.95;
     
-    const allValues = trendData.flatMap(d => [d.income, d.expense, d.deductible]);
-    const sorted = allValues.sort((a, b) => a - b);
+    const allValues = trendData.flatMap(d => [toNumber(d.income), toNumber(d.expenses), toNumber(d.iva_projected)]);
+    const sorted = allValues.filter(v => !isNaN(v)).sort((a, b) => a - b);
+    
+    if (sorted.length === 0) return [0, 1000];
+    
     const pIndex = Math.floor(sorted.length * percentile);
     const pValue = sorted[pIndex] || sorted[sorted.length - 1];
     
-    // Round up to nearest nice number
-    const magnitude = Math.pow(10, Math.floor(Math.log10(pValue)));
-    const capped = Math.ceil(pValue / magnitude) * magnitude;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(pValue || 100)));
+    const capped = Math.ceil((pValue || 100) / magnitude) * magnitude;
     
     return [0, capped];
   }, [trendData]);
@@ -210,8 +231,8 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <span className="text-sm text-slate-400">Procesando datos fiscales...</span>
+        <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50 text-center animate-pulse">
+          <span className="text-sm font-semibold text-blue-400">Procesando datos fiscales y tasas de IVA del SRI...</span>
         </div>
       </div>
     );
@@ -220,14 +241,14 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   if (!report) return null;
 
   return (
-    <div className="space-y-6">
-      {/* FASE 4: Export Button */}
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-white">Resumen Fiscal</h3>
+    <div className="space-y-8 relative">
+      {/* Export Header */}
+      <div className="flex justify-between items-center bg-slate-900/40 p-4 rounded-2xl border border-white/5 shadow-inner">
+        <h3 className="text-lg font-black text-white uppercase tracking-wider">Resumen Fiscal</h3>
         <button
           onClick={() => setShowExportModal(true)}
           disabled={exporting}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-blue-500/5"
+          className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-blue-500/20"
         >
           <Download className="w-4 h-4" />
           {exporting ? 'Generando...' : 'Descargar Anexo SRI'}
@@ -237,7 +258,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
       {/* SRI Export Modal */}
       <AnimatePresence>
         {showExportModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -304,79 +325,137 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
         )}
       </AnimatePresence>
 
-
-      {/* KPI Cards - FASE 5: Mobile-first vertical stacking */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <KPICard
-          title="IVA Acumulado"
-          value={formatMoney(report.totals.iva_pagado_15)}
-          subtitle="Proyectado sobre categorías IVA 15%"
+          title="IVA Real Pagado (15%)"
+          value={`$${formatMoney(report.totals.iva_pagado_15)}`}
+          subtitle="Acumulado real sobre categorías gravadas"
           color={COLORS.iva15}
+          glowColor={COLORS.iva15}
+          icon={<Percent className="w-5 h-5" />}
         />
         <KPICard
           title="Deducibilidad SRI"
-          value={formatMoney(report.totals.total_deductible)}
-          subtitle="Gastos deducibles personales"
+          value={`$${formatMoney(report.totals.total_deductible)}`}
+          subtitle="Gastos personales reportables al SRI"
           color={COLORS.deductible}
+          glowColor={COLORS.deductible}
+          icon={<Receipt className="w-5 h-5" />}
         />
         <KPICard
           title="Eficiencia Neta"
           value={`${netEfficiency.toFixed(1)}%`}
-          subtitle="Ingresos vs Gastos + Impuestos"
+          subtitle="Ratio de ingresos vs egresos e impuestos"
           color={netEfficiency >= 0 ? COLORS.income : COLORS.expense}
+          glowColor={netEfficiency >= 0 ? COLORS.income : COLORS.expense}
+          icon={<ArrowUpRight className="w-5 h-5" />}
         />
       </div>
 
-      {/* Monthly Deductible Expenses BarChart - FASE 5: Mobile responsive */}
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4">
-        <h3 className="text-lg font-semibold text-white mb-4">Gastos Deducibles Mensuales</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={trendData} {...barChartConfig}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="month" 
-              tick={{ fontSize: 12, fill: '#94a3b8' }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(value: string) => {
-                const [year, month] = value.split('-');
-                const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                const monthIndex = parseInt(month) - 1;
-                return `${monthNames[monthIndex]} de ${year}`;
-              }}
-            />
-            <YAxis 
-              tickFormatter={(value) => formatMoney(value)}
-              tick={{ fontSize: 12, fill: '#94a3b8' }}
-              axisLine={false}
-              tickLine={false}
-              domain={yDomain}
-            />
-            <Tooltip content={<CustomTooltip />} cursor={false} />
-            <Legend />
-            <Bar dataKey="expenses" name="Gastos" fill={COLORS.deductible} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {/* Two Column Chart Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Monthly Deductible Expenses BarChart */}
+        <div className="bg-slate-900/40 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 flex flex-col justify-between shadow-2xl">
+          <div>
+            <h3 className="text-lg font-black text-white uppercase tracking-wider mb-1">Tendencia de Flujo Fiscal</h3>
+            <p className="text-xs text-slate-500 font-semibold mb-6">Comparativa mensual de tus Ingresos y Gastos Deducibles</p>
+          </div>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={trendData} {...barChartConfig}>
+                <defs>
+                  <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#059669" stopOpacity={0.8}/>
+                  </linearGradient>
+                  <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.8}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
+                <XAxis 
+                  dataKey="month" 
+                  tick={{ fontSize: 11, fill: '#64748b', fontWeight: 'bold' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value: string) => {
+                    const [_, month] = value.split('-');
+                    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                    const monthIndex = parseInt(month) - 1;
+                    return monthNames[monthIndex] || value;
+                  }}
+                />
+                <YAxis 
+                  tickFormatter={(value) => `$${formatMoney(value, 0)}`}
+                  tick={{ fontSize: 10, fill: '#64748b', fontWeight: 'bold' }}
+                  axisLine={false}
+                  tickLine={false}
+                  domain={yDomain}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }} />
+                <Bar dataKey="income" name="Ingresos" fill="url(#colorIncome)" radius={[6, 6, 0, 0]} barSize={16} />
+                <Bar dataKey="expenses" name="Gastos Deducibles" fill="url(#colorExpenses)" radius={[6, 6, 0, 0]} barSize={16} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-      {/* Tax Breakdown PieChart - FASE 5: Mobile responsive */}
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4">
-        <h3 className="text-lg font-semibold text-white mb-4">Distribución de IVA (15% vs 0%)</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <PieChart>
-            <Pie
-              data={taxBreakdown}
-              {...pieChartConfig}
-              dataKey="value"
-            >
-              {taxBreakdown.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
+        {/* Tax Breakdown PieChart */}
+        <div className="bg-slate-900/40 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 flex flex-col justify-between shadow-2xl relative">
+          <div>
+            <h3 className="text-lg font-black text-white uppercase tracking-wider mb-1">Distribución de IVA (15% vs 0%)</h3>
+            <p className="text-xs text-slate-500 font-semibold mb-6">Desglose real de bases imponibles según normativa del SRI</p>
+          </div>
+          
+          <div className="relative h-[300px] flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <defs>
+                  <linearGradient id="colorIva15" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.9}/>
+                    <stop offset="95%" stopColor="#b91c1c" stopOpacity={0.9}/>
+                  </linearGradient>
+                  <linearGradient id="colorIva0" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.9}/>
+                    <stop offset="95%" stopColor="#047857" stopOpacity={0.9}/>
+                  </linearGradient>
+                </defs>
+                <Pie
+                  data={taxBreakdown}
+                  {...pieChartConfig}
+                  dataKey="value"
+                  stroke="#0f172a"
+                  strokeWidth={3}
+                />
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+
+            {/* Centered Total Indicator */}
+            <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">IVA Acumulado</span>
+              <span className="text-2xl font-black text-white tracking-tight">${formatMoney(report.totals.iva_pagado_15)}</span>
+            </div>
+          </div>
+          
+          {/* Custom Custom Legend Grid for Donut */}
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5 text-center">
+            {taxBreakdown.map((item, idx) => (
+              <div key={idx} className="flex flex-col items-center">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span className="text-xs font-bold text-slate-400">{item.name}</span>
+                </div>
+                <span className="text-sm font-black text-white mt-1">${formatMoney(item.value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );
