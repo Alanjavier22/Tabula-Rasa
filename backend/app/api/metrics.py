@@ -395,7 +395,7 @@ def get_cash_flow_forecast(days: int = 30, db: Session = Depends(get_db)):
 
         # Take absolute value of negative reminders to avoid double negation
         daily_expense = Decimal(str(sum(
-            (abs(r.amount) for r in reminders
+            (abs(cast(int, r.amount)) for r in reminders
              if r.due_date.date() == forecast_date and r.amount and r.amount < 0),
             0
         )))
