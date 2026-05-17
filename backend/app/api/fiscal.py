@@ -132,7 +132,7 @@ def get_fiscal_report(
 ):
     """
     Generate fiscal report for the specified date range.
-    Returns totals and category breakdown for SRI reporting.
+    Returns totals and category breakdown for SRI reporting with actual VAT rules.
     """
     try:
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -179,10 +179,27 @@ def get_fiscal_report(
             elif txn.transaction_type == "expense":
                 total_expenses += amount
                 
-                # Calculate IVA (15% of expense)
-                iva = amount * IVA_RATE
+                # Ecuador VAT Rules: Basic goods (Food, Health, Housing, Education) have 0% VAT.
+                # Clothing, tourism, and other general expenses are standard 15%.
+                cat_name = txn.category.name.lower() if txn.category else ""
+                
+                is_iva_0 = False
+                if any(k in cat_name for k in ["salud", "medic", "farmac", "hospit"]):
+                    is_iva_0 = True
+                elif any(k in cat_name for k in ["aliment", "restaur", "comida", "supermer"]):
+                    is_iva_0 = True
+                elif any(k in cat_name for k in ["vivien", "arriend", "luz", "agua", "alicuot"]):
+                    is_iva_0 = True
+                elif any(k in cat_name for k in ["educac", "art", "cultur", "cole", "univers", "curs"]):
+                    is_iva_0 = True
+                
+                if is_iva_0:
+                    iva = Decimal(0)
+                else:
+                    iva = amount * IVA_RATE
+                    iva_pagado_15 += iva
+                
                 iva_projected += iva
-                iva_pagado_15 += iva
                 
                 # Calculate retención (1% of expense)
                 retencion = amount * RETENCION_SOURCE_RATE
@@ -238,7 +255,7 @@ def get_fiscal_trend(
 ):
     """
     Get monthly fiscal trend data for the specified date range.
-    Returns income, expenses, and IVA per month.
+    Returns income, expenses, and actual category-based IVA per month.
     """
     try:
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -249,12 +266,8 @@ def get_fiscal_trend(
         if category_ids:
             cat_ids = category_ids.split(',')
         
-        # Base query
-        query = db.query(
-            func.strftime("%Y-%m", Transaction.date).label("month"),
-            func.sum(case((Transaction.transaction_type == "income", Transaction.amount), else_=0)).label("income"),
-            func.sum(case((Transaction.transaction_type == "expense", Transaction.amount), else_=0)).label("expenses")
-        ).filter(
+        # Base query for all transactions
+        query = db.query(Transaction).filter(
             Transaction.is_deleted == False,
             Transaction.date >= start_dt,
             Transaction.date <= end_dt
@@ -262,21 +275,51 @@ def get_fiscal_trend(
         
         if cat_ids:
             query = query.filter(Transaction.category_id.in_(cat_ids))
-        
-        query = query.group_by(func.strftime("%Y-%m", Transaction.date)).order_by("month")
-        
-        results = query.all()
+            
+        transactions = query.all()
         
         IVA_RATE = get_iva_rate(db)
         
+        monthly_data = {}
+        for txn in transactions:
+            # Format month label (e.g. "2026-04")
+            month_str = txn.date.strftime("%Y-%m")
+            if month_str not in monthly_data:
+                monthly_data[month_str] = {
+                    "income": Decimal(0),
+                    "expenses": Decimal(0),
+                    "iva_projected": Decimal(0)
+                }
+            
+            amount = Decimal(str(txn.amount)) if txn.amount else Decimal(0)
+            if txn.transaction_type == "income":
+                monthly_data[month_str]["income"] += amount
+            elif txn.transaction_type == "expense":
+                monthly_data[month_str]["expenses"] += amount
+                
+                # Check for SRI 0% IVA categories
+                cat_name = txn.category.name.lower() if txn.category else ""
+                is_iva_0 = False
+                if any(k in cat_name for k in ["salud", "medic", "farmac", "hospit"]):
+                    is_iva_0 = True
+                elif any(k in cat_name for k in ["aliment", "restaur", "comida", "supermer"]):
+                    is_iva_0 = True
+                elif any(k in cat_name for k in ["vivien", "arriend", "luz", "agua", "alicuot"]):
+                    is_iva_0 = True
+                elif any(k in cat_name for k in ["educac", "art", "cultur", "cole", "univers", "curs"]):
+                    is_iva_0 = True
+                
+                if not is_iva_0:
+                    monthly_data[month_str]["iva_projected"] += amount * IVA_RATE
+        
         trend = [
             MonthlyTrendItem(
-                month=row.month,
-                income=Decimal(str(row.income)) if row.income else Decimal(0),
-                expenses=Decimal(str(row.expenses)) if row.expenses else Decimal(0),
-                iva_projected=(Decimal(str(row.expenses)) if row.expenses else Decimal(0)) * IVA_RATE
+                month=m,
+                income=data["income"],
+                expenses=data["expenses"],
+                iva_projected=data["iva_projected"]
             )
-            for row in results
+            for m, data in sorted(monthly_data.items())
         ]
         
         return trend
