@@ -15,51 +15,151 @@ $script:frontendLog = Join-Path $script:scriptPath "frontend.log"
 $script:venvPython = Join-Path $script:backendPath "venv\Scripts\python.exe"
 $script:nodeModules = Join-Path $script:frontendPath "node_modules"
 
-# Función para instalar requisitos vía Winget
-function Install-Requirement {
-    param(
-        [string]$Name,
-        [string]$Id
-    )
-    
-    Write-Host "⚠️  $Name no detectado." -ForegroundColor Yellow
-    $confirm = Read-Host "¿Deseas que lo instale automáticamente por ti? (S/N)"
-    if ($confirm -eq 'S' -or $confirm -eq 's') {
-        Write-Host "🚀 Iniciando instalación de $Name..." -ForegroundColor Cyan
-        winget install --id $Id --source winget --accept-package-agreements --accept-source-agreements
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "✅ $Name instalado correctamente." -ForegroundColor Green
-            Write-Host "📢 IMPORTANTE: Es posible que debas cerrar y volver a abrir este menú para que los cambios surtan efecto." -ForegroundColor Yellow
-            Start-Sleep -Seconds 3
-            return $true
-        } else {
-            Write-Host "❌ Error al instalar $Name. Por favor, instálalo manualmente desde su web oficial." -ForegroundColor Red
-            Read-Host "Presiona Enter para salir..."
-            exit 1
-        }
-    } else {
-        Write-Host "❌ No se puede continuar sin $Name." -ForegroundColor Red
-        exit 1
-    }
-}
+# --- SISTEMA DE INSTALACIÓN AUTÓNOMA ---
 
 # Función para refrescar el PATH de la sesión actual
 function Refresh-SessionPath {
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 }
 
-# Validación de versión de Python (requerido: 3.12+)
-function Test-PythonVersion {
-    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-    if (-not $pythonCmd) {
-        if (Install-Requirement "Python 3.12" "Python.Python.3.12") {
-            Refresh-SessionPath
-        } else {
-            exit 1
+# Desactivar los App Execution Aliases de Windows Store para python
+function Disable-PythonStoreAliases {
+    $aliasesPath = "$env:LOCALAPPDATA\Microsoft\WindowsApps"
+    foreach ($alias in @("python.exe", "python3.exe")) {
+        $fullPath = Join-Path $aliasesPath $alias
+        if (Test-Path $fullPath) {
+            $target = Get-Item $fullPath -ErrorAction SilentlyContinue
+            # Los aliases de la Store son archivos de 0 bytes
+            if ($target -and $target.Length -eq 0) {
+                try {
+                    Remove-Item $fullPath -Force -ErrorAction SilentlyContinue
+                    Write-Host "  Alias de Windows Store '$alias' desactivado." -ForegroundColor Gray
+                } catch { }
+            }
         }
     }
+}
+
+# Verificar si winget está disponible
+function Test-WingetAvailable {
+    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
+    return ($null -ne $wingetCmd)
+}
+
+# Instalar Python directamente descargándolo (fallback si no hay winget)
+function Install-PythonDirect {
+    $pythonVersion = "3.12.8"
+    $installerUrl = "https://www.python.org/ftp/python/$pythonVersion/python-$pythonVersion-amd64.exe"
+    $installerPath = Join-Path $env:TEMP "python-installer.exe"
+
+    Write-Host "  Descargando Python $pythonVersion..." -ForegroundColor Cyan
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+    } catch {
+        Write-Host "  ERROR: No se pudo descargar Python. Verifica tu conexión a Internet." -ForegroundColor Red
+        return $false
+    }
+
+    Write-Host "  Instalando Python $pythonVersion (silencioso)..." -ForegroundColor Cyan
+    $installArgs = "/quiet InstallAllUsers=0 PrependPath=1 Include_pip=1 Include_launcher=1"
+    Start-Process -FilePath $installerPath -ArgumentList $installArgs -Wait -NoNewWindow
+    Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+
+    Refresh-SessionPath
+    $check = Get-Command python -ErrorAction SilentlyContinue
+    return ($null -ne $check)
+}
+
+# Instalar Node.js directamente descargándolo (fallback si no hay winget)
+function Install-NodeDirect {
+    $nodeVersion = "22.12.0"
+    $installerUrl = "https://nodejs.org/dist/v$nodeVersion/node-v$nodeVersion-x64.msi"
+    $installerPath = Join-Path $env:TEMP "node-installer.msi"
+
+    Write-Host "  Descargando Node.js $nodeVersion..." -ForegroundColor Cyan
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+    } catch {
+        Write-Host "  ERROR: No se pudo descargar Node.js. Verifica tu conexión a Internet." -ForegroundColor Red
+        return $false
+    }
+
+    Write-Host "  Instalando Node.js $nodeVersion (silencioso)..." -ForegroundColor Cyan
+    Start-Process msiexec.exe -ArgumentList "/i `"$installerPath`" /quiet /norestart" -Wait -NoNewWindow
+    Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+
+    Refresh-SessionPath
+    $check = Get-Command node -ErrorAction SilentlyContinue
+    return ($null -ne $check)
+}
+
+# Función principal de instalación autónoma (sin preguntar)
+function Install-Requirement {
+    param(
+        [string]$Name,
+        [string]$Id,
+        [string]$DirectInstallType  # "python" o "node"
+    )
     
+    Write-Host "  $Name no detectado. Instalando automáticamente..." -ForegroundColor Yellow
+
+    $installed = $false
+
+    # Intentar con winget primero
+    if (Test-WingetAvailable) {
+        Write-Host "  Usando winget para instalar $Name..." -ForegroundColor Cyan
+        winget install --id $Id --source winget --accept-package-agreements --accept-source-agreements --silent 2>&1 | Out-Null
+        Refresh-SessionPath
+        
+        if ($DirectInstallType -eq "python") {
+            $installed = ($null -ne (Get-Command python -ErrorAction SilentlyContinue))
+        } elseif ($DirectInstallType -eq "node") {
+            $installed = ($null -ne (Get-Command node -ErrorAction SilentlyContinue))
+        }
+    }
+
+    # Fallback: descarga directa
+    if (-not $installed) {
+        Write-Host "  winget no disponible o falló. Usando descarga directa..." -ForegroundColor Yellow
+        if ($DirectInstallType -eq "python") {
+            $installed = Install-PythonDirect
+        } elseif ($DirectInstallType -eq "node") {
+            $installed = Install-NodeDirect
+        }
+    }
+
+    if ($installed) {
+        Write-Host "  $Name instalado correctamente." -ForegroundColor Green
+        return $true
+    } else {
+        Write-Host "  ERROR: No se pudo instalar $Name automáticamente." -ForegroundColor Red
+        Write-Host "  Por favor, instálalo manualmente desde su web oficial y reinicia el menú." -ForegroundColor Red
+        Read-Host "Presiona Enter para salir..."
+        exit 1
+    }
+}
+
+# Validación de versión de Python (requerido: 3.12+)
+function Test-PythonVersion {
+    # Primero desactivar los aliases fantasma de Windows Store
+    Disable-PythonStoreAliases
+
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $pythonCmd) {
+        Install-Requirement "Python 3.12" "Python.Python.3.12" "python"
+        Refresh-SessionPath
+    }
+    
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $pythonCmd) {
+        Write-Host "  ERROR FATAL: Python no se detecta después de la instalación." -ForegroundColor Red
+        Write-Host "  Cierra esta ventana, abre una nueva terminal y ejecuta menu.bat de nuevo." -ForegroundColor Yellow
+        Read-Host "Presiona Enter para salir..."
+        exit 1
+    }
+
     $pythonVersionOutput = python --version 2>&1
     $versionStr = $pythonVersionOutput -replace "Python ", ""
     
@@ -67,40 +167,38 @@ function Test-PythonVersion {
         $version = [version]$versionStr
         $minVersion = [version]"3.12.0"
         if ($version -lt $minVersion) {
-            Write-Host "⚠️  Versión de Python antigua ($versionStr). Se requiere 3.12+." -ForegroundColor Yellow
-            if (Install-Requirement "Python 3.12" "Python.Python.3.12") {
-                Refresh-SessionPath
-                Write-Host "✅ Python ha sido actualizado. Por favor, reinicia este menú para usar la nueva versión." -ForegroundColor Green
-                Read-Host "Presiona Enter para salir..."
-                exit 0
-            }
+            Write-Host "  Versión de Python antigua ($versionStr). Actualizando a 3.12+..." -ForegroundColor Yellow
+            Install-Requirement "Python 3.12" "Python.Python.3.12" "python"
+            Refresh-SessionPath
+            Write-Host "  Python actualizado. Reinicia el menú para aplicar cambios." -ForegroundColor Green
+            Read-Host "Presiona Enter para salir..."
+            exit 0
         } else {
-            Write-Host "✅ Python $versionStr detectado" -ForegroundColor Green
+            Write-Host "  Python $versionStr detectado" -ForegroundColor Green
         }
     } catch {
-        Write-Host "✅ Python detectado" -ForegroundColor Green
+        Write-Host "  Python detectado" -ForegroundColor Green
     }
 }
 
 function Test-NodeVersion {
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
     if (-not $nodeCmd) {
-        if (Install-Requirement "Node.js" "OpenJS.NodeJS") {
-            Refresh-SessionPath
-        } else {
-            exit 1
-        }
+        Install-Requirement "Node.js" "OpenJS.NodeJS" "node"
+        Refresh-SessionPath
     }
     
     # Re-verificar después de posible instalación
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
     if (-not $nodeCmd) {
-        Write-Host "❌ Node.js aún no es reconocido. Por favor, reinicia la terminal." -ForegroundColor Red
+        Write-Host "  ERROR: Node.js no se detecta después de la instalación." -ForegroundColor Red
+        Write-Host "  Cierra esta ventana, abre una nueva terminal y ejecuta menu.bat de nuevo." -ForegroundColor Yellow
+        Read-Host "Presiona Enter para salir..."
         exit 1
     }
 
     $nodeVersion = node --version
-    Write-Host "✅ Node.js $nodeVersion detectado" -ForegroundColor Green
+    Write-Host "  Node.js $nodeVersion detectado" -ForegroundColor Green
 }
 
 Test-PythonVersion
@@ -313,17 +411,44 @@ function Start-Application {
     }
 
     if ($venvNeedsReinstall) {
-        Write-Host "  Creando entorno virtual e instalando dependencias (Ultra-rápido con uv)..." -ForegroundColor Magenta
-        python -m venv $venvPath
+        Write-Host "  Creando entorno virtual e instalando dependencias..." -ForegroundColor Magenta
+        
+        # Asegurar que python está disponible en el PATH actual
+        $pythonExe = Get-Command python -ErrorAction SilentlyContinue
+        if (-not $pythonExe) {
+            Refresh-SessionPath
+            $pythonExe = Get-Command python -ErrorAction SilentlyContinue
+        }
+        if (-not $pythonExe) {
+            Write-Host "  ERROR: Python no está disponible. Ejecuta menu.bat de nuevo." -ForegroundColor Red
+            Read-Host "Presiona Enter para continuar..."
+            return
+        }
 
-        # 1. Instalar uv (toma 1 segundo)
-        & $script:venvPython -m pip install uv --quiet
+        # Crear el entorno virtual
+        & $pythonExe.Source -m venv $venvPath
+        
+        if (-not (Test-Path $script:venvPython)) {
+            Write-Host "  ERROR: No se pudo crear el entorno virtual." -ForegroundColor Red
+            Read-Host "Presiona Enter para continuar..."
+            return
+        }
 
-        # 2. Usar uv para instalar el requirements (10x - 100x más rápido)
-        & $script:venvPython -m uv pip install -r (Join-Path $script:backendPath "requirements.txt")
+        # Intentar instalación ultra-rápida con uv, con fallback a pip
+        $uvInstalled = $false
+        & $script:venvPython -m pip install uv --quiet 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            & $script:venvPython -m uv pip install -r (Join-Path $script:backendPath "requirements.txt")
+            if ($LASTEXITCODE -eq 0) { $uvInstalled = $true }
+        }
+
+        if (-not $uvInstalled) {
+            Write-Host "  uv no disponible, usando pip estándar..." -ForegroundColor Yellow
+            & $script:venvPython -m pip install -r (Join-Path $script:backendPath "requirements.txt") --quiet
+        }
 
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "  ERROR: Falló la instalación de dependencias con uv. Revisa requirements.txt" -ForegroundColor Red
+            Write-Host "  ERROR: Falló la instalación de dependencias. Revisa requirements.txt" -ForegroundColor Red
             Read-Host "Presiona Enter para continuar..."
             return
         }
