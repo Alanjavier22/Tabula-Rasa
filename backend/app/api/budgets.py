@@ -3,12 +3,15 @@ from sqlalchemy.orm import Session, lazyload
 from typing import List, Optional
 from datetime import datetime, timezone
 import calendar
+import logging
 from database import get_db
 from app.api.auth import get_current_device
 from app.models.budget import Budget
 from app.services.budget_service import enrich_budget_response
 from app.services.budget_automation import generate_recurring_budgets, update_recurring_budgets
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/budgets", 
@@ -112,9 +115,7 @@ def get_budgets(
         return [enrich_budget_response(b, now) for b in budgets]
 
     except Exception as e:
-        import traceback
-        print(f"ERROR in budgets endpoint: {e}")
-        print(traceback.format_exc())
+        logger.exception("ERROR in budgets endpoint: %s", e)
         raise HTTPException(status_code=500, detail=f"Error fetching budgets: {str(e)}")
 
 
