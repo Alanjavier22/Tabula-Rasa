@@ -812,7 +812,8 @@ const Dashboard = () => {
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                   }}
                   cursor={{ fill: 'rgba(148, 163, 184, 0.05)' }}
-                  labelFormatter={(label: string) => {
+                  labelFormatter={(label: any) => {
+                    if (typeof label !== 'string') return '';
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                     const [year, month] = label.split('-');
                     const monthIndex = parseInt(month) - 1;
@@ -861,7 +862,8 @@ const Dashboard = () => {
                   color: '#fff',
                   boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                 }}
-                labelFormatter={(label: string) => {
+                labelFormatter={(label: any) => {
+                  if (typeof label !== 'string') return '';
                   const [month, day] = label.split('-');
                   const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                   const monthIndex = parseInt(month) - 1;
@@ -920,7 +922,7 @@ const Dashboard = () => {
                     color: '#fff',
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                   }}
-                  labelFormatter={(label: string) => {
+                  labelFormatter={(label: any) => {
                     const [year, month] = label.split('-');
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                     const monthIndex = parseInt(month) - 1;
@@ -1001,7 +1003,7 @@ const Dashboard = () => {
                   contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
                   labelStyle={{ color: '#f1f5f9' }}
                   itemStyle={{ color: '#f1f5f9' }}
-                  labelFormatter={(label: string) => {
+                  labelFormatter={(label: any) => {
                     const [year, month, day] = label.split('-');
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                     const monthIndex = parseInt(month) - 1;
