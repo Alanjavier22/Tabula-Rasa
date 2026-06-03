@@ -5,6 +5,43 @@ import asyncio
 from typing import Any, cast
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+from dotenv import load_dotenv
+load_dotenv()
+
+def ensure_jwt_secret():
+    import secrets
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    jwt_secret = os.getenv("JWT_SECRET")
+    default_secret = "super-secret-local-finance-key-change-in-production"
+    
+    if not jwt_secret or jwt_secret == default_secret:
+        new_secret = secrets.token_hex(32)
+        os.environ["JWT_SECRET"] = new_secret
+        
+        lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        
+        updated = False
+        new_lines = []
+        for line in lines:
+            if line.strip().startswith("JWT_SECRET="):
+                new_lines.append(f"JWT_SECRET={new_secret}\n")
+                updated = True
+            else:
+                new_lines.append(line)
+        
+        if not updated:
+            if new_lines and not new_lines[-1].endswith("\n"):
+                new_lines.append("\n")
+            new_lines.append(f"JWT_SECRET={new_secret}\n")
+            
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+
+ensure_jwt_secret()
+
 import logging
 from logging.handlers import RotatingFileHandler
 from contextlib import asynccontextmanager
