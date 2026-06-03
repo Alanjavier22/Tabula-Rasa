@@ -70,7 +70,7 @@ class BatchCategoryMappingRequest(BaseModel):
 
 
 class BatchCategoryMappingResponse(BaseModel):
-    mapping: Dict[str, int] = Field(..., description="Mapping of description to category_id")
+    mapping: Dict[str, str] = Field(..., description="Mapping of description to category_id")
 
 
 def get_gemini_key(db: Session) -> str:
@@ -373,12 +373,12 @@ Transaction descriptions to categorize:
 
 Rules:
 - Return a JSON object with the exact description as key and the category ID as value
-- Use the category ID (number), not the name
+- Use the category ID (string/UUID), not the name
 - If uncertain, choose the closest match
 - Only include descriptions from the input list
 - If a description doesn't match any category well, map it to the most generic category available
 
-Return ONLY the JSON response matching the schema: {{"mapping": {{"description": category_id}}}}"""
+Return ONLY the JSON response matching the schema: {{"mapping": {{"description": "category_id"}}}}"""
         
         # Generate content
         response = client.models.generate_content(
@@ -392,7 +392,7 @@ Return ONLY the JSON response matching the schema: {{"mapping": {{"description":
                         "mapping": {
                             "type": "object",
                             "additionalProperties": {
-                                "type": "number"
+                                "type": "string"
                             }
                         }
                     },
@@ -409,8 +409,10 @@ Return ONLY the JSON response matching the schema: {{"mapping": {{"description":
         valid_category_ids = {cat.id for cat in categories}
         validated_mapping = {}
         for desc, cat_id in mapping.items():
-            if cat_id in valid_category_ids:
-                validated_mapping[desc] = cat_id
+            # Support validation in case Gemini sends integer strings
+            str_cat_id = str(cat_id)
+            if str_cat_id in valid_category_ids:
+                validated_mapping[desc] = str_cat_id
         
         return BatchCategoryMappingResponse(mapping=validated_mapping)
         
