@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Info, CheckCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
