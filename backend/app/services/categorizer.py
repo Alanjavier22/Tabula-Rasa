@@ -8,6 +8,7 @@ from typing import Optional, Any, cast
 from database import SessionLocal
 import google.genai as genai
 from google.genai import types
+from app.services.ai_models import LITE_MODEL
 from pydantic import BaseModel, Field
 from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType, PaymentMethod, ExpenseType
@@ -332,7 +333,7 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
             while retry_count < max_retries:
                 try:
                     response = client.models.generate_content(
-                        model='gemini-3.1-flash-lite',
+                        model=LITE_MODEL,
                         contents=system_instruction + "\n\nLISTA A PROCESAR:\n" + tx_list_str,
                         config=types.GenerateContentConfig(
                             response_mime_type="application/json",
