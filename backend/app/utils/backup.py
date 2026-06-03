@@ -36,12 +36,42 @@ def checkpoint_db():
         backup_logger.warning(f"[DATABASE] WAL checkpoint failed: {e}. Backup might be slightly inconsistent.")
 
 
-def rotate_local_backups(keep_count: int = 2):
+def _rotate_files_with_pattern(directory: str, prefix: str, suffix: str, keep_count: int) -> None:
+    """Helper to rotate files matching prefix and suffix, keeping keep_count most recent."""
+    files = []
+    for filename in os.listdir(directory):
+        if filename.startswith(prefix) and filename.endswith(suffix):
+            filepath = os.path.join(directory, filename)
+            try:
+                # Extract timestamp
+                timestamp_str = filename.replace(prefix, "").replace(suffix, "")
+                timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                files.append((filepath, timestamp))
+            except ValueError:
+                # Fallback to mtime if timestamp format is different
+                try:
+                    mtime = os.path.getmtime(filepath)
+                    timestamp = datetime.fromtimestamp(mtime)
+                    files.append((filepath, timestamp))
+                except Exception:
+                    pass
+    
+    # Sort files by timestamp (newest first)
+    files.sort(key=lambda x: x[1], reverse=True)
+    
+    # Remove files beyond keep_count
+    if len(files) > keep_count:
+        for filepath, _ in files[keep_count:]:
+            try:
+                os.remove(filepath)
+                backup_logger.info(f"[LOCAL_BACKUP] Cleaned up old local backup: {filepath}")
+            except Exception as e:
+                backup_logger.warning(f"[LOCAL_BACKUP] Failed to remove old backup {filepath}: {e}")
+
+def rotate_local_backups(keep_count: int = 2) -> None:
     """
     Clean up old local backups, keeping only the most recent ones.
-    
-    Args:
-        keep_count: Number of recent backups to keep (default: 2 - current and previous)
+    Rotates both tabula_rasa_backup_*.sqlite3 and finance_backup_*.db files.
     """
     try:
         backend_dir = os.path.dirname(_DB_PATH)
@@ -50,34 +80,11 @@ def rotate_local_backups(keep_count: int = 2):
         if not os.path.exists(local_backup_dir):
             return
         
-        # Get all backup files
-        backup_files = []
-        for filename in os.listdir(local_backup_dir):
-            if filename.startswith("tabula_rasa_backup_") and filename.endswith(".sqlite3"):
-                filepath = os.path.join(local_backup_dir, filename)
-                # Extract timestamp from filename
-                try:
-                    timestamp_str = filename.replace("tabula_rasa_backup_", "").replace(".sqlite3", "")
-                    timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                    backup_files.append((filepath, timestamp))
-                except ValueError:
-                    # Skip files with invalid timestamp format
-                    continue
+        # 1. Rotate tabula_rasa_backup_*.sqlite3
+        _rotate_files_with_pattern(local_backup_dir, "tabula_rasa_backup_", ".sqlite3", keep_count)
         
-        # Sort by timestamp (newest first)
-        backup_files.sort(key=lambda x: x[1], reverse=True)
-        
-        # Delete old backups (keep only the most recent ones)
-        for i, (filepath, timestamp) in enumerate(backup_files):
-            if i >= keep_count:
-                try:
-                    os.remove(filepath)
-                    backup_logger.info(f"[LOCAL_BACKUP] Cleaned up old local backup: {filepath}")
-                except Exception as e:
-                    backup_logger.warning(f"[LOCAL_BACKUP] Failed to delete old backup {filepath}: {e}")
-            else:
-                backup_logger.info(f"[LOCAL_BACKUP] Keeping recent backup: {filepath}")
-                
+        # 2. Rotate finance_backup_*.db (keep 5 local physical backups)
+        _rotate_files_with_pattern(local_backup_dir, "finance_backup_", ".db", 5)
     except Exception as e:
         backup_logger.warning(f"[LOCAL_BACKUP] Failed to clean up local backups: {e}")
 
@@ -111,7 +118,9 @@ def create_physical_backup() -> str:
     # Copy database file (physical snapshot)
     try:
         shutil.copy2(_DB_PATH, backup_path)
-        print(f"✅ Backup created: {backup_path}")
+        backup_logger.info(f"✅ Backup created: {backup_path}")
+        # Automatically rotate backups to keep directory clean
+        rotate_local_backups()
         return backup_path
     except Exception as e:
         raise IOError(f"Failed to create backup: {e}")
@@ -501,8 +510,8 @@ def create_external_backup() -> Optional[str]:
         if local_backup_path and os.path.exists(local_backup_path):
             try:
                 os.remove(local_backup_path)
-            except:
-                pass
+            except OSError as cleanup_err:
+                backup_logger.warning(f"[GOOGLE_DRIVE] Failed to remove temporary local backup file: {cleanup_err}")
         return None
 
 
