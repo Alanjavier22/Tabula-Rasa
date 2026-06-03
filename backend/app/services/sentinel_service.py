@@ -10,6 +10,7 @@ from app.services.forecaster import get_financial_projection
 from app.api.ai_insights import _build_transaction_summary, _build_liquidity_summary, _build_credit_card_summary
 import google.genai as genai
 from google.genai import types
+from app.services.ai_models import REASONING_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ class SentinelService:
             for attempt in range(max_retries):
                 try:
                     response = self.client.models.generate_content(
-                        model="gemini-3.1-flash-lite",
+                        model=REASONING_MODEL,
                         contents=system_instruction + "\n\n" + prompt,
                         config=types.GenerateContentConfig(
                             temperature=0.0,
