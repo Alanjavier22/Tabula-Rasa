@@ -223,9 +223,22 @@ TABULA-RASA/
 ```
 
 ---
+## 🛠️ 7. Novedades y Optimizaciones Recientes (Estabilidad & Rendimiento)
+
+Recientemente se ha implementado un paquete masivo de estabilidad y calidad de código:
+*   **Aseguramiento de Tipos (TS Estricto)**: Corrección del 100% de los errores de tipado de TypeScript en el frontend, garantizando una compilación de producción (`npm run build`) limpia.
+*   **Lazy Loading & Route Splitting**: Implementación de carga perezosa (`React.lazy()`) y suspensión de rutas para acelerar el tiempo de carga del Dashboard.
+*   **Sidebar Colapsable de Alto Impacto**: Un panel lateral completamente colapsable en desktop que persiste su estado en el `localStorage` para mejorar la superficie útil del dashboard.
+*   **Parseador de Fechas Universal (`parse_date_robustly`)**: Módulo defensivo en el backend que limpia automáticamente discrepancias de fecha/hora de bases de datos locales (SQLite) o payloads erráticos, garantizando estabilidad total en importaciones.
+*   **Autogestión de JWT_SECRET**: Generación automática de llaves secretas seguras en el archivo `.env` al arranque del backend.
+*   **Filtros de Blacklist Dinámicos en DB**: Reemplazo de palabras clave fijas por consultas dinámicas a la tabla de configuración.
+*   **Migración Completa a Pydantic v2**: Transición de toda la serialización del backend a `.model_dump()`.
+
+---
 > **HISTORIAL DE INGENIERÍA**: 
 > Te invitamos a leer el archivo **`HISTORIAL.md`** adjunto en este repositorio para comprender a detalle el progreso cronológico de las optimizaciones, resoluciones de bugs, "refactorings" de código y las decisiones arquitectónicas clave (ADRs) documentadas semana a semana a lo largo de este proyecto de alto calibre.
 
 ---
 Desarrollado con ☕ y 🧠 por **Alan Javier Mejia Alvarez**
 *Soberanía financiera, precisión técnica y privacidad absoluta.* 🏛️✨
+
