@@ -5,6 +5,9 @@ from app.models.transaction import Transaction
 import google.genai as genai
 from google.genai import types
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AuditService:
     """
@@ -77,5 +80,6 @@ class AuditService:
             )
             result = json.loads(cast(str, response.text))
             return result.get("is_duplicate", False)
-        except:
+        except Exception as e:
+            logger.warning(f"Error checking semantic duplicate: {e}")
             return False
