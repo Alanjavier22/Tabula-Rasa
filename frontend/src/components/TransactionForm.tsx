@@ -222,7 +222,7 @@ const TransactionForm = ({
               </label>
               <div className="relative">
                 <DatePicker
-                  value={form.date ? form.date.split('T')[0] : ''}
+                  value={form.date ? form.date.substring(0, 10) : ''}
                   onChange={(value) => {
                     const now = new Date();
                     const selectedDate = new Date(value);
