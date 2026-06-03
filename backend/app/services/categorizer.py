@@ -3,6 +3,7 @@ import json
 import time
 import sys
 import hashlib
+import logging
 from typing import Optional, Any, cast
 from database import SessionLocal
 import google.genai as genai
@@ -11,6 +12,8 @@ from pydantic import BaseModel, Field
 from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType, PaymentMethod, ExpenseType
 from app.services.privacy import mask_description
+
+logger = logging.getLogger(__name__)
 
 # Configure UTF-8 encoding for stdout to handle emojis on Windows
 if sys.platform == 'win32':
@@ -155,7 +158,7 @@ def learn_category_pattern(db_session, description: str, category_id: str, benef
     try:
         db_session.flush()
     except Exception as e:
-        print(f"[Categorizer] Error learning pattern: {e}")
+        logger.error(f"[Categorizer] Error learning pattern: {e}")
 
 
 def _extract_beneficiary_key(beneficiary: str) -> str:
@@ -285,12 +288,12 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
         chunk_size = 80
         chunks = [pending_ai[i:i + chunk_size] for i in range(0, len(pending_ai), chunk_size)]
         
-        print(f"[Categorizer] Iniciando procesamiento de {len(pending_ai)} transacciones en {len(chunks)} lotes...")
+        logger.info(f"[Categorizer] Iniciando procesamiento de {len(pending_ai)} transacciones en {len(chunks)} lotes...")
 
         for i, chunk in enumerate(chunks):
             # Throttling: Pausa obligatoria para no saturar los 15 RPM (incluso en el primer lote para dar aire tras Tier 3)
             wait_time = 6 if i > 0 else 3
-            print(f"[Categorizer] Throttling: Esperando {wait_time}s para respetar cuota API...")
+            logger.info(f"[Categorizer] Throttling: Esperando {wait_time}s para respetar cuota API...")
             time.sleep(wait_time)
             
             # Create a compact prompt for the batch (include beneficiary for context)
@@ -360,13 +363,13 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
                     break # Success! Exit retry loop
                 
                 except Exception as e:
-                    if "503" in str(e) or "UNAVAILABLE" in str(e):
+                    if ("503" in str(e) or "UNAVAILABLE" in str(e)) and retry_count < max_retries:
                         retry_count += 1
-                        wait_time = (retry_count + 1) * 4 # Backoff más largo: 8s, 12s, 16s...
-                        print(f"[Categorizer] Gemini ocupado (503). Reintentando en {wait_time}s... ({retry_count}/{max_retries})")
+                        wait_time = (retry_count + 1) * 4 # Backoff: 8s, 12s, 16s...
+                        logger.warning(f"[Categorizer] Gemini ocupado (503). Reintentando en {wait_time}s... ({retry_count}/{max_retries})")
                         time.sleep(wait_time)
                     else:
-                        print(f"[Categorizer] Error en Batch AI: {e}")
+                        logger.error(f"[Categorizer] Error en Batch AI: {e}")
                         # Fallback to 'Otros' for this chunk
                         otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
                         for idx, _ in chunk:
