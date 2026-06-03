@@ -4,6 +4,8 @@ import os
 import io
 import re
 import pandas as pd
+import logging
+import asyncio
 from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 import google.genai as genai
@@ -16,6 +18,9 @@ from app.models.transaction import Transaction
 from app.models.import_log import ImportLog
 from app.models.category import Category
 from app.services.categorizer import get_semantic_category
+from app.utils.date_parser import parse_date_robustly
+
+logger = logging.getLogger(__name__)
 
 class ExtractedAccountTransaction(BaseModel):
     date: str = Field(description="Fecha de la transacción en formato YYYY-MM-DD")
@@ -83,9 +88,9 @@ class AccountIntelligenceService:
             df = df.dropna(how='all', axis=0).dropna(how='all', axis=1)
             
             # Debug: Ver las primeras filas para entender la estructura
-            print(f"[LocalParser] Analizando estructura de {filename}. Filas detectadas: {len(df)}")
+            logger.info(f"[LocalParser] Analizando estructura de {filename}. Filas detectadas: {len(df)}")
             for idx, row in df.head(10).iterrows():
-                print(f"[LocalParser] Row {idx}: {' | '.join([str(v) for v in row])}")
+                logger.debug(f"[LocalParser] Row {idx}: {' | '.join([str(v) for v in row])}")
 
             header_row_idx = -1
             date_col_idx = desc_col_idx = amount_col_idx = balance_col_idx = cargo_col_idx = abono_col_idx = beneficiary_col_idx = type_col_idx = -1
@@ -95,7 +100,7 @@ class AccountIntelligenceService:
                 # Heurística: La cabecera contiene fecha y (detalle o descripción o concepto)
                 if 'fecha' in row_str and ('detalle' in row_str or 'descrip' in row_str or 'concepto' in row_str):
                     header_row_idx = i
-                    print(f"[LocalParser] Cabecera encontrada en fila {i}")
+                    logger.info(f"[LocalParser] Cabecera encontrada en fila {i}")
                     for j, val in enumerate(row):
                         if pd.isna(val): continue
                         col_name = str(val).lower()
@@ -110,11 +115,11 @@ class AccountIntelligenceService:
                     break
                     
             if header_row_idx == -1 or date_col_idx == -1 or desc_col_idx == -1:
-                print("[LocalParser] No se encontró cabecera válida.")
+                logger.warning("[LocalParser] No se encontró cabecera válida.")
                 return {} 
                 
             if amount_col_idx == -1 and (cargo_col_idx == -1 and abono_col_idx == -1):
-                print("[LocalParser] No se encontró columna de monto/cargos/abonos.")
+                logger.warning("[LocalParser] No se encontró columna de monto/cargos/abonos.")
                 return {}
 
             transactions = []
@@ -132,7 +137,7 @@ class AccountIntelligenceService:
                 try:
                     val_fecha = row.iloc[date_col_idx]
                     val_desc = row.iloc[desc_col_idx]
-                except:
+                except Exception:
                     skipped_count += 1
                     continue
 
@@ -147,7 +152,7 @@ class AccountIntelligenceService:
                     from dateutil import parser as dt_parser
                     parsed_date = dt_parser.parse(date_val, dayfirst=True)
                     date_iso = parsed_date.strftime("%Y-%m-%d")
-                except:
+                except Exception:
                     skipped_count += 1
                     continue
                     
@@ -166,7 +171,7 @@ class AccountIntelligenceService:
                     
                     clean = re.sub(r'[^\d.-]', '', s)
                     try:
-                        return round(float(clean) * 100)
+                        return int(round(float(clean) * 100))
                     except (ValueError, TypeError):
                         return 0
 
@@ -241,7 +246,7 @@ class AccountIntelligenceService:
                 })
                 
             if skipped_count > 0:
-                print(f"[LocalParser] Info: Se saltaron {skipped_count} filas que no parecen ser transacciones.")
+                logger.info(f"[LocalParser] Info: Se saltaron {skipped_count} filas que no parecen ser transacciones.")
             
             # --- EXTRACCIÓN DE RESUMEN OFICIAL (SI EXISTE) ---
             official_income = official_expense = None
@@ -311,7 +316,7 @@ class AccountIntelligenceService:
         except Exception as e:
             import traceback
             traceback.print_exc()
-            print(f"[LocalParser] Error extrayendo localmente: {e}")
+            logger.error(f"[LocalParser] Error extrayendo localmente: {e}", exc_info=True)
             return {}
 
     async def parse_account_document(self, file_data: bytes, filename: str, account_id: str, expected_bank_name: Optional[str] = None) -> Dict[str, Any]:
@@ -324,15 +329,15 @@ class AccountIntelligenceService:
         parsed_data: Dict[str, Any] = {"transactions": []}
         
         # --- NUEVO: Extracción Híbrida (Local First) ---
-        print("[AccountIntelligence] Intentando extracción heurística local...")
+        logger.info("[AccountIntelligence] Intentando extracción heurística local...")
         local_transactions = self.local_extract_transactions(file_data, filename)
         
         if isinstance(local_transactions, dict) and local_transactions.get("transactions"):
             tx_count = len(local_transactions["transactions"])
-            print(f"[AccountIntelligence] ÉXITO LOCAL: Se extrajeron {tx_count} transacciones sin usar IA.")
+            logger.info(f"[AccountIntelligence] ÉXITO LOCAL: Se extrajeron {tx_count} transacciones sin usar IA.")
             parsed_data = local_transactions
         else:
-            print("[AccountIntelligence] Extracción local falló o no encontró datos. Pasando a IA (Tier 3)...")
+            logger.info("[AccountIntelligence] Extracción local falló o no encontró datos. Pasando a IA (Tier 3)...")
             # 1. Convertir archivo a texto crudo para la IA
             raw_csv_text = self.convert_to_csv_string(file_data, filename)
             system_instruction = f"""Eres un auditor financiero experto en Ecuador. Tu tarea es EXTRAER transacciones de cuentas de ahorro/corriente a partir de datos en crudo (CSV/Excel convertido a texto).
@@ -385,8 +390,8 @@ class AccountIntelligenceService:
                     if attempt < max_retries - 1:
                         # Espera incremental: 5s, 10s, 15s, 20s...
                         wait_time = (attempt + 1) * 5 
-                        print(f"[IA] Gemini ocupado ({e}). Reintento {attempt + 1}/{max_retries} en {wait_time}s...")
-                        time.sleep(wait_time)
+                        logger.warning(f"[IA] Gemini ocupado ({e}). Reintento {attempt + 1}/{max_retries} en {wait_time}s...")
+                        await asyncio.sleep(wait_time)
                     else:
                         raise ValueError(f"IA no disponible tras {max_retries} intentos. Google reporta: {str(e)}")
         
@@ -459,7 +464,7 @@ class AccountIntelligenceService:
             # This ensures that 'created_at' reflects the chronological flow within a day
             for tx_data in reversed(confirmed_transactions):
                 if not tx_data.get('is_duplicate', False):
-                    dt = datetime.fromisoformat(tx_data['date'])
+                    dt = parse_date_robustly(tx_data['date']) or datetime.now()
                     if dt.date() < earliest_date:
                         earliest_date = dt.date()
 
