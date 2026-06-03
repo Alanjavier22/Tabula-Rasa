@@ -117,7 +117,7 @@ export class IntegrityService {
     const cashCents = accounts.reduce((sum, account) => sum + (account.balance || 0), 0);
 
     // Calculate Assets (physical assets current value)
-    const assetsCents = await assetDepreciationService.getTotalAssetsValue(now);
+    const assetsCents = await assetDepreciationService.getTotalAssetsValue();
 
     // Calculate Liabilities (IOUs pending + credit card balances)
     // @ts-ignore
