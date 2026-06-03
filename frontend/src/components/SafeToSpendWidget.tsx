@@ -29,12 +29,23 @@ const SafeToSpendWidget = () => {
     try {
       setLoading(true);
       const response = await metricsAPI.getSafeToSpend();
-      setData(response.data as SafeToSpendData);
+      const resData = response.data;
+      const mappedData: SafeToSpendData = {
+        current_balance: resData.current_balance,
+        projected_income: resData.monthly_income,
+        monthly_budgets: resData.projected_fixed_expenses,
+        pending_debts: resData.pending_cc_payments,
+        base_safe_to_spend: resData.safe_to_spend + resData.safe_to_spend_buffer,
+        ai_adjusted_safe_to_spend: resData.safe_to_spend,
+        days_until_month_end: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate(),
+        prediction: resData.safe_to_spend >= 0 ? 'positive' : 'negative',
+      };
+      setData(mappedData);
       
       // Generate insight based on data
-      if (response.data.ai_adjusted_safe_to_spend < 0) {
+      if (mappedData.ai_adjusted_safe_to_spend < 0) {
         setInsight('Tu gasto proyectado supera tus ingresos. Considera reducir gastos no esenciales.');
-      } else if (response.data.ai_adjusted_safe_to_spend < response.data.base_safe_to_spend * 0.3) {
+      } else if (mappedData.ai_adjusted_safe_to_spend < mappedData.base_safe_to_spend * 0.3) {
         setInsight('Tu gasto en "Ocio" ha subido un 20% esta semana. Revisa tus presupuestos.');
       } else {
         setInsight('Tu flujo de caja es saludable. Mantén tus hábitos actuales.');
