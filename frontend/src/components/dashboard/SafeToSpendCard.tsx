@@ -98,21 +98,7 @@ export default function SafeToSpendCard({ data }: SafeToSpendCardProps) {
             </div>
           </div>
 
-          {/* Footer Insights - Clean Glass Separator */}
-          {((data?.projected_taxes ?? 0) > 0 || (data?.anomaly_leaks ?? 0) > 0 || (data?.safe_to_spend_buffer ?? 0) > 0) && (
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 px-1 py-2 bg-white/[0.005] border-t border-white/5">
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-1 rounded-full bg-indigo-400/40" />
-                <span className="text-[10px] text-white/30 uppercase font-bold tracking-wider">Reserva SRI</span>
-                <span className="text-[9px] font-bold text-indigo-300/50">-${formatMoney(data?.projected_taxes ?? 0)}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-1 h-1 rounded-full bg-purple-400/40" />
-                <span className="text-[10px] text-white/30 uppercase font-bold tracking-wider">Colchón Seguridad</span>
-                <span className="text-[9px] font-bold text-purple-300/50">-${formatMoney((data?.anomaly_leaks ?? 0) + (data?.safe_to_spend_buffer ?? 0))}</span>
-              </div>
-            </div>
-          )}
+
         </div>
       </div>
     </div>
