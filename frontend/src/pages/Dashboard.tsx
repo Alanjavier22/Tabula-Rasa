@@ -923,6 +923,7 @@ const Dashboard = () => {
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                   }}
                   labelFormatter={(label: any) => {
+                    if (typeof label !== 'string') return '';
                     const [year, month] = label.split('-');
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                     const monthIndex = parseInt(month) - 1;
@@ -1004,6 +1005,7 @@ const Dashboard = () => {
                   labelStyle={{ color: '#f1f5f9' }}
                   itemStyle={{ color: '#f1f5f9' }}
                   labelFormatter={(label: any) => {
+                    if (typeof label !== 'string') return '';
                     const [year, month, day] = label.split('-');
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                     const monthIndex = parseInt(month) - 1;
