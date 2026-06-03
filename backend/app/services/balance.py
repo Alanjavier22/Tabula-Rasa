@@ -46,7 +46,7 @@ def apply_transaction_to_balance(db: Session, transaction: Transaction, reverse:
     db.flush()
 
 
-def recalculate_account_balance(db: Session, account_id: str, initial_balance: Optional[int] = None) -> int:
+def recalculate_account_balance(db: Session, account_id: str, initial_balance: Optional[int] = None, commit: bool = True) -> int:
     """
     Recalculate an account's balance with 'Anchor Logic'.
     
@@ -157,5 +157,6 @@ def recalculate_account_balance(db: Session, account_id: str, initial_balance: O
                     new_balance -= txn_amount
     
     account.balance = cast(Any, new_balance)
-    db.commit()
+    if commit:
+        db.commit()
     return cast(int, new_balance)
