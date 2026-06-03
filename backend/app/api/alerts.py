@@ -12,6 +12,7 @@ from app.models.account import Account
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.iou import IOU, IOUType, IOUStatus
 from app.models.deferred_payment import DeferredPayment
+from app.utils.date_parser import parse_date_robustly
 
 router = APIRouter(
     prefix="/alerts", 
@@ -61,8 +62,12 @@ def get_payment_reminders(days_ahead: int = 15, db: Session = Depends(get_db)):
         due_date_str = status["latest_statement"]["due_date"] if status["latest_statement"] else None
         
         if due_date_str:
-            due_date_d = datetime.fromisoformat(due_date_str).date()
-            days_remaining = (due_date_d - today).days
+            due_date_dt = parse_date_robustly(due_date_str)
+            due_date_d = due_date_dt.date() if due_date_dt else None
+            if due_date_d:
+                days_remaining = (due_date_d - today).days
+            else:
+                days_remaining = 30
         else:
             # If no statement, we don't have a specific due date yet, 
             # but we show it as a general reminder if there's debt.
