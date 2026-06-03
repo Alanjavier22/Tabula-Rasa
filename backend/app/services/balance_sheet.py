@@ -13,6 +13,11 @@ from app.models.iou import IOU
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.services.asset_depreciation import asset_depreciation_service
+from app.utils.date_parser import parse_date_robustly
+import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BalanceSheet:
@@ -112,7 +117,7 @@ class BalanceSheetService:
 
         # Calculate detailed breakdown
         cash_accounts_cents = BalanceSheetService.get_cash_accounts_value(db)
-        snapshot_date = datetime.fromisoformat(snapshot.date) if isinstance(snapshot.date, str) else snapshot.date
+        snapshot_date = parse_date_robustly(snapshot.date) if isinstance(snapshot.date, str) else snapshot.date
         physical_assets_cents = asset_depreciation_service.get_total_assets_value(db, snapshot_date)
         ious_pending_cents = BalanceSheetService.get_ious_pending_value(db)
         credit_card_balances_cents = BalanceSheetService.get_credit_card_balances(db)
@@ -199,11 +204,12 @@ class BalanceSheetService:
                 else:
                     # Fallback to the snapshot aggregate if detail is missing
                     cash_accounts_cents = snapshot.total_assets - (snapshot.total_assets * 0.1) # Proxy if metadata is empty
-            except:
+            except Exception as e:
+                logger.warning(f"Error parsing metadata for snapshot {snapshot.id}: {e}")
                 cash_accounts_cents = snapshot.total_assets
 
             # Calculate historical physical assets value at THAT time
-            snapshot_date = datetime.fromisoformat(snapshot.snapshot_date.isoformat()) if hasattr(snapshot.snapshot_date, 'isoformat') else snapshot.snapshot_date
+            snapshot_date = parse_date_robustly(snapshot.snapshot_date.isoformat()) if hasattr(snapshot.snapshot_date, 'isoformat') else snapshot.snapshot_date
             physical_assets_cents = asset_depreciation_service.get_total_assets_value(db, cast(datetime, snapshot_date))
             
             # Recalculate equity based on snapshot's verified totals
