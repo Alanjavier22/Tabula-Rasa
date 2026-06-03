@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, cast
 import google.genai as genai
+from app.services.ai_models import MULTIMODAL_MODEL, LITE_MODEL
 from google.genai import errors, types
 import os
 import base64
@@ -144,7 +145,7 @@ Return ONLY the JSON response matching the schema."""
         
         # Generate content with audio
         response = client.models.generate_content(
-            model="gemini-3.1-flash-lite",
+            model=MULTIMODAL_MODEL,
             contents=cast(Any, [
                 types.Part.from_text(text=prompt),
                 types.Part.from_bytes(
@@ -270,7 +271,7 @@ Return ONLY the JSON response matching the schema."""
         
         # Generate content with document (vision)
         response = client.models.generate_content(
-            model="gemini-3.1-flash-lite",
+            model=MULTIMODAL_MODEL,
             contents=cast(Any, [
                 types.Part.from_text(text=prompt),
                 types.Part.from_bytes(
@@ -382,7 +383,7 @@ Return ONLY the JSON response matching the schema: {{"mapping": {{"description":
         
         # Generate content
         response = client.models.generate_content(
-            model="gemini-3.1-flash-lite",
+            model=LITE_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
