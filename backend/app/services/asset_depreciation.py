@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Any, cast
 from sqlalchemy.orm import Session
 from app.models.asset import Asset
+from app.utils.date_parser import parse_date_robustly
 
 
 class AssetValueResult:
@@ -70,7 +71,7 @@ class AssetDepreciationService:
         if not asset or asset.is_deleted:
             raise ValueError(f"Asset not found: {asset_id}")
 
-        purchase_date = cast(datetime, datetime.fromisoformat(asset.purchase_date) if isinstance(asset.purchase_date, str) else asset.purchase_date)
+        purchase_date = cast(datetime, parse_date_robustly(asset.purchase_date) if isinstance(asset.purchase_date, str) else asset.purchase_date)
         months_elapsed = AssetDepreciationService.calculate_months_elapsed(purchase_date, as_of_date)
 
         # Base depreciable: purchase_price - residual_value
