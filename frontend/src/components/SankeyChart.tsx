@@ -158,7 +158,6 @@ export const SankeyChart: React.FC = () => {
   // Simple SVG-based Sankey visualization (fallback if no library available)
   const maxValue = Math.max(...data.nodes.map(n => n.value));
   const nodeWidth = 120;
-  const nodeHeight = 30;
   const gap = 20;
 
   return (
@@ -206,7 +205,7 @@ export const SankeyChart: React.FC = () => {
           })}
 
           {/* Render links */}
-          {data.links.map((link, index) => {
+          {data.links.map((link) => {
             const sourceIndex = data.nodes.findIndex(n => n.name === link.source);
             const targetIndex = data.nodes.findIndex(n => n.name === link.target);
             
