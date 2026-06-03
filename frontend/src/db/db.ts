@@ -81,15 +81,15 @@ class WhereClauseStub {
   and(_predicate: (item: any) => boolean) {
     return new CollectionStub(this.tableName);
   }
+
+  startsWithIgnoreCase(_prefix: string) {
+    return new CollectionStub(this.tableName);
+  }
 }
 
 /** Minimal Collection stub */
 class CollectionStub {
-  private tableName: string;
-
-  constructor(tableName: string) {
-    this.tableName = tableName;
-  }
+  constructor(_tableName: string) {}
 
   and(_predicate: (item: any) => boolean) {
     return this;
@@ -120,6 +120,10 @@ class CollectionStub {
   async count(): Promise<number> {
     return 0;
   }
+
+  async first(): Promise<any> {
+    return undefined;
+  }
 }
 
 /** Database stub with all tables referenced by legacy services */
@@ -134,6 +138,13 @@ class DatabaseStub {
   sync_queue = new TableStub('sync_queue');
   ious = new TableStub('ious');
   statements = new TableStub('statements');
+  config = new TableStub('config');
+  exchange_rates = new TableStub('exchange_rates');
+  net_worth_snapshots = new TableStub('net_worth_snapshots');
+  credit_card_statements = new TableStub('credit_card_statements');
+  fuel_logs = new TableStub('fuel_logs');
+  maintenance_logs = new TableStub('maintenance_logs');
+  vehicles = new TableStub('vehicles');
 
   async transaction(_mode: string, _table: any, callback: () => Promise<any>): Promise<any> {
     return await callback();
