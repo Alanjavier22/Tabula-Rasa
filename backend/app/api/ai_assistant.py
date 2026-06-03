@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Any, Dict, cast
 import os
 import google.genai as genai
+from app.services.ai_models import AGENT_MODEL
 from google.genai import types
 from database import get_db, SessionLocal
 from app.api.auth import get_current_device
@@ -771,7 +772,7 @@ GUÍA DE HERRAMIENTAS:
         client = genai.Client(api_key=api_key)
         
         chat = client.chats.create(
-            model="gemini-3.1-flash-lite",
+            model=AGENT_MODEL,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 tools=tools
