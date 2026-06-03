@@ -7,6 +7,7 @@ from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 import google.genai as genai
 from google.genai import types
+from app.services.ai_models import MULTIMODAL_MODEL
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,7 @@ class StatementIntelligenceService:
         for attempt in range(max_retries):
             try:
                 response = client.models.generate_content(
-                    model='gemini-3.1-flash-lite', 
+                    model=MULTIMODAL_MODEL, 
                     contents=cast(Any, [
                         types.Part.from_bytes(data=file_data, mime_type=mime_type),
                         types.Part.from_text(text=prompt)
@@ -223,7 +224,7 @@ class StatementIntelligenceService:
             "pagos_match": abs(abs(calc_sum_pagos) - abs(parsed_data['total_pagos_cents'])) < 5,
             "calculated_consumos": calc_sum_consumos,
             "calculated_pagos": calc_sum_pagos,
-            "extraction_method": "gemini-3.1-flash-lite-vision"
+            "extraction_method": f"{MULTIMODAL_MODEL}-vision"
         }
         
         return parsed_data
