@@ -43,6 +43,7 @@ export interface Transaction {
   updated_at: string;
   version: number;  // FASE 7: OCC versioning
   needs_review?: boolean;  // FASE 7: Conflict flag
+  needs_clarification?: boolean;
   category?: Category;
   splits?: TransactionSplit[];
 }
