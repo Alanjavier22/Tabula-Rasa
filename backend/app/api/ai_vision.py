@@ -6,6 +6,7 @@ import google.genai as genai
 from google.genai import types
 from pydantic import BaseModel
 from typing import List, Optional, Any, cast
+from app.services.ai_models import MULTIMODAL_MODEL
 import os
 from app.models.config import Config
 
@@ -53,7 +54,7 @@ async def parse_receipt(file: UploadFile = File(...), db: Session = Depends(get_
         )
 
         response = client.models.generate_content(
-            model="gemini-3.1-flash-lite",
+            model=MULTIMODAL_MODEL,
             contents=cast(Any, [
                 types.Part.from_bytes(data=content_bytes, mime_type=mime_type),
                 types.Part.from_text(text="Extrae los datos de esta factura.")
