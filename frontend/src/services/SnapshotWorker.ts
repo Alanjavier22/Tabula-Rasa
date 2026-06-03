@@ -217,7 +217,7 @@ if (typeof window !== 'undefined') {
       console.debug(`[FASE-3] Found ${count} pending snapshot recalculations, starting worker`);
       snapshotWorker.start();
     }
-  }).catch(err => {
+  }).catch((err: any) => {
     console.error('[FASE-3] Error checking snapshot queue:', err);
   });
 }
