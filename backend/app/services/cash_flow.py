@@ -7,13 +7,20 @@ Operates on aggregates only (fast, no 50k transaction scans)
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any, cast
 import statistics
+from sqlalchemy import func
 from sqlalchemy.orm import Session
+import logging
+import json
+
 from app.models.account import Account
-from app.models.transaction import Transaction
+from app.models.transaction import Transaction, TransactionType
 from app.models.subscription import Subscription
 from app.models.iou import IOU
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.debt_share import DebtShare
+from app.utils.date_parser import parse_date_robustly
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectedBalanceResult:
@@ -97,34 +104,39 @@ class CashFlowService:
         """
         try:
             month_start = datetime(year, month, 1)
-            month_end = datetime(year, month + 1, 1) - timedelta(days=1)
+            if month == 12:
+                next_month_start = datetime(year + 1, 1, 1)
+            else:
+                next_month_start = datetime(year, month + 1, 1)
+            month_end = next_month_start - timedelta(days=1)
 
-            month_income = (
-                db.query(Transaction)
+            month_income_sum = (
+                db.query(func.sum(Transaction.amount))
                 .filter(Transaction.is_deleted == False)
                 .filter(Transaction.transaction_type == "income")
                 .filter(Transaction.date >= month_start)
                 .filter(Transaction.date <= month_end)
-                .all()
+                .scalar()
             )
 
-            if month_income:
-                return int(cast(Any, sum(t.amount for t in month_income)))
+            if month_income_sum is not None:
+                return int(month_income_sum)
 
             # Fallback: use 90-day average / 3
             ninety_days_ago = datetime.now() - timedelta(days=90)
-            recent_income = (
-                db.query(Transaction)
+            recent_income_sum = (
+                db.query(func.sum(Transaction.amount))
                 .filter(Transaction.is_deleted == False)
                 .filter(Transaction.transaction_type == "income")
                 .filter(Transaction.date >= ninety_days_ago)
-                .all()
+                .scalar()
             )
 
-            total_income = sum(t.amount for t in recent_income)
-            return int(cast(Any, total_income // 3))
+            if recent_income_sum is not None:
+                return int(recent_income_sum) // 3
+            return 0
         except Exception as e:
-            print(f"[CashFlowService] Error getting monthly income proxy: {e}")
+            logger.error(f"[CashFlowService] Error getting monthly income proxy: {e}", exc_info=True)
             return 0
 
     @staticmethod
@@ -162,7 +174,7 @@ class CashFlowService:
             income_txns_query = (
                 db.query(Transaction)
                 .filter(Transaction.is_deleted == False)
-                .filter(Transaction.is_internal == False) # Ignore CC payments/transfers
+                .filter(Transaction.is_internal == False)
                 .filter(Transaction.transaction_type == "income")
                 .filter(Transaction.date >= history_start)
             )
@@ -170,11 +182,33 @@ class CashFlowService:
             if ignored_ids:
                 income_txns_query = income_txns_query.filter(Transaction.category_id.not_in(ignored_ids))
             
+            # DB-driven blacklist with fallback
+            from app.models.config import Config
+            config_entry = db.query(Config).filter(Config.key == "income_blacklist", Config.is_deleted == False).first()
+            if config_entry and config_entry.value:
+                try:
+                    blacklist = json.loads(config_entry.value)
+                except Exception:
+                    blacklist = [item.strip() for item in config_entry.value.split(",") if item.strip()]
+            else:
+                blacklist = ["DENNIS", "DANIEL", "META", "TRANSFERENCIA", "PAGO EN OFIC", "MUCHAS GRACIAS", "TRANSF. DEUDA", "SU PAGO", "ABONO"]
+                try:
+                    new_config = Config(
+                        key="income_blacklist",
+                        value=json.dumps(blacklist),
+                        value_type="json",
+                        description="Lista de palabras clave para ignorar en proyecciones de ingresos",
+                        is_public=True
+                    )
+                    db.add(new_config)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+
             all_income = income_txns_query.all()
             
             # Group by normalized description to find recurring sources
             sources = defaultdict(list)
-            blacklist = ["DENNIS", "DANIEL", "META", "TRANSFERENCIA", "PAGO EN OFIC", "MUCHAS GRACIAS", "TRANSF. DEUDA", "SU PAGO", "ABONO"]
             
             for t in all_income:
                 desc = (t.description or "").upper().strip()
@@ -254,9 +288,8 @@ class CashFlowService:
 
             subscription_cost = 0
             for sub in subscriptions:
-                if sub.next_billing_date:
-                    next_billing = datetime.fromisoformat(sub.next_billing_date) if isinstance(sub.next_billing_date, str) else sub.next_billing_date
-                    if next_billing.replace(tzinfo=None) >= now.replace(tzinfo=None) and next_billing.replace(tzinfo=None) <= future_date.replace(tzinfo=None):
+                    next_billing = parse_date_robustly(sub.next_billing_date)
+                    if next_billing and next_billing.replace(tzinfo=None) >= now.replace(tzinfo=None) and next_billing.replace(tzinfo=None) <= future_date.replace(tzinfo=None):
                         subscription_cost += sub.amount or 0
 
             # 4. IOUs due in period (Only what I OWE is an expense, what they OWE is recovery)
@@ -312,9 +345,7 @@ class CashFlowService:
                 },
             )
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"[CashFlowService] Error calculating projection: {e}")
+            logger.error(f"[CashFlowService] Error calculating projection: {e}", exc_info=True)
             raise e
 
     @staticmethod
