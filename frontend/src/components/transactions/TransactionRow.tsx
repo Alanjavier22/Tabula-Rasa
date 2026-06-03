@@ -9,11 +9,11 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { formatMoney } from '../../utils/money';
-import type { LocalTransaction } from '../../db/db';
+import type { Transaction } from '../../types';
 
 interface TransactionRowProps {
-  transaction: LocalTransaction & { category?: any };
-  onEdit?: (txn: LocalTransaction & { category?: any }) => void;
+  transaction: Transaction & { category?: any };
+  onEdit?: (txn: Transaction & { category?: any }) => void;
   onDelete?: (id: string) => void;
 }
 
