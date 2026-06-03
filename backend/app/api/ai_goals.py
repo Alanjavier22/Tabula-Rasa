@@ -6,6 +6,7 @@ import google.genai as genai
 from google.genai import types
 from pydantic import BaseModel
 from typing import List, Optional, Any, cast
+from app.services.ai_models import REASONING_MODEL
 import os
 import json
 from app.models.config import Config
@@ -90,7 +91,7 @@ def get_smart_goal_recommendations(db: Session = Depends(get_db)):
 
     try:
         response = client.models.generate_content(
-            model="gemini-3.1-flash-lite",
+            model=REASONING_MODEL,
             contents=user_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
