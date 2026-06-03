@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AIAgentService } from '../../services/AIAgentService';
 import type { AnomalyScanResult, ZombieSubscription } from '../../services/AIAgentService';
 import { subscriptionsAPI } from '../../services/api';
+import type { Cents } from '../../types';
 
 interface AIAnomalyScannerProps {
   recentTransactions: any[];
@@ -62,7 +63,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
     try {
       await subscriptionsAPI.create({
         name: zombie.description,
-        amount: zombie.estimated_amount,
+        amount: zombie.estimated_amount as Cents,
         frequency: 'monthly',
         next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       });
