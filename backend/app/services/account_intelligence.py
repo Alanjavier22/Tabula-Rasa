@@ -10,6 +10,7 @@ from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 import google.genai as genai
 from google.genai import types
+from app.services.ai_models import LITE_MODEL
 from datetime import datetime
 from database import SessionLocal
 from sqlalchemy import func
@@ -369,7 +370,7 @@ class AccountIntelligenceService:
             for attempt in range(max_retries):
                 try:
                     response = client.models.generate_content(
-                        model='gemini-3.1-flash-lite', 
+                        model=LITE_MODEL, 
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             system_instruction=system_instruction,
