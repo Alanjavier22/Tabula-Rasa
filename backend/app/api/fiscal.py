@@ -35,7 +35,8 @@ def get_iva_rate(db: Session) -> Decimal:
     if config and config.value:
         try:
             return Decimal(cast(str, config.value))
-        except:
+        except Exception as e:
+            logger.warning(f"Error parsing iva_rate config: {e}")
             return Decimal("0.15")
     
     # If not exists, create it as a default
@@ -57,7 +58,8 @@ def get_retention_source_rate(db: Session) -> Decimal:
     if config and config.value:
         try:
             return Decimal(cast(str, config.value))
-        except:
+        except Exception as e:
+            logger.warning(f"Error parsing retencion_source_rate config: {e}")
             return Decimal("0.01")
     
     new_config = Config(
@@ -78,7 +80,8 @@ def get_retention_iva_rate(db: Session) -> Decimal:
     if config and config.value:
         try:
             return Decimal(cast(str, config.value))
-        except:
+        except Exception as e:
+            logger.warning(f"Error parsing retencion_iva_rate config: {e}")
             return Decimal("0.30")
     
     new_config = Config(
@@ -140,7 +143,7 @@ def get_fiscal_report(
         
         # Parse category IDs if provided
         cat_ids = None
-        if category_ids:
+        if category_ids and isinstance(category_ids, str):
             cat_ids = category_ids.split(',')
         
         # Base query for transactions in date range
