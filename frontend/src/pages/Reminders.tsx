@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { remindersAPI } from '../services/api';
-import type { Reminder } from '../types';
+import type { Reminder, ReminderFrequency, ReminderStatus } from '../types';
 import { formatMoney, toCents } from '../utils/money';
 import { 
   Plus, 
@@ -26,9 +26,9 @@ const emptyForm = {
   name: '',
   amount: '',
   due_date: new Date().toISOString().split('T')[0],
-  frequency: 'once',
+  frequency: 'once' as ReminderFrequency,
   description: '',
-  status: 'pending',
+  status: 'pending' as ReminderStatus,
   is_active: true,
 };
 
@@ -97,7 +97,7 @@ const Reminders = () => {
     setEditForm({
       name: reminder.name,
       amount: reminder.amount ? (reminder.amount / 100).toString() : '',
-      due_date: reminder.due_date.split('T')[0],
+      due_date: reminder.due_date.substring(0, 10),
       frequency: reminder.frequency,
       description: reminder.description || '',
       status: reminder.status,
@@ -117,7 +117,7 @@ const Reminders = () => {
         frequency: form.frequency,
         description: form.description || '',
         status: form.status,
-        is_active: form.is_active ? 1 : 0,
+        is_active: form.is_active,
       });
       setShowCreateModal(false);
       setForm(emptyForm);
@@ -146,7 +146,7 @@ const Reminders = () => {
         frequency: editForm.frequency,
         description: editForm.description || '',
         status: editForm.status,
-        is_active: editForm.is_active ? 1 : 0,
+        is_active: editForm.is_active,
       });
       setShowEditModal(false);
       setEditingReminder(null);
@@ -546,7 +546,7 @@ const Reminders = () => {
                       <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Ciclo de Repetición</label>
                       <Select
                         value={showCreateModal ? form.frequency : editForm.frequency}
-                        onChange={(value) => showCreateModal ? setForm({...form, frequency: value}) : setEditForm({...editForm, frequency: value})}
+                        onChange={(value) => showCreateModal ? setForm({...form, frequency: value as ReminderFrequency}) : setEditForm({...editForm, frequency: value as ReminderFrequency})}
                         options={[
                           { value: 'once', label: 'Una vez' },
                           { value: 'daily', label: 'Diario' },
@@ -560,7 +560,7 @@ const Reminders = () => {
                       <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Estado Inicial</label>
                       <Select
                         value={showCreateModal ? form.status : editForm.status}
-                        onChange={(value) => showCreateModal ? setForm({...form, status: value}) : setEditForm({...editForm, status: value})}
+                        onChange={(value) => showCreateModal ? setForm({...form, status: value as ReminderStatus}) : setEditForm({...editForm, status: value as ReminderStatus})}
                         options={[
                           { value: 'pending', label: 'Pendiente' },
                           { value: 'completed', label: 'Completado' },
