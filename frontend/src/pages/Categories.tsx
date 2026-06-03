@@ -131,7 +131,7 @@ const Categories = () => {
     try {
       await categoriesAPI.create({
         name: form.name,
-        description: form.description || null,
+        description: form.description || undefined,
         color: form.color,
       });
       setShowCreateModal(false);
@@ -153,7 +153,7 @@ const Categories = () => {
     try {
       await categoriesAPI.update(editingCategory.id, {
         name: editForm.name,
-        description: editForm.description || null,
+        description: editForm.description || undefined,
         color: editForm.color,
       });
       setShowEditModal(false);
