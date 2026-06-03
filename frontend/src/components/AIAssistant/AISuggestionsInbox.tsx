@@ -5,17 +5,14 @@ interface AISuggestionsInboxProps {
   suggestions: AICategorySuggestion[];
   transactions: any[];
   categories: any[];
-  onApproved: (approvedIds: string[]) => void;
 }
 
 export const AISuggestionsInbox: React.FC<AISuggestionsInboxProps> = ({
   suggestions,
   transactions,
   categories,
-  onApproved,
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isApproving, setIsApproving] = useState(false);
 
   const toggleSelection = (id: string) => {
     const newSelected = new Set(selectedIds);
