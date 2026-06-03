@@ -148,7 +148,7 @@ const Budgets = () => {
         amount: toCents(form.amount),
         month: form.month,
         year: form.year,
-        category_id: form.category_id || null,
+        category_id: form.category_id || undefined,
       });
       setShowCreateModal(false);
       setForm(emptyForm);
@@ -174,7 +174,7 @@ const Budgets = () => {
         amount: toCents(editForm.amount),
         month: editForm.month,
         year: editForm.year,
-        category_id: editForm.category_id || null,
+        category_id: editForm.category_id || undefined,
       });
       setShowEditModal(false);
       setEditingBudget(null);
@@ -237,23 +237,14 @@ const Budgets = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      const response = await fetch('/api/budgets/generate-recurring', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(recurringForm),
-      });
-
-      if (response.ok) {
-        setToast({ message: 'Ecosistema de presupuestos sincronizado', type: 'success' });
-        setShowRecurringModal(false);
-        fetchBudgets();
-      } else {
-        const error = await response.json();
-        setToast({ message: error.detail || 'Error al generar recurrentes', type: 'error' });
-      }
-    } catch (error) {
+      await budgetsAPI.generateRecurring(recurringForm);
+      setToast({ message: 'Ecosistema de presupuestos sincronizado', type: 'success' });
+      setShowRecurringModal(false);
+      fetchBudgets();
+    } catch (error: any) {
       console.error('Error generating recurring budgets:', error);
-      setToast({ message: 'Error de conexión con el servidor', type: 'error' });
+      const errorMessage = error.response?.data?.detail || 'Error al generar recurrentes';
+      setToast({ message: errorMessage, type: 'error' });
     } finally {
       setSaving(false);
     }
