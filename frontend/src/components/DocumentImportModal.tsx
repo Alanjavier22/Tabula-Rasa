@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { aiAPI, accountsAPI, categoriesAPI, transactionsAPI } from '../services/api';
 import { Upload, X, CheckCircle, AlertCircle, FileImage, FileText, Trash2 } from 'lucide-react';
-import type { Category, Account, TransactionType, PaymentMethod, ExpenseType } from '../types';
+import type { Category, Account, TransactionType, PaymentMethod, ExpenseType, Cents } from '../types';
 import Select from './common/Select';
 
 interface DocumentImportModalProps {
@@ -21,7 +21,7 @@ interface ExtractedTransaction {
 const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [accountId, setAccountId] = useState<number>(1);
+  const [accountId, setAccountId] = useState<string>('');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [processing, setProcessing] = useState(false);
@@ -141,13 +141,13 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       for (const txn of selectedTransactions) {
         await transactionsAPI.create({
           description: txn.description,
-          amount: txn.amount,
+          amount: txn.amount as Cents,
           transaction_type: txn.transaction_type as TransactionType,
           payment_method: 'transfer' as PaymentMethod,
           date: new Date().toISOString().split('T')[0],
-          category_id: txn.category_id,
+          category_id: txn.category_id || undefined,
           account_id: accountId,
-          expense_type: txn.transaction_type === 'expense' ? 'variable' as ExpenseType : null,
+          expense_type: txn.transaction_type === 'expense' ? 'variable' as ExpenseType : undefined,
         });
       }
       setResult({ success: true, message: `${selectedTransactions.length} transacción(es) importada(s)` });
@@ -204,9 +204,9 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
           <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700">
             <label className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Cuenta destino</label>
             <Select
-              value={accountId.toString()}
-              onChange={(value) => setAccountId(parseInt(value))}
-              options={accounts.map(acc => ({ value: acc.id.toString(), label: acc.name }))}
+              value={accountId}
+              onChange={(value) => setAccountId(value)}
+              options={accounts.map(acc => ({ value: acc.id, label: acc.name }))}
             />
           </div>
 
