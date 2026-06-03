@@ -449,7 +449,7 @@ def get_fiscal_summary(db: Session) -> dict:
         end_date = today.replace(month=today.month + 1, day=1) - timedelta(days=1)
     end_date = end_date.isoformat()
     
-    report = get_fiscal_report(start_date, end_date, db=db)
+    report = get_fiscal_report(start_date, end_date, category_ids=None, db=db)
     return {
         "period": f"{start_date} to {end_date}",
         "total_income": float(report.totals.total_income),
@@ -460,7 +460,7 @@ def get_fiscal_summary(db: Session) -> dict:
     }
 
 
-def get_financial_executive_summary(db: Session, api_key: str) -> dict:
+async def get_financial_executive_summary(db: Session, api_key: str) -> dict:
     """
     Get a 360-degree executive summary of the entire financial state.
     Includes Net Worth, Runway, Liquidity, Sentinel Health, and Projections.
@@ -471,7 +471,7 @@ def get_financial_executive_summary(db: Session, api_key: str) -> dict:
     from app.api.ai_insights import _build_liquidity_summary
     
     sentinel = SentinelService(db, api_key)
-    health_report = sentinel.generate_health_report()
+    health_report = await sentinel.generate_health_report()
     projection = get_financial_projection(db, months=3)
     liquidity = _build_liquidity_summary(db)
     
@@ -486,11 +486,11 @@ def get_financial_executive_summary(db: Session, api_key: str) -> dict:
     }
 
 
-def get_sentinel_health(db: Session, api_key: str) -> dict:
+async def get_sentinel_health(db: Session, api_key: str) -> dict:
     """Get the latest health report and warnings from the Sentinel Agent"""
     from app.services.sentinel_service import SentinelService
     sentinel = SentinelService(db, api_key)
-    return sentinel.generate_health_report()
+    return await sentinel.generate_health_report()
 
 
 # FAIL-FAST: Write capabilities removed from AI. AI is now read-only auditor.
@@ -779,7 +779,7 @@ GUÍA DE HERRAMIENTAS:
         )
         
         # Function to execute tool calls (READ-ONLY ONLY)
-        def execute_function_call(function_call: Any) -> Any:
+        async def execute_function_call(function_call: Any) -> Any:
             function_name = getattr(function_call, 'name', None)
             args = getattr(function_call, 'args', {})
             
@@ -824,9 +824,9 @@ GUÍA DE HERRAMIENTAS:
                 elif function_name == "get_all_budgets_status":
                     return get_all_budgets_status(db)
                 elif function_name == "get_sentinel_health":
-                    return get_sentinel_health(db, api_key)
+                    return await get_sentinel_health(db, api_key)
                 elif function_name == "get_financial_executive_summary":
-                    return get_financial_executive_summary(db, api_key)
+                    return await get_financial_executive_summary(db, api_key)
                 elif function_name == "get_import_history":
                     return get_import_history(db, args.get("limit", 10))
                 else:
@@ -860,7 +860,7 @@ GUÍA DE HERRAMIENTAS:
                 })
                 
                 # Execute the function
-                function_result = execute_function_call(fc)
+                function_result = await execute_function_call(fc)
                 
                 # Add to tool responses
                 tool_responses.append(
