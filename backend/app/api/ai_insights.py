@@ -18,6 +18,7 @@ from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 import google.genai as genai
 from google.genai import errors, types
+from app.services.ai_models import REASONING_MODEL
 import json
 from pydantic import BaseModel
 from typing import List, Any, cast
@@ -513,7 +514,7 @@ RESUMEN FINANCIERO:
 
     try:
         response = client.models.generate_content(
-            model="gemini-3.1-flash-lite",
+            model=REASONING_MODEL,
             contents=cast(Any, [types.Part.from_text(text=user_prompt)]),
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -654,7 +655,7 @@ Datos: {json.dumps(compact_data)}"""
 
     try:
         response = client.models.generate_content(
-            model="gemini-3.1-flash-lite",
+            model=REASONING_MODEL,
             contents=cast(Any, [types.Part.from_text(text=user_prompt)]),
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
