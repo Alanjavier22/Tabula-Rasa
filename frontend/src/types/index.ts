@@ -35,7 +35,10 @@ export interface Transaction {
   date: string;
   category_id?: string;
   account_id?: string;
+  goal_id?: string | null;
   metadata_json?: string;
+  is_deleted?: boolean;
+  hash?: string | null;
   created_at: string;
   updated_at: string;
   version: number;  // FASE 7: OCC versioning
@@ -115,9 +118,9 @@ export interface Goal {
   name: string;
   target_amount: Cents;
   current_amount: Cents;
-  target_date?: string;
+  target_date?: string | null;
   status: GoalStatus;
-  description?: string;
+  description?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -125,12 +128,12 @@ export interface Goal {
 export interface Reminder {
   id: string;
   name: string;
-  amount?: Cents;
+  amount?: Cents | null;
   due_date: string;
   frequency: ReminderFrequency;
   status: ReminderStatus;
-  description?: string;
-  category_id?: string;
+  description?: string | null;
+  category_id?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -143,9 +146,9 @@ export interface Subscription {
   name: string;
   amount: Cents;
   frequency: SubscriptionFrequency;
-  next_billing_date?: string;
-  account_id?: string;
-  category_id?: string;
+  next_billing_date?: string | null;
+  account_id?: string | null;
+  category_id?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
