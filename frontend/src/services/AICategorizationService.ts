@@ -55,7 +55,7 @@ export async function categorizeTransaction(
       descriptions: [sanitized.description],
     });
     
-    const aiResult = response.data?.mappings?.[sanitized.description];
+    const aiResult = response.data?.mapping?.[sanitized.description];
     
     if (!aiResult) {
       throw new Error('No AI categorization result received');
@@ -66,10 +66,10 @@ export async function categorizeTransaction(
     
     return {
       result: {
-        category_id: aiResult.category_id || request.category_id || 'otros',
-        confidence: aiResult.confidence || 0.5,
-        is_anomaly: aiResult.is_anomaly || false,
-        reasoning: aiResult.reasoning || '',
+        category_id: aiResult || request.category_id || 'otros',
+        confidence: 0.8,
+        is_anomaly: false,
+        reasoning: 'Categorizado por lote con IA',
       },
       transactionId,
     };
