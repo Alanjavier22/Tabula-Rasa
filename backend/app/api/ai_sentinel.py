@@ -27,7 +27,7 @@ class SentinelHealthResponse(BaseModel):
     timestamp: str
 
 @router.get("/health", response_model=SentinelHealthResponse)
-def get_sentinel_health(db: Session = Depends(get_db)):
+async def get_sentinel_health(db: Session = Depends(get_db)):
     """
     Endpoint principal para la burbuja del Agente Sentinel.
     Consolida toda la inteligencia del sistema en un reporte de salud.
@@ -40,4 +40,4 @@ def get_sentinel_health(db: Session = Depends(get_db)):
     persona = config_persona.value if config_persona else "professional"
     
     sentinel = SentinelService(db, cast(str, config.value))
-    return sentinel.generate_health_report(persona=cast(str, persona))
+    return await sentinel.generate_health_report(persona=cast(str, persona))
