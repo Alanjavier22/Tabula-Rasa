@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from app.models.transaction import Transaction
 import google.genai as genai
 from google.genai import types
+from app.services.ai_models import REASONING_MODEL
 import json
 import logging
 
@@ -72,7 +73,7 @@ class AuditService:
         
         try:
             response = self.client.models.generate_content(
-                model="gemini-3.1-flash-lite",
+                model=REASONING_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json"
