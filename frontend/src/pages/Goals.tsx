@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { goalsAPI, aiGoalsAPI } from '../services/api';
-import type { Goal } from '../types';
+import type { Goal, GoalStatus } from '../types';
 import { formatMoney, toCents } from '../utils/money';
 import { 
   Plus, 
@@ -28,7 +28,7 @@ const emptyForm = {
   target_amount: '',
   target_date: '',
   description: '',
-  status: 'active',
+  status: 'active' as GoalStatus,
 };
 
 const Goals = () => {
@@ -116,7 +116,7 @@ const Goals = () => {
     setEditForm({
       name: goal.name,
       target_amount: (goal.target_amount / 100).toString(),
-      target_date: goal.target_date ? goal.target_date.split('T')[0] : '',
+      target_date: goal.target_date ? goal.target_date.substring(0, 10) : '',
       description: goal.description || '',
       status: goal.status,
     });
@@ -583,7 +583,7 @@ const Goals = () => {
                     <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Estado de la Misión</label>
                     <Select
                       value={showCreateModal ? form.status : editForm.status}
-                      onChange={(value) => showCreateModal ? setForm({...form, status: value}) : setEditForm({...editForm, status: value})}
+                      onChange={(value) => showCreateModal ? setForm({...form, status: value as GoalStatus}) : setEditForm({...editForm, status: value as GoalStatus})}
                       options={[
                         { value: 'active', label: 'Activa' },
                         { value: 'completed', label: 'Completada' },
