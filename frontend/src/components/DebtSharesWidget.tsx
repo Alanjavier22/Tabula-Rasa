@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { statementsAPI } from '../services/api';
-import type { CreditCardStatement, DebtShare } from '../types';
+import type { CreditCardStatement, DebtShare, Cents } from '../types';
 import { Users, DollarSign, CheckCircle, X, Plus } from 'lucide-react';
 import Toast from './Toast';
 
@@ -45,7 +45,7 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
     try {
       await statementsAPI.addDebtShare(showAddModal.statementId, {
         person_name: formData.person_name,
-        amount: parseInt(formData.amount) * 100, // Convert to cents
+        amount: Math.round(parseFloat(formData.amount) * 100) as Cents, // Convert to cents safely
         description: formData.description || undefined,
         status: formData.status,
       });
