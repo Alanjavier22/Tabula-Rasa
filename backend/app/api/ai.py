@@ -6,6 +6,7 @@ import base64
 from datetime import datetime, timedelta
 import google.genai as genai
 from google.genai import types
+from app.services.ai_models import REASONING_MODEL, MULTIMODAL_MODEL, LITE_MODEL
 from sqlalchemy.orm import Session
 from database import get_db
 from app.api.auth import get_current_device
@@ -128,7 +129,7 @@ class SuggestedScenariosResponse(BaseModel):
     scenarios: List[SuggestedScenario]
 
 
-async def call_gemini_json(prompt: str, api_key: str, response_schema: Optional[type] = None) -> dict:
+async def call_gemini_json(prompt: str, api_key: str, response_schema: Optional[type] = None, model: str = LITE_MODEL) -> dict:
     """
     Shared utility function to call Gemini API with strict production rules.
     """
@@ -136,7 +137,7 @@ async def call_gemini_json(prompt: str, api_key: str, response_schema: Optional[
         client = genai.Client(api_key=api_key)
         
         response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
+            model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.1,
@@ -244,7 +245,7 @@ STRICT RULES:
     try:
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
+            model=REASONING_MODEL,
             contents=system_prompt,
             config=types.GenerateContentConfig(
                 temperature=0.2,
@@ -299,19 +300,20 @@ async def suggest_whatif_scenarios(db: Session = Depends(get_db)):
     expenses_context = "\n".join([f"- {name}: ${total/100:,.2f}" for name, total in top_expenses])
     
     system_prompt = f"""
-    Eres un estratega financiero. Basado en estos gastos reales del último mes, sugiere 3 escenarios 'What-If' (¿Qué pasaría si...?) que tendrían un impacto significativo en la riqueza del usuario.
+    Eres un estratega financiero experto. Basado en estos gastos reales del último mes, sugiere 3 escenarios 'What-If' (¿Qué pasaría si...?) realistas y significativos para el usuario.
     
-    GASTOS TOP:
+    GASTOS TOP DEL USUARIO:
     {expenses_context}
     
-    REGLAS:
-    1. Las sugerencias deben ser realistas (ej: reducir un 20% en una categoría alta, eliminar un gasto recurrente).
-    2. 'user_prompt' debe ser la instrucción exacta que el usuario le daría al simulador.
-    3. Output en ESPAÑOL.
+    REGLAS DE REDACCIÓN Y FORMATO (CRÍTICO):
+    1. El título (`title`) debe ser muy breve (máximo 4 palabras), descriptivo y directo (ej: "AHORRO EN COMIDA", "ELIMINAR SUSCRIPCIONES").
+    2. La descripción (`description`) debe ser una sola frase corta, directa y sumamente entendible (máximo 15-18 palabras). Di exactamente qué se hace y el beneficio directo sin rodeos teóricos o palabras rebuscadas (ej: "Reducir a la mitad tus compras de ropa para ahorrar $89 al mes e invertir el sobrante").
+    3. El campo `user_prompt` debe ser la acción de simulación exacta que se enviará al simulador (ej: "Reducir mi gasto en Compras un 50%").
+    4. Toda la salida debe ser en ESPAÑOL.
     """
     
     try:
-        response_data = await call_gemini_json(system_prompt, api_key, response_schema=SuggestedScenariosResponse)
+        response_data = await call_gemini_json(system_prompt, api_key, response_schema=SuggestedScenariosResponse, model=REASONING_MODEL)
         scenarios = response_data.get("scenarios", [])
         return [SuggestedScenario(**s) if isinstance(s, dict) else s for s in scenarios][:3]
     except Exception as e:
@@ -410,7 +412,7 @@ STRICT BUSINESS LOGIC & INTELLIGENCE:
 Output in SPANISH. Be elegant, brief, and highly strategic.
 """
     
-    anomalies = await call_gemini_json(system_prompt, api_key, response_schema=AnomalyScanResponse)
+    anomalies = await call_gemini_json(system_prompt, api_key, response_schema=AnomalyScanResponse, model=REASONING_MODEL)
     return anomalies
 
 
@@ -453,7 +455,7 @@ async def audio_to_txns(
         )
         audio_bytes = base64.b64decode(request.audio_base64)
         response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
+            model=MULTIMODAL_MODEL,
             contents=cast(Any, [system_instruction, types.Part.from_bytes(data=audio_bytes, mime_type=f"audio/{request.audio_format}")]),
             config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=AudioToTxnResponse, temperature=0.1)
         )
@@ -477,7 +479,7 @@ async def parse_receipt(
         system_instruction = f"Eres un auditor experto extrayendo datos de recibos. Hoy es {today_str}. Reglas: Montos en CENTAVOS, fecha YYYY-MM-DD."
         image_bytes = await file.read()
         response = client.models.generate_content(
-                model="gemini-3.1-flash-lite",
+            model=MULTIMODAL_MODEL,
             contents=cast(Any, [system_instruction, types.Part.from_bytes(data=image_bytes, mime_type=file.content_type or "image/jpeg")]),
             config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=AudioToTxnResponse, temperature=0.1)
         )
@@ -498,7 +500,7 @@ async def test_component(component: str, db: Session = Depends(get_db)):
     client = genai.Client(api_key=api_key)
     try:
         prompt = f"Test {component} component. Respond OK."
-        response = client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
+        response = client.models.generate_content(model=LITE_MODEL, contents=prompt)
         text = response.text or "OK"
         return {"status": "success", "message": text.strip()}
     except Exception as e:
