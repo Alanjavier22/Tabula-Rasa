@@ -1,11 +1,15 @@
 import json
 import hashlib
 import os
+import logging
+import asyncio
 from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 import google.genai as genai
 from google.genai import types
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 from database import SessionLocal
 from sqlalchemy import func
 from app.models.config import Config
@@ -17,6 +21,7 @@ from app.models.debt_share import DebtShare
 from app.models.account import Account
 from app.models.iou import IOU, IOUType, IOUStatus
 from app.services.categorizer import get_semantic_category
+from app.utils.date_parser import parse_date_robustly
 
 class ExtractedTransaction(BaseModel):
     date: str = Field(description="Fecha de la transacción en formato YYYY-MM-DD")
@@ -135,7 +140,8 @@ class StatementIntelligenceService:
                 last_error = e
                 if attempt < max_retries - 1:
                     wait_time = (attempt + 1) * 3 # 3s, 6s, 9s, 12s...
-                    time.sleep(wait_time)
+                    logger.warning(f"[IA] Gemini ocupado en importación de TC. Reintento {attempt + 1}/{max_retries} en {wait_time}s...")
+                    await asyncio.sleep(wait_time)
                 else:
                     raise ValueError(f"IA no disponible tras {max_retries} intentos. Google reporta: {str(e)}")
         
@@ -236,7 +242,7 @@ class StatementIntelligenceService:
             for tx_data in reversed(confirmed_transactions):
                 # Solo insertamos si no es duplicado o si el usuario fuerza la inserción
                 if not tx_data.get('is_duplicate', False):
-                    dt = datetime.fromisoformat(tx_data['date'])
+                    dt = parse_date_robustly(tx_data['date']) or datetime.now()
                     if dt.date() < earliest_date:
                         earliest_date = dt.date()
 
@@ -343,17 +349,11 @@ class StatementIntelligenceService:
                 
                 due_date = None
                 if statement_metadata.get('payment_due_date'):
-                    try:
-                        due_date = datetime.strptime(statement_metadata['payment_due_date'], "%Y-%m-%d")
-                    except ValueError:
-                        pass
+                    due_date = parse_date_robustly(statement_metadata['payment_due_date'])
                         
                 cut_date = None
                 if statement_metadata.get('cut_off_date'):
-                    try:
-                        cut_date = datetime.strptime(statement_metadata['cut_off_date'], "%Y-%m-%d")
-                    except ValueError:
-                        pass
+                    cut_date = parse_date_robustly(statement_metadata['cut_off_date'])
 
                 # Verificar si ya existe el estado de cuenta
                 existing_stmt = self.db.query(CreditCardStatement).filter(
@@ -430,9 +430,7 @@ class StatementIntelligenceService:
 
             return new_txs_count
         except Exception as e:
-            import traceback
-            print(f"❌ ERROR EN CONFIRM-IMPORT: {str(e)}")
-            traceback.print_exc()
+            logger.error(f"❌ ERROR EN CONFIRM-IMPORT: {str(e)}", exc_info=True)
             self.db.rollback()
             log.status = cast(Any, 'error')
             log.error_message = cast(Any, str(e))
