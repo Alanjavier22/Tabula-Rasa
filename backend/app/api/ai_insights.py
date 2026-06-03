@@ -395,6 +395,81 @@ def _build_historical_trends(db: Session, now: datetime) -> dict:
     }
 
 
+def _get_previous_months_dates(now: datetime, count: int = 3) -> list:
+    """Returns a list of tuples (year_month_str, year, month) for the previous count months."""
+    months = []
+    current_year = now.year
+    current_month = now.month
+    
+    for _ in range(count):
+        if current_month == 1:
+            current_month = 12
+            current_year -= 1
+        else:
+            current_month -= 1
+        months.append((f"{current_year:04d}-{current_month:02d}", current_year, current_month))
+    return months
+
+
+def _build_enhanced_historical_trends(db: Session, now: datetime) -> dict:
+    """Calculate historical income/expense averages over the last 3 calendar months."""
+    prev_months = _get_previous_months_dates(now, 3)
+    
+    expenses_by_month = []
+    income_by_month = []
+    
+    for month_str, _, _ in prev_months:
+        txns = db.query(Transaction).filter(
+            Transaction.date.like(f'{month_str}%'),
+            Transaction.is_deleted == False
+        ).all()
+        
+        month_expenses = sum((t.amount for t in txns if t.transaction_type == 'expense'), 0)
+        month_income = sum((t.amount for t in txns if t.transaction_type == 'income'), 0)
+        
+        expenses_by_month.append(month_expenses)
+        income_by_month.append(month_income)
+        
+    avg_expense = sum(expenses_by_month) / len(expenses_by_month) if expenses_by_month else 0
+    avg_income = sum(income_by_month) / len(income_by_month) if income_by_month else 0
+    
+    return {
+        "avg_monthly_expense": int(avg_expense),
+        "avg_monthly_income": int(avg_income),
+    }
+
+
+def _build_rolling_30d_summary(db: Session, now: datetime) -> dict:
+    """Summarize transactions from the last 30 days (rolling window)."""
+    start_date = now - timedelta(days=30)
+    
+    transactions = db.query(Transaction).filter(
+        Transaction.date >= start_date,
+        Transaction.is_deleted == False
+    ).all()
+    
+    total_income = sum((t.amount for t in transactions if t.transaction_type == 'income'), 0)
+    total_expenses = sum((t.amount for t in transactions if t.transaction_type == 'expense'), 0)
+    
+    category_cache = {}
+    expense_by_category = {}
+    for t in transactions:
+        if t.transaction_type != 'expense':
+            continue
+        if t.category_id not in category_cache:
+            cat = db.query(Category).filter(Category.id == t.category_id).first() if t.category_id else None
+            category_cache[t.category_id] = cat.name if cat else "Sin Categoría"
+        cat_name = category_cache[t.category_id]
+        expense_by_category[cat_name] = expense_by_category.get(cat_name, 0) + t.amount
+        
+    return {
+        "rolling_30d_income": total_income,
+        "rolling_30d_expenses": total_expenses,
+        "rolling_30d_balance": total_income - total_expenses,
+        "rolling_30d_expense_by_category": expense_by_category,
+    }
+
+
 @router.get("/insights")
 def get_insights(db: Session = Depends(get_db)):
     # 1. Get Gemini API key from config
@@ -418,6 +493,19 @@ def get_insights(db: Session = Depends(get_db)):
     liquidity = _build_liquidity_summary(db)
     debt_summary = _build_debt_share_summary(db, now)
     goals_summary = _build_goals_summary(db)
+    
+    # Unified Payload calculations
+    historical = _build_enhanced_historical_trends(db, now)
+    rolling = _build_rolling_30d_summary(db, now)
+    
+    import calendar
+    day_of_month = now.day
+    days_in_month = calendar.monthrange(now.year, now.month)[1]
+    percentage_elapsed = (day_of_month / days_in_month) * 100
+    
+    current_daily_burn = txn_summary['total_expenses'] / day_of_month if day_of_month > 0 else 0
+    historical_daily_burn = historical['avg_monthly_expense'] / 30
+    burn_rate_ratio = current_daily_burn / historical_daily_burn if historical_daily_burn > 0 else 1.0
 
     # Use the centralized calculation from metrics.py for consistency
     from app.api.metrics import get_safe_to_spend as calc_sts
@@ -425,22 +513,36 @@ def get_insights(db: Session = Depends(get_db)):
     safe_to_spend = sts_data.safe_to_spend
 
     current_month_str = now.strftime('%Y-%m')
-    day_of_month = now.day
 
-    # 4. Build the financial snapshot (anonymous, only categories + amounts + relative dates)
+    # 4. Build the financial snapshot
     financial_snapshot = f"""
-Periodo: {current_month_str} (día {day_of_month} del mes)
+CONTEXTO TEMPORAL Y PROPORCIONAL:
+- Día actual del mes: {day_of_month} de {days_in_month} ({percentage_elapsed:.1f}% transcurrido)
+- ¿Es inicio de mes?: {"Sí (los ingresos fijos del mes podrían no estar registrados aún, es normal tener saldo temporal negativo)" if day_of_month <= 7 else "No"}
+- Ritmo de gasto diario actual: ${current_daily_burn / 100:.2f}/día
+- Ritmo de gasto diario histórico: ${historical_daily_burn / 100:.2f}/día
+- Comparativa de ritmo de gasto (Burn Rate Ratio): {burn_rate_ratio:.2f}x (1.0x es normal; >1.3x indica velocidad acelerada de gasto este mes)
 
-FLUJO DE CAJA:
-- Ingresos totales: ${txn_summary['total_income'] / 100:.2f}
-- Gastos totales: ${txn_summary['total_expenses'] / 100:.2f}
-- Balance del mes: ${txn_summary['balance'] / 100:.2f}
-- Total de transacciones: {txn_summary['transaction_count']}
+HISTÓRICO (PROMEDIOS DE LOS ÚLTIMOS 3 MESES):
+- Ingreso mensual promedio: ${historical['avg_monthly_income'] / 100:.2f}
+- Gasto mensual promedio: ${historical['avg_monthly_expense'] / 100:.2f}
 
-DISTRIBUCIÓN DE GASTOS POR CATEGORÍA:
+ACTIVIDAD MÓVIL (ÚLTIMOS 30 DÍAS):
+- Ingresos de los últimos 30 días: ${rolling['rolling_30d_income'] / 100:.2f}
+- Gastos de los últimos 30 días: ${rolling['rolling_30d_expenses'] / 100:.2f}
+- Balance de los últimos 30 días: ${rolling['rolling_30d_balance'] / 100:.2f}
+- Desglose de gastos móviles por categoría:
+{json.dumps({k: f"${v/100:.2f}" for k, v in rolling['rolling_30d_expense_by_category'].items()}, indent=2, ensure_ascii=False)}
+
+ESTADO DEL MES CALENDARIO EN CURSO ({current_month_str}):
+- Ingresos acumulados este mes: ${txn_summary['total_income'] / 100:.2f}
+- Gastos acumulados este mes: ${txn_summary['total_expenses'] / 100:.2f}
+- Balance actual del mes: ${txn_summary['balance'] / 100:.2f}
+- Total transacciones del mes: {txn_summary['transaction_count']}
+- Distribución de gastos de este mes:
 {json.dumps({k: f"${v/100:.2f}" for k, v in txn_summary['expense_by_category'].items()}, indent=2, ensure_ascii=False)}
 
-PRESUPUESTOS:
+PRESUPUESTOS DEL MES EN CURSO:
 """
     for b in budget_summary:
         status_label = "⚠️ EXCEDIDO" if b['exceeded'] else "OK"
