@@ -22,7 +22,7 @@ export class MaintenanceService {
     await db.transaction('rw', ['sync_errors'], async () => {
       // @ts-ignore
       const oldLogs = await db.sync_errors
-        .filter(log => {
+        .filter((log: any) => {
           // Only delete INFO logs older than 30 days
           // Never delete ERROR or CRITICAL logs
           const isInfo = log.error_message?.toLowerCase().startsWith('info:');
