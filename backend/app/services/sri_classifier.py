@@ -1,6 +1,9 @@
 import google.genai as genai
 from google.genai import types
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SRIClassifier:
     """
@@ -73,5 +76,6 @@ class SRIClassifier:
             response_text = (response.text or "{}").strip()
             result = json.loads(response_text)
             return result.get("sri_category", "No Deducible")
-        except:
+        except Exception as e:
+            logger.warning(f"Error in SRI classification: {e}")
             return "No Deducible"
