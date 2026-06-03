@@ -1,24 +1,34 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import Transactions from './pages/Transactions';
-import Categories from './pages/Categories';
-import Accounts from './pages/Accounts';
-import Budgets from './pages/Budgets';
-import Goals from './pages/Goals';
-import Reminders from './pages/Reminders';
-import Settings from './pages/Settings';
-import Subscriptions from './pages/Subscriptions';
-import Snapshots from './pages/Snapshots';
-import Fiscal from './pages/Fiscal';
-import PairingPage from './pages/PairingPage';
 import { AuthGuard } from './components/AuthGuard';
 import { GlobalErrorBoundary } from './components/common/GlobalErrorBoundary';
 import { validateCacheIntegrity } from './services/AICategorizationService';
 import { checkStorageQuota } from './utils/storage';
 import { snapshotsAPI } from './services/api';
+
+// Lazy load pages for chunking optimization
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Transactions = lazy(() => import('./pages/Transactions'));
+const Categories = lazy(() => import('./pages/Categories'));
+const Accounts = lazy(() => import('./pages/Accounts'));
+const Budgets = lazy(() => import('./pages/Budgets'));
+const Goals = lazy(() => import('./pages/Goals'));
+const Reminders = lazy(() => import('./pages/Reminders'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Subscriptions = lazy(() => import('./pages/Subscriptions'));
+const Snapshots = lazy(() => import('./pages/Snapshots'));
+const Fiscal = lazy(() => import('./pages/Fiscal'));
+const PairingPage = lazy(() => import('./pages/PairingPage'));
+
+// Premium, elegant page loader spinner
+const PageLoader = () => (
+  <div className="flex flex-col items-center justify-center min-h-[400px] w-full space-y-4">
+    <div className="w-12 h-12 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
+    <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse font-medium">Cargando...</p>
+  </div>
+);
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -103,20 +113,22 @@ function App() {
         <AuthGuard>
           <Layout>
             <AnimatePresence mode="wait">
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/transactions" element={<Transactions />} />
-                <Route path="/categories" element={<Categories />} />
-                <Route path="/accounts" element={<Accounts />} />
-                <Route path="/budgets" element={<Budgets />} />
-                <Route path="/goals" element={<Goals />} />
-                <Route path="/reminders" element={<Reminders />} />
-                <Route path="/subscriptions" element={<Subscriptions />} />
-                <Route path="/snapshots" element={<Snapshots />} />
-                <Route path="/fiscal" element={<Fiscal />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/pair" element={<PairingPage />} />
-              </Routes>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/transactions" element={<Transactions />} />
+                  <Route path="/categories" element={<Categories />} />
+                  <Route path="/accounts" element={<Accounts />} />
+                  <Route path="/budgets" element={<Budgets />} />
+                  <Route path="/goals" element={<Goals />} />
+                  <Route path="/reminders" element={<Reminders />} />
+                  <Route path="/subscriptions" element={<Subscriptions />} />
+                  <Route path="/snapshots" element={<Snapshots />} />
+                  <Route path="/fiscal" element={<Fiscal />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/pair" element={<PairingPage />} />
+                </Routes>
+              </Suspense>
             </AnimatePresence>
           </Layout>
         </AuthGuard>
