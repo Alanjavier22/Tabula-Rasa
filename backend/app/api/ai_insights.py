@@ -527,22 +527,14 @@ HISTÓRICO (PROMEDIOS DE LOS ÚLTIMOS 3 MESES):
 - Ingreso mensual promedio: ${historical['avg_monthly_income'] / 100:.2f}
 - Gasto mensual promedio: ${historical['avg_monthly_expense'] / 100:.2f}
 
-ACTIVIDAD MÓVIL (ÚLTIMOS 30 DÍAS):
+ACTIVIDAD MÓVIL (ÚLTIMOS 30 DÍAS - Usar este Flujo de Caja como la métrica principal para evaluar ingresos y gastos):
 - Ingresos de los últimos 30 días: ${rolling['rolling_30d_income'] / 100:.2f}
 - Gastos de los últimos 30 días: ${rolling['rolling_30d_expenses'] / 100:.2f}
 - Balance de los últimos 30 días: ${rolling['rolling_30d_balance'] / 100:.2f}
-- Desglose de gastos móviles por categoría:
+- Desglose de gastos por categoría (últimos 30 días):
 {json.dumps({k: f"${v/100:.2f}" for k, v in rolling['rolling_30d_expense_by_category'].items()}, indent=2, ensure_ascii=False)}
 
-ESTADO DEL MES CALENDARIO EN CURSO ({current_month_str}):
-- Ingresos acumulados este mes: ${txn_summary['total_income'] / 100:.2f}
-- Gastos acumulados este mes: ${txn_summary['total_expenses'] / 100:.2f}
-- Balance actual del mes: ${txn_summary['balance'] / 100:.2f}
-- Total transacciones del mes: {txn_summary['transaction_count']}
-- Distribución de gastos de este mes:
-{json.dumps({k: f"${v/100:.2f}" for k, v in txn_summary['expense_by_category'].items()}, indent=2, ensure_ascii=False)}
-
-PRESUPUESTOS DEL MES EN CURSO:
+PRESUPUESTOS DEL MES EN CURSO ({current_month_str}):
 """
     for b in budget_summary:
         status_label = "⚠️ EXCEDIDO" if b['exceeded'] else "OK"
