@@ -1,5 +1,6 @@
 import google.genai as genai
 from google.genai import types
+from app.services.ai_models import LITE_MODEL
 import json
 import logging
 
@@ -59,7 +60,7 @@ class SRIClassifier:
         
         try:
             response = self.client.models.generate_content(
-                model="gemini-3.1-flash-lite",
+                model=LITE_MODEL,
                 contents=system_instruction + "\n\n" + prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
