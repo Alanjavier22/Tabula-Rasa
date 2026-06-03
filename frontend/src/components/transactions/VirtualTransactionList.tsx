@@ -6,13 +6,13 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { TransactionRow } from './TransactionRow';
-import type { LocalTransaction } from '../../db/db';
+import type { Transaction } from '../../types';
 
 interface VirtualTransactionListProps {
-  transactions: LocalTransaction[];
+  transactions: Transaction[];
   rowHeight: number;
   visibleRowCount?: number;
-  onEdit?: (txn: LocalTransaction & { category?: any }) => void;
+  onEdit?: (txn: Transaction & { category?: any }) => void;
   onDelete?: (id: string) => void;
 }
 
