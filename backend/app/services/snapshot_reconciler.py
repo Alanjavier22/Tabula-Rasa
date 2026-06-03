@@ -12,6 +12,9 @@ from app.models.transaction import Transaction
 from app.models.account import Account
 from app.models.asset import Asset
 import hashlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Set Decimal precision for financial calculations (cents-level accuracy)
 getcontext().prec = 28
@@ -180,7 +183,7 @@ class SnapshotReconciler:
             except Exception as e:
                 failed_count += 1
                 db.rollback()
-                print(f"[SnapshotReconciler] Failed to reconcile snapshot {snapshot.id}: {e}")
+                logger.error(f"[SnapshotReconciler] Failed to reconcile snapshot {snapshot.id}: {e}")
         
         return {
             'reconciled_count': reconciled_count,
@@ -220,5 +223,5 @@ class SnapshotReconciler:
             
         except Exception as e:
             db.rollback()
-            print(f"[SnapshotReconciler] Failed to reconcile snapshot {snapshot_id}: {e}")
+            logger.error(f"[SnapshotReconciler] Failed to reconcile snapshot {snapshot_id}: {e}")
             return None
