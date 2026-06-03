@@ -106,7 +106,7 @@ const Subscriptions = () => {
       name: subscription.name,
       amount: (subscription.amount / 100).toString(),
       frequency: subscription.frequency,
-      next_billing_date: subscription.next_billing_date ? subscription.next_billing_date.split('T')[0] : '',
+      next_billing_date: subscription.next_billing_date ? subscription.next_billing_date.substring(0, 10) : '',
       account_id: subscription.account_id?.toString() || '',
       category_id: subscription.category_id?.toString() || '',
       is_active: subscription.is_active,
@@ -133,7 +133,7 @@ const Subscriptions = () => {
     }
   };
 
-  const getUrgencyConfig = (nextDate?: string) => {
+  const getUrgencyConfig = (nextDate?: string | null) => {
     if (!nextDate) return { label: null, color: 'text-slate-400', glow: '' };
     const billing = new Date(nextDate);
     const today = new Date();
