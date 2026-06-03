@@ -2,11 +2,16 @@ from sqlalchemy.orm import Session
 from typing import Any, cast
 from datetime import datetime, timezone, timedelta
 import json
+import logging
+import asyncio
+import time
 from app.services.anomaly_detector import detect_anomalies
 from app.services.forecaster import get_financial_projection
 from app.api.ai_insights import _build_transaction_summary, _build_liquidity_summary, _build_credit_card_summary
 import google.genai as genai
 from google.genai import types
+
+logger = logging.getLogger(__name__)
 
 class SentinelService:
     """
@@ -19,7 +24,7 @@ class SentinelService:
         self.api_key = api_key
         self.client = genai.Client(api_key=api_key)
 
-    def generate_health_report(self, persona: str = "professional") -> dict:
+    async def generate_health_report(self, persona: str = "professional") -> dict:
         """
         Genera un reporte de salud consolidado usando IA para unir
         heurística (anomalías/proyecciones) con insights.
@@ -66,7 +71,8 @@ class SentinelService:
         
         try:
             fiscal = get_fiscal_summary(self.db)
-        except:
+        except Exception as e:
+            logger.warning(f"Error getting fiscal summary in Sentinel: {e}")
             fiscal = {"iva_projected": 0, "retencion_projected": 0}
         
         # 2. Construir el contexto para la IA
@@ -164,7 +170,7 @@ class SentinelService:
                     # Reintentamos solo en errores de disponibilidad (503, etc)
                     if ("503" in str(e) or "UNAVAILABLE" in str(e) or "Deadline" in str(e)) and attempt < max_retries - 1:
                         wait_time = (attempt + 1) * 3
-                        time.sleep(wait_time)
+                        await asyncio.sleep(wait_time)
                     else:
                         # Si ya no hay más reintentos o es un error fatal, disparamos el fallback heurístico
                         return self._generate_heuristic_fallback(context, persona, str(e))
