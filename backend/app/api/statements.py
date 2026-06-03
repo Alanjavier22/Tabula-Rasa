@@ -7,6 +7,7 @@ from database import get_db
 from app.api.auth import get_current_device
 from app.models.credit_card_statement import CreditCardStatement, StatementStatus
 from app.models.debt_share import DebtShare, DebtShareStatus
+from app.utils.date_parser import parse_date_robustly
 
 router = APIRouter(
     prefix="/statements", 
@@ -129,9 +130,9 @@ def get_statement(statement_id: str, db: Session = Depends(get_db)):
 def create_statement(data: StatementCreate, db: Session = Depends(get_db)):
     stmt_data = data.model_dump(exclude={"debt_shares"})
     if stmt_data.get("payment_due_date"):
-        stmt_data["payment_due_date"] = datetime.fromisoformat(stmt_data["payment_due_date"])
+        stmt_data["payment_due_date"] = parse_date_robustly(stmt_data["payment_due_date"])
     if stmt_data.get("cut_off_date"):
-        stmt_data["cut_off_date"] = datetime.fromisoformat(stmt_data["cut_off_date"])
+        stmt_data["cut_off_date"] = parse_date_robustly(stmt_data["cut_off_date"])
     stmt = CreditCardStatement(**stmt_data)
     db.add(stmt)
     db.flush()
@@ -150,9 +151,9 @@ def update_statement(statement_id: str, data: StatementUpdate, db: Session = Dep
         raise HTTPException(status_code=404, detail="Statement not found")
     update_data = data.model_dump(exclude_unset=True)
     if "payment_due_date" in update_data and update_data["payment_due_date"]:
-        update_data["payment_due_date"] = datetime.fromisoformat(update_data["payment_due_date"])
+        update_data["payment_due_date"] = parse_date_robustly(update_data["payment_due_date"])
     if "cut_off_date" in update_data and update_data["cut_off_date"]:
-        update_data["cut_off_date"] = datetime.fromisoformat(update_data["cut_off_date"])
+        update_data["cut_off_date"] = parse_date_robustly(update_data["cut_off_date"])
     for key, value in update_data.items():
         setattr(stmt, key, value)
     db.commit()
