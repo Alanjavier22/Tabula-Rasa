@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
 import calendar
+import logging
 from database import get_db
 from app.api.auth import get_current_device
 from app.models.account import Account
@@ -32,6 +33,8 @@ router = APIRouter(
     redirect_slashes=False,
     dependencies=[Depends(get_current_device)]
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SafeToSpendResponse(BaseModel):
@@ -70,7 +73,8 @@ def get_safe_to_spend(db: Session = Depends(get_db)):
             from app.api.ai_assistant import get_fiscal_summary
             fiscal = get_fiscal_summary(db)
             projected_taxes = Decimal(str(fiscal["iva_projected"] + fiscal["retencion_projected"]))
-        except:
+        except Exception as e:
+            logger.warning("Error calculating projected taxes, defaulting to 0: %s", e)
             projected_taxes = Decimal("0")
 
         # We subtract anomaly_leaks AND projected taxes AND the safety buffer from the projected balance for maximum prudence
@@ -90,8 +94,7 @@ def get_safe_to_spend(db: Session = Depends(get_db)):
             breakdown=projection.breakdown
         )
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Error calculating safe-to-spend: %s", e)
         raise HTTPException(status_code=500, detail=f"Error calculating safe-to-spend: {str(e)}")
 
 
@@ -242,7 +245,9 @@ def get_vehicle_telemetry(db: Session = Depends(get_db)):
                 meta = json.loads(cast(str, txn.metadata_json))
                 if "odometer" in meta:
                     odometer_readings.append({"date": txn.date, "val": meta["odometer"]})
-            except: continue
+            except (json.JSONDecodeError, TypeError, KeyError) as e:
+                logger.debug("Failed to decode odometer reading from transaction metadata: %s", e)
+                continue
 
     # Current month distance
     month_odometer = [o["val"] for o in odometer_readings if o["date"].month == now.month and o["date"].year == now.year]
@@ -270,7 +275,8 @@ def get_vehicle_telemetry(db: Session = Depends(get_db)):
             try:
                 m_meta = json.loads(cast(str, last_maint_txn.metadata_json))
                 last_maint_odo = m_meta.get("odometer", 0)
-            except: pass
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.debug("Failed to parse last maintenance odometer metadata: %s", e)
         
         next_maint = (last_maint_odo + 5000) - current_odo
 
@@ -462,7 +468,15 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         ).all()
         ignored_ids = [c[0] for c in ignored_categories]
         
-        blacklist = ["%PAGO EN OFIC%", "%MUCHAS GRACIAS%", "%TRANSF. DEUDA%", "%SU PAGO%", "%ABONO%"]
+        # DB-driven blacklist with fallback
+        config_entry = db.query(Config).filter(Config.key == "income_blacklist", Config.is_deleted == False).first()
+        if config_entry and config_entry.value:
+            try:
+                blacklist_raw = json.loads(config_entry.value)
+            except Exception:
+                blacklist_raw = [item.strip() for item in config_entry.value.split(",") if item.strip()]
+        else:
+            blacklist_raw = ["DENNIS", "DANIEL", "META", "TRANSFERENCIA", "PAGO EN OFIC", "MUCHAS GRACIAS", "TRANSF. DEUDA", "SU PAGO", "ABONO"]
         
         end_date = datetime(current_year, current_month + 1, 1) if current_month < 12 else datetime(current_year + 1, 1, 1)
         
@@ -487,9 +501,10 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             expense_query = expense_query.filter(Transaction.category_id.not_in(ignored_ids))
         
         # Legacy safety: also filter by common keywords for manual/old transactions
-        for pattern in blacklist:
-            income_query = income_query.filter(Transaction.description.not_ilike(pattern))
-            expense_query = expense_query.filter(Transaction.description.not_ilike(pattern))
+        for pattern in blacklist_raw:
+            clean_pattern = pattern.strip("%")
+            income_query = income_query.filter(~func.coalesce(Transaction.description, '').ilike(f"%{clean_pattern}%"))
+            expense_query = expense_query.filter(~func.coalesce(Transaction.description, '').ilike(f"%{clean_pattern}%"))
 
         total_income = Decimal(str(income_query.scalar()))
         total_expenses = Decimal(str(expense_query.scalar()))
@@ -666,9 +681,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             "alerts": alerts
         }
     except Exception as e:
-        import traceback
-        print(f"Error in dashboard summary: {e}")
-        traceback.print_exc()
+        logger.exception("Error in dashboard summary: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
