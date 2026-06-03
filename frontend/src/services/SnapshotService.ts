@@ -47,7 +47,7 @@ export class SnapshotService {
       }
 
       // Add physical assets current value
-      const assetsValueCents = await assetDepreciationService.getTotalAssetsValue(new Date(snapshotDate));
+      const assetsValueCents = await assetDepreciationService.getTotalAssetsValue();
       totalAssetsCents += assetsValueCents;
 
       // Calculate total liabilities (IOUs pending)
@@ -236,7 +236,7 @@ export class SnapshotService {
       }
 
       // Add physical assets current value
-      const assetsValueCents = await assetDepreciationService.getTotalAssetsValue(new Date(snapshotDate));
+      const assetsValueCents = await assetDepreciationService.getTotalAssetsValue();
       totalAssetsCents += assetsValueCents;
 
       // Calculate total liabilities (IOUs pending)
