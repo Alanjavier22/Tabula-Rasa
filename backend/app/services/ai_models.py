@@ -6,13 +6,13 @@ import os
 
 # 1. AGENTIC / CHAT ORCHESTER
 # Specialized in tool utilization (Function Calling) and dynamic planning.
-# Default: gemini-2.5-flash (Falls back from antigravity due to free tier quota)
-AGENT_MODEL = os.getenv("AGENT_MODEL", "gemini-2.5-flash")
+# Default: gemini-3.1-flash-lite (Falls back from antigravity due to free tier quota)
+AGENT_MODEL = os.getenv("AGENT_MODEL", "gemini-3.1-flash-lite")
 
 # 2. REASONING / DEEP ANALYTICS
 # Specialized in deep financial audit, executive health scores, net worth analysis.
-# Default: gemini-2.5-flash (Falls back from gemini-3.1-pro due to free tier quota)
-REASONING_MODEL = os.getenv("REASONING_MODEL", "gemini-2.5-flash")
+# Default: gemini-3.1-flash-lite (Falls back from gemini-3.1-pro due to free tier quota)
+REASONING_MODEL = os.getenv("REASONING_MODEL", "gemini-3.1-flash-lite")
 
 # 3. MULTIMODAL / VISION / AUDIO
 # Specialized in fast OCR receipt reading, PDF parsing, and audio processing.
