@@ -313,3 +313,228 @@ export interface DeferredPayment {
   updated_at: string;
   version: number;
 }
+
+// --- API Response Types ---
+
+export interface ConfigEntry {
+  key: string;
+  value: string;
+  value_type: string;
+  description?: string;
+  is_public?: boolean;
+}
+
+export interface BackupInfo {
+  filename: string;
+  size: number;
+  created_at: string;
+  is_automatic?: boolean;
+}
+
+export interface FiscalReport {
+  start_date: string;
+  end_date: string;
+  total_income: number;
+  total_expenses: number;
+  net_income: number;
+  iva_collected: number;
+  iva_paid: number;
+  retencion_source: number;
+  retencion_iva: number;
+  category_breakdown: Array<{ category_id: string; category_name: string; amount: number }>;
+}
+
+export interface FiscalTrend {
+  months: Array<{
+    month: string;
+    income: number;
+    expenses: number;
+    net: number;
+  }>;
+}
+
+export interface AIInsightResponse {
+  insights: Array<{
+    type: string;
+    title: string;
+    description: string;
+    severity?: 'info' | 'warning' | 'critical';
+  }>;
+}
+
+export interface AudioToTransactionsResponse {
+  transactions: Partial<Transaction>[];
+  raw_text?: string;
+}
+
+export interface ParseReceiptResponse {
+  transactions: Partial<Transaction>[];
+  merchant?: string;
+  total?: number;
+  date?: string;
+}
+
+export interface SuggestCategoriesResponse {
+  suggestions: Array<{
+    transaction_id: string;
+    category_id: string;
+    confidence: number;
+    reasoning?: string;
+  }>;
+}
+
+export interface TestComponentResponse {
+  status: 'success' | 'error';
+  message: string;
+  latency_ms?: number;
+}
+
+export interface SmartRecommendationsResponse {
+  summary_message: string;
+  recommendations: Array<{
+    goal_id: string;
+    goal_name: string;
+    suggested_transfer_cents: number;
+    action: string;
+    amount: number;
+    reasoning: string;
+  }>;
+}
+
+export interface ImportStatementResponse {
+  log_id: string;
+  extracted_transactions: Partial<Transaction>[];
+  statement_metadata?: StatementMetadata;
+}
+
+export interface StatementMetadata {
+  statement_balance_cents: number;
+  user_share_cents: number;
+  cut_off_date?: string;
+  payment_due_date?: string;
+}
+
+export interface ConfirmImportResponse {
+  imported_count: number;
+  skipped_count: number;
+  errors: string[];
+}
+
+export interface ExtractedAccountTransaction {
+  date: string;
+  description: string;
+  beneficiary?: string;
+  amount_cents: number;
+  transaction_type: 'income' | 'expense';
+  category_id?: string;
+  category_name?: string;
+  is_duplicate?: boolean;
+  selected?: boolean;
+}
+
+export interface AccountImportMetadata {
+  bank_name?: string;
+  account_type?: string;
+  period_start?: string;
+  period_end?: string;
+  total_income_cents?: number;
+  total_expense_cents?: number;
+}
+
+export interface ParseAccountResponse {
+  import_log_id: string;
+  parsed_data: {
+    transactions: ExtractedAccountTransaction[];
+    bank_name?: string;
+    account_type?: string;
+    period_start?: string;
+    period_end?: string;
+    total_income_cents?: number;
+    total_expense_cents?: number;
+  };
+}
+
+export interface ConfirmAccountImportResponse {
+  imported_count: number;
+  skipped_count: number;
+  errors: string[];
+}
+
+export interface CashFlowProjectionResponse {
+  projection: Array<{
+    date: string;
+    balance: number;
+    income: number;
+    expenses: number;
+  }>;
+}
+
+export interface SnapshotAnalysisResponse {
+  analysis: string;
+  insights?: string[];
+}
+
+export interface ReconcileResponse {
+  reconciled: number;
+  message: string;
+}
+
+export interface AIChatResponse {
+  response: string;
+  context?: Record<string, unknown>;
+}
+
+export interface ImportBatchResponse {
+  imported: number;
+  skipped: number;
+  errors: string[];
+  message?: string;
+}
+
+export interface ImportGuayaquilResponse {
+  imported: number;
+  skipped: number;
+  errors: string[];
+  message?: string;
+}
+
+export interface GoogleDriveStatus {
+  is_configured: boolean;
+  has_client_id: boolean;
+  has_client_secret: boolean;
+  has_refresh_token: boolean;
+}
+
+export interface DriveCredentialsData {
+  client_id: string;
+  client_secret: string;
+  refresh_token?: string;
+}
+
+export interface PairingConsumeResponse {
+  access_token: string;
+  token_type: string;
+  device_id: string;
+}
+
+export interface PairedDevice {
+  id: string;
+  device_name: string;
+  created_at: string;
+  last_seen?: string;
+  is_active: boolean;
+}
+
+export interface GoogleDriveAuthUrl {
+  auth_url: string;
+}
+
+export interface BackupListResponse {
+  success: boolean;
+  backups: BackupInfo[];
+}
+
+export interface BackupRestoreResponse {
+  success: boolean;
+  message: string;
+}
