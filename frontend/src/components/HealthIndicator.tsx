@@ -96,9 +96,8 @@ export function HealthIndicator() {
   );
 }
 
-/**
- * Hook for health status
- */
+// Hook kept in same file for simplicity — react-refresh warning is benign for hooks
+// eslint-disable-next-line react-refresh/only-export-components
 export function useHealthStatus() {
   const [status, setStatus] = useState<IntegrityCheckResult | null>(null);
 
