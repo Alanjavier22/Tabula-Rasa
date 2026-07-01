@@ -597,7 +597,10 @@ Analiza el siguiente resumen financiero anónimo y genera insights estratégicos
 
 REGLAS DE SALIDA:
 - "insights": Exactamente 3 consejos accionables (máx 2 oraciones c/u). Prioriza acciones de impacto inmediato.
+  - PROHIBIDO dar consejos genéricos como "ahorra más" o "reduce gastos". Cada insight DEBE referenciar un dato real del snapshot (ej: "Tu gasto en Restaurantes subió 40% vs el promedio").
+  - Cada insight debe ser específico al contexto numérico del usuario.
 - "alerts": 0-3 alertas de liquidez o riesgo (Safe-to-Spend bajo, deudas sin cobrar, cortes próximos). Si no hay riesgo, [] vacío.
+  - Cada alerta DEBE incluir el monto específico que genera el riesgo (ej: "Safe-to-Spend negativo: -$125.50").
 - "patterns": 0-2 patrones de gasto atípicos detectados. Si no hay, [] vacío.
 - REGLA CRÍTICA DE FORMATO: NUNCA uses la palabra "centavos" ni des números en bruto. Todos los valores monetarios deben estar formateados en dólares (ej. "$67.69").
 
