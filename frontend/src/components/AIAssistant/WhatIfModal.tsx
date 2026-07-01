@@ -9,7 +9,7 @@ import type { WhatIfScenario } from '../../services/AIAgentService';
 interface WhatIfModalProps {
   isOpen: boolean;
   onClose: () => void;
-  transactions: any[];
+  transactions: unknown[];
   currentNetWorth: number;
   apiKey: string;
   monthlyIncome?: number;
@@ -17,7 +17,7 @@ interface WhatIfModalProps {
   totalDebt?: number;
   monthlyDebtPayment?: number;
   avgMonthlySpend?: number;
-  goals?: any[];
+  goals?: unknown[];
 }
 
 export const WhatIfModal = React.memo<WhatIfModalProps>(({
@@ -36,7 +36,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
   const [whatIfPrompt, setWhatIfPrompt] = useState('');
   const [whatIfScenario, setWhatIfScenario] = useState<WhatIfScenario | null>(null);
   const [loadingWhatIf, setLoadingWhatIf] = useState(false);
-  const [dynamicSuggestions, setDynamicSuggestions] = useState<any[]>([]);
+  const [dynamicSuggestions, setDynamicSuggestions] = useState<unknown[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Reset state when modal closes
@@ -62,7 +62,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
     setLoadingWhatIf(true);
     try {
       // Deep Context: Send 150 transactions with proper schema mapping to avoid 422
-      const categoryTransactions = transactions.slice(0, 150).map((txn: any) => ({
+      const categoryTransactions = transactions.slice(0, 150).map((txn: unknown) => ({
         id: txn.id || `temp-${Math.random()}`,
         description: txn.description || 'Unknown',
         amount: Math.round(txn.amount || 0),
@@ -95,7 +95,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
     } finally {
       setLoadingWhatIf(false);
     }
-  }, [whatIfPrompt, transactions, currentNetWorth, apiKey]);
+  }, [whatIfPrompt, transactions, currentNetWorth, apiKey, monthlyIncome, fixedExpenses, totalDebt, monthlyDebtPayment, avgMonthlySpend, goals]);
 
   const handleClose = useCallback(() => {
     setWhatIfPrompt('');
