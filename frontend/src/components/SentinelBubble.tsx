@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Activity, TrendingDown, AlertCircle, X, RefreshCw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -42,16 +42,26 @@ export const SentinelBubble: React.FC = () => {
   });
 
   useEffect(() => {
-    if (health && health.health_score < 70) {
+    if (health && health.health_score < 70 && !hasNewAlert) {
       setHasNewAlert(true);
     }
-  }, [health]);
+  }, [health, hasNewAlert]);
 
   const getHealthColor = (score: number) => {
     if (score >= 80) return 'text-emerald-400';
     if (score >= 50) return 'text-amber-400';
     return 'text-red-400';
   };
+
+  const particleData = useMemo(
+    () => Array.from({ length: 6 }, () => ({
+      x: Math.random() * 20 - 10,
+      duration: 10 + Math.random() * 10,
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+    })),
+    []
+  );
 
   return (
     <>
@@ -99,23 +109,23 @@ export const SentinelBubble: React.FC = () => {
 
               {/* 2. Floating Data Particles */}
               <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-20">
-                {[...Array(6)].map((_, i) => (
+                {particleData.map((p, i) => (
                   <motion.div
                     key={i}
                     animate={{
                       y: [0, -100, 0],
-                      x: [0, Math.random() * 20 - 10, 0],
+                      x: [0, p.x, 0],
                       opacity: [0, 0.5, 0],
                     }}
                     transition={{
-                      duration: 10 + Math.random() * 10,
+                      duration: p.duration,
                       repeat: Infinity,
                       delay: i * 2,
                     }}
                     className="absolute w-1 h-1 bg-indigo-500 rounded-full"
                     style={{
-                      left: `${Math.random() * 100}%`,
-                      top: `${Math.random() * 100}%`,
+                      left: `${p.left}%`,
+                      top: `${p.top}%`,
                     }}
                   />
                 ))}
