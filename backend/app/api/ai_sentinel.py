@@ -35,9 +35,6 @@ async def get_sentinel_health(db: Session = Depends(get_db)):
     config = db.query(Config).filter(Config.key == "gemini_api_key").first()
     if not config or not config.value:
         raise HTTPException(status_code=400, detail="Gemini API Key not configured")
-        
-    config_persona = db.query(Config).filter(Config.key == 'ai_persona').first()
-    persona = config_persona.value if config_persona else "professional"
-    
+
     sentinel = SentinelService(db, cast(str, config.value))
-    return await sentinel.generate_health_report(persona=cast(str, persona))
+    return await sentinel.generate_health_report()
