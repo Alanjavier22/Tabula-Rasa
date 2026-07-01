@@ -3,8 +3,8 @@ import type { AICategorySuggestion } from '../../services/AIAgentService';
 
 interface AISuggestionsInboxProps {
   suggestions: AICategorySuggestion[];
-  transactions: any[];
-  categories: any[];
+  transactions: unknown[];
+  categories: unknown[];
 }
 
 export const AISuggestionsInbox: React.FC<AISuggestionsInboxProps> = ({
