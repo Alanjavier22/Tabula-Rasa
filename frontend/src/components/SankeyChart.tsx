@@ -26,16 +26,11 @@ export const SankeyChart: React.FC = () => {
   const [data, setData] = useState<SankeyData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadSnapshotData();
-  }, []);
-
   const loadSnapshotData = async () => {
     try {
       setLoading(true);
       
       // Get latest snapshot (current month)
-      // @ts-ignore
       const latestSnapshot = await db.net_worth_snapshots
         .orderBy('date')
         .reverse()
@@ -50,13 +45,11 @@ export const SankeyChart: React.FC = () => {
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
       
-      // @ts-ignore
       const budgets = await db.budgets
         .filter(b => !b.is_deleted && b.month === currentMonth && b.year === currentYear)
         .toArray();
 
       // Get pending IOUs
-      // @ts-ignore
       const ious = await db.ious
         .filter(i => !i.is_deleted && i.amount > i.amount_paid)
         .toArray();
@@ -138,6 +131,10 @@ export const SankeyChart: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadSnapshotData();
+  }, []);
 
   if (loading) {
     return (
