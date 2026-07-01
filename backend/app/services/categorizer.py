@@ -9,6 +9,7 @@ from database import SessionLocal
 import google.genai as genai
 from google.genai import types
 from app.services.ai_models import LITE_MODEL
+from app.services.embedding_service import EmbeddingService
 from pydantic import BaseModel, Field
 from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType, PaymentMethod, ExpenseType
@@ -161,6 +162,18 @@ def learn_category_pattern(db_session, description: str, category_id: str, benef
     except Exception as e:
         logger.error(f"[Categorizer] Error learning pattern: {e}")
 
+    # Also store an embedding for this pattern for semantic matching
+    try:
+        from app.models.config import Config
+        config_entry = db_session.query(Config).filter(Config.key == "gemini_api_key").first()
+        if config_entry and config_entry.value:
+            emb_service = EmbeddingService(api_key=str(config_entry.value))
+            combined = f"{description} {beneficiary}".strip() if beneficiary else description
+            if not is_generic_description(description):
+                emb_service.store_pattern_embedding(combined, category_id, db_session)
+    except Exception as e:
+        logger.warning(f"[Categorizer] Error storing pattern embedding: {e}")
+
 
 def _extract_beneficiary_key(beneficiary: str) -> str:
     """
@@ -283,6 +296,77 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
             return results
 
         client = genai.Client(api_key=cast(str, api_key))
+        embedding_service = EmbeddingService(api_key=cast(str, api_key))
+        
+        # Pre-pass: Cache embeddings for all non-generic transactions
+        # This ensures the anomaly detector has embeddings to work with
+        # Optimized: batch API calls for cache misses instead of N individual calls
+        try:
+            from app.models.transaction_embedding import TransactionEmbedding
+            from app.services.embedding_service import EmbeddingService as EmbSvc
+            
+            cache_misses = []
+            for i, tx in enumerate(transactions):
+                desc = tx.get('description', '')
+                if desc and not is_generic_description(desc) and i not in results:
+                    benef = tx.get('beneficiary', '')
+                    combined = f"{desc} {benef}".strip() if benef else desc
+                    desc_hash = EmbSvc._description_hash(combined)
+                    cached = db.query(TransactionEmbedding).filter(
+                        TransactionEmbedding.description_hash == desc_hash
+                    ).first()
+                    if cached:
+                        continue
+                    cache_misses.append(combined)
+            
+            if cache_misses:
+                embeddings = embedding_service.embed_batch(cache_misses)
+                for desc, emb in zip(cache_misses, embeddings):
+                    if emb is None:
+                        continue
+                    desc_hash = EmbSvc._description_hash(desc)
+                    try:
+                        new_record = TransactionEmbedding(
+                            description_hash=desc_hash,
+                            description=desc.strip(),
+                            embedding=json.dumps(emb),
+                            source="transaction",
+                        )
+                        db.add(new_record)
+                        db.flush()
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning(f"[Categorizer] Pre-pass embedding cache failed: {e}")
+        
+        # TIER 1.5: Embedding Similarity
+        # Try semantic matching before resorting to batch AI
+        try:
+            still_pending = []
+            
+            for idx, tx in pending_ai:
+                desc = tx.get('description', '')
+                benef = tx.get('beneficiary', '')
+                
+                if is_generic_description(desc):
+                    still_pending.append((idx, tx))
+                    continue
+                
+                combined = f"{desc} {benef}".strip() if benef else desc
+                match = embedding_service.find_similar_pattern(combined, db, threshold=0.85)
+                if match:
+                    cat_id, score = match
+                    results[idx] = (cat_id, score < 0.92)
+                else:
+                    still_pending.append((idx, tx))
+            
+            pending_ai = still_pending
+            logger.info(f"[Categorizer] Tier 1.5 (Embeddings): {len(results)} categorized, {len(pending_ai)} still pending AI")
+        except Exception as e:
+            logger.warning(f"[Categorizer] Tier 1.5 embedding matching failed, continuing to batch AI: {e}")
+        
+        if not pending_ai:
+            return results
         
         # Tier 4: Batch Processing with Throttling to respect 15 RPM
         # Usamos un tamaño de lote de 80: Ideal para precisión en modelos Lite y cuotas RPM
@@ -358,6 +442,16 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
                                 # Si la confianza es media (0.45 a 0.70), marcamos para aclaración aunque hayamos elegido una
                                 clarification = item.get("needs_clarification", False) or (conf < 0.70)
                                 results[idx] = (cat_id, clarification)
+                                
+                                # Learn embedding pattern from high-confidence AI results
+                                if conf >= 0.70:
+                                    tx = next((t for i, t in chunk if i == idx), None)
+                                    if tx and not is_generic_description(tx.get('description', '')):
+                                        try:
+                                            combined = f"{tx.get('description', '')} {tx.get('beneficiary', '')}".strip()
+                                            embedding_service.store_pattern_embedding(combined, cat_id, db)
+                                        except Exception:
+                                            pass
                             else:
                                 results[idx] = (otros_cat_id, True)
                     
