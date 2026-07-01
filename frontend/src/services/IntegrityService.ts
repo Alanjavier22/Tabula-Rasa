@@ -32,7 +32,6 @@ export class IntegrityService {
     let totalChecked = 0;
 
     // Check hash integrity (last 1,000 transactions)
-    // @ts-ignore
     await db.transactions
       .orderBy('date')
       .reverse()
@@ -56,7 +55,6 @@ export class IntegrityService {
           integrityFailures.push(`Hash mismatch: txn ${txn.id} (${txn.date})`);
           
           // Mark transaction with integrity failure flag
-          // @ts-ignore
           await db.transactions.update(txn.id, { integrity_failure: true });
         }
       });
@@ -101,7 +99,6 @@ export class IntegrityService {
     const currentYear = now.getFullYear();
 
     // Get current snapshot
-    // @ts-ignore
     const snapshot = await db.net_worth_snapshots
       .where('[month+year]')
       .equals([currentMonth, currentYear])
@@ -112,7 +109,6 @@ export class IntegrityService {
     }
 
     // Calculate Cash (account balances)
-    // @ts-ignore
     const accounts = await db.accounts.filter(a => !a.is_deleted).toArray();
     const cashCents = accounts.reduce((sum, account) => sum + (account.balance || 0), 0);
 
@@ -120,11 +116,9 @@ export class IntegrityService {
     const assetsCents = await assetDepreciationService.getTotalAssetsValue();
 
     // Calculate Liabilities (IOUs pending + credit card balances)
-    // @ts-ignore
     const ious = await db.ious.filter(i => !i.is_deleted && i.amount > (i.amount_paid || 0)).toArray();
     const iousCents = ious.reduce((sum, iou) => sum + (iou.amount - (iou.amount_paid || 0)), 0);
 
-    // @ts-ignore
     const statements = await db.credit_card_statements
       .filter(s => !s.is_deleted && s.status !== 'paid')
       .toArray();
