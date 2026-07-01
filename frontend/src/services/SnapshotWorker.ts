@@ -39,7 +39,6 @@ export class SnapshotWorker {
     try {
       while (this.isProcessing) {
         // Get next batch of entries (ordered by priority, then enqueued_at)
-        // @ts-ignore
         const entries = await db.snapshot_recalc_queue
           .orderBy('priority')
           .limit(BATCH_SIZE)
@@ -58,7 +57,6 @@ export class SnapshotWorker {
             await this.processMonth(entry.month, entry.year);
             
             // Remove from queue after successful processing
-            // @ts-ignore
             await db.snapshot_recalc_queue.delete(entry.id);
             console.debug(`[FASE-3] Processed snapshot for ${entry.id}`);
           } catch (error) {
@@ -102,7 +100,6 @@ export class SnapshotWorker {
     const now = new Date().toISOString();
 
     // Calculate totals from transactions for this month
-    // @ts-ignore
     const transactions = await db.transactions
       .where('date')
       .between(
@@ -128,7 +125,6 @@ export class SnapshotWorker {
     }
 
     // Calculate assets and liabilities from accounts
-    // @ts-ignore
     const accounts = await db.accounts.toArray();
 
     let total_assets_cents = new Decimal(0);
@@ -161,14 +157,12 @@ export class SnapshotWorker {
     const net_worth_cents = total_assets_cents.minus(total_liabilities_cents);
 
     // Update or insert snapshot
-    // @ts-ignore
     const existing = await db.net_worth_snapshots
       .where('[month+year]')
       .equals([month, year])
       .first();
 
     if (existing) {
-      // @ts-ignore
       await db.net_worth_snapshots.update(existing.id, {
         total_assets_cents: total_assets_cents.toNumber(),
         total_liabilities_cents: total_liabilities_cents.toNumber(),
@@ -180,7 +174,6 @@ export class SnapshotWorker {
         updated_at: now,
       });
     } else {
-      // @ts-ignore
       await db.net_worth_snapshots.add({
         id: uuidv4(),
         date: snapshotDate,
@@ -211,13 +204,12 @@ export const snapshotWorker = new SnapshotWorker();
 
 // Auto-start on app load if queue is not empty
 if (typeof window !== 'undefined') {
-  // @ts-ignore
   db.snapshot_recalc_queue.count().then(count => {
     if (count > 0) {
       console.debug(`[FASE-3] Found ${count} pending snapshot recalculations, starting worker`);
       snapshotWorker.start();
     }
-  }).catch((err: any) => {
+  }).catch((err: unknown) => {
     console.error('[FASE-3] Error checking snapshot queue:', err);
   });
 }
