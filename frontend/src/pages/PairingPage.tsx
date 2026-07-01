@@ -1,24 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Shield, Smartphone, ArrowRight, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { authAPI, getTokenKey } from '../services/api';
 import { format } from 'date-fns';
 
 export default function PairingPage() {
   const [pin, setPin] = useState('');
-  const [deviceName, setDeviceName] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    // Suggest a device name based on User Agent
+  const [deviceName, setDeviceName] = useState(() => {
     const ua = navigator.userAgent;
     let suggestedName = 'Dispositivo Móvil';
     if (ua.includes('iPhone')) suggestedName = 'iPhone';
     else if (ua.includes('Android')) suggestedName = 'Android Device';
     else if (ua.includes('iPad')) suggestedName = 'iPad';
-    
-    setDeviceName(`${suggestedName} - ${format(new Date(), 'HH:mm')}`);
-  }, []);
+    return `${suggestedName} - ${format(new Date(), 'HH:mm')}`;
+  });
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [error, setError] = useState('');
 
   const handlePair = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +44,7 @@ export default function PairingPage() {
       setTimeout(() => {
         window.location.href = '/';
       }, 1500);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[Pairing] Error:', err);
       setError(err.response?.data?.detail || 'Error al vincular el dispositivo. Verifica el PIN.');
       setStatus('error');
