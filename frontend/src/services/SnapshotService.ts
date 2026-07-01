@@ -21,7 +21,6 @@ export class SnapshotService {
     const snapshotDate = new Date(year, month - 1, 1).toISOString();
 
     // Atomic transaction: block all tables during snapshot creation
-    // @ts-ignore
     return await db.transaction('rw', [
       db.transactions,
       db.accounts,
@@ -32,7 +31,6 @@ export class SnapshotService {
 
       // Get all non-deleted accounts
       // FASE 3: Se incluyen registros en conflicto para mantener integridad del balance
-      // @ts-ignore
       const accounts = await db.accounts.filter(a => !a.is_deleted).toArray();
       
       // Calculate total assets (account balances in base currency)
@@ -51,12 +49,10 @@ export class SnapshotService {
       totalAssetsCents += assetsValueCents;
 
       // Calculate total liabilities (IOUs pending)
-      // @ts-ignore
       const ious = await db.ious.filter(i => !i.is_deleted && i.amount > (i.amount_paid || 0)).toArray();
       const iousLiabilityCents = ious.reduce((sum, iou) => sum + (iou.amount - (iou.amount_paid || 0)), 0);
 
       // Credit card statements (unpaid) - placeholder for now
-      // @ts-ignore
       const statements = await db.credit_card_statements
         .filter(s => !s.is_deleted && s.status !== 'paid')
         .toArray();
@@ -69,7 +65,6 @@ export class SnapshotService {
       const monthEnd = new Date(year, month, 0).toISOString();
       
       // FASE 3: Se incluyen registros en conflicto para mantener integridad del balance
-      // @ts-ignore
       const monthTransactions = await db.transactions
         .filter(t => !t.is_deleted && t.date >= monthStart && t.date <= monthEnd)
         .toArray();
@@ -89,7 +84,6 @@ export class SnapshotService {
       const netWorthCents = totalAssetsCents - totalLiabilitiesCents;
 
       // Create snapshot
-      // @ts-ignore
       await db.net_worth_snapshots.add({
         id: snapshotId,
         date: snapshotDate,
@@ -106,7 +100,6 @@ export class SnapshotService {
       });
 
       // Add to sync queue
-      // @ts-ignore
       await db.sync_queue.add({
         id: uuidv4(),
         table_name: 'net_worth_snapshots',
@@ -137,7 +130,6 @@ export class SnapshotService {
    * Get snapshot by month/year
    */
   async getSnapshotByMonthYear(month: number, year: number) {
-    // @ts-ignore
     const snapshot = await db.net_worth_snapshots
       .where('[month+year]')
       .equals([month, year])
@@ -150,7 +142,6 @@ export class SnapshotService {
    * Get all snapshots (ordered by date)
    */
   async getAllSnapshots() {
-    // @ts-ignore
     const snapshots = await db.net_worth_snapshots
       .orderBy('date')
       .reverse()
@@ -180,7 +171,6 @@ export class SnapshotService {
    */
   async reconcileStaleSnapshots(): Promise<void> {
     try {
-      // @ts-ignore
       const staleSnapshots = await db.net_worth_snapshots
         .filter(s => s.is_stale)
         .toArray();
@@ -210,7 +200,6 @@ export class SnapshotService {
   private async recalculateSnapshot(month: number, year: number): Promise<void> {
     const now = new Date().toISOString();
 
-    // @ts-ignore
     await db.transaction('rw', [
       db.transactions,
       db.accounts,
@@ -221,7 +210,6 @@ export class SnapshotService {
 
       // Get all non-deleted accounts
       // FASE 3: Se incluyen registros en conflicto para mantener integridad del balance
-      // @ts-ignore
       const accounts = await db.accounts.filter(a => !a.is_deleted).toArray();
       
       // Calculate total assets (account balances in base currency)
@@ -240,12 +228,10 @@ export class SnapshotService {
       totalAssetsCents += assetsValueCents;
 
       // Calculate total liabilities (IOUs pending)
-      // @ts-ignore
       const ious = await db.ious.filter(i => !i.is_deleted && i.amount > (i.amount_paid || 0)).toArray();
       const iousLiabilityCents = ious.reduce((sum, iou) => sum + (iou.amount - (iou.amount_paid || 0)), 0);
 
       // Credit card statements (unpaid) - placeholder for now
-      // @ts-ignore
       const statements = await db.credit_card_statements
         .filter(s => !s.is_deleted && s.status !== 'paid')
         .toArray();
@@ -258,7 +244,6 @@ export class SnapshotService {
       const monthEnd = new Date(year, month, 0).toISOString();
       
       // FASE 3: Se incluyen registros en conflicto para mantener integridad del balance
-      // @ts-ignore
       const monthTransactions = await db.transactions
         .filter(t => !t.is_deleted && t.date >= monthStart && t.date <= monthEnd)
         .toArray();
@@ -278,7 +263,6 @@ export class SnapshotService {
       const netWorthCents = totalAssetsCents - totalLiabilitiesCents;
 
       // Find existing snapshot
-      // @ts-ignore
       const existing = await db.net_worth_snapshots
         .where('[month+year]')
         .equals([month, year])
@@ -286,7 +270,6 @@ export class SnapshotService {
 
       if (existing) {
         // Update existing snapshot
-        // @ts-ignore
         await db.net_worth_snapshots.update(existing.id, {
           total_assets_cents: totalAssetsCents,
           total_liabilities_cents: totalLiabilitiesCents,
