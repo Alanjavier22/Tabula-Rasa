@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   configAPI, 
@@ -108,7 +108,7 @@ const Settings = () => {
         ai_persona: 'professional',
       };
 
-      configRes.data.forEach((c: any) => {
+      configRes.data.forEach((c: unknown) => {
         if (c.key === 'vehicle_categories' && c.value) {
           configs.vehicle_categories = JSON.parse(c.value);
         } else if (c.key === 'safe_to_spend_buffer' && c.value) {
@@ -147,14 +147,17 @@ const Settings = () => {
       if (res.data.success) {
         setBackups(res.data.backups);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Error loading backups:', e);
     } finally {
       setLoadingBackups(false);
     }
   }, []);
 
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     fetchData();
     loadDriveCredentials();
     handleLoadBackups();
@@ -163,11 +166,11 @@ const Settings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const upsertConfig = async (key: string, data: any) => {
+      const upsertConfig = async (key: string, data: unknown) => {
         try {
           await configAPI.getByKey(key);
           await configAPI.update(key, data);
-        } catch (error) {
+        } catch (_error) {
           await configAPI.create(data);
         }
       };
@@ -215,7 +218,7 @@ const Settings = () => {
     }
   };
 
-  const handleQuickSave = async (key: string, value: any, type: 'string' | 'json' | 'number') => {
+  const handleQuickSave = async (key: string, value: unknown, type: 'string' | 'json' | 'number') => {
     try {
       const data = {
         key,
@@ -292,7 +295,7 @@ const Settings = () => {
       } else {
         setToast({ message: res.data.message, type: 'warning' });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Error creating backup:', e);
       setToast({ message: 'Error al crear backup', type: 'error' });
     } finally {
@@ -309,7 +312,7 @@ const Settings = () => {
         window.open(res.data.auth_url, '_blank', 'width=600,height=600');
         setToast({ message: 'Se ha abierto la ventana de autorización de Google', type: 'warning' });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error getting auth URL:', error);
       const msg = error.response?.data?.detail || 'Error al iniciar autorización';
       setToast({ message: msg, type: 'error' });
@@ -331,7 +334,7 @@ const Settings = () => {
       } else {
         setToast({ message: res.data.message, type: 'warning' });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Error restoring backup:', e);
       setToast({ message: 'Error al restaurar backup', type: 'error' });
     }
@@ -657,7 +660,7 @@ const Settings = () => {
                                 } else {
                                   setToast({ message: 'Error de conexión: ' + res.data.message, type: 'error' });
                                 }
-                              } catch (e) {
+                              } catch (_e) {
                                 setToast({ message: 'Error de servidor al probar conexión', type: 'error' });
                               } finally {
                                 setTestingGemini(false);
@@ -692,7 +695,7 @@ const Settings = () => {
                                 } else {
                                   setToast({ message: 'Error: ' + res.data.message, type: 'error' });
                                 }
-                              } catch (e: any) {
+                              } catch (e: unknown) {
                                 const msg = e.response?.data?.detail || 'Error de servidor al probar OAuth2';
                                 setToast({ message: msg, type: 'error' });
                               } finally {
@@ -791,7 +794,7 @@ const Settings = () => {
                                   } else {
                                     setToast({ message: `${comp.name}: Error`, type: 'error' });
                                   }
-                                } catch (err) {
+                                } catch (_err) {
                                   setToast({ message: 'Error de servidor', type: 'error' });
                                 } finally {
                                   btn.disabled = false;
@@ -896,7 +899,7 @@ const Settings = () => {
                                 await configAPI.wipeDatabase();
                                 setToast({ message: 'Sistema reiniciado', type: 'success' });
                                 setTimeout(() => window.location.reload(), 1500);
-                              } catch (error) {
+                              } catch (_error) {
                                 setToast({ message: 'Error al limpiar', type: 'error' });
                               }
                             }}
