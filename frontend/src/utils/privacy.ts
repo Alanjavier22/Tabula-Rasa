@@ -216,13 +216,17 @@ function sanitizeDescription(description: string, hydrationMap: Map<string, stri
  * FASE 4: Async-Safe - hydrationMap and counters injected as parameters
  * Recursively sanitizes metadata_json fields, handles arrays and nested JSON strings
  */
-function sanitizeObject<T extends Record<string, any>>(obj: T, hydrationMap: Map<string, string>, counters: TokenCounters): T {
+function sanitizeObject<T>(obj: T, hydrationMap: Map<string, string>, counters: TokenCounters): T {
   // Handle arrays recursively
   if (Array.isArray(obj)) {
     return obj.map(item => sanitizeObject(item, hydrationMap, counters)) as unknown as T;
   }
 
-  const sanitized: Record<string, any> = { ...obj };
+  if (typeof obj !== 'object' || obj === null) {
+    return obj;
+  }
+
+  const sanitized: Record<string, unknown> = { ...(obj as Record<string, unknown>) };
 
   for (const key in sanitized) {
     if (typeof sanitized[key] === 'string') {
@@ -231,19 +235,19 @@ function sanitizeObject<T extends Record<string, any>>(obj: T, hydrationMap: Map
           key.toLowerCase().includes('notes') ||
           key.toLowerCase().includes('memo') ||
           key.toLowerCase().includes('comment')) {
-        sanitized[key] = sanitizeDescription(sanitized[key], hydrationMap, counters);
+        sanitized[key] = sanitizeDescription(sanitized[key] as string, hydrationMap, counters);
       }
       // Recursively sanitize metadata_json fields and any string that looks like JSON
       else if (key.toLowerCase().includes('metadata_json') || key.toLowerCase().includes('metadata') || 
-               (sanitized[key].startsWith('{') && sanitized[key].endsWith('}'))) {
+               ((sanitized[key] as string).startsWith('{') && (sanitized[key] as string).endsWith('}'))) {
         try {
-          const parsed = JSON.parse(sanitized[key]);
+          const parsed = JSON.parse(sanitized[key] as string);
           const sanitizedMetadata = sanitizeObject(parsed, hydrationMap, counters);
           sanitized[key] = JSON.stringify(sanitizedMetadata);
           console.debug('[QualityGate-F2] Sanitized nested JSON in field:', key);
         } catch {
           // If not valid JSON, treat as regular string
-          sanitized[key] = sanitizeDescription(sanitized[key], hydrationMap, counters);
+          sanitized[key] = sanitizeDescription(sanitized[key] as string, hydrationMap, counters);
         }
       }
     } else if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
@@ -252,7 +256,7 @@ function sanitizeObject<T extends Record<string, any>>(obj: T, hydrationMap: Map
     }
   }
 
-  return sanitized as T;
+  return sanitized as unknown as T;
 }
 
 /**
