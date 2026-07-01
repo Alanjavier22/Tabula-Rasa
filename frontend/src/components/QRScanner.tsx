@@ -67,7 +67,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onSuccess, onCancel }) => 
       localStorage.setItem(tokenKey, response.data.access_token);
       
       onSuccess();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setError(err.response?.data?.detail || err.message || "Error al procesar el QR.");
     } finally {
