@@ -3,17 +3,10 @@ import { Smartphone, Trash2, Plus, Clock, ShieldCheck, RefreshCw, AlertTriangle,
 import { authAPI } from '../../services/api';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-
-interface Device {
-  id: string;
-  device_name: string;
-  last_sync: string | null;
-  is_active: boolean;
-  created_at: string;
-}
+import type { PairedDevice } from '../../types';
 
 export default function DeviceManager() {
-  const [devices, setDevices] = useState<Device[]>([]);
+  const [devices, setDevices] = useState<PairedDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [pairingCode, setPairingCode] = useState<{ pin: string; expires_in: number; qr_url?: string } | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -30,10 +23,8 @@ export default function DeviceManager() {
   }, []);
 
   useEffect(() => {
-    if (devices.length === 0 && !loading) {
-      fetchDevices();
-    }
-  }, [fetchDevices, devices.length, loading]);
+    fetchDevices();
+  }, [fetchDevices]);
 
   const handleGenerateCode = async () => {
     setGenerating(true);
