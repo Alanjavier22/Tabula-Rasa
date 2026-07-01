@@ -54,7 +54,7 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
       setFormData({ person_name: '', amount: '', description: '', status: 'pending' });
       // Refresh statements
       window.location.reload();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error adding debt share:', error);
       setToast({ message: error.response?.data?.detail || 'Error al agregar deuda compartida', type: 'error' });
     } finally {
@@ -67,7 +67,7 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
       await statementsAPI.updateDebtShare(shareId, { status: newStatus });
       setToast({ message: 'Estado actualizado', type: 'success' });
       window.location.reload();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating debt share:', error);
       setToast({ message: error.response?.data?.detail || 'Error al actualizar estado', type: 'error' });
     }
@@ -79,7 +79,7 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
       await statementsAPI.deleteDebtShare(shareId);
       setToast({ message: 'Deuda compartida eliminada', type: 'success' });
       window.location.reload();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting debt share:', error);
       setToast({ message: error.response?.data?.detail || 'Error al eliminar deuda compartida', type: 'error' });
     }
