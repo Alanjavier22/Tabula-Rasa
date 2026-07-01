@@ -30,8 +30,10 @@ export default function DeviceManager() {
   }, []);
 
   useEffect(() => {
-    fetchDevices();
-  }, [fetchDevices]);
+    if (devices.length === 0 && !loading) {
+      fetchDevices();
+    }
+  }, [fetchDevices, devices.length, loading]);
 
   const handleGenerateCode = async () => {
     setGenerating(true);
@@ -71,7 +73,7 @@ export default function DeviceManager() {
     try {
       const url = new URL(pairingCode.qr_url);
       return `${url.protocol}//${url.host}`;
-    } catch (e) {
+    } catch (_e) {
       return null;
     }
   };
