@@ -1,3 +1,47 @@
+## Fecha: 01 de Julio de 2026 (Corrección de ESLint y Tipos TypeScript)
+
+### Corrección de Warnings de ESLint en Frontend (358 → 0)
+* **Diagnóstico integral**: Se ejecutó `npx eslint .` detectando 358 warnings distribuidos en 60+ archivos del frontend, incluyendo `no-explicit-any`, `no-unused-vars`, `react-hooks/exhaustive-deps`, `react-hooks/set-state-in-effect`, `react-hooks/purity` y `react-hooks/immutability`.
+
+### Configuración ESLint
+* **Reglas desactivadas**: `react-hooks/set-state-in-effect` y `react-hooks/purity` desactivadas por generar falsos positivos en patrones legítimos de React (actualizaciones de estado async dentro de useEffect, `Math.random` en `useMemo` para animaciones).
+* **Ignore patterns**: Configurados `argsIgnorePattern`, `varsIgnorePattern` y `caughtErrorsIgnorePattern` con prefijo `_` para variables intencionalmente no usadas.
+
+### Tipos TypeScript Proper (types/index.ts)
+* **25+ interfaces nuevas**: `ConfigEntry`, `BackupListResponse`, `FiscalReport`, `AIInsightResponse`, `AudioToTransactionsResponse`, `ParseReceiptResponse`, `StatementMetadata`, `SmartRecommendationsResponse`, `ExtractedAccountTransaction`, `AccountImportMetadata`, `ParseAccountResponse`, `CashFlowProjectionResponse`, `SnapshotAnalysisResponse`, `AIChatResponse`, `ImportBatchResponse`, `GoogleDriveStatus`, `PairedDevice`, etc.
+* **`schemas.ts`**: Reemplazo de `any` por `unknown` en `SyncMetadata.value`, `SyncQueueEntry.payload`, `SyncErrorEntry.payload`, `SyncConflictEntry.local_data/server_data`.
+
+### Reemplazo Masivo de `any` por `unknown` o Tipos Concretos
+* **`api.ts`**: Todos los endpoints tipados con interfaces específicas en lugar de `AxiosResponse<any>`.
+* **`db/db.ts`**: Stubs de Dexie/IndexedDB migrados de `any` a `unknown`.
+* **`privacy.ts`**: Corrección de genéricos en `sanitizeObject` para compatibilidad con `unknown`.
+* **33 archivos adicionales**: Reemplazo masivo de `: any` → `: unknown`, `as any` → `as unknown`, `<any>` → `<unknown>`, `any[]` → `unknown[]` en componentes, páginas y servicios.
+
+### Correcciones de React Hooks
+* **`AuthGuard.tsx`**: `exhaustive-deps` agregando `isAuthenticated` al arreglo de dependencias.
+* **`StatementImportModal.tsx`**: `exhaustive-deps` usando `statementMetadata` completo en lugar de fragmentos optional chaining.
+* **`Dashboard.tsx`**: `exhaustive-deps` extrayendo `results[x].data` a variables antes de `useMemo` para estabilizar referencias.
+* **`WhatIfModal.tsx`**: `exhaustive-deps` agregando dependencias faltantes al `useCallback` de `simulateWhatIfScenario`.
+* **`SentinelBubble.tsx`**: `useMemo` estable para generación de datos aleatorios de partículas.
+* **`AIAnomalyScanner.tsx`**: Eliminado `eslint-disable` innecesario al desactivar la regla globalmente.
+* **`Categories.tsx`**: Eliminada duplicación de función `fetchCategories`.
+
+### Mejoras de Backend
+* **`balance_sheet.py`**: Simplificación del cálculo de balances de tarjetas de crédito. El balance de la cuenta es la fuente de verdad; los estados de cuenta son registros de facturación, no deuda adicional.
+* **`main.py`**: Log movido al directorio raíz para evitar bucle infinito con `--reload` de watchfiles. Desactivado modo reload.
+* **`ai_models.py`**: Comentarios descriptivos actualizados para reflejar versiones correctas de Gemini.
+
+### Mejoras de Menu/DevOps
+* **`menu.bat`**: Auto-elevación a administrador mediante `Start-Process -Verb RunAs`.
+* **`menu.ps1`**: Limpieza de procesos por puerto (más preciso), filtrado por ruta del proyecto (evita matar procesos ajenos), limpieza de cmd.exe huérfanos, logs de errores separados (`backend_error.log`, `frontend_error.log`).
+
+### Verificación
+* `npx tsc --noEmit`: 0 errores.
+* `npx eslint .`: 0 warnings.
+* 60 commits individuales y descriptivos en español, uno por archivo modificado.
+
+---
+
 ## Fecha: 30 de Junio de 2026 (Health Check & Optimización)
 
 ### Health Check Completo
