@@ -56,10 +56,6 @@ const Reminders = () => {
     };
   }, [showCreateModal, showEditModal]);
 
-  useEffect(() => {
-    fetchReminders();
-  }, []);
-
   const fetchReminders = async () => {
     try {
       const response = await remindersAPI.getAll();
@@ -71,6 +67,10 @@ const Reminders = () => {
     }
   };
 
+  useEffect(() => {
+    fetchReminders();
+  }, []);
+
   const handleDelete = async (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
   };
@@ -81,7 +81,7 @@ const Reminders = () => {
       await remindersAPI.delete(deleteConfirm.id);
       setToast({ message: 'Alerta eliminada del sistema', type: 'success' });
       fetchReminders();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting reminder:', error);
       const errorMessage = Array.isArray(error.response?.data?.detail)
         ? error.response.data.detail[0]?.msg || 'Error al eliminar recordatorio'
@@ -123,7 +123,7 @@ const Reminders = () => {
       setForm(emptyForm);
       setToast({ message: 'Nueva alerta programada', type: 'success' });
       fetchReminders();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating reminder:', error);
       const errorMessage = Array.isArray(error.response?.data?.detail)
         ? error.response.data.detail[0]?.msg || 'Error al crear recordatorio'
@@ -153,7 +153,7 @@ const Reminders = () => {
       setEditForm(emptyForm);
       setToast({ message: 'Configuración de alerta actualizada', type: 'success' });
       fetchReminders();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating reminder:', error);
       const errorMessage = Array.isArray(error.response?.data?.detail)
         ? error.response.data.detail[0]?.msg || 'Error al actualizar recordatorio'
@@ -169,7 +169,7 @@ const Reminders = () => {
       await remindersAPI.update(id, { status: 'completed' });
       setToast({ message: 'Misión cumplida', type: 'success' });
       fetchReminders();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error marking reminder as complete:', error);
       const errorMessage = Array.isArray(error.response?.data?.detail)
         ? error.response.data.detail[0]?.msg || 'Error al actualizar recordatorio'
