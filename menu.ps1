@@ -12,6 +12,8 @@ $script:backendPath = Join-Path $script:scriptPath "backend"
 $script:frontendPath = Join-Path $script:scriptPath "frontend"
 $script:backendLog = Join-Path $script:scriptPath "backend.log"
 $script:frontendLog = Join-Path $script:scriptPath "frontend.log"
+$script:backendErrorLog = Join-Path $script:scriptPath "backend_error.log"
+$script:frontendErrorLog = Join-Path $script:scriptPath "frontend_error.log"
 $script:venvPython = Join-Path $script:backendPath "venv\Scripts\python.exe"
 $script:nodeModules = Join-Path $script:frontendPath "node_modules"
 
@@ -242,39 +244,66 @@ function Show-Menu {
 }
 
 function Stop-ProjectProcesses {
-    Write-Host "  Limpiando agresivamente procesos Python y Node..." -ForegroundColor Yellow
+    Write-Host "  Limpiando procesos Python, Node y cmd huérfanos..." -ForegroundColor Yellow
     $killedSomething = $false
 
-    # Matar todos los procesos Python
+    # 1. Matar procesos por puertos (mas preciso que por nombre)
+    $portKilled = Stop-SpecificPorts
+    if ($portKilled) { $killedSomething = $true }
+
+    # 2. Matar procesos Python que pertenezcan a nuestro venv
     $pythonProcesses = Get-Process -Name "python*" -ErrorAction SilentlyContinue
     if ($pythonProcesses) {
         foreach ($proc in $pythonProcesses) {
             try {
-                Stop-Process -Id $proc.Id -Force
-                Write-Host "  Proceso $($proc.ProcessName) (PID: $($proc.Id)) detenido." -ForegroundColor Green
-                $killedSomething = $true
+                # Solo matar si el ejecutable esta en nuestro venv
+                if ($proc.Path -and $proc.Path -like "*$script:backendPath*") {
+                    Stop-Process -Id $proc.Id -Force
+                    Write-Host "  Proceso $($proc.ProcessName) (PID: $($proc.Id)) detenido." -ForegroundColor Green
+                    $killedSomething = $true
+                }
             } catch {
-                Write-Host "  Error al detener $($proc.ProcessName): $($_.Exception.Message)" -ForegroundColor Red
+                # Path puede no estar accesible, ignorar
             }
         }
     }
 
-    # Matar todos los procesos Node
+    # 3. Matar procesos Node que pertenezcan a nuestro frontend
     $nodeProcesses = Get-Process -Name "node*" -ErrorAction SilentlyContinue
     if ($nodeProcesses) {
         foreach ($proc in $nodeProcesses) {
             try {
-                Stop-Process -Id $proc.Id -Force
-                Write-Host "  Proceso $($proc.ProcessName) (PID: $($proc.Id)) detenido." -ForegroundColor Green
-                $killedSomething = $true
+                if ($proc.Path -and $proc.Path -like "*$script:frontendPath*") {
+                    Stop-Process -Id $proc.Id -Force
+                    Write-Host "  Proceso $($proc.ProcessName) (PID: $($proc.Id)) detenido." -ForegroundColor Green
+                    $killedSomething = $true
+                }
             } catch {
-                Write-Host "  Error al detener $($proc.ProcessName): $($_.Exception.Message)" -ForegroundColor Red
+                # Path puede no estar accesible, ignorar
+            }
+        }
+    }
+
+    # 4. Matar procesos cmd.exe que lanzamos para backend/frontend
+    # Buscar cmd.exe que tengan uvicorn o npm run dev en su linea de comandos
+    $cmdProcesses = Get-WmiObject Win32_Process -Filter "Name='cmd.exe'" -ErrorAction SilentlyContinue
+    if ($cmdProcesses) {
+        foreach ($proc in $cmdProcesses) {
+            $cmdLine = $proc.CommandLine
+            if ($cmdLine -and ($cmdLine -like '*uvicorn*' -or $cmdLine -like '*npm run dev*')) {
+                try {
+                    Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
+                    Write-Host "  Proceso cmd.exe huérfano (PID: $($proc.ProcessId)) detenido." -ForegroundColor Green
+                    $killedSomething = $true
+                } catch {
+                    # Ya muerto, ignorar
+                }
             }
         }
     }
 
     if (-not $killedSomething) {
-        Write-Host "  No se encontraron procesos Python o Node activos." -ForegroundColor Gray
+        Write-Host "  No se encontraron procesos activos del proyecto." -ForegroundColor Gray
     }
 
     # Dar tiempo al SO para liberar descriptores de archivos
@@ -350,12 +379,12 @@ function Stop-AllProcesses {
     Write-Host "========================================"  -ForegroundColor Cyan
     Write-Host ""
 
-    Write-Host "Buscando procesos en puertos 8001 (Backend) y 5173 (Frontend)..." -ForegroundColor Yellow
+    Write-Host "  Buscando y deteniendo todos los procesos del proyecto..." -ForegroundColor Yellow
     
-    $result = Stop-SpecificPorts
+    $result = Stop-ProjectProcesses
     
     if (-not $result) {
-        Write-Host "  No se encontraron procesos activos en los puertos del aplicativo." -ForegroundColor Gray
+        Write-Host "  No se encontraron procesos activos del proyecto." -ForegroundColor Gray
     }
 
     Write-Host ""
@@ -373,15 +402,36 @@ function Start-Application {
     Write-Host "========================================"  -ForegroundColor Cyan
     Write-Host ""
 
-    # 1. Asesino de Zombies Quirúrgico
-    Write-Host "[1/5] Verificando puertos limpios..."  -ForegroundColor Yellow
-    Stop-SpecificPorts | Out-Null
-    Start-Sleep -Seconds 1
+    # 1. Limpieza completa de procesos anteriores
+    Write-Host "[1/5] Deteniendo procesos anteriores..."  -ForegroundColor Yellow
+    Stop-ProjectProcesses | Out-Null
 
-    # 2. Rotación de Logs (Limpieza en frío)
+    # 2. Rotacion de Logs (Eliminacion en frio para evitar bytes nulos por sparse files)
     Write-Host "[2/5] Limpiando archivos de log anteriores..." -ForegroundColor Yellow
-    Clear-Content $script:backendLog -ErrorAction SilentlyContinue
-    Clear-Content $script:frontendLog -ErrorAction SilentlyContinue
+    $logFiles = @($script:backendLog, $script:frontendLog, $script:backendErrorLog, $script:frontendErrorLog)
+    foreach ($logFile in $logFiles) {
+        if (Test-Path $logFile) {
+            # Eliminar el archivo por completo. El proceso nuevo lo recrea limpio.
+            # Esto evita bytes nulos que ocurren al truncar un archivo que otro proceso mantiene abierto.
+            $deleted = $false
+            for ($i = 0; $i -lt 3 -and -not $deleted; $i++) {
+                try {
+                    Remove-Item $logFile -Force -ErrorAction Stop
+                    $deleted = $true
+                } catch {
+                    Start-Sleep -Milliseconds 500
+                }
+            }
+            # Si no se pudo eliminar (proceso lo tiene bloqueado), truncar como fallback
+            if (-not $deleted) {
+                try {
+                    $stream = [System.IO.File]::Open($logFile, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+                    $stream.SetLength(0)
+                    $stream.Close()
+                } catch { }
+            }
+        }
+    }
 
     # 3. Backend Health Check & Self-Healing
     Write-Host "[3/5] Verificando salud del entorno virtual..."  -ForegroundColor Yellow
@@ -454,12 +504,26 @@ function Start-Application {
         }
     }
 
-    # 4. Iniciar Backend
+    # 4. Iniciar Backend y Frontend
     Write-Host "[4/5] Iniciando Backend..."  -ForegroundColor Yellow
     
-    # Inicia como proceso oculto, enrutando StdOut y StdErr al Log
-    $backendErrorLog = Join-Path $script:scriptPath "backend_error.log"
-    Start-Process -FilePath $script:venvPython -ArgumentList "-m uvicorn main:app --host 0.0.0.0 --port 8001 --reload" -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendLog -RedirectStandardError $backendErrorLog
+    # Asegurar dependencias de frontend antes de arrancar
+    if (-not (Test-Path $script:nodeModules)) {
+        Write-Host "  Dependencias de Node no detectadas. Instalando..." -ForegroundColor Magenta
+        Push-Location $script:frontendPath
+        npm install
+        Pop-Location
+    }
+
+    # Inicia backend via cmd.exe con redireccion UTF-8 nativa para stderr
+    $backendErrorLog = $script:backendErrorLog
+    $frontendErrorLog = $script:frontendErrorLog
+    $beCmd = "/c cd /d `"$script:backendPath`" & `"$script:venvPython`" -m uvicorn main:app --host 0.0.0.0 --port 8001 --no-use-colors 1>NUL 2>`"$backendErrorLog`""
+    Start-Process -FilePath "cmd.exe" -ArgumentList $beCmd -WindowStyle Hidden
+
+    # Inicia frontend via cmd.exe (sin redireccion - la redireccion causa que cmd muera)
+    $feCmd = "/c cd /d `"$script:frontendPath`" && npm.cmd run dev"
+    Start-Process -FilePath "cmd.exe" -ArgumentList $feCmd -WindowStyle Hidden
 
     # Health Check Polling (Evitar Race Condition)
     Write-Host "  Esperando a que el backend esté listo..." -ForegroundColor Yellow
@@ -485,19 +549,7 @@ function Start-Application {
     }
     
     Write-Host "  Backend listo." -ForegroundColor Green
-
-    # 5. Frontend (Self-Healing + Start)
-    Write-Host "[5/5] Preparando e Iniciando Frontend..."  -ForegroundColor Yellow
-    if (-not (Test-Path $script:nodeModules)) {
-        Write-Host "  Dependencias de Node no detectadas. Instalando..." -ForegroundColor Magenta
-        Push-Location $script:frontendPath
-        npm install
-        Pop-Location
-    }
-
-    # Inicia Vite oculto enrutando logs
-    $frontendErrorLog = Join-Path $script:scriptPath "frontend_error.log"
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run dev" -WorkingDirectory $script:frontendPath -WindowStyle Hidden -RedirectStandardOutput $script:frontendLog -RedirectStandardError $frontendErrorLog
+    Write-Host "[5/5] Frontend iniciado." -ForegroundColor Yellow
 
     Start-Sleep -Seconds 3
 
@@ -564,7 +616,7 @@ while ($true) {
         '3' { Show-Logs }
         '4' { 
             Write-Host "Iniciando mantenimiento profundo..." -ForegroundColor Cyan
-            Stop-SpecificPorts | Out-Null
+            Stop-ProjectProcesses | Out-Null
             Remove-VenvSafely (Join-Path $script:backendPath "venv")
             if (Test-Path $script:nodeModules) { Remove-Item -Recurse -Force $script:nodeModules }
             Write-Host "Limpieza completada. Inicia de nuevo para reinstalar todo." -ForegroundColor Green
@@ -572,7 +624,7 @@ while ($true) {
         }
         '5' {
             Write-Host "Cerrando aplicativo de forma segura..." -ForegroundColor Yellow
-            Stop-SpecificPorts | Out-Null
+            Stop-ProjectProcesses | Out-Null
             exit
         }
     }
