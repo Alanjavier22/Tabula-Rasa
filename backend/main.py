@@ -82,10 +82,10 @@ def setup_logging():
     file_handler.setLevel(logging.INFO)
     file_handler.addFilter(NetworkErrorFilter())
     
-    # Setup console handler
-    console_handler = logging.StreamHandler()
+    # Setup console handler — stderr only for WARNING+ so backend_error.log gets only errors
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setFormatter(formatter)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.WARNING)
     console_handler.addFilter(NetworkErrorFilter())
     
     # Configure root logger
@@ -161,6 +161,7 @@ from app.models.credit_card_statement import CreditCardStatement
 from app.models.debt_share import DebtShare
 from app.models.authorized_device import AuthorizedDevice
 from app.models.deferred_payment import DeferredPayment
+from app.models.transaction_embedding import TransactionEmbedding
 
 
 # Register event listeners for auto-increment version on UPDATE (OCC conflict resolution)
