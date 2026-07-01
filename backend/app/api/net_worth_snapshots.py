@@ -7,6 +7,7 @@ import os
 import google.genai as genai
 from database import get_db
 from app.services.ai_models import REASONING_MODEL
+from app.services.ai_prompts import CORE_RULES, get_current_time_context
 from app.api.auth import get_current_device
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.account import Account
@@ -153,7 +154,10 @@ def analyze_month(snapshot_id: str, db: Session = Depends(get_db)):
             "changes": changes
         }
 
-        prompt = f"""Actúa como mi CFO personal. Analiza mi resumen financiero del mes {snapshot.month}/{snapshot.year} comparado con el mes anterior {prev_month}/{prev_year}.
+        prompt = f"""{get_current_time_context()}
+{CORE_RULES}
+
+Actúa como mi CFO personal. Analiza mi resumen financiero del mes {snapshot.month}/{snapshot.year} comparado con el mes anterior {prev_month}/{prev_year}.
 
 Datos actuales:
 - Activos totales: ${s_assets:.2f}
