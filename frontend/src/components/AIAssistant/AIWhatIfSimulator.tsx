@@ -231,7 +231,7 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
           <p className="text-xs font-black text-slate-500 uppercase tracking-[0.3em]">Evolución del Patrimonio (12 Meses)</p>
           <p className="text-[11px] text-slate-600 mt-2 font-medium italic">Análisis comparativo entre tu tendencia actual y el escenario simulado.</p>
         </div>
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={240} minWidth={0} minHeight={0}>
           <AreaChart data={scenario.projection} margin={{ top: 40, right: 30, left: 10, bottom: 20 }}>
             <defs>
               <linearGradient id="colorBaseline" x1="0" y1="0" x2="0" y2="1">
@@ -270,7 +270,7 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
                     <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 p-4 rounded-xl shadow-2xl ring-1 ring-black/50">
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Mes {label}</p>
                       <div className="space-y-2">
-                        {payload.map((entry: any, index: number) => (
+                        {payload.map((entry: unknown, index: number) => (
                           <div key={index} className="flex items-center justify-between gap-8">
                             <div className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
@@ -295,7 +295,7 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
               iconType="circle"
               content={({ payload }) => (
                 <div className="flex justify-end gap-6 mb-8">
-                  {payload?.map((entry: any, index: number) => (
+                  {payload?.map((entry: unknown, index: number) => (
                     <div key={index} className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
                       <span className="text-xs font-semibold text-slate-400 uppercase tracking-tighter">
