@@ -18,11 +18,9 @@ export class MaintenanceService {
 
     let deletedCount = 0;
 
-    // @ts-ignore
     await db.transaction('rw', ['sync_errors'], async () => {
-      // @ts-ignore
       const oldLogs = await db.sync_errors
-        .filter((log: any) => {
+        .filter((log: unknown) => {
           // Only delete INFO logs older than 30 days
           // Never delete ERROR or CRITICAL logs
           const isInfo = log.error_message?.toLowerCase().startsWith('info:');
@@ -32,9 +30,7 @@ export class MaintenanceService {
         .toArray();
 
       if (oldLogs.length > 0) {
-        // @ts-ignore
         const keysToDelete = oldLogs.map(log => log.id);
-        // @ts-ignore
         await db.sync_errors.bulkDelete(keysToDelete);
         deletedCount = keysToDelete.length;
       }
@@ -56,46 +52,36 @@ export class MaintenanceService {
 
     let deletedCount = 0;
 
-    // @ts-ignore
     await db.transaction('rw', ['transactions', 'fuel_logs', 'ious'], async () => {
       // Purge deleted transactions
-      // @ts-ignore
       const deletedTransactions = await db.transactions
         .filter(t => t.is_deleted && t.updated_at < cutoffDate)
         .toArray();
 
       if (deletedTransactions.length > 0) {
-        // @ts-ignore
         const keysToDelete = deletedTransactions.map(t => t.id);
-        // @ts-ignore
         await db.transactions.bulkDelete(keysToDelete);
         deletedCount += keysToDelete.length;
       }
 
       // Purge deleted fuel logs
-      // @ts-ignore
       const deletedFuelLogs = await db.fuel_logs
         .filter(f => f.is_deleted && f.updated_at < cutoffDate)
         .toArray();
 
       if (deletedFuelLogs.length > 0) {
-        // @ts-ignore
         const keysToDelete = deletedFuelLogs.map(f => f.id);
-        // @ts-ignore
         await db.fuel_logs.bulkDelete(keysToDelete);
         deletedCount += keysToDelete.length;
       }
 
       // Purge deleted IOUs
-      // @ts-ignore
       const deletedIOUs = await db.ious
         .filter(i => i.is_deleted && i.updated_at < cutoffDate)
         .toArray();
 
       if (deletedIOUs.length > 0) {
-        // @ts-ignore
         const keysToDelete = deletedIOUs.map(i => i.id);
-        // @ts-ignore
         await db.ious.bulkDelete(keysToDelete);
         deletedCount += keysToDelete.length;
       }
