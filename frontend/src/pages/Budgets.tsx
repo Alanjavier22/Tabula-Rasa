@@ -74,12 +74,6 @@ const Budgets = () => {
     };
   }, [showCreateModal, showEditModal, showPaymentModal, showRecurringModal]);
 
-  useEffect(() => {
-    fetchBudgets();
-    fetchCategories();
-    fetchAccounts();
-  }, []);
-
   const fetchBudgets = async () => {
     try {
       const response = await budgetsAPI.getAll();
@@ -108,6 +102,12 @@ const Budgets = () => {
       console.error('Error fetching accounts:', error);
     }
   };
+
+  useEffect(() => {
+    fetchBudgets();
+    fetchCategories();
+    fetchAccounts();
+  }, []);
 
   const handleDelete = async (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
@@ -205,7 +205,7 @@ const Budgets = () => {
     setShowPaymentModal(true);
   };
 
-  const handlePaymentSubmit = async (data: any) => {
+  const handlePaymentSubmit = async (data: unknown) => {
     setSaving(true);
     try {
       await transactionsAPI.create({
@@ -241,7 +241,7 @@ const Budgets = () => {
       setToast({ message: 'Ecosistema de presupuestos sincronizado', type: 'success' });
       setShowRecurringModal(false);
       fetchBudgets();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error generating recurring budgets:', error);
       const errorMessage = error.response?.data?.detail || 'Error al generar recurrentes';
       setToast({ message: errorMessage, type: 'error' });
