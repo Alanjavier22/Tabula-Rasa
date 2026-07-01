@@ -62,7 +62,9 @@ const TransactionForm = ({
   }, []);
 
   useEffect(() => {
-    setForm(initialData);
+    if (initialData) {
+      setForm(initialData);
+    }
   }, [initialData]);
 
   useEffect(() => {
@@ -74,7 +76,7 @@ const TransactionForm = ({
         description: split.description || ''
       })));
       setIsSplitEnabled(true);
-    } else {
+    } else if (initialSplits === undefined) {
       setSplits([{ amount: '', category_id: '', description: '' }]);
       setIsSplitEnabled(false);
     }
