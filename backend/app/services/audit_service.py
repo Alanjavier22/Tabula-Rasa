@@ -1,10 +1,8 @@
 from sqlalchemy.orm import Session
-from typing import cast, Any
+from typing import cast, Any, Optional
 from datetime import datetime, timedelta, timezone
 from app.models.transaction import Transaction
-import google.genai as genai
-from google.genai import types
-from app.services.ai_models import REASONING_MODEL
+from app.services.embedding_service import EmbeddingService
 import json
 import logging
 
@@ -19,7 +17,7 @@ class AuditService:
     def __init__(self, db: Session, api_key: str):
         self.db = db
         self.api_key = api_key
-        self.client = genai.Client(api_key=api_key)
+        self.embedding_service = EmbeddingService(api_key=api_key)
 
     def scan_for_duplicates(self, days: int = 7) -> list:
         """
@@ -60,27 +58,31 @@ class AuditService:
         return results
 
     def _is_semantic_duplicate(self, group: list) -> bool:
-        """Usa Gemini para decidir si un grupo de transacciones son duplicados."""
+        """Usa embeddings para decidir si un grupo de transacciones son duplicados."""
         descriptions = [t.description for t in group]
-        
-        prompt = f"""
-        Analiza estas descripciones de transacciones ocurridas el mismo día con el mismo monto:
-        {json.dumps(descriptions, ensure_ascii=False)}
-        
-        ¿Representan el mismo gasto real (duplicado)? 
-        Responde solo con un JSON: {{"is_duplicate": true/false, "reason": "breve explicación"}}
-        """
-        
+        if len(descriptions) < 2:
+            return False
+
+        valid_descs = [d for d in descriptions if d and d.strip()]
+        if len(valid_descs) < 2:
+            return False
+
         try:
-            response = self.client.models.generate_content(
-                model=REASONING_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json"
-                )
-            )
-            result = json.loads(cast(str, response.text))
-            return result.get("is_duplicate", False)
+            embeddings = []
+            for desc in valid_descs:
+                emb = self.embedding_service.get_or_create_embedding(desc, self.db)
+                if emb is not None:
+                    embeddings.append(emb)
+
+            if len(embeddings) < 2:
+                return False
+
+            for i in range(len(embeddings)):
+                for j in range(i + 1, len(embeddings)):
+                    sim = EmbeddingService.cosine_similarity(embeddings[i], embeddings[j])
+                    if sim > 0.92:
+                        return True
+            return False
         except Exception as e:
-            logger.warning(f"Error checking semantic duplicate: {e}")
+            logger.warning(f"Error checking semantic duplicate with embeddings: {e}")
             return False
