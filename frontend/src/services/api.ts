@@ -320,7 +320,7 @@ export const intelligenceAPI = {
     api.post<ConfirmImportResponse>(`/intelligence/confirm-import/${logId}`, {
       confirmed_transactions: transactions,
       statement_metadata: statementMetadata
-    }),
+    }, { timeout: 900000 }),
   // Heavy request: uses 15 min timeout (900000ms)
   uploadAccountDocument: (accountId: string, file: File) => {
     const formData = new FormData();
@@ -335,7 +335,7 @@ export const intelligenceAPI = {
   confirmAccountImport: (logId: string, transactions: ExtractedAccountTransaction[]) => 
     api.post<ConfirmAccountImportResponse>(`/intelligence/confirm-account-import/${logId}`, {
       confirmed_transactions: transactions
-    }),
+    }, { timeout: 900000 }),
 };
 
 export const snapshotsAPI = {
