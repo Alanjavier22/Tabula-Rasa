@@ -12,7 +12,7 @@ interface VirtualTransactionListProps {
   transactions: Transaction[];
   rowHeight: number;
   visibleRowCount?: number;
-  onEdit?: (txn: Transaction & { category?: any }) => void;
+  onEdit?: (txn: Transaction & { category?: unknown }) => void;
   onDelete?: (id: string) => void;
 }
 
