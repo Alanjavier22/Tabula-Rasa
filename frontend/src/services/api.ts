@@ -20,7 +20,35 @@ import type {
   DashboardSummaryResponse,
   DebtShare,
   AlertsResponse,
-  NetWorthSnapshot
+  NetWorthSnapshot,
+  ConfigEntry,
+  BackupListResponse,
+  BackupRestoreResponse,
+  FiscalReport,
+  FiscalTrend,
+  AIInsightResponse,
+  AudioToTransactionsResponse,
+  ParseReceiptResponse,
+  SuggestCategoriesResponse,
+  TestComponentResponse,
+  SmartRecommendationsResponse,
+  ImportStatementResponse,
+  StatementMetadata,
+  ConfirmImportResponse,
+  ParseAccountResponse,
+  ExtractedAccountTransaction,
+  ConfirmAccountImportResponse,
+  CashFlowProjectionResponse,
+  SnapshotAnalysisResponse,
+  ReconcileResponse,
+  AIChatResponse,
+  ImportBatchResponse,
+  ImportGuayaquilResponse,
+  GoogleDriveStatus,
+  DriveCredentialsData,
+  PairingConsumeResponse,
+  PairedDevice,
+  GoogleDriveAuthUrl,
 } from '../types/index';
 
 const getDynamicBaseUrl = () => {
@@ -139,7 +167,7 @@ export const categoriesAPI = {
   create: (data: Partial<Category>) => api.post<Category>('/categories/', data),
   update: (id: string, data: Partial<Category>) => api.put<Category>(`/categories/${id}`, data),
   delete: (id: string) => api.delete<{ message: string }>(`/categories/${id}`),
-  export: () => api.get<any[]>('/categories/export'),
+  export: () => api.get<Category[]>('/categories/export'),
   import: (categories: Partial<Category>[]) => api.post<{ message: string; imported_count: number; skipped_count: number; errors: string[] }>('/categories/import', categories),
 };
 
@@ -220,9 +248,9 @@ export const metricsAPI = {
   getNetWorth: () => api.get<NetWorthResponse>('/metrics/net-worth'),
   getVehicleTelemetry: () => api.get<VehicleTelemetryResponse>('/metrics/vehicle-telemetry'),
   getCashFlowForecast: (days?: number) => api.get<CashFlowForecastResponse>('/metrics/cash-flow-forecast', { params: days ? { days } : undefined }),
-  getCashFlowProjectionDays: (days: number) => api.get<any>(`/metrics/cash-flow-projection/${days}`),
+  getCashFlowProjectionDays: (days: number) => api.get<CashFlowProjectionResponse>(`/metrics/cash-flow-projection/${days}`),
   getDashboardSummary: () => api.get<DashboardSummaryResponse>('/metrics/dashboard-summary'),
-  getInsights: () => api.get<any>('/ai/insights'),
+  getInsights: () => api.get<AIInsightResponse>('/ai/insights'),
 };
 
 export const alertsAPI = {
@@ -230,16 +258,16 @@ export const alertsAPI = {
 };
 
 export const backupAPI = {
-  createManualBackup: () => api.post<{ success: boolean; message: string }>('/backup/manual'),
-  listBackups: () => api.get<any>('/backup/list'),
-  restoreBackup: (backupId: string) => api.post<{ success: boolean; message: string }>(`/backup/restore/${backupId}`, { confirmed: true, create_pre_restore_backup: true }),
+  createManualBackup: () => api.post<BackupRestoreResponse>('/backup/manual'),
+  listBackups: () => api.get<BackupListResponse>('/backup/list'),
+  restoreBackup: (backupId: string) => api.post<BackupRestoreResponse>(`/backup/restore/${backupId}`, { confirmed: true, create_pre_restore_backup: true }),
 };
 
 export const fiscalAPI = {
   getReport: (startDate: string, endDate: string, categoryIds?: string) => 
-    api.get<any>('/fiscal/report', { params: { start_date: startDate, end_date: endDate, category_ids: categoryIds } }),
+    api.get<FiscalReport>('/fiscal/report', { params: { start_date: startDate, end_date: endDate, category_ids: categoryIds } }),
   getTrend: (startDate: string, endDate: string, categoryIds?: string) => 
-    api.get<any>('/fiscal/trend', { params: { start_date: startDate, end_date: endDate, category_ids: categoryIds } }),
+    api.get<FiscalTrend>('/fiscal/trend', { params: { start_date: startDate, end_date: endDate, category_ids: categoryIds } }),
   exportDeclaracionSRI: (year: number, format: 'xml' | 'json') => 
     api.get<Blob>('/fiscal/export-declaracion-sri', { 
       params: { year, format },
@@ -250,12 +278,12 @@ export const fiscalAPI = {
 export const aiAPI = {
   // Heavy request: uses 15 min timeout (900000ms)
   audioToTransactions: (audioData: { audio_base64: string; audio_format?: string }) => 
-    api.post<any>('/api/ai/audio-to-txns', audioData, { timeout: 900000 }),
+    api.post<AudioToTransactionsResponse>('/api/ai/audio-to-txns', audioData, { timeout: 900000 }),
   // Heavy request: uses 15 min timeout (900000ms)
   parseReceipt: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post<any>('/api/ai/parse-receipt', formData, {
+    return api.post<ParseReceiptResponse>('/api/ai/parse-receipt', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -267,13 +295,13 @@ export const aiAPI = {
     return api.post<{ mapping: Record<string, string> }>('/api/ai/batch-category-mapping', { descriptions: sanitized });
   },
   suggestCategories: (data: { transactions: Transaction[]; categories: Category[] }) => 
-    api.post<any>('/api/ai/suggest-categories', data),
-  getInsights: () => api.get<any>('/ai/insights'),
-  testComponent: (component: string) => api.get<any>(`/api/ai/test-component?component=${component}`),
+    api.post<SuggestCategoriesResponse>('/api/ai/suggest-categories', data),
+  getInsights: () => api.get<AIInsightResponse>('/ai/insights'),
+  testComponent: (component: string) => api.get<TestComponentResponse>(`/api/ai/test-component?component=${component}`),
 };
 
 export const aiGoalsAPI = {
-  getSmartRecommendations: () => api.get<any>('/ai/goals/smart-recommendations'),
+  getSmartRecommendations: () => api.get<SmartRecommendationsResponse>('/ai/goals/smart-recommendations'),
 };
 
 export const intelligenceAPI = {
@@ -281,15 +309,15 @@ export const intelligenceAPI = {
   uploadStatement: (accountId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post<any>(`/intelligence/import-statement/${accountId}`, formData, {
+    return api.post<ImportStatementResponse>(`/intelligence/import-statement/${accountId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
       timeout: 900000,
     });
   },
-  confirmImport: (logId: string, transactions: any[], statementMetadata?: any) => 
-    api.post<any>(`/intelligence/confirm-import/${logId}`, {
+  confirmImport: (logId: string, transactions: Partial<Transaction>[], statementMetadata?: StatementMetadata) => 
+    api.post<ConfirmImportResponse>(`/intelligence/confirm-import/${logId}`, {
       confirmed_transactions: transactions,
       statement_metadata: statementMetadata
     }),
@@ -297,27 +325,27 @@ export const intelligenceAPI = {
   uploadAccountDocument: (accountId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post<any>(`/intelligence/parse-account/${accountId}`, formData, {
+    return api.post<ParseAccountResponse>(`/intelligence/parse-account/${accountId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
       timeout: 900000,
     });
   },
-  confirmAccountImport: (logId: string, transactions: any[]) => 
-    api.post<any>(`/intelligence/confirm-account-import/${logId}`, {
+  confirmAccountImport: (logId: string, transactions: ExtractedAccountTransaction[]) => 
+    api.post<ConfirmAccountImportResponse>(`/intelligence/confirm-account-import/${logId}`, {
       confirmed_transactions: transactions
     }),
 };
 
 export const snapshotsAPI = {
   create: (data: { month: number; year: number; lock?: boolean }) => api.post<NetWorthSnapshot>('/snapshots/create', data),
-  getAll: (params?: any) => api.get<NetWorthSnapshot[]>('/snapshots/', { params }),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get<NetWorthSnapshot[]>('/snapshots/', { params }),
   getById: (id: string) => api.get<NetWorthSnapshot>(`/snapshots/${id}`),
   getByMonthYear: (month: number, year: number) => api.get<NetWorthSnapshot>(`/snapshots/month/${month}/year/${year}`),
   delete: (id: string) => api.delete<{ message: string }>(`/snapshots/${id}`),
-  analyze: (id: string) => api.post<any>(`/snapshots/${id}/analyze`),
-  reconcile: () => api.post<any>('/snapshots/reconcile'), // FASE 6: Manual reconciliation endpoint
+  analyze: (id: string) => api.post<SnapshotAnalysisResponse>(`/snapshots/${id}/analyze`),
+  reconcile: () => api.post<ReconcileResponse>('/snapshots/reconcile'), // FASE 6: Manual reconciliation endpoint
 };
 
 export const aiAssistantAPI = {
@@ -359,7 +387,7 @@ export const aiAssistantAPI = {
       };
     }
 
-    const response = await api.post<any>('/ai-assistant/chat', {
+    const response = await api.post<AIChatResponse>('/ai-assistant/chat', {
       message: sanitizedMessage,
       cash_flow_context: cashFlowContext,
       assets_context: assetsContext,
@@ -392,7 +420,7 @@ export const importAPI = {
     }
 
     // Send to backend for processing
-    const response = await api.post<any>('/transactions/import-batch', {
+    const response = await api.post<ImportBatchResponse>('/transactions/import-batch', {
       transactions: parsedTransactions,
       skip_duplicates: true,
     }, { timeout: 900000 });
@@ -405,7 +433,7 @@ export const importAPI = {
     formData.append('file', file);
     if (accountId) formData.append('account_id', accountId);
     
-    const response = await api.post<any>('/transactions/import-guayaquil', formData, {
+    const response = await api.post<ImportGuayaquilResponse>('/transactions/import-guayaquil', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -416,27 +444,27 @@ export const importAPI = {
 };
 
 export const configAPI = {
-  getAll: (params?: any) => api.get<any[]>('/config', { params }),
-  getByKey: (key: string) => api.get<any>(`/config/${key}`),
-  create: (data: any) => api.post<any>('/config', data),
-  update: (key: string, data: any) => api.put<any>(`/config/${key}`, data),
+  getAll: (params?: { limit?: number; offset?: number }) => api.get<ConfigEntry[]>('/config/', { params }),
+  getByKey: (key: string) => api.get<ConfigEntry>(`/config/${key}`),
+  create: (data: Partial<ConfigEntry>) => api.post<ConfigEntry>('/config/', data),
+  update: (key: string, data: Partial<ConfigEntry>) => api.put<ConfigEntry>(`/config/${key}`, data),
   delete: (key: string) => api.delete<{ message: string }>(`/config/${key}`),
   wipeDatabase: () => api.post<{ message: string }>('/config/wipe-database'),
 };
 
 export const driveConfigAPI = {
-  getStatus: () => api.get<{ is_configured: boolean; has_client_id: boolean; has_client_secret: boolean; has_refresh_token: boolean }>('/config/drive/status'),
-  setCredentials: (data: any) => api.post<{ message: string }>('/config/drive', data),
-  getAuthUrl: () => api.get<{ auth_url: string }>('/backup/google/auth-url'),
+  getStatus: () => api.get<GoogleDriveStatus>('/config/drive/status'),
+  setCredentials: (data: DriveCredentialsData) => api.post<{ message: string }>('/config/drive', data),
+  getAuthUrl: () => api.get<GoogleDriveAuthUrl>('/backup/google/auth-url'),
   test: () => api.post<{ success: boolean; message: string }>('/config/drive/test'),
 };
 
 export const authAPI = {
   generatePairingCode: () => api.post<{ pin: string; expires_in_seconds: number; qr_url: string }>('/auth/pair/generate'),
-  consumePairingCode: (pin: string, deviceName: string) => api.post<any>('/auth/pair/consume', { pin, device_name: deviceName }),
+  consumePairingCode: (pin: string, deviceName: string) => api.post<PairingConsumeResponse>('/auth/pair/consume', { pin, device_name: deviceName }),
   getPairingStatus: (pin: string) => api.get<{ status: string; token?: string; device_name?: string }>(`/auth/pair/status?pin=${pin}`),
   pairLocalhost: () => axios.post<{ access_token: string; token_type: string }>('http://127.0.0.1:8001/auth/pair/localhost'),
-  listDevices: () => api.get<any[]>('/auth/devices'),
+  listDevices: () => api.get<PairedDevice[]>('/auth/devices'),
   revokeDevice: (id: string) => api.delete<{ message: string }>(`/auth/devices/${id}`),
 };
 
