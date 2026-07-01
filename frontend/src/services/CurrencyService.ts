@@ -12,7 +12,6 @@ export class CurrencyService {
    */
   async getBaseCurrency(): Promise<string> {
     try {
-      // @ts-ignore
       const config = await db.config.where('key').equals('base_currency').first();
       return config?.value || 'USD';
     } catch (error) {
@@ -27,17 +26,14 @@ export class CurrencyService {
   async setBaseCurrency(currency: string): Promise<void> {
     try {
       const now = new Date().toISOString();
-      // @ts-ignore
       const existing = await db.config.where('key').equals('base_currency').first();
 
       if (existing) {
-        // @ts-ignore
         await db.config.update(existing.id, {
           value: currency,
           updated_at: now
         });
       } else {
-        // @ts-ignore
         await db.config.add({
           id: uuidv4(),
           key: 'base_currency',
@@ -64,7 +60,6 @@ export class CurrencyService {
       const pair = `${fromCurrency}-${toCurrency}`;
       const dateObj = new Date(date);
 
-      // @ts-ignore
       const rate = await db.exchange_rates
         .where('pair')
         .equals(pair)
@@ -78,7 +73,6 @@ export class CurrencyService {
 
       // Try inverse pair
       const inversePair = `${toCurrency}-${fromCurrency}`;
-      // @ts-ignore
       const inverseRate = await db.exchange_rates
         .where('pair')
         .equals(inversePair)
@@ -135,18 +129,15 @@ export class CurrencyService {
   async setExchangeRate(pair: string, rate: number, timestamp: string): Promise<void> {
     try {
       const now = new Date().toISOString();
-      // @ts-ignore
       const existing = await db.exchange_rates.where('pair').equals(pair).first();
 
       if (existing) {
-        // @ts-ignore
         await db.exchange_rates.update(existing.id, {
           rate,
           timestamp,
           updated_at: now
         });
       } else {
-        // @ts-ignore
         await db.exchange_rates.add({
           id: uuidv4(),
           pair,
@@ -167,9 +158,8 @@ export class CurrencyService {
   /**
    * Get all exchange rates
    */
-  async getAllExchangeRates(): Promise<any[]> {
+  async getAllExchangeRates(): Promise<unknown[]> {
     try {
-      // @ts-ignore
       return await db.exchange_rates
         .filter(r => !r.is_deleted)
         .toArray();
