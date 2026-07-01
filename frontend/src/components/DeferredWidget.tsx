@@ -7,10 +7,6 @@ const DeferredWidget = () => {
   const [deferreds, setDeferreds] = useState<DeferredPayment[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDeferreds();
-  }, []);
-
   const fetchDeferreds = async () => {
     try {
       const res = await deferredAPI.getAll();
@@ -21,6 +17,10 @@ const DeferredWidget = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchDeferreds();
+  }, []);
 
   const handleAdvance = async (id: string) => {
     if (!confirm('¿Avanzar una cuota en este diferido?')) return;
