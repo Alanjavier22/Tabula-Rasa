@@ -7,6 +7,7 @@ from google.genai import types
 from pydantic import BaseModel
 from typing import List, Optional, Any, cast
 from app.services.ai_models import REASONING_MODEL
+from app.services.ai_prompts import CORE_RULES
 import os
 import json
 from app.models.config import Config
@@ -70,6 +71,7 @@ def get_smart_goal_recommendations(db: Session = Depends(get_db)):
     ]
 
     system_instruction = (
+        f"{CORE_RULES}\n\n"
         "Eres un Optimizador de Metas Financieras. El usuario tiene un monto 'Safe-to-Spend' (dinero 100% libre de riesgo). "
         "Tu tarea es decidir si sugerir mover parte (o todo) de ese dinero a sus metas financieras activas para acelerarlas. "
         "IMPORTANTE: "
