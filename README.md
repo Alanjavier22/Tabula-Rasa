@@ -59,9 +59,10 @@ La IA en Tabula Rasa no es un "chatbot" superficial; es un **ecosistema de agent
 4.  **AI Audio Interface**: Integración en `ai_audio.py` para procesamiento de comandos de voz, permitiendo una interacción manos libres con el asistente financiero.
 5.  **Autonomous Background Snapshotter**: El servicio `autonomous_snapshot.py` garantiza que tu patrimonio neto se documente automáticamente al final de cada ciclo, sin intervención humana.
 6.  **AI Goal Optimization**: `ai_goals.py` analiza dinámicamente tus metas y recalcula probabilidades de éxito basándose en tu comportamiento de gasto real de los últimos 90 días.
+7.  **Semantic Embedding Engine**: `embedding_service.py` genera y cachea vectores semánticos (gemini-embedding-2) en SQLite para detección de duplicados, matching de categorías por similitud coseno, y agrupación de anomalías sin llamadas API repetidas.
 
-### 🎭 Las 6 Personalidades del Cerebro Financiero
-El orquestador de chat de la aplicación adapta su comportamiento estructural, léxico y profundidad de razonamiento según la faceta de asesoría que selecciones:
+### 🎭 Las 8 Personalidades del Cerebro Financiero
+El orquestador de chat de la aplicación adapta su comportamiento estructural, léxico y profundidad de razonamiento según la faceta de asesoría que selecciones. Las personalidades influyen **únicamente** en el Chat Assistant (Ctrl+K) y los Insights Estratégicos; el resto de agentes (Sentinel, Categorizer, Goals, etc.) mantienen sus prompts especializados intactos:
 
 1.  **🕵️‍♂️ Analista Senior (Forense Financiero)**:
     *   *Propósito*: Auditoría profunda, detección de anomalías y resolución de problemas.
@@ -81,6 +82,14 @@ El orquestador de chat de la aplicación adapta su comportamiento estructural, l
 6.  **📊 Analista Profesional**:
     *   *Propósito*: Eficiencia operativa pura para decisiones de negocios.
     *   *Comportamiento*: La configuración base. Tono ejecutivo, sobrio y directo. Cero adornos literarios, 100% centrado en datos accionables, retorno de inversión y métricas duras.
+7.  **◼️ Minimalista (Elegancia Directa)**:
+    *   *Propósito*: Claridad absoluta sin ruido. La versión "Apple" de las finanzas.
+    *   *Comportamiento*: Extremadamente conciso. Cada palabra tiene peso. Estructura: "Hecho. Impacto. Acción." Sin saludos, sin relleno. Destila la complejidad en la única métrica que importa hoy.
+8.  **🎓 Profesor (Erudito Financiero)**:
+    *   *Propósito*: Educación económica aplicada a tu propia billetera.
+    *   *Comportamiento*: Didáctico y analítico. Asocia tus comportamientos con conceptos económicos reales (costo de oportunidad, inflación de estilo de vida, sesgos cognitivos). Mini-clases magistrales basadas en tus propios datos.
+
+> **Nota de Integridad**: Todas las personalidades incluyen una cláusula de **PRIORIDAD ABSOLUTA** que garantiza que la precisión financiera prevalezca sobre el estilo. Los números reales del usuario jamás se distorsionan por efecto dramático o creativo.
 
 ### 🛠️ El Arsenal de Herramientas de IA (Function Calling)
 La IA de Tabula Rasa tiene **estrictamente prohibido alucinar sumas matemáticas**. Para razonar, tiene a su disposición un arsenal de **22 funciones (Tools)** que ejecutan consultas SQL complejas en el backend para proporcionarle contexto en tiempo real:
