@@ -11,6 +11,7 @@ from app.api.ai_insights import _build_transaction_summary, _build_liquidity_sum
 import google.genai as genai
 from google.genai import types
 from app.services.ai_models import REASONING_MODEL
+from app.services.ai_prompts import CORE_RULES, get_current_time_context
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class SentinelService:
         self.api_key = api_key
         self.client = genai.Client(api_key=api_key)
 
-    async def generate_health_report(self, persona: str = "professional") -> dict:
+    async def generate_health_report(self) -> dict:
         """
         Genera un reporte de salud consolidado usando IA para unir
         heurística (anomalías/proyecciones) con insights.
@@ -95,7 +96,11 @@ class SentinelService:
         }
         
         # 3. Prompt Agentico para el Sentinel
+        time_context = get_current_time_context()
         system_instruction = f"""
+        {time_context}
+        {CORE_RULES}
+
         Eres SENTINEL, el Oráculo Omnisciente de este ecosistema financiero. 
         Tu misión es ser un guardián 360 que audita, proyecta y alerta con total transparencia.
 
@@ -119,8 +124,6 @@ class SentinelService:
         - Si la carga fiscal proyectada + Deuda tarjetas > Liquidez Neta, el score debe ser < 40.
         - Si los meses de supervivencia son < 2, score < 50.
         - Si la riqueza (activos - deudas) es negativa, penaliza el score fuertemente.
-        
-        Mantén un tono acorde a la persona: {persona}.
         """
         
         prompt = f"Datos reales del ecosistema: {json.dumps(context, ensure_ascii=False)}"
@@ -174,15 +177,15 @@ class SentinelService:
                         await asyncio.sleep(wait_time)
                     else:
                         # Si ya no hay más reintentos o es un error fatal, disparamos el fallback heurístico
-                        return self._generate_heuristic_fallback(context, persona, str(e))
+                        return self._generate_heuristic_fallback(context, str(e))
             
             # If for finishes without returning (should be covered by else in except)
-            return self._generate_heuristic_fallback(context, persona, str(last_error) if last_error else "Max retries reached")
+            return self._generate_heuristic_fallback(context, str(last_error) if last_error else "Max retries reached")
         except Exception as e:
             # Absolute fallback (No AI Mode)
-            return self._generate_heuristic_fallback(context, persona, str(e))
+            return self._generate_heuristic_fallback(context, str(e))
 
-    def _generate_heuristic_fallback(self, context: dict, persona: str, error_msg: str) -> dict:
+    def _generate_heuristic_fallback(self, context: dict, error_msg: str) -> dict:
         """
         Generates a basic health report based on pure math when AI is unavailable.
         """
