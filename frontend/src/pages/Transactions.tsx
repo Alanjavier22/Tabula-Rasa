@@ -28,7 +28,7 @@ const emptyForm = {
   beneficiary: '',
 };
 
-const TransactionRow = memo(({ transaction, onEdit, onDelete }: { transaction: any; onEdit: (t: any) => void; onDelete: (id: string) => void }) => (
+const TransactionRow = memo(({ transaction, onEdit, onDelete }: { transaction: unknown; onEdit: (t: unknown) => void; onDelete: (id: string) => void }) => (
   <tr key={transaction.id} className="hover:bg-slate-700/30 transition-colors">
     <td className="px-3 lg:px-6 py-3 lg:py-4">
       <div className="text-sm font-medium text-white break-words">
@@ -88,7 +88,7 @@ const Transactions = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [showModal, setShowModal] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<any>(null);
+  const [editingTransaction, setEditingTransaction] = useState<unknown>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
   const [showImportModal, setShowImportModal] = useState(false);
   const [showDocumentImportModal, setShowDocumentImportModal] = useState(false);
@@ -162,7 +162,7 @@ const Transactions = () => {
     }
   };
 
-  const handleEdit = (transaction: any) => {
+  const handleEdit = (transaction: unknown) => {
     setEditingTransaction(transaction);
     setForm({
       description: transaction.description || '',
@@ -179,7 +179,7 @@ const Transactions = () => {
     setShowModal(true);
   };
 
-  const handleSubmit = async (formData: any) => {
+  const handleSubmit = async (formData: unknown) => {
     try {
       if (editingTransaction) {
         const amountCents = toCents(parseFloat(formData.amount.replace(/[^0-9.-]/g, '')));
@@ -341,7 +341,7 @@ const Transactions = () => {
       } else {
         setToast({ message: 'No se detectaron transacciones en el audio', type: 'warning' });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error processing audio:', error);
       const detail = error.response?.data?.detail || 'Error al procesar el audio con IA. Intenta de nuevo.';
       setToast({ message: detail, type: 'error' });
@@ -355,7 +355,7 @@ const Transactions = () => {
   const filteredTransactions = useMemo(() => {
     if (!transactions) return [];
     
-    return transactions.filter((txn: any) => {
+    return transactions.filter((txn: unknown) => {
       const matchesSearch = !deferredSearchQuery || 
         txn.description?.toLowerCase().includes(deferredSearchQuery.toLowerCase());
       
