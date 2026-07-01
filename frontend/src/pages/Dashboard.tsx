@@ -4,7 +4,7 @@ import Decimal from 'decimal.js-light';
 import { accountsAPI, statementsAPI, metricsAPI, budgetsAPI, snapshotsAPI, alertsAPI, transactionsAPI, subscriptionsAPI as subsAPI, categoriesAPI, goalsAPI, iousAPI, maintenanceAPI } from '../services/api';
 import { formatMoney, toDecimal, clampZero } from '../utils/money';
 import Toast from '../components/Toast';
-import type { Account, CreditCardStatement, SafeToSpendResponse, NetWorthResponse, VehicleTelemetryResponse, CashFlowForecastResponse, DashboardSummaryResponse, AlertsResponse } from '../types';
+import type { Account, CreditCardStatement, SafeToSpendResponse, NetWorthResponse, VehicleTelemetryResponse, CashFlowForecastResponse, DashboardSummaryResponse, AlertsResponse, IOU, DebtShare, Transaction, Subscription, Category, Goal } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, 
@@ -173,7 +173,7 @@ const Dashboard = () => {
               configAPI.getByKey('retencion_iva_rate')
             ]);
 
-            const rules: any = {};
+            const rules: Record<string, number> = {};
             if (ivaRes.data?.value) rules.iva_rate = parseFloat(ivaRes.data.value);
             if (retSrcRes.data?.value) rules.retencion_source_rate = parseFloat(retSrcRes.data.value);
             if (retIvaRes.data?.value) rules.retencion_iva_rate = parseFloat(retIvaRes.data.value);
@@ -182,7 +182,7 @@ const Dashboard = () => {
               reportingService.setFiscalRules(rules);
             }
             return rules;
-          } catch (err) {
+          } catch (_err) {
             return null;
           }
         },
@@ -198,17 +198,21 @@ const Dashboard = () => {
     ]
   });
 
-  const pendingIOUs = (results[0].data as any[]) || [];
-  const accounts = (results[1].data as Account[]) || [];
-  const statements = (results[2].data as CreditCardStatement[]) || [];
+  const pendingIOUsData = results[0].data as IOU[] | undefined;
+  const accountsData = results[1].data as Account[] | undefined;
+  const statementsData = results[2].data as CreditCardStatement[] | undefined;
+
+  const pendingIOUs = useMemo(() => pendingIOUsData || [], [pendingIOUsData]);
+  const accounts = useMemo(() => accountsData || [], [accountsData]);
+  const statements = useMemo(() => statementsData || [], [statementsData]);
   const safeToSpend = (results[3].data as unknown) as SafeToSpendResponse | undefined;
   const netWorth = results[4].data as NetWorthResponse | undefined;
   const vehicleTelemetry = results[5].data as VehicleTelemetryResponse | undefined;
   const cashFlowForecast = results[7].data as CashFlowForecastResponse | undefined;
-  const transactions = (results[8].data as any[]) || [];
-  const subscriptions = (results[9].data as any[]) || [];
-  const categories = (results[10].data as any[]) || [];
-  const goals = (results[13].data as any[]) || [];
+  const transactions = (results[8].data as Transaction[]) || [];
+  const subscriptions = (results[9].data as Subscription[]) || [];
+  const categories = (results[10].data as Category[]) || [];
+  const goals = (results[13].data as Goal[]) || [];
   const dashboardSummary = results[11].data as DashboardSummaryResponse | undefined;
 
   const insightsMutation = useMutation({
@@ -218,10 +222,11 @@ const Dashboard = () => {
       setAiAlerts(response.data.alerts ?? []);
       setAiPatterns(response.data.patterns ?? []);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error('Error generating insights:', error);
-      const status = error.response?.status;
-      const detail = error.response?.data?.detail;
+      const err = error as { response?: { status?: number; data?: { detail?: string } } };
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail;
       if (status === 400) {
         setToast({
           message: detail || 'Configura tu Gemini API Key en la página de Configuración',
@@ -318,18 +323,18 @@ const Dashboard = () => {
   // La deuda neta es lo que debo pagar menos lo que me deben terceros
   const totalIOUsTheyOwe = useMemo(() => {
     return (pendingIOUs || [])
-      .filter((iou: any) => {
+      .filter((iou: IOU) => {
         const type = String(iou.iou_type || '').toLowerCase();
         return type === 'they_owe' || type.includes('they_owe');
       })
-      .reduce((sum: Decimal, iou: any) => sum.plus(toDecimal(iou.amount)), new Decimal(0));
+      .reduce((sum: Decimal, iou: IOU) => sum.plus(toDecimal(iou.amount)), new Decimal(0));
   }, [pendingIOUs]);
 
   const totalThirdPartyDebt = useMemo(() => {
     const debtSharesSum = latestStatements.reduce(
       (sum, s) => sum.plus(
         (s.debt_shares ?? []).reduce(
-          (ds: Decimal, d: any) => ds.plus(d.status === 'pending' ? toDecimal(d.amount) : 0),
+          (ds: Decimal, d: DebtShare) => ds.plus(d.status === 'pending' ? toDecimal(d.amount) : 0),
           new Decimal(0)
         )
       ),
@@ -347,7 +352,7 @@ const Dashboard = () => {
   const dailySpending = useMemo(() => {
     const data = dashboardSummary?.daily_spending ?? [];
     // Convert from cents (strings) to dollars (numbers) for chart scaling
-    return data.map((item: any) => ({
+    return data.map((item: { date: string; gasto: string | number }) => ({
       ...item,
       gasto: typeof item.gasto === 'string' ? parseFloat(item.gasto) / 100 : item.gasto / 100
     }));
@@ -357,7 +362,7 @@ const Dashboard = () => {
   const monthlyComparison = useMemo(() => {
     const dashboardData = dashboardSummary?.monthly_comparison ?? [];
     // Convert from cents to dollars and strings to numbers
-    return dashboardData.map((item: any) => ({
+    return dashboardData.map((item: { mes: string; Ingresos: string | number; Gastos: string | number }) => ({
       ...item,
       Ingresos: typeof item.Ingresos === 'string' ? parseFloat(item.Ingresos) / 100 : item.Ingresos / 100,
       Gastos: typeof item.Gastos === 'string' ? parseFloat(item.Gastos) / 100 : item.Gastos / 100
@@ -723,10 +728,10 @@ const Dashboard = () => {
             expenseBreakdown.length > 0 ? (
               <div className="flex flex-col gap-4">
                 <div className="flex-1 min-w-0">
-                  <ResponsiveContainer width="100%" height={220}>
+                  <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={0}>
                     <PieChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                       <Pie
-                        data={expenseBreakdown.map((item: any, i: number) => ({
+                        data={expenseBreakdown.map((item: { name: string; value: string | number }, i: number) => ({
                           ...item,
                           value: typeof item.value === 'string' ? parseFloat(item.value) : item.value,
                           fill: COLORS[i % COLORS.length]
@@ -752,13 +757,14 @@ const Dashboard = () => {
                             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                           }}
                           itemStyle={{ color: '#fff' }}
-                          formatter={(value: any, name: any) => {
-                            const total = expenseBreakdown.reduce((sum: number, item: any) => {
+                          formatter={(value: number | string, name: number | string) => {
+                            const total = expenseBreakdown.reduce((sum: number, item: { name: string; value: string | number }) => {
                               const val = typeof item.value === 'string' ? parseFloat(item.value) : item.value;
                               return sum + (isNaN(val) ? 0 : val);
                             }, 0);
-                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                            return [`$${formatMoney(value)} (${percentage}%)`, name];
+                            const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                            const percentage = total > 0 ? ((numValue / total) * 100).toFixed(1) : 0;
+                            return [`$${formatMoney(numValue)} (${percentage}%)`, name];
                           }}
                         />
                       </PieChart>
@@ -788,7 +794,7 @@ const Dashboard = () => {
         <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6">
           <h3 className="text-lg font-semibold text-white mb-4">Histórico de Ingresos vs Gastos</h3>
           {dashboardSummary && monthlyComparison.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={250} minWidth={0} minHeight={0}>
               <BarChart data={monthlyComparison} barGap={8}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" vertical={false} />
                 <XAxis 
@@ -812,14 +818,14 @@ const Dashboard = () => {
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                   }}
                   cursor={{ fill: 'rgba(148, 163, 184, 0.05)' }}
-                  labelFormatter={(label: any) => {
+                  labelFormatter={(label: unknown) => {
                     if (typeof label !== 'string') return '';
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                     const [year, month] = label.split('-');
                     const monthIndex = parseInt(month) - 1;
                     return `${monthNames[monthIndex]} de ${year}`;
                   }}
-                  formatter={(value: any, name: any) => [`$${value.toLocaleString()}`, name]}
+                  formatter={(value: number | string, name: number | string) => [`$${typeof value === 'number' ? value.toLocaleString() : value}`, name]}
                 />
                 <Bar dataKey="Ingresos" fill="url(#gradIngresos)" radius={[10, 10, 0, 0]} barSize={12} />
                 <Bar dataKey="Gastos" fill="url(#gradGastos)" radius={[10, 10, 0, 0]} barSize={12} />
@@ -835,7 +841,7 @@ const Dashboard = () => {
       <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6 mb-6">
         <h3 className="text-lg font-semibold text-white mb-4">Gasto Diario</h3>
         {dashboardSummary && dailySpending.length > 0 ? (
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={0}>
             <AreaChart data={dailySpending}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" vertical={false} />
               <XAxis
@@ -851,18 +857,18 @@ const Dashboard = () => {
               />
               <YAxis
                 tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickFormatter={(value: any) => `$${value.toLocaleString()}`}
+                tickFormatter={(value: number | string) => `$${typeof value === 'number' ? value.toLocaleString() : value}`}
               />
               <Tooltip
-                contentStyle={{ 
-                  background: 'rgba(15, 23, 42, 0.8)', 
+                contentStyle={{
+                  background: 'rgba(15, 23, 42, 0.8)',
                   backdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(148, 163, 184, 0.1)', 
-                  borderRadius: '12px', 
+                  border: '1px solid rgba(148, 163, 184, 0.1)',
+                  borderRadius: '12px',
                   color: '#fff',
                   boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                 }}
-                labelFormatter={(label: any) => {
+                labelFormatter={(label: unknown) => {
                   if (typeof label !== 'string') return '';
                   const [month, day] = label.split('-');
                   const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -870,7 +876,7 @@ const Dashboard = () => {
                   const dayNum = parseInt(day);
                   return `${dayNum} de ${monthNames[monthIndex]}`;
                 }}
-                formatter={(value: any) => [`$${value.toLocaleString()}`, 'Gasto']}
+                formatter={(value: number | string) => [`$${typeof value === 'number' ? value.toLocaleString() : value}`, 'Gasto']}
               />
               <Area type="monotone" dataKey="gasto" stroke="#a855f7" fill="url(#gradGastoDiario)" strokeWidth={3} />
             </AreaChart>
@@ -896,7 +902,7 @@ const Dashboard = () => {
             </div>
           </div>
           {(netWorth.history ?? []).length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={0}>
               <LineChart data={netWorth.history}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" vertical={false} />
                 <XAxis
@@ -911,25 +917,25 @@ const Dashboard = () => {
                 />
                 <YAxis
                   tick={{ fill: '#94a3b8', fontSize: 11 }}
-                  tickFormatter={(value: any) => `$${(value / 100).toLocaleString()}`}
+                  tickFormatter={(value: number | string) => `$${(typeof value === 'number' ? value / 100 : parseFloat(value) / 100).toLocaleString()}`}
                 />
                 <Tooltip
-                  contentStyle={{ 
-                    background: 'rgba(15, 23, 42, 0.8)', 
+                  contentStyle={{
+                    background: 'rgba(15, 23, 42, 0.8)',
                     backdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(148, 163, 184, 0.1)', 
-                    borderRadius: '12px', 
+                    border: '1px solid rgba(148, 163, 184, 0.1)',
+                    borderRadius: '12px',
                     color: '#fff',
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                   }}
-                  labelFormatter={(label: any) => {
+                  labelFormatter={(label: unknown) => {
                     if (typeof label !== 'string') return '';
                     const [year, month] = label.split('-');
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                     const monthIndex = parseInt(month) - 1;
                     return `${monthNames[monthIndex]} de ${year}`;
                   }}
-                  formatter={(value: any, name: any) => [`$${formatMoney(value)}`, name ?? '']}
+                  formatter={(value: number | string, name: number | string) => [`$${formatMoney(typeof value === 'number' ? value : parseFloat(value))}`, name ?? '']}
                 />
                 <Line type="monotone" dataKey="income" stroke="#10b981" strokeWidth={3} name="Ingresos" dot={{ r: 4, fill: '#10b981' }} activeDot={{ r: 6 }} />
                 <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={3} name="Gastos" dot={{ r: 4, fill: '#ef4444' }} activeDot={{ r: 6 }} />
@@ -975,7 +981,7 @@ const Dashboard = () => {
             </div>
           </div>
           {cashFlowForecast.forecast && cashFlowForecast.forecast.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={250} minWidth={0} minHeight={0}>
               <AreaChart data={cashFlowForecast.forecast}>
                 <defs>
                   <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
@@ -998,13 +1004,13 @@ const Dashboard = () => {
                 <YAxis
                   stroke="#94a3b8"
                   fontSize={12}
-                  tickFormatter={(value: any) => `$${(value / 100).toLocaleString()}`}
+                  tickFormatter={(value: number | string) => `$${(typeof value === 'number' ? value / 100 : parseFloat(value) / 100).toLocaleString()}`}
                 />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
                   labelStyle={{ color: '#f1f5f9' }}
                   itemStyle={{ color: '#f1f5f9' }}
-                  labelFormatter={(label: any) => {
+                  labelFormatter={(label: unknown) => {
                     if (typeof label !== 'string') return '';
                     const [year, month, day] = label.split('-');
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -1012,7 +1018,7 @@ const Dashboard = () => {
                     const dayNum = parseInt(day);
                     return `${dayNum} de ${monthNames[monthIndex].toLowerCase()} de ${year}`;
                   }}
-                  formatter={(value: any) => [`$${formatMoney(value)}`, 'Balance Proyectado']}
+                  formatter={(value: number | string) => [`$${formatMoney(typeof value === 'number' ? value : parseFloat(value))}`, 'Balance Proyectado']}
                 />
                 <ReferenceLine y={0} stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" />
                 <Area
