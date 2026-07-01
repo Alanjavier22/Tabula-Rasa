@@ -323,7 +323,7 @@ export class ReportingService {
    * Sanitize sensitive data before AI processing
    * Privacy pipeline for descriptions, IDs
    */
-  async sanitizeForAI(data: any): Promise<{ sanitized: any; hydrationMap: Map<string, string> }> {
+  async sanitizeForAI(data: unknown): Promise<{ sanitized: unknown; hydrationMap: Map<string, string> }> {
     return prepareForAI(data);
   }
 
@@ -537,16 +537,16 @@ export class ReportingService {
     startDate?: string,
     endDate?: string,
     searchQuery?: string
-  ): Promise<Array<LocalTransaction & { category?: any }>> {
+  ): Promise<Array<LocalTransaction & { category?: unknown }>> {
     // Pre-fetch all categories (small dataset, fits in memory)
-    const categoryMap = new Map<string, any>();
+    const categoryMap = new Map<string, Record<string, unknown>>();
     await db.categories.each((cat) => {
       if (!cat.is_deleted) {
         categoryMap.set(cat.id, cat);
       }
     });
 
-    const transactions: Array<LocalTransaction & { category?: any }> = [];
+    const transactions: Array<LocalTransaction & { category?: unknown }> = [];
     
     let query = db.transactions.orderBy('date').reverse();
     
