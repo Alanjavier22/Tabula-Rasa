@@ -766,7 +766,13 @@ GUÍA DE HERRAMIENTAS:
 - Para ver qué está pasando 'ahora mismo' con el gasto, usa `get_recent_transactions`.
 - Para temas de impuestos y SRI Ecuador, usa `get_fiscal_summary`.
 - Para ver el estado general del sistema y alertas proactivas, usa `get_sentinel_health`.
+- Para preguntas generales de "cómo van mis finanzas" o "cómo está mi situación económica", usa `get_financial_executive_summary` PRIMERO antes de otras herramientas.
 - Si no conoces un ID de categoría o cuenta, usa las herramientas de búsqueda (`search_categories`, `search_accounts`) antes de responder.
+
+FORMATO DE RESPUESTA:
+- Respuestas concisas (máximo 3-4 párrafos). Usa listas para datos tabulares.
+- NUNCA repitas los datos crudos que te devolvieron las herramientas; sintetiza y analiza.
+- Si usaste múltiples herramientas, integra los resultados en una respuesta coherente, no los listes secuencialmente.
 """
 
         client = genai.Client(api_key=api_key)
@@ -849,7 +855,7 @@ GUÍA DE HERRAMIENTAS:
         
         # Handle function calls
         # We need a loop in case the model wants to call multiple functions sequentially (like searching, then creating)
-        max_turns = 3
+        max_turns = 5
         turn = 0
         
         while response.function_calls and turn < max_turns:
