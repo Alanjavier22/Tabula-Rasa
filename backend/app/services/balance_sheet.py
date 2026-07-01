@@ -82,25 +82,16 @@ class BalanceSheetService:
 
     @staticmethod
     def get_credit_card_balances(db: Session) -> int:
-        """Calculate credit card balances (unpaid statements + live unbilled debt)"""
-        statements = (
-            db.query(CreditCardStatement)
-            .filter(CreditCardStatement.is_deleted == False)
-            .filter(CreditCardStatement.status != "paid")
-            .all()
-        )
-        
-        # 1. Unpaid statements (formal debt)
-        stmt_balance = sum(
-            max((stmt.user_share or 0) - (stmt.amount_paid or 0), 0)
-            for stmt in statements
-        )
-        
-        # 2. Live balance from CC accounts (unbilled debt)
-        cc_accounts = db.query(Account).filter(Account.account_type == "credit_card", Account.is_deleted == False).all()
-        live_cc_balance = sum(acc.balance or 0 for acc in cc_accounts)
-        
-        return cast(int, stmt_balance + live_cc_balance)
+        """Calculate credit card liabilities from live account balances.
+        The account balance is the source of truth for total CC debt.
+        Statements are billing records of that same debt, not additional debt.
+        Returns absolute value (positive) since these are liabilities."""
+        cc_accounts = db.query(Account).filter(
+            Account.account_type == "credit_card",
+            Account.is_deleted == False,
+            Account.is_active == 1
+        ).all()
+        return cast(int, sum(abs(acc.balance or 0) for acc in cc_accounts if (acc.balance or 0) < 0))
 
     @staticmethod
     def get_balance_sheet(db: Session, month: int, year: int) -> Optional[dict]:
