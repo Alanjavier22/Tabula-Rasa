@@ -25,35 +25,35 @@ class TableStub {
     return new CollectionStub(this.name);
   }
 
-  async each(_callback: (item: any) => void): Promise<void> {}
+  async each(_callback: (item: unknown) => void): Promise<void> {}
 
   async count(): Promise<number> {
     return 0;
   }
 
-  async add(_item: any): Promise<string> {
+  async add(_item: unknown): Promise<string> {
     return '';
   }
 
-  async put(_item: any): Promise<string> {
+  async put(_item: unknown): Promise<string> {
     return '';
   }
 
-  async bulkPut(_items: any[]): Promise<void> {}
+  async bulkPut(_items: unknown[]): Promise<void> {}
 
-  async update(_id: string, _changes: any): Promise<number> {
+  async update(_id: string, _changes: Record<string, unknown>): Promise<number> {
     return 0;
   }
 
-  async get(_id: string): Promise<any> {
+  async get(_id: string): Promise<unknown> {
     return undefined;
   }
 
-  async toArray(): Promise<any[]> {
+  async toArray(): Promise<unknown[]> {
     return [];
   }
 
-  filter(_predicate: (item: any) => boolean) {
+  filter(_predicate: (item: unknown) => boolean) {
     return new CollectionStub(this.name);
   }
 }
@@ -66,19 +66,19 @@ class WhereClauseStub {
     this.tableName = tableName;
   }
 
-  between(_lower: any, _upper: any, _includeLower?: boolean, _includeUpper?: boolean) {
+  between(_lower: unknown, _upper: unknown, _includeLower?: boolean, _includeUpper?: boolean) {
     return new CollectionStub(this.tableName);
   }
 
-  equals(_value: any) {
+  equals(_value: unknown) {
     return new CollectionStub(this.tableName);
   }
 
-  anyOf(_values: any[]) {
+  anyOf(_values: unknown[]) {
     return new CollectionStub(this.tableName);
   }
 
-  and(_predicate: (item: any) => boolean) {
+  and(_predicate: (item: unknown) => boolean) {
     return new CollectionStub(this.tableName);
   }
 
@@ -91,11 +91,11 @@ class WhereClauseStub {
 class CollectionStub {
   constructor(_tableName: string) {}
 
-  and(_predicate: (item: any) => boolean) {
+  and(_predicate: (item: unknown) => boolean) {
     return this;
   }
 
-  filter(_predicate: (item: any) => boolean) {
+  filter(_predicate: (item: unknown) => boolean) {
     return this;
   }
 
@@ -111,9 +111,9 @@ class CollectionStub {
     return this;
   }
 
-  async each(_callback: (item: any) => void): Promise<void> {}
+  async each(_callback: (item: unknown) => void): Promise<void> {}
 
-  async toArray(): Promise<any[]> {
+  async toArray(): Promise<unknown[]> {
     return [];
   }
 
@@ -121,7 +121,7 @@ class CollectionStub {
     return 0;
   }
 
-  async first(): Promise<any> {
+  async first(): Promise<unknown> {
     return undefined;
   }
 }
@@ -146,7 +146,7 @@ class DatabaseStub {
   maintenance_logs = new TableStub('maintenance_logs');
   vehicles = new TableStub('vehicles');
 
-  async transaction(_mode: string, _table: any, callback: () => Promise<any>): Promise<any> {
+  async transaction(_mode: string, _table: unknown, callback: () => Promise<unknown>): Promise<unknown> {
     return await callback();
   }
 }
