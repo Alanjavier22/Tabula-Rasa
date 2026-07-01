@@ -49,8 +49,8 @@ export interface AnomalyScanResult {
 
 export class AIAgentService {
   static async suggestCategorizations(
-    transactions: any[],
-    categories: any[],
+    transactions: unknown[],
+    categories: unknown[],
     apiKey: string
   ): Promise<AICategorySuggestion[]> {
     // Sanitize transactions before sending to AI
@@ -86,7 +86,7 @@ export class AIAgentService {
 
   static async simulateWhatIfScenario(
     userPrompt: string,
-    categoryTransactions: any[],
+    categoryTransactions: unknown[],
     currentNetWorth: number,
     apiKey: string,
     monthlyIncome: number = 0,
@@ -94,7 +94,7 @@ export class AIAgentService {
     totalDebt: number = 0,
     monthlyDebtPayment: number = 0,
     monthlyCashFlow: number = 0,
-    goals: any[] = []
+    goals: unknown[] = []
   ): Promise<WhatIfScenario> {
     const { sanitized: sanitizedTxns, hydrationMap } = prepareForAI(categoryTransactions);
 
@@ -133,10 +133,10 @@ export class AIAgentService {
   }
 
   static async scanForAnomalies(
-    recentTransactions: any[],
-    currentSubscriptions: any[],
-    categories: any[],
-    goals: any[],
+    recentTransactions: unknown[],
+    currentSubscriptions: unknown[],
+    categories: unknown[],
+    goals: unknown[],
     apiKey: string
   ): Promise<AnomalyScanResult> {
     // FIX: Use single hydrationMap for token coherence across txns and subscriptions
