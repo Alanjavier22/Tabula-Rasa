@@ -7,10 +7,10 @@ import { subscriptionsAPI } from '../../services/api';
 import type { Cents } from '../../types';
 
 interface AIAnomalyScannerProps {
-  recentTransactions: any[];
-  currentSubscriptions: any[];
-  categories: any[];
-  goals: any[];
+  recentTransactions: unknown[];
+  currentSubscriptions: unknown[];
+  categories: unknown[];
+  goals: unknown[];
   apiKey: string;
   onClose?: () => void;
 }
@@ -51,7 +51,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
         apiKey
       );
       setResult(scanResult);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error scanning for anomalies:', error);
     } finally {
       setIsScanning(false);
