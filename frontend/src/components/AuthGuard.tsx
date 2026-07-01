@@ -10,7 +10,12 @@ const MAX_RETRIES = 10;
 const RETRY_DELAY_MS = 2000;
 
 export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const tokenKey = getTokenKey();
+    const token = localStorage.getItem(tokenKey);
+    const baseUrl = localStorage.getItem('finance_base_url');
+    return !!(token && baseUrl);
+  });
   const [isLocalhostConnecting, setIsLocalhostConnecting] = useState<boolean>(false);
   const [localhostError, setLocalhostError] = useState<string | null>(null);
   const [isDeepLinkPairing, setIsDeepLinkPairing] = useState<boolean>(false);
@@ -42,7 +47,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
       maintenanceService.runMaintenance().catch(err => {
         console.error('[AuthGuard] Maintenance error:', err);
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       window.history.replaceState({}, document.title, window.location.pathname);
       const detail = err.response?.data?.detail || err.message || 'Error al vincular el dispositivo.';
       setDeepLinkError(detail);
@@ -67,7 +72,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
         setIsAuthenticated(true);
         setIsLocalhostConnecting(false);
         return;
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err?.response?.status === 403) {
           setLocalhostError('Acceso denegado: este endpoint solo está disponible desde la máquina host.');
           setIsLocalhostConnecting(false);
@@ -86,12 +91,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
 
   useEffect(() => {
     try {
-      const tokenKey = getTokenKey();
-      const token = localStorage.getItem(tokenKey);
-      const baseUrl = localStorage.getItem('finance_base_url');
-
-      if (token && baseUrl) {
-        setIsAuthenticated(true);
+      if (isAuthenticated) {
         return;
       }
 
@@ -112,7 +112,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
       console.error('Error during authentication initialization:', err);
       setDeepLinkError('Error al procesar la URL de vinculación.');
     }
-  }, [isLocalhost, autoLinkLocalhost, autoLinkViaDeepLink]);
+  }, [isAuthenticated, isLocalhost, autoLinkLocalhost, autoLinkViaDeepLink]);
 
   if (isAuthenticated) {
     return <>{children}</>;
