@@ -61,10 +61,6 @@ const Subscriptions = () => {
     };
   }, [showModal]);
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
-
   const fetchAll = async () => {
     try {
       const [subRes, catRes, accRes] = await Promise.all([
@@ -82,6 +78,10 @@ const Subscriptions = () => {
     }
   };
 
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
   const handleDelete = async (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
   };
@@ -92,7 +92,7 @@ const Subscriptions = () => {
       await subscriptionsAPI.delete(deleteConfirm.id);
       setToast({ message: 'Suscripción removida del ecosistema', type: 'success' });
       fetchAll();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting subscription:', error);
       setToast({ message: error.response?.data?.detail || 'Error al eliminar suscripción', type: 'error' });
     } finally {
@@ -125,7 +125,7 @@ const Subscriptions = () => {
       fetchAll();
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error paying subscription:', error);
       setToast({ message: error.response?.data?.detail || 'Error al registrar pago', type: 'error' });
     } finally {
@@ -147,7 +147,7 @@ const Subscriptions = () => {
     return { label: null, color: 'text-slate-400', glow: 'border-white/5' };
   };
 
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: unknown) => {
     setSaving(true);
     try {
       if (editingSubscription) {
@@ -177,7 +177,7 @@ const Subscriptions = () => {
       setEditingSubscription(null);
       setForm(emptyForm);
       fetchAll();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving subscription:', error);
       setToast({ message: error.response?.data?.detail || 'Error en la operación', type: 'error' });
     } finally {
