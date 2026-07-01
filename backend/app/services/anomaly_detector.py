@@ -1,10 +1,64 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any, cast
+from typing import List, Dict, Any, cast, Optional
+import json
+import hashlib
+import logging
 
 from app.models.transaction import Transaction
 from app.models.category import Category
+from app.models.transaction_embedding import TransactionEmbedding
+from app.services.embedding_service import EmbeddingService
+
+logger = logging.getLogger(__name__)
+
+
+def _load_cached_embeddings(db: Session) -> Dict[str, list[float]]:
+    """Load all cached transaction embeddings from DB (no API calls)."""
+    cached: Dict[str, list[float]] = {}
+    try:
+        for emb in db.query(TransactionEmbedding).filter(
+            TransactionEmbedding.source == "transaction"
+        ).all():
+            try:
+                cached[emb.description_hash] = json.loads(emb.embedding)
+            except (json.JSONDecodeError, TypeError):
+                continue
+    except Exception as e:
+        logger.warning(f"[AnomalyDetector] Error loading cached embeddings: {e}")
+    return cached
+
+
+def _desc_hash(description: str) -> str:
+    normalized = (description or "").strip().upper()
+    return hashlib.sha256(normalized.encode()).hexdigest()
+
+
+def _find_semantic_match(desc: str, prev_map: Dict[str, int], cached_embeddings: Dict[str, list[float]], threshold: float = 0.90) -> Optional[int]:
+    """
+    Find the previous amount for a semantically similar description.
+    Returns None if no match found (caller falls back to exact match).
+    """
+    desc_h = _desc_hash(desc)
+    query_emb = cached_embeddings.get(desc_h)
+    if query_emb is None:
+        return None
+
+    best_amount: Optional[int] = None
+    best_score = threshold
+
+    for prev_desc, prev_amt in prev_map.items():
+        prev_desc_h = _desc_hash(prev_desc)
+        prev_emb = cached_embeddings.get(prev_desc_h)
+        if prev_emb is None:
+            continue
+        score = EmbeddingService.cosine_similarity(query_emb, prev_emb)
+        if score > best_score:
+            best_score = score
+            best_amount = prev_amt
+
+    return best_amount
 
 def detect_anomalies(db: Session) -> List[Dict]:
     """
@@ -57,10 +111,21 @@ def detect_anomalies(db: Session) -> List[Dict]:
         if desc not in prev_map or amt > prev_map[desc]:
             prev_map[desc] = amt
 
+    # Load cached embeddings for semantic matching (no API calls)
+    cached_embeddings = _load_cached_embeddings(db)
+
     for t in curr_txns:
         desc = str(t.description).strip().lower()
+        prev_amount: Optional[int] = None
+
+        # 1. Try exact match first
         if desc in prev_map:
             prev_amount = prev_map[desc]
+        else:
+            # 2. Try semantic match using cached embeddings
+            prev_amount = _find_semantic_match(desc, prev_map, cached_embeddings, threshold=0.90)
+
+        if prev_amount is not None:
             curr_amount = cast(int, t.amount)
             
             # Si el monto subió más de un 5% en un pago recurrente/idéntico
