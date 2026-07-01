@@ -18,5 +18,6 @@ from .device import PairedDevice
 from .asset import Asset
 from .authorized_device import AuthorizedDevice
 from .deferred_payment import DeferredPayment
+from .transaction_embedding import TransactionEmbedding
 
-__all__ = ["Transaction", "Category", "Account", "Budget", "Goal", "Reminder", "CreditCardStatement", "DebtShare", "Config", "Subscription", "TransactionSplit", "IOU", "IOUType", "IOUStatus", "NetWorthSnapshot", "PairedDevice", "ImportLog", "CategoryPattern", "Asset", "AuthorizedDevice", "DeferredPayment"]
+__all__ = ["Transaction", "Category", "Account", "Budget", "Goal", "Reminder", "CreditCardStatement", "DebtShare", "Config", "Subscription", "TransactionSplit", "IOU", "IOUType", "IOUStatus", "NetWorthSnapshot", "PairedDevice", "ImportLog", "CategoryPattern", "Asset", "AuthorizedDevice", "DeferredPayment", "TransactionEmbedding"]
