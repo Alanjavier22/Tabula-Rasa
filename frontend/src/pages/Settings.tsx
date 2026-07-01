@@ -25,7 +25,13 @@ import {
 } from 'lucide-react';
 import DeviceManager from '../components/Settings/DeviceManager';
 import Toast from '../components/Toast';
-import type { Category } from '../types';
+import type { Category, BackupFile } from '../types';
+import type { AxiosError } from 'axios';
+
+interface ConfigItem {
+  key: string;
+  value: string;
+}
 
 interface ConfigData {
   vehicle_categories: string[];
@@ -47,14 +53,7 @@ interface GoogleDriveStatus {
   has_refresh_token: boolean;
 }
 
-interface BackupFile {
-  id: string;
-  name: string;
-  createdTime: string;
-  size?: string;
-}
-
-  type SettingsTab = 'general' | 'ai' | 'labs' | 'cloud' | 'security';
+type SettingsTab = 'general' | 'ai' | 'labs' | 'cloud' | 'security';
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -108,7 +107,7 @@ const Settings = () => {
         ai_persona: 'professional',
       };
 
-      configRes.data.forEach((c: unknown) => {
+      configRes.data.forEach((c: ConfigItem) => {
         if (c.key === 'vehicle_categories' && c.value) {
           configs.vehicle_categories = JSON.parse(c.value);
         } else if (c.key === 'safe_to_spend_buffer' && c.value) {
@@ -314,7 +313,8 @@ const Settings = () => {
       }
     } catch (error: unknown) {
       console.error('Error getting auth URL:', error);
-      const msg = error.response?.data?.detail || 'Error al iniciar autorización';
+      const axiosErr = error as AxiosError<{ detail: string }>;
+      const msg = axiosErr.response?.data?.detail || 'Error al iniciar autorización';
       setToast({ message: msg, type: 'error' });
     } finally {
       setAuthorizingDrive(false);
@@ -345,6 +345,8 @@ const Settings = () => {
     { id: 'roast', label: 'Modo Roast', desc: 'Sin piedad. Te humillará por cada café que compres fuera.', icon: '🔥' },
     { id: 'gamified', label: 'RPG Master', desc: 'Convierte tus finanzas en una misión de nivel legendario.', icon: '⚔️' },
     { id: 'coach', label: 'Motivador Personal', desc: '¡Vamos! Un pequeño ahorro hoy es una victoria mañana.', icon: '📣' },
+    { id: 'minimalist', label: 'Minimalista', desc: 'Elegancia directa: Hecho. Impacto. Acción.', icon: '◼️' },
+    { id: 'professor', label: 'Profesor', desc: 'Conceptos económicos aplicados a tu propia billetera.', icon: '🎓' },
     { id: 'sabio', label: 'Maestro Zen', desc: 'Encuentra el equilibrio entre el gasto y la paz interior.', icon: '🧘' },
     { id: 'detective', label: 'Forense Financiero', desc: 'Seguirá el rastro de cada centavo perdido.', icon: '🔍' },
   ];
@@ -696,7 +698,8 @@ const Settings = () => {
                                   setToast({ message: 'Error: ' + res.data.message, type: 'error' });
                                 }
                               } catch (e: unknown) {
-                                const msg = e.response?.data?.detail || 'Error de servidor al probar OAuth2';
+                                const axiosErr = e as AxiosError<{ detail: string }>;
+                                const msg = axiosErr.response?.data?.detail || 'Error de servidor al probar OAuth2';
                                 setToast({ message: msg, type: 'error' });
                               } finally {
                                 setTestingDrive(false);
