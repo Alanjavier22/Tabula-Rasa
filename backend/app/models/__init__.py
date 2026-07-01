@@ -15,5 +15,8 @@ from .import_log import ImportLog
 from .category_pattern import CategoryPattern
 
 from .device import PairedDevice
+from .asset import Asset
+from .authorized_device import AuthorizedDevice
+from .deferred_payment import DeferredPayment
 
-__all__ = ["Transaction", "Category", "Account", "Budget", "Goal", "Reminder", "CreditCardStatement", "DebtShare", "Config", "Subscription", "TransactionSplit", "IOU", "IOUType", "IOUStatus", "NetWorthSnapshot", "PairedDevice", "ImportLog", "CategoryPattern"]
+__all__ = ["Transaction", "Category", "Account", "Budget", "Goal", "Reminder", "CreditCardStatement", "DebtShare", "Config", "Subscription", "TransactionSplit", "IOU", "IOUType", "IOUStatus", "NetWorthSnapshot", "PairedDevice", "ImportLog", "CategoryPattern", "Asset", "AuthorizedDevice", "DeferredPayment"]

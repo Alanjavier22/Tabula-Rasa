@@ -137,7 +137,10 @@ async def lifespan(app: FastAPI):
         logger.info(f"Cancelled {len(tasks)} pending tasks")
         
         # Wait a moment for tasks to cancel
-        await asyncio.sleep(0.5)
+        try:
+            await asyncio.sleep(0.5)
+        except asyncio.CancelledError:
+            pass
         
         logger.info("Graceful shutdown complete")
     except Exception as e:

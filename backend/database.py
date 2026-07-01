@@ -6,7 +6,7 @@ import os
 # Esto evita que existan múltiples finance.db (uno por cada cwd desde el que se inicie el server).
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _DB_PATH = os.path.join(_BACKEND_DIR, "finance.db")
-DATABASE_URL = f"sqlite:///{_DB_PATH}"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_DB_PATH}")
 
 # Create engine with concurrency optimizations
 engine = create_engine(

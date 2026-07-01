@@ -3,9 +3,6 @@ from sqlalchemy import Column, Boolean, Integer, String, DateTime, Enum as SQLEn
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import enum
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from database import Base
 
 

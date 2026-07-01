@@ -1,10 +1,7 @@
 import uuid
 from sqlalchemy import Boolean, Column, Integer, String, DateTime
 from datetime import datetime, timezone
-import sys
-import os
 import json
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from database import Base
 
 

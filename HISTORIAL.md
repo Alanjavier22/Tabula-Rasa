@@ -1,4 +1,37 @@
-## Fecha: 16 de Mayo de 2026 (Sesión Actual)
+## Fecha: 30 de Junio de 2026 (Health Check & Optimización)
+
+### Health Check Completo
+* **Diagnóstico integral**: Se realizó un health check del proyecto detectando código muerto, dependencias con CVEs, anti-patrones arquitectónicos y archivos residuales.
+* **Database corruption detectada y reparada**: `finance.db` estaba corrupta (malformed disk image). Se restauró desde `finance.db.pre_phase1_backup` con integridad verificada (40 transacciones, 4 cuentas, 23 categorías, 8 presupuestos preservados).
+
+### Fase 1 — Limpieza de Código Muerto
+* **Eliminado `app/brain/`**: 4 scripts de debug con rutas hardcodeadas obsoletas (`c:\Users\ALAN-BG\CascadeProjects\`).
+* **Eliminado `app/api/_deprecated/`**: Carpeta vacía con solo `__pycache__`.
+* **Eliminadas 6 DBs vacías residuales**: `app.db`, `database.db`, `database.sqlite3`, `personal_finance.db`, `personal_website.db`, `tabula_rasa.db` (0 bytes).
+* **Eliminados archivos legacy**: `legacy_finance.db-shm`, `legacy_finance.db-wal`, `temp.pem`.
+* **Rotados logs**: `backend.log` (2.2MB → archivado como `.1`), `backend_error.log` truncado.
+
+### Fase 2 — Dependencias con CVEs
+* **`cryptography`**: 41.0.7 → 49.0.0 (CVE-2024-26330).
+* **`python-multipart`**: 0.0.6 → 0.0.32 (CVE-2024-53981).
+* **`uvicorn[standard]`**: 0.27.0 → 0.49.0.
+* **`PyJWT`**: 2.8.0 → 2.13.0.
+* **`lucide-react`**: ^1.12.0 → ^0.460.0 (versión 1.x no existía en registry).
+* **Venv recreado**: El venv anterior apuntaba a `ALAN-BG` (inexistente). Recreado desde cero con Python 3.12.
+
+### Fase 3 — Optimización Arquitectónica Backend
+* **Removido `sys.path.append` de 16 modelos**: Anti-patrón eliminado de `transaction.py`, `account.py`, `asset.py`, `category.py`, `budget.py`, `goal.py`, `reminder.py`, `subscription.py`, `credit_card_statement.py`, `debt_share.py`, `iou.py`, `net_worth_snapshot.py`, `import_log.py`, `category_pattern.py`, `device.py`, `authorized_device.py`, `transaction_split.py`.
+* **Sincronizado `DATABASE_URL`**: `database.py` ahora lee `DATABASE_URL` del `.env` como fallback.
+* **Corregido `CancelledError` en shutdown**: `asyncio.sleep(0.5)` envuelto en `try/except CancelledError`.
+* **Completado `app/models/__init__.py`**: Añadidos `Asset`, `AuthorizedDevice`, `DeferredPayment` al `__all__` y imports.
+
+### Fase 4 — Optimización Frontend
+* **Guard defensivo en `App.tsx`**: `snapshots.data?.filter()` con fallback `?? 0` para evitar crash si la API retorna undefined.
+* **Build verificado**: `npm run build` pasa sin errores tras actualización de `lucide-react`.
+
+---
+
+## Fecha: 16 de Mayo de 2026 (Sesión Anterior)
 
 ### 1. Robustez del Orquestador (DevOps & DX)
 * **Actualización Inteligente de Python:** Se rediseñó la función `Test-PythonVersion` para que no solo detecte la ausencia de Python, sino que evalúe la versión instalada. Si es inferior a la **3.12.0** (ej. 3.9.0), el script ofrece e inicia una actualización automática vía `Winget`.

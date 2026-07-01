@@ -1,9 +1,6 @@
 import uuid
 from sqlalchemy import Column, String, Boolean, DateTime
 from datetime import datetime, timezone
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from database import Base
 
 class PairedDevice(Base):

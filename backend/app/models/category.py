@@ -2,9 +2,6 @@ import uuid
 from sqlalchemy import Column, Boolean, Integer, String, DateTime
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from database import Base
 
 

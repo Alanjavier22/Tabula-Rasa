@@ -51,7 +51,7 @@ function App() {
         // Thin Client: Use backend API instead of IndexedDB
         try {
           const snapshots = await snapshotsAPI.getAll();
-          const staleCount = snapshots.data.filter((s: any) => s.is_stale).length;
+          const staleCount = snapshots.data?.filter((s: any) => s.is_stale).length ?? 0;
           if (staleCount > 5) {
             console.log(`🔍 Se encontraron ${staleCount} snapshots obsoletos, iniciando reconciliación...`);
             await snapshotsAPI.reconcile();
