@@ -38,6 +38,17 @@ const Categories = () => {
     };
   }, [showCreateModal, showEditModal]);
 
+  const fetchCategories = async () => {
+    try {
+      const response = await categoriesAPI.getAll();
+      setCategories(response.data);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchCategories();
   }, []);
@@ -83,17 +94,6 @@ const Categories = () => {
     } finally {
       setImporting(false);
       event.target.value = '';
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const response = await categoriesAPI.getAll();
-      setCategories(response.data);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
