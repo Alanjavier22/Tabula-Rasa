@@ -39,7 +39,6 @@ export class SearchService {
 
     try {
       // Search transactions using indexed description_words (O(log N))
-      // @ts-ignore
       const transactions = await db.transactions
         .where('description_words')
         .startsWithIgnoreCase(queryLower)
@@ -58,7 +57,6 @@ export class SearchService {
       }
 
       // Search categories (small table, filter OK)
-      // @ts-ignore
       const categories = await db.categories
         .filter(c => !c.is_deleted && c.name?.toLowerCase().includes(queryLower))
         .limit(20)
@@ -74,7 +72,6 @@ export class SearchService {
       }
 
       // Search accounts (small table, filter OK)
-      // @ts-ignore
       const accounts = await db.accounts
         .filter(a => !a.is_deleted && a.name?.toLowerCase().includes(queryLower))
         .limit(20)
