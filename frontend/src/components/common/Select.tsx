@@ -45,10 +45,10 @@ const Select = ({
   useEffect(() => {
     if (isOpen && searchable) {
       setTimeout(() => searchInputRef.current?.focus(), 50);
-    } else {
+    } else if (searchQuery) {
       setSearchQuery('');
     }
-  }, [isOpen, searchable]);
+  }, [isOpen, searchable, searchQuery]);
 
   const selectedOption = options.find(opt => opt.value === value);
 
