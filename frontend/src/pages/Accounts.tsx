@@ -86,18 +86,18 @@ const Accounts = () => {
   };
 
   const createMutation = useMutation({
-    mutationFn: (payload: any) => accountsAPI.create(payload),
+    mutationFn: (payload: unknown) => accountsAPI.create(payload),
     onSuccess: () => {
       invalidateAll();
       setShowCreateModal(false);
       setForm(emptyForm);
       setToast({ message: 'Cuenta creada', type: 'success' });
     },
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al crear cuenta', type: 'error' }),
+    onError: (error: unknown) => setToast({ message: error.response?.data?.detail || 'Error al crear cuenta', type: 'error' }),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: any }) => accountsAPI.update(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: unknown }) => accountsAPI.update(id, payload),
     onSuccess: () => {
       invalidateAll();
       setShowEditModal(false);
@@ -105,7 +105,7 @@ const Accounts = () => {
       setEditForm(emptyForm);
       setToast({ message: 'Cuenta actualizada', type: 'success' });
     },
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al actualizar cuenta', type: 'error' }),
+    onError: (error: unknown) => setToast({ message: error.response?.data?.detail || 'Error al actualizar cuenta', type: 'error' }),
   });
 
   const deleteMutation = useMutation({
@@ -114,12 +114,12 @@ const Accounts = () => {
       invalidateAll();
       setToast({ message: 'Cuenta eliminada', type: 'success' });
     },
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al eliminar cuenta', type: 'error' }),
+    onError: (error: unknown) => setToast({ message: error.response?.data?.detail || 'Error al eliminar cuenta', type: 'error' }),
     onSettled: () => setDeleteConfirm({ isOpen: false, id: null }),
   });
 
   const createStatementMutation = useMutation({
-    mutationFn: (payload: any) => statementsAPI.create(payload),
+    mutationFn: (payload: unknown) => statementsAPI.create(payload),
     onSuccess: () => {
       invalidateAll();
       setShowStatementModal(false);
@@ -127,11 +127,11 @@ const Accounts = () => {
       setEditingStatement(null);
       setToast({ message: 'Estado de cuenta creado', type: 'success' });
     },
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al crear estado de cuenta', type: 'error' }),
+    onError: (error: unknown) => setToast({ message: error.response?.data?.detail || 'Error al crear estado de cuenta', type: 'error' }),
   });
 
   const updateStatementMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: any }) => statementsAPI.update(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: unknown }) => statementsAPI.update(id, payload),
     onSuccess: () => {
       invalidateAll();
       setShowStatementModal(false);
@@ -139,13 +139,13 @@ const Accounts = () => {
       setEditingStatement(null);
       setToast({ message: 'Estado de cuenta actualizado', type: 'success' });
     },
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al actualizar estado de cuenta', type: 'error' }),
+    onError: (error: unknown) => setToast({ message: error.response?.data?.detail || 'Error al actualizar estado de cuenta', type: 'error' }),
   });
 
   const deleteStatementMutation = useMutation({
     mutationFn: (id: string) => statementsAPI.delete(id),
     onSuccess: () => invalidateAll(),
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al eliminar estado de cuenta', type: 'error' }),
+    onError: (error: unknown) => setToast({ message: error.response?.data?.detail || 'Error al eliminar estado de cuenta', type: 'error' }),
   });
 
   const saving = createMutation.isPending || updateMutation.isPending || createStatementMutation.isPending || updateStatementMutation.isPending;
