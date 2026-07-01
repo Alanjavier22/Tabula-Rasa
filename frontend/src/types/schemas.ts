@@ -63,7 +63,7 @@ export type CategoryInput = z.infer<typeof categorySchema>;
 
 export interface SyncMetadata {
   key: string;
-  value: any;
+  value: unknown;
 }
 
 export interface LocalConfig {
@@ -201,7 +201,7 @@ export interface SyncQueueEntry {
   id: string;
   table_name: string;
   action: 'create' | 'update' | 'delete';
-  payload: any;
+  payload: unknown;
   timestamp: string;
   retry_count: number;
 }
@@ -210,7 +210,7 @@ export interface SyncErrorEntry {
   id: string;
   table_name: string;
   action: 'create' | 'update' | 'delete';
-  payload: any;
+  payload: unknown;
   timestamp: string;
   retry_count: number;
   error_message: string;
@@ -221,8 +221,8 @@ export interface SyncConflictEntry {
   id: string;
   table_name: string;
   record_id: string;
-  local_data: any;
-  server_data: any;
+  local_data: unknown;
+  server_data: unknown;
   resolved: boolean;
   created_at: string;
   resolved_at?: string;
