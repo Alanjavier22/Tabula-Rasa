@@ -62,7 +62,9 @@ class NetworkErrorFilter(logging.Filter):
 def setup_logging():
     """Configure logging with rotation to prevent unlimited log growth."""
     log_dir = os.path.dirname(os.path.abspath(__file__))
-    log_file = os.path.join(log_dir, 'backend.log')
+    # Escribir el log en el directorio padre (raiz del proyecto) para evitar
+    # que watchfiles lo detecte como cambio y genere un bucle infinito con --reload
+    log_file = os.path.join(os.path.dirname(log_dir), 'backend.log')
     
     # Create formatter
     formatter = logging.Formatter(
@@ -338,6 +340,5 @@ if __name__ == "__main__":
         port=8001,
         ssl_keyfile=key_path,
         ssl_certfile=cert_path,
-        reload=True
     )
 # Force reload: 1
