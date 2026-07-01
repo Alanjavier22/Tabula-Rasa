@@ -75,7 +75,7 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, color, icon, 
 /**
  * Custom tooltip for charts with monetary formatting
  */
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: unknown) => {
   if (active && payload && payload.length) {
     const formattedLabel = (() => {
       if (!label) return label;
@@ -88,7 +88,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return (
       <div className="bg-slate-900/90 backdrop-blur-xl p-4 rounded-2xl shadow-2xl border border-white/10">
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{formattedLabel}</p>
-        {payload.map((entry: any, index: number) => (
+        {payload.map((entry: unknown, index: number) => (
           <div key={index} className="flex items-center gap-2 mt-1">
             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color === 'url(#colorIncome)' ? '#10b981' : entry.color === 'url(#colorExpenses)' ? '#8b5cf6' : entry.color === 'url(#colorIva15)' ? '#ef4444' : '#10b981' }} />
             <p className="text-sm font-semibold text-white">
@@ -107,8 +107,8 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   endDate,
   categoryIds,
 }) => {
-  const [report, setReport] = useState<any>(null);
-  const [trendData, setTrendData] = useState<Array<any>>([]);
+  const [report, setReport] = useState<unknown>(null);
+  const [trendData, setTrendData] = useState<Array<unknown>>([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -363,7 +363,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
             <p className="text-xs text-slate-500 font-semibold mb-6">Comparativa mensual de tus Ingresos y Gastos Deducibles</p>
           </div>
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
               <BarChart data={trendData} {...barChartConfig}>
                 <defs>
                   <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
@@ -382,7 +382,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(value: string) => {
-                    const [_, month] = value.split('-');
+                    const [, month] = value.split('-');
                     const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
                     const monthIndex = parseInt(month) - 1;
                     return monthNames[monthIndex] || value;
@@ -412,7 +412,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
           </div>
           
           <div className="relative h-[300px] flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
               <PieChart>
                 <defs>
                   <linearGradient id="colorIva15" x1="0" y1="0" x2="0" y2="1">
