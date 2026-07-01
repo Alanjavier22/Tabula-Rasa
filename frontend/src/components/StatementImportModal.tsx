@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { intelligenceAPI, accountsAPI } from '../services/api';
 import { Upload, X, CheckCircle, AlertCircle, FileText, Trash2, CreditCard, Calendar, DollarSign, User } from 'lucide-react';
-import type { Account } from '../types';
+import type { Account, StatementMetadata } from '../types';
 import Select from './common/Select';
 import { formatMoney } from '../utils/money';
 import { motion } from 'framer-motion';
@@ -19,9 +19,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
   
   // Datos extraídos de la IA
   const [importLogId, setImportLogId] = useState<string | null>(null);
-  const [extractedTransactions, setExtractedTransactions] = useState<any[]>([]);
-  const [statementMetadata, setStatementMetadata] = useState<any | null>(null);
-  const [auditInfo, setAuditInfo] = useState<any | null>(null);
+  const [extractedTransactions, setExtractedTransactions] = useState<unknown[]>([]);
+  const [statementMetadata, setStatementMetadata] = useState<StatementMetadata | null>(null);
+  const [auditInfo, setAuditInfo] = useState<Record<string, unknown> | null>(null);
   
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -49,13 +49,13 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       const newUserShare = Math.max(0, statementMetadata.statement_balance_cents - totalShared);
       
       if (newUserShare !== statementMetadata.user_share_cents) {
-        setStatementMetadata((prev: any) => ({
+        setStatementMetadata((prev: StatementMetadata | null) => ({
           ...prev,
           user_share_cents: newUserShare
         }));
       }
     }
-  }, [extractedTransactions, statementMetadata?.statement_balance_cents]);
+  }, [extractedTransactions, statementMetadata]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -106,7 +106,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       const parsed = response.data.parsed_data;
       if (parsed.transactions && parsed.transactions.length > 0) {
         // Seleccionamos por defecto las que NO son duplicadas
-        const txsWithSelection = parsed.transactions.map((tx: any) => ({
+        const txsWithSelection = parsed.transactions.map((tx: unknown) => ({
           ...tx,
           selected: !tx.is_duplicate
         }));
@@ -133,7 +133,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       } else {
         setResult({ success: false, message: 'No se detectaron transacciones en el documento.' });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Processing error:', error);
       const detail = error.response?.data?.detail || 'Error al procesar el estado de cuenta con IA.';
       setResult({ success: false, message: detail });
@@ -168,7 +168,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
         // Solo después de que se supone que el modal se cierra o el proceso termina totalmente
         setSaving(false);
       }, 2000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Save error:', error);
       const detail = error.response?.data?.detail || 'Error al guardar el estado de cuenta.';
       setResult({ success: false, message: detail });
