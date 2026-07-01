@@ -31,7 +31,10 @@ const PageLoader = () => (
 );
 
 function App() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('ui_theme') as 'light' | 'dark' | null;
+    return saved ?? 'light';
+  });
 
   // FASE 8: Integrity Heartbeat - Runs every 24 hours or on startup
   useEffect(() => {
@@ -51,7 +54,7 @@ function App() {
         // Thin Client: Use backend API instead of IndexedDB
         try {
           const snapshots = await snapshotsAPI.getAll();
-          const staleCount = snapshots.data?.filter((s: any) => s.is_stale).length ?? 0;
+          const staleCount = snapshots.data?.filter((s: unknown) => s.is_stale).length ?? 0;
           if (staleCount > 5) {
             console.log(`🔍 Se encontraron ${staleCount} snapshots obsoletos, iniciando reconciliación...`);
             await snapshotsAPI.reconcile();
@@ -79,7 +82,7 @@ function App() {
       if (!lastHeartbeat || now - parseInt(lastHeartbeat) > heartbeatInterval) {
         // Use requestIdleCallback if available, otherwise run immediately
         if ('requestIdleCallback' in window) {
-          (window as any).requestIdleCallback(() => runIntegrityHeartbeat());
+          (window as unknown).requestIdleCallback(() => runIntegrityHeartbeat());
         } else {
           setTimeout(() => runIntegrityHeartbeat(), 1000);
         }
@@ -88,14 +91,6 @@ function App() {
     };
     
     runHeartbeat();
-  }, []);
-
-  useEffect(() => {
-    // Load theme from localStorage (Thin Client: no IndexedDB)
-    const savedTheme = localStorage.getItem('ui_theme') as 'light' | 'dark' | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
   }, []);
 
   useEffect(() => {
