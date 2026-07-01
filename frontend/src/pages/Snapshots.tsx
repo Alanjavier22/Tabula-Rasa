@@ -28,10 +28,6 @@ const Snapshots = () => {
   const [analysis, setAnalysis] = useState<{ text: string; snapshotId: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning', duration?: number } | null>(null);
 
-  useEffect(() => {
-    fetchSnapshots();
-  }, []);
-
   const fetchSnapshots = async () => {
     try {
       const res = await snapshotsAPI.getAll();
@@ -44,13 +40,17 @@ const Snapshots = () => {
     }
   };
 
+  useEffect(() => {
+    fetchSnapshots();
+  }, []);
+
   const handleAnalyze = async (snapshotId: string) => {
     setAnalyzing(true);
     setAnalysis(null);
     try {
       const res = await snapshotsAPI.analyze(snapshotId);
       setAnalysis({ text: res.data.analysis, snapshotId });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error analyzing snapshot:', error);
       const msg = error.response?.status === 400 
         ? error.response.data.detail || 'Error en el análisis'
