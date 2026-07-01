@@ -331,6 +331,15 @@ export interface BackupInfo {
   is_automatic?: boolean;
 }
 
+export interface BackupFile {
+  id: string;
+  name: string;
+  createdTime: string;
+  size?: string;
+  is_older_than_current?: boolean;
+  age_hours?: number | null;
+}
+
 export interface FiscalReport {
   start_date: string;
   end_date: string;
@@ -521,7 +530,7 @@ export interface PairedDevice {
   id: string;
   device_name: string;
   created_at: string;
-  last_seen?: string;
+  last_sync: string | null;
   is_active: boolean;
 }
 
@@ -531,7 +540,8 @@ export interface GoogleDriveAuthUrl {
 
 export interface BackupListResponse {
   success: boolean;
-  backups: BackupInfo[];
+  backups: BackupFile[];
+  message: string;
 }
 
 export interface BackupRestoreResponse {
