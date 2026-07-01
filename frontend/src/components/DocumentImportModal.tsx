@@ -103,7 +103,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       // El backend devuelve response.data.transactions en su esquema AudioToTxnResponse
       const txnsList = response.data.transactions || [];
       if (txnsList.length > 0) {
-        const transactions = txnsList.map((tx: any) => ({
+        const transactions = txnsList.map((tx: unknown) => ({
           description: tx.description,
           amount: tx.amount, // Ya está en centavos
           category_id: tx.category_id || null,
@@ -114,7 +114,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       } else {
         setResult({ success: false, message: 'No se detectaron transacciones en el documento' });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Processing error:', error);
       const detail = error.response?.data?.detail || 'Error al procesar el documento';
       setResult({ success: false, message: detail });
@@ -155,7 +155,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
         onSuccess();
         onClose();
       }, 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Save error:', error);
       const detail = error.response?.data?.detail || error.message || 'Error al guardar transacciones';
       setResult({ success: false, message: detail });
