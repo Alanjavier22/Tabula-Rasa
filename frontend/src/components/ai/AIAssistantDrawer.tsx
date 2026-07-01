@@ -28,15 +28,9 @@ export const AIAssistantDrawer: React.FC<AIAssistantDrawerProps> = ({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sanitizing, setSanitizing] = useState(false);
-  const [auditContext, setAuditContext] = useState<{ discrepancies: any[]; total_scanned: number } | null>(null);
+  const [auditContext, setAuditContext] = useState<{ discrepancies: unknown[]; total_scanned: number } | null>(null);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isOpen && !auditContext) {
-      loadAuditContext();
-    }
-  }, [isOpen, auditContext]);
 
   const loadAuditContext = async () => {
     setSanitizing(true);
@@ -68,6 +62,12 @@ export const AIAssistantDrawer: React.FC<AIAssistantDrawerProps> = ({
       setSanitizing(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && !auditContext) {
+      loadAuditContext();
+    }
+  }, [isOpen, auditContext]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
