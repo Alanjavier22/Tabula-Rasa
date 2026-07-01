@@ -51,7 +51,7 @@ export const FinancialWarnings: React.FC = () => {
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-red-400" />
             <span className="text-red-400 text-sm">
-              {(query.error as any)?.response?.data?.detail || 'Error al cargar alertas financieras'}
+              {(query.error as unknown)?.response?.data?.detail || 'Error al cargar alertas financieras'}
             </span>
           </div>
           <button
