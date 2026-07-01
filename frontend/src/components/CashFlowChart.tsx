@@ -17,18 +17,13 @@ interface ChartDataPoint {
 export const CashFlowChart: React.FC = () => {
   const [data, setData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [forecast, setForecast] = useState<any>(null);
-
-  useEffect(() => {
-    loadData();
-  }, []);
+  const [forecast, setForecast] = useState<unknown>(null);
 
   const loadData = async () => {
     try {
       setLoading(true);
 
       // Get historical data from snapshots (last 12 months)
-      // @ts-ignore
       const snapshots = await db.net_worth_snapshots
         .orderBy('date')
         .reverse()
@@ -75,6 +70,10 @@ export const CashFlowChart: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   if (loading) {
     return (
