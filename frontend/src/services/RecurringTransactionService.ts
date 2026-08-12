@@ -21,7 +21,6 @@ export class RecurringTransactionService {
 
     try {
       // Get all active subscriptions
-      // @ts-ignore
       const subscriptions = await db.subscriptions
         .filter(s => !s.is_deleted)
         .toArray();
@@ -32,7 +31,6 @@ export class RecurringTransactionService {
           const monthStart = new Date(currentYear, currentMonth - 1, 1).toISOString();
           const monthEnd = new Date(currentYear, currentMonth, 0).toISOString();
 
-          // @ts-ignore
           const existingTxn = await db.transactions
             .filter(t => 
               !t.is_deleted && 
@@ -55,7 +53,6 @@ export class RecurringTransactionService {
           }
 
           // Create transaction atomically
-          // @ts-ignore
           await db.transaction('rw', [db.transactions, db.accounts, db.subscriptions, db.sync_queue], async () => {
             const txnId = uuidv4();
             const nowIso = new Date().toISOString();
@@ -80,14 +77,11 @@ export class RecurringTransactionService {
             };
 
             // Add transaction
-            // @ts-ignore
             await db.transactions.put(newTxn);
 
             // Update account balance
-            // @ts-ignore
             const account = await db.accounts.get(subscription.account_id);
             if (account) {
-              // @ts-ignore
               await db.accounts.update(subscription.account_id, {
                 balance: account.balance - subscription.amount_cents,
                 updated_at: nowIso
@@ -95,7 +89,7 @@ export class RecurringTransactionService {
             }
 
             // Update subscription next_billing_date based on frequency
-            let nextDate = new Date(subscription.next_billing_date);
+            const nextDate = new Date(subscription.next_billing_date);
             const frequency = subscription.frequency || 'monthly';
 
             if (frequency === 'monthly') {
@@ -108,14 +102,12 @@ export class RecurringTransactionService {
               nextDate.setMonth(nextDate.getMonth() + 3);
             }
 
-            // @ts-ignore
             await db.subscriptions.update(subscription.id, {
               next_billing_date: nextDate.toISOString(),
               updated_at: nowIso
             });
 
             // Add to sync queue
-            // @ts-ignore
             await db.sync_queue.add({
               id: uuidv4(),
               table_name: 'transactions',
@@ -125,7 +117,6 @@ export class RecurringTransactionService {
               retry_count: 0
             });
 
-            // @ts-ignore
             await db.sync_queue.add({
               id: uuidv4(),
               table_name: 'subscriptions',
