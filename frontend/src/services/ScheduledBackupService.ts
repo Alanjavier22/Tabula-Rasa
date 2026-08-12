@@ -30,7 +30,6 @@ export class ScheduledBackupService {
    */
   async checkAutoBackupNeeded(): Promise<BackupStatus> {
     // Get last backup date from config
-    // @ts-ignore
     const lastBackupConfig = await db.config.get('last_auto_backup_date');
     const lastBackupDate = lastBackupConfig?.value || null;
 
@@ -76,7 +75,6 @@ export class ScheduledBackupService {
    */
   private async markBackupAvailable(reason: 'days' | 'storage' | 'manual' | null): Promise<void> {
     try {
-      // @ts-ignore
       await db.config.put({
         id: 'backup_available',
         key: 'backup_available',
@@ -86,7 +84,6 @@ export class ScheduledBackupService {
       });
 
       if (reason) {
-        // @ts-ignore
         await db.config.put({
           id: 'backup_trigger_reason',
           key: 'backup_trigger_reason',
@@ -141,7 +138,6 @@ export class ScheduledBackupService {
   private async updateLastBackupDate(): Promise<void> {
     try {
       const now = new Date().toISOString();
-      // @ts-ignore
       await db.config.put({
         id: 'last_auto_backup_date',
         key: 'last_auto_backup_date',
@@ -162,7 +158,6 @@ export class ScheduledBackupService {
    */
   private async clearBackupAvailable(): Promise<void> {
     try {
-      // @ts-ignore
       await db.config.put({
         id: 'backup_available',
         key: 'backup_available',
@@ -186,7 +181,6 @@ export class ScheduledBackupService {
    * Get days since last backup
    */
   async getDaysSinceLastBackup(): Promise<number> {
-    // @ts-ignore
     const lastBackupConfig = await db.config.get('last_auto_backup_date');
     const lastBackupDate = lastBackupConfig?.value || null;
 
