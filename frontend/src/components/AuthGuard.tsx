@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { authAPI } from '../services/api';
 import api from '../services/api';
-import { maintenanceService } from '../services/MaintenanceService';
 import { getTokenKey } from '../services/api';
 
 const LOCALHOST_BASE_URL = 'http://127.0.0.1:8001';
@@ -38,10 +37,6 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
 
       window.history.replaceState({}, document.title, window.location.pathname);
       setIsAuthenticated(true);
-      
-      maintenanceService.runMaintenance().catch(err => {
-        console.error('[AuthGuard] Maintenance error:', err);
-      });
     } catch (err: any) {
       window.history.replaceState({}, document.title, window.location.pathname);
       const detail = err.response?.data?.detail || err.message || 'Error al vincular el dispositivo.';
