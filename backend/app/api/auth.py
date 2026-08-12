@@ -13,12 +13,10 @@ from sqlalchemy.orm import Session
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from database import get_db
 from app.models.device import PairedDevice
+from app.security_config import JWT_SECRET, ALGORITHM
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-# --- Configuración JWT ---
-JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-local-finance-key-change-in-production")
-ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 365 # 1 year
 
 # --- Almacenamiento Temporal de Pines (En Memoria) ---
