@@ -86,6 +86,7 @@ const Budgets = () => {
       setBudgets(response.data);
     } catch (error) {
       console.error('Error fetching budgets:', error);
+      setToast({ message: 'No se pudieron cargar los presupuestos', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -97,6 +98,7 @@ const Budgets = () => {
       setCategories(response.data);
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setToast({ message: 'No se pudieron cargar las categorías', type: 'error' });
     }
   };
 
@@ -106,6 +108,7 @@ const Budgets = () => {
       setAccounts(response.data);
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      setToast({ message: 'No se pudieron cargar las cuentas', type: 'error' });
     }
   };
 
