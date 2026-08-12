@@ -12,6 +12,8 @@ $script:backendPath = Join-Path $script:scriptPath "backend"
 $script:frontendPath = Join-Path $script:scriptPath "frontend"
 $script:backendLog = Join-Path $script:scriptPath "backend.log"
 $script:frontendLog = Join-Path $script:scriptPath "frontend.log"
+$script:backendErrorLog = Join-Path $script:scriptPath "backend_error.log"
+$script:frontendErrorLog = Join-Path $script:scriptPath "frontend_error.log"
 $script:venvPython = Join-Path $script:backendPath "venv\Scripts\python.exe"
 $script:nodeModules = Join-Path $script:frontendPath "node_modules"
 
@@ -197,8 +199,25 @@ function Test-NodeVersion {
         exit 1
     }
 
-    $nodeVersion = node --version
-    Write-Host "  Node.js $nodeVersion detectado" -ForegroundColor Green
+    $nodeVersionOutput = node --version
+    $versionStr = $nodeVersionOutput -replace "^v", ""
+
+    try {
+        $version = [version]$versionStr
+        $minVersion = [version]"20.19.0"
+        if ($version -lt $minVersion) {
+            Write-Host "  Versión de Node.js antigua ($versionStr). Actualizando..." -ForegroundColor Yellow
+            Install-Requirement "Node.js" "OpenJS.NodeJS" "node"
+            Refresh-SessionPath
+            Write-Host "  Node.js actualizado. Reinicia el menú para aplicar cambios." -ForegroundColor Green
+            Read-Host "Presiona Enter para salir..."
+            exit 0
+        } else {
+            Write-Host "  Node.js $versionStr detectado" -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "  Node.js $nodeVersionOutput detectado" -ForegroundColor Green
+    }
 }
 
 Test-PythonVersion
@@ -376,12 +395,14 @@ function Start-Application {
     # 1. Asesino de Zombies Quirúrgico
     Write-Host "[1/5] Verificando puertos limpios..."  -ForegroundColor Yellow
     Stop-SpecificPorts | Out-Null
-    Start-Sleep -Seconds 1
+    Start-Sleep -Seconds 2
 
     # 2. Rotación de Logs (Limpieza en frío)
     Write-Host "[2/5] Limpiando archivos de log anteriores..." -ForegroundColor Yellow
     Clear-Content $script:backendLog -ErrorAction SilentlyContinue
     Clear-Content $script:frontendLog -ErrorAction SilentlyContinue
+    Clear-Content $script:backendErrorLog -ErrorAction SilentlyContinue
+    Clear-Content $script:frontendErrorLog -ErrorAction SilentlyContinue
 
     # 3. Backend Health Check & Self-Healing
     Write-Host "[3/5] Verificando salud del entorno virtual..."  -ForegroundColor Yellow
@@ -393,15 +414,29 @@ function Start-Application {
         & $script:venvPython -c "import fastapi, sqlalchemy, pydantic, cryptography" 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  Entorno virtual corrupto detectado. Reinstalando..." -ForegroundColor Magenta
-            Remove-VenvSafely $venvPath
-            $venvNeedsReinstall = $true
+            try {
+                Remove-VenvSafely $venvPath
+                $venvNeedsReinstall = $true
+            } catch {
+                Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "  Cierra procesos que puedan estar usando el venv e inténtalo de nuevo." -ForegroundColor Yellow
+                Read-Host "Presiona Enter para continuar..."
+                return
+            }
         } else {
             # Try to import the main app module
             & $script:venvPython -c "import sys; sys.path.insert(0, r'$script:backendPath'); from main import app" 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "  Error al importar aplicación. Reinstalando..." -ForegroundColor Magenta
-                Remove-VenvSafely $venvPath
-                $venvNeedsReinstall = $true
+                try {
+                    Remove-VenvSafely $venvPath
+                    $venvNeedsReinstall = $true
+                } catch {
+                    Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
+                    Write-Host "  Cierra procesos que puedan estar usando el venv e inténtalo de nuevo." -ForegroundColor Yellow
+                    Read-Host "Presiona Enter para continuar..."
+                    return
+                }
             } else {
                 Write-Host "  Entorno virtual saludable." -ForegroundColor Green
             }
@@ -458,8 +493,7 @@ function Start-Application {
     Write-Host "[4/5] Iniciando Backend..."  -ForegroundColor Yellow
     
     # Inicia como proceso oculto, enrutando StdOut y StdErr al Log
-    $backendErrorLog = Join-Path $script:scriptPath "backend_error.log"
-    Start-Process -FilePath $script:venvPython -ArgumentList "-m uvicorn main:app --host 0.0.0.0 --port 8001 --reload" -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendLog -RedirectStandardError $backendErrorLog
+    Start-Process -FilePath $script:venvPython -ArgumentList "-m uvicorn main:app --host 0.0.0.0 --port 8001 --reload" -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendLog -RedirectStandardError $script:backendErrorLog
 
     # Health Check Polling (Evitar Race Condition)
     Write-Host "  Esperando a que el backend esté listo..." -ForegroundColor Yellow
@@ -469,7 +503,7 @@ function Start-Application {
     
     while ($retryCount -lt $maxRetries) {
         try {
-            Invoke-RestMethod -Uri "http://127.0.0.1:8001/health" -ErrorAction SilentlyContinue | Out-Null
+            Invoke-RestMethod -Uri "http://127.0.0.1:8001/health" | Out-Null
             $backendReady = $true
             break
         } catch {
@@ -480,6 +514,12 @@ function Start-Application {
     
     if (-not $backendReady) {
         Write-Host "  ERROR: El backend no respondió después de $maxRetries segundos." -ForegroundColor Red
+        if ((Test-Path $script:backendErrorLog) -and (Get-Item $script:backendErrorLog).Length -gt 0) {
+            Write-Host ""
+            Write-Host "  --- Últimas líneas de backend_error.log ---" -ForegroundColor Yellow
+            Get-Content $script:backendErrorLog -Tail 20 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkYellow }
+            Write-Host "  --------------------------------------------" -ForegroundColor Yellow
+        }
         Read-Host "Presiona Enter para continuar..."
         return
     }
@@ -496,8 +536,7 @@ function Start-Application {
     }
 
     # Inicia Vite oculto enrutando logs
-    $frontendErrorLog = Join-Path $script:scriptPath "frontend_error.log"
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run dev" -WorkingDirectory $script:frontendPath -WindowStyle Hidden -RedirectStandardOutput $script:frontendLog -RedirectStandardError $frontendErrorLog
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run dev" -WorkingDirectory $script:frontendPath -WindowStyle Hidden -RedirectStandardOutput $script:frontendLog -RedirectStandardError $script:frontendErrorLog
 
     Start-Sleep -Seconds 3
 
@@ -516,6 +555,48 @@ function Start-Application {
     Read-Host "Presiona Enter para volver al menú..."
 }
 
+function Show-LogTail {
+    param(
+        [string]$Path,
+        [string]$Name
+    )
+
+    Write-Host ""
+    if (-not (Test-Path $Path)) {
+        Write-Host "Log vacío o no existe." -ForegroundColor Red
+        Read-Host "Presiona Enter para continuar..."
+        return
+    }
+
+    Write-Host "Mostrando $Name en vivo. Presiona cualquier tecla para volver al menú." -ForegroundColor Cyan
+    Write-Host ""
+
+    Get-Content $Path -Tail 30 | ForEach-Object { Write-Host $_ }
+
+    # Se abre con FileShare ReadWrite para no bloquear al proceso que sigue escribiendo el log
+    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    $reader = New-Object System.IO.StreamReader($stream)
+    $reader.BaseStream.Seek(0, [System.IO.SeekOrigin]::End) | Out-Null
+
+    try {
+        while ($true) {
+            if ([Console]::KeyAvailable) {
+                [Console]::ReadKey($true) | Out-Null
+                break
+            }
+            $line = $reader.ReadLine()
+            if ($null -ne $line) {
+                Write-Host $line
+            } else {
+                Start-Sleep -Milliseconds 300
+            }
+        }
+    } finally {
+        $reader.Close()
+        $stream.Close()
+    }
+}
+
 function Show-Logs {
     Write-Host ""
     Write-Host "========================================"  -ForegroundColor Cyan
@@ -524,32 +605,19 @@ function Show-Logs {
     Write-Host ""
     Write-Host "  [1] Backend Log"  -ForegroundColor Green
     Write-Host "  [2] Frontend Log"  -ForegroundColor Green
-    Write-Host "  [3] Volver"  -ForegroundColor Yellow
+    Write-Host "  [3] Backend Error Log"  -ForegroundColor Red
+    Write-Host "  [4] Frontend Error Log"  -ForegroundColor Red
+    Write-Host "  [5] Volver"  -ForegroundColor Yellow
     Write-Host ""
 
     $choice = Read-Host "Selecciona una opción"
 
     switch ($choice) {
-        '1' {
-            Write-Host "Mostrando últimas 30 líneas del Backend (Ctrl+C para volver):" -ForegroundColor Cyan
-            if (Test-Path $script:backendLog) {
-                # -Wait permite leer el log en tiempo real como un 'tail -f' de Linux
-                Get-Content $script:backendLog -Tail 30 -Wait
-            } else {
-                Write-Host "Log vacío o no existe." -ForegroundColor Red
-                Read-Host "Presiona Enter para continuar..."
-            }
-        }
-        '2' {
-            Write-Host "Mostrando últimas 30 líneas del Frontend (Ctrl+C para volver):" -ForegroundColor Cyan
-            if (Test-Path $script:frontendLog) {
-                Get-Content $script:frontendLog -Tail 30 -Wait
-            } else {
-                Write-Host "Log vacío o no existe." -ForegroundColor Red
-                Read-Host "Presiona Enter para continuar..."
-            }
-        }
-        '3' { return }
+        '1' { Show-LogTail -Path $script:backendLog -Name "Backend Log" }
+        '2' { Show-LogTail -Path $script:frontendLog -Name "Frontend Log" }
+        '3' { Show-LogTail -Path $script:backendErrorLog -Name "Backend Error Log" }
+        '4' { Show-LogTail -Path $script:frontendErrorLog -Name "Frontend Error Log" }
+        '5' { return }
     }
 }
 
@@ -562,12 +630,17 @@ while ($true) {
         '1' { Start-Application }
         '2' { Stop-AllProcesses }
         '3' { Show-Logs }
-        '4' { 
+        '4' {
             Write-Host "Iniciando mantenimiento profundo..." -ForegroundColor Cyan
             Stop-SpecificPorts | Out-Null
-            Remove-VenvSafely (Join-Path $script:backendPath "venv")
-            if (Test-Path $script:nodeModules) { Remove-Item -Recurse -Force $script:nodeModules }
-            Write-Host "Limpieza completada. Inicia de nuevo para reinstalar todo." -ForegroundColor Green
+            try {
+                Remove-VenvSafely (Join-Path $script:backendPath "venv")
+                if (Test-Path $script:nodeModules) { Remove-Item -Recurse -Force $script:nodeModules }
+                Write-Host "Limpieza completada. Inicia de nuevo para reinstalar todo." -ForegroundColor Green
+            } catch {
+                Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "No se pudo completar la limpieza. Cierra procesos relacionados e inténtalo de nuevo." -ForegroundColor Yellow
+            }
             Read-Host "Presiona Enter para continuar..."
         }
         '5' {
