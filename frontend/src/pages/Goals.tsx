@@ -70,6 +70,7 @@ const Goals = () => {
       setGoals(response.data);
     } catch (error) {
       console.error('Error fetching goals:', error);
+      setToast({ message: 'No se pudieron cargar las metas', type: 'error' });
     } finally {
       setLoading(false);
     }
