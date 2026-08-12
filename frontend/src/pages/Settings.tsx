@@ -167,7 +167,7 @@ const Settings = () => {
         try {
           await configAPI.getByKey(key);
           await configAPI.update(key, data);
-        } catch (error) {
+        } catch {
           await configAPI.create(data);
         }
       };
@@ -657,7 +657,7 @@ const Settings = () => {
                                 } else {
                                   setToast({ message: 'Error de conexión: ' + res.data.message, type: 'error' });
                                 }
-                              } catch (e) {
+                              } catch {
                                 setToast({ message: 'Error de servidor al probar conexión', type: 'error' });
                               } finally {
                                 setTestingGemini(false);
@@ -791,7 +791,7 @@ const Settings = () => {
                                   } else {
                                     setToast({ message: `${comp.name}: Error`, type: 'error' });
                                   }
-                                } catch (err) {
+                                } catch {
                                   setToast({ message: 'Error de servidor', type: 'error' });
                                 } finally {
                                   btn.disabled = false;
@@ -896,7 +896,7 @@ const Settings = () => {
                                 await configAPI.wipeDatabase();
                                 setToast({ message: 'Sistema reiniciado', type: 'success' });
                                 setTimeout(() => window.location.reload(), 1500);
-                              } catch (error) {
+                              } catch {
                                 setToast({ message: 'Error al limpiar', type: 'error' });
                               }
                             }}
