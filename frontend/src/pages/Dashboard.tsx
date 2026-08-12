@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import Decimal from 'decimal.js-light';
 import { accountsAPI, statementsAPI, metricsAPI, budgetsAPI, snapshotsAPI, alertsAPI, transactionsAPI, subscriptionsAPI as subsAPI, categoriesAPI, goalsAPI, iousAPI, maintenanceAPI } from '../services/api';
@@ -182,7 +182,7 @@ const Dashboard = () => {
               reportingService.setFiscalRules(rules);
             }
             return rules;
-          } catch (err) {
+          } catch {
             return null;
           }
         },
@@ -210,6 +210,22 @@ const Dashboard = () => {
   const categories = (results[10].data as any[]) || [];
   const goals = (results[13].data as any[]) || [];
   const dashboardSummary = results[11].data as DashboardSummaryResponse | undefined;
+
+  // Widgets already degrade gracefully with `|| []`/undefined fallbacks when a
+  // query is still loading, so a full-page error blocker would be a step back.
+  // Instead, surface a single non-blocking toast if any of the core queries
+  // (accounts, transactions, summary) actually fails, so a silent empty
+  // dashboard doesn't get mistaken for "no data".
+  const coreDataError = results[1].isError || results[8].isError || results[11].isError;
+  const coreErrorNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (coreDataError && !coreErrorNotifiedRef.current) {
+      coreErrorNotifiedRef.current = true;
+      setToast({ message: 'No se pudieron cargar algunos datos del dashboard', type: 'error' });
+    } else if (!coreDataError) {
+      coreErrorNotifiedRef.current = false;
+    }
+  }, [coreDataError]);
 
   const insightsMutation = useMutation({
     mutationFn: () => metricsAPI.getInsights(),
@@ -1052,7 +1068,6 @@ const Dashboard = () => {
         onClose={() => setShowWhatIfModal(false)}
         transactions={transactions}
         currentNetWorth={totalBalance.toNumber()}
-        apiKey={localStorage.getItem('GOOGLE_API_KEY') || ''}
         monthlyIncome={safeToSpend?.monthly_income || (dashboardSummary?.total_income ? dashboardSummary.total_income / 100 : 0)}
         fixedExpenses={safeToSpend?.projected_fixed_expenses || 0}
         totalDebt={totalStatementDue.toNumber()}
@@ -1076,7 +1091,6 @@ const Dashboard = () => {
                 currentSubscriptions={subscriptions}
                 categories={categories}
                 goals={goals}
-                apiKey={localStorage.getItem('GOOGLE_API_KEY') || ''}
                 onClose={() => setShowAnomalyScanner(false)}
               />
             </div>
