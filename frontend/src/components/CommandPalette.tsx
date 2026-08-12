@@ -3,7 +3,7 @@ import { Search, Home, DollarSign, PieChart, Target, Calendar, List, Sparkles, S
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { aiAssistantAPI } from '../services/api';
+import { aiAssistantAPI } from '../services/AIAssistantService';
 
 const CommandPalette = () => {
   const [isOpen, setIsOpen] = useState(false);
