@@ -108,30 +108,31 @@ const Transactions = () => {
   const [aiCategorizationTimer, setAiCategorizationTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch transactions with React Query
-  const { data: transactions, isLoading: transactionsLoading, refetch: refetchTransactions } = useQuery({
+  const { data: transactions, isLoading: transactionsLoading, isError: transactionsError, refetch: refetchTransactions } = useQuery({
     queryKey: ['transactions'],
     queryFn: () => transactionsAPI.getAll().then(res => res.data),
   });
 
   // Fetch categories
-  const { data: categories, isLoading: categoriesLoading } = useQuery({
+  const { data: categories, isLoading: categoriesLoading, isError: categoriesError } = useQuery({
     queryKey: ['categories'],
     queryFn: () => categoriesAPI.getAll().then(res => res.data),
   });
 
   // Fetch accounts
-  const { data: accounts, isLoading: accountsLoading } = useQuery({
+  const { data: accounts, isLoading: accountsLoading, isError: accountsError } = useQuery({
     queryKey: ['accounts'],
     queryFn: () => accountsAPI.getAll().then(res => res.data),
   });
 
   // Fetch goals
-  const { data: goals, isLoading: goalsLoading } = useQuery({
+  const { data: goals, isLoading: goalsLoading, isError: goalsError } = useQuery({
     queryKey: ['goals'],
     queryFn: () => goalsAPI.getAll().then(res => res.data),
   });
 
   const loading = transactionsLoading || categoriesLoading || accountsLoading || goalsLoading;
+  const loadError = transactionsError || categoriesError || accountsError || goalsError;
 
   // FASE 6.2: Optimistic delete handler
   const handleDelete = (id: string) => {
@@ -382,6 +383,20 @@ const Transactions = () => {
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-white">Cargando...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+        <p className="text-white font-medium">No se pudieron cargar las transacciones.</p>
+        <button
+          onClick={() => refetchTransactions()}
+          className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
   }
 
   return (
