@@ -33,7 +33,7 @@ export class BalanceSheetService {
     try {
       const response = await api.get(`/metrics/balance-sheet/${month}/${year}`);
       return response.data;
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -46,7 +46,7 @@ export class BalanceSheetService {
     try {
       const response = await api.get('/metrics/balance-sheet');
       return response.data;
-    } catch (error) {
+    } catch {
       return null;
     }
   }
