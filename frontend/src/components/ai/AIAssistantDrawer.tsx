@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send, X, Loader2, AlertTriangle, Paperclip, FileText, Image as ImageIcon } from 'lucide-react';
 import { reportingService } from '../../services/ReportingService';
-import { aiAssistantAPI } from '../../services/api';
+import { aiAssistantAPI } from '../../services/AIAssistantService';
 
 interface Message {
   role: 'user' | 'assistant';
