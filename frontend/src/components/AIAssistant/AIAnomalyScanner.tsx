@@ -11,7 +11,6 @@ interface AIAnomalyScannerProps {
   currentSubscriptions: any[];
   categories: any[];
   goals: any[];
-  apiKey: string;
   onClose?: () => void;
 }
 
@@ -20,7 +19,6 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
   currentSubscriptions,
   categories,
   goals,
-  apiKey,
   onClose,
 }) => {
   const [isScanning, setIsScanning] = useState(false);
@@ -47,8 +45,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
         recentTransactions,
         currentSubscriptions,
         categories,
-        goals,
-        apiKey
+        goals
       );
       setResult(scanResult);
     } catch (error: any) {
