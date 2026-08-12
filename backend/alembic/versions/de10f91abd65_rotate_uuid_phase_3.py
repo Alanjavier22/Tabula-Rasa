@@ -396,4 +396,15 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    pass
+    # Genuinely irreversible: upgrade() drops the original integer-PK tables
+    # outright (CREATE-COPY-DROP-RENAME) without preserving the old id anywhere,
+    # so there is no data left to reconstruct sequential integer PKs/FKs from.
+    # A `pass` here would be actively dangerous - alembic would mark this
+    # revision as downgraded and rewind alembic_version while the schema stays
+    # exactly as-is, desyncing version tracking from actual schema state. Fail
+    # loudly instead so nobody mistakes silence for a successful rollback.
+    raise NotImplementedError(
+        "de10f91abd65 (rotate_uuid_phase_3) cannot be downgraded: the original "
+        "integer primary keys were dropped during upgrade() with no mapping "
+        "preserved. Restore from a pre-migration database backup instead."
+    )
