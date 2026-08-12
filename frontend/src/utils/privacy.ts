@@ -112,6 +112,15 @@ const STOP_WORDS = new Set([
   'nomina', 'decimo', 'utilidades', 'bono', 'reembolso', 'iess', 'sri',
   // Ecuador Document Types (Allowlist - these are document names, not the IDs themselves)
   'ci', 'ruc', 'cedula', 'comprobante', 'voucher', 'factura',
+  // Card brands and payment-network vocabulary (frequent in ALL-CAPS statement
+  // exports; without these the ALL-CAPS fallback below would mask them as names)
+  'visa', 'mastercard', 'master', 'amex', 'american', 'express', 'diners',
+  'discover', 'maestro', 'contactless', 'credimatic', 'datafast',
+  // Common ALL-CAPS retail/transaction vocabulary from Ecuadorian statements
+  'cajero', 'automatico', 'atm', 'pos', 'establecimiento', 'online', 'web',
+  'movil', 'nacional', 'exterior', 'local', 'sucursal', 'matriz', 'agencia',
+  'supermercado', 'farmacia', 'restaurante', 'gasolinera', 'mercado', 'tienda',
+  'servicio', 'servicios', 'compania', 'empresa', 'total', 'minimo', 'estado',
 ]);
 
 /**
@@ -152,9 +161,16 @@ function maskAccounts(text: string, hydrationMap: Map<string, string>, counters:
   return sanitized;
 }
 const NAME_PATTERNS = [
-  /\b(A la|Al|De|Del|Para|Por|Con|Sin|Sobre|Desde|Hasta|Para|A)\s+[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)?\b/g, // Preposition + name
-  /\b(Transferencia|Pago|Depósito|Retiro|Compra|Venta)\s+(a|de|para|desde)\s+[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)?\b/g, // Transaction + name
+  /\b(A la|Al|De|Del|Para|Por|Con|Sin|Sobre|Desde|Hasta|Para|A)\s+[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)?\b/g, // Preposition + name (Title Case)
+  /\b(Transferencia|Pago|Depósito|Retiro|Compra|Venta)\s+(a|de|para|desde)\s+[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)?\b/g, // Transaction + name (Title Case)
   /\b[A-Z][a-záéíóúñ]+\s+[A-Z][a-záéíóúñ]+\b(?=\s+(?:transferencia|pago|depósito|retiro|compra|venta))/gi, // Name before transaction type
+  // ALL-CAPS variants: Ecuadorian bank statement exports are typically formatted
+  // entirely in uppercase (e.g. "TRANSFERENCIA A JUAN PEREZ"), which the Title
+  // Case patterns above never match since every letter after the first would
+  // need to be lowercase.
+  /\b(A LA|AL|DE|DEL|PARA|POR|CON|SIN|SOBRE|DESDE|HASTA|A)\s+[A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,})?\b/g,
+  /\b(TRANSFERENCIA|PAGO|DEPÓSITO|RETIRO|COMPRA|VENTA)\s+(A|DE|PARA|DESDE)\s+[A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,})?\b/g,
+  /\b[A-ZÁÉÍÓÚÑ]{2,}\s+[A-ZÁÉÍÓÚÑ]{2,}\b(?=\s+(?:TRANSFERENCIA|PAGO|DEPÓSITO|RETIRO|COMPRA|VENTA))/g,
 ];
 
 /**
@@ -186,6 +202,21 @@ function maskNames(text: string, hydrationMap: Map<string, string>, counters: To
   sanitized = sanitized.replace(capitalizedWordPattern, (word) => {
     const lowerWord = word.toLowerCase();
     if (STOP_WORDS.has(lowerWord) || word.length === 1) {
+      return word;
+    }
+    counters.person++;
+    const token = `[PERSON_${counters.person}]`;
+    hydrationMap.set(token, word);
+    return token;
+  });
+
+  // Same backstop for ALL-CAPS words (bank statement descriptions are commonly
+  // exported entirely in uppercase, e.g. "JUAN PEREZ" - the Title Case pattern
+  // above never touches those since it requires lowercase letters after the first).
+  const allCapsWordPattern = /\b[A-ZÁÉÍÓÚÑ]{2,}\b/g;
+  sanitized = sanitized.replace(allCapsWordPattern, (word) => {
+    const lowerWord = word.toLowerCase();
+    if (STOP_WORDS.has(lowerWord)) {
       return word;
     }
     counters.person++;
