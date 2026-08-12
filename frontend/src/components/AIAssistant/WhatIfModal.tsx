@@ -11,7 +11,6 @@ interface WhatIfModalProps {
   onClose: () => void;
   transactions: any[];
   currentNetWorth: number;
-  apiKey: string;
   monthlyIncome?: number;
   fixedExpenses?: number;
   totalDebt?: number;
@@ -25,7 +24,6 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
   onClose,
   transactions,
   currentNetWorth,
-  apiKey,
   monthlyIncome,
   fixedExpenses,
   totalDebt,
@@ -81,7 +79,6 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
         whatIfPrompt,
         categoryTransactions,
         currentNetWorth,
-        apiKey,
         income,
         expenses,
         debt,
@@ -95,7 +92,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
     } finally {
       setLoadingWhatIf(false);
     }
-  }, [whatIfPrompt, transactions, currentNetWorth, apiKey]);
+  }, [whatIfPrompt, transactions, currentNetWorth]);
 
   const handleClose = useCallback(() => {
     setWhatIfPrompt('');
