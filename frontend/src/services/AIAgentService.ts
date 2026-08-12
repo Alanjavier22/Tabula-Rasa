@@ -50,12 +50,11 @@ export interface AnomalyScanResult {
 export class AIAgentService {
   static async suggestCategorizations(
     transactions: any[],
-    categories: any[],
-    apiKey: string
+    categories: any[]
   ): Promise<AICategorySuggestion[]> {
     // Sanitize transactions before sending to AI
     const { sanitized: sanitizedTxns, hydrationMap } = prepareForAI(transactions);
-    
+
     // Prepare category list for AI context
     const categoryList = categories.map(cat => ({
       id: cat.id,
@@ -67,11 +66,6 @@ export class AIAgentService {
       {
         transactions: sanitizedTxns,
         categories: categoryList,
-      },
-      {
-        headers: {
-          'X-AI-API-Key': apiKey,
-        },
       }
     );
 
@@ -88,7 +82,6 @@ export class AIAgentService {
     userPrompt: string,
     categoryTransactions: any[],
     currentNetWorth: number,
-    apiKey: string,
     monthlyIncome: number = 0,
     fixedExpenses: number = 0,
     totalDebt: number = 0,
@@ -113,11 +106,6 @@ export class AIAgentService {
         monthly_debt_payment: Math.round(monthlyDebtPayment),
         monthly_cash_flow: Math.round(monthlyCashFlow),
         goals: goals.map(g => ({ name: g.name, target_amount: g.target_amount, current_amount: g.current_amount })),
-      },
-      {
-        headers: {
-          'X-AI-API-Key': apiKey,
-        },
       }
     );
 
@@ -136,8 +124,7 @@ export class AIAgentService {
     recentTransactions: any[],
     currentSubscriptions: any[],
     categories: any[],
-    goals: any[],
-    apiKey: string
+    goals: any[]
   ): Promise<AnomalyScanResult> {
     // FIX: Use single hydrationMap for token coherence across txns and subscriptions
     const combinedData = [...recentTransactions, ...currentSubscriptions];
@@ -153,11 +140,6 @@ export class AIAgentService {
         subscriptions: sanitizedSubs,
         categories: categories.map(c => ({ id: c.id, name: c.name })),
         goals: goals.map(g => ({ name: g.name, target_amount: g.target_amount, current_amount: g.current_amount })),
-      },
-      {
-        headers: {
-          'X-AI-API-Key': apiKey,
-        },
       }
     );
 
