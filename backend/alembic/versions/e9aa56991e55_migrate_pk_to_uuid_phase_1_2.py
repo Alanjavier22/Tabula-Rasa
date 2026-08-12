@@ -88,4 +88,17 @@ def upgrade() -> None:
     print("--- MIGRACIÓN DE DATOS COMPLETADA ---")
 
 def downgrade() -> None:
-    pass
+    # Phase 1/2 only ADDED columns (global_id + global_*_id FKs) and never
+    # touched the original integer id/FK columns, so this is a real, safe
+    # reversal - just drop what upgrade() added. SQLite requires batch mode
+    # for column drops (see other migrations in this repo for precedent).
+    for child_table, global_fk_col, _, _ in fks_to_update:
+        try:
+            with op.batch_alter_table(child_table, schema=None) as batch_op:
+                batch_op.drop_column(global_fk_col)
+        except Exception:
+            pass
+
+    for t in tables_with_pk:
+        with op.batch_alter_table(t, schema=None) as batch_op:
+            batch_op.drop_column('global_id')
