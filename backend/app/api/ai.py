@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import json
 import base64
+import logging
 from datetime import datetime, timedelta
 import google.genai as genai
 from google.genai import types
@@ -17,6 +18,8 @@ import os
 from app.services.ai_prompts import get_current_time_context, CORE_RULES
 from collections import defaultdict
 from typing import List, Optional, Any, cast
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/ai", 
@@ -270,7 +273,7 @@ STRICT RULES:
             key_assumptions=impact_data.get("key_assumptions", [])
         )
     except Exception as e:
-        print(f"Error in Oracle Engine: {e}")
+        logger.error(f"Error in Oracle Engine: {e}")
         return WhatIfScenarioResponse(
             scenario_title="Error de Simulación",
             summary=f"El Motor Oracle no pudo proyectar el escenario: {str(e)}",
@@ -317,7 +320,7 @@ async def suggest_whatif_scenarios(db: Session = Depends(get_db)):
         scenarios = response_data.get("scenarios", [])
         return [SuggestedScenario(**s) if isinstance(s, dict) else s for s in scenarios][:3]
     except Exception as e:
-        print(f"Error sugiriendo escenarios: {e}")
+        logger.error(f"Error sugiriendo escenarios: {e}")
         return [
             SuggestedScenario(title="Ahorro en Comida", description="¿Qué pasa si cocino más en casa?", user_prompt="Reducir mi gasto en Restaurantes y Comida un 30%"),
             SuggestedScenario(title="Inversión Mensual", description="Simular inversión recurrente", user_prompt="Invertir $100 adicionales cada mes en un fondo con 8% de retorno"),
