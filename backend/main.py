@@ -10,10 +10,11 @@ load_dotenv()
 
 def ensure_jwt_secret():
     import secrets
+    from app.security_config import DEFAULT_JWT_SECRET
     env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     jwt_secret = os.getenv("JWT_SECRET")
-    default_secret = "super-secret-local-finance-key-change-in-production"
-    
+    default_secret = DEFAULT_JWT_SECRET
+
     if not jwt_secret or jwt_secret == default_secret:
         new_secret = secrets.token_hex(32)
         os.environ["JWT_SECRET"] = new_secret
@@ -103,6 +104,7 @@ logger = setup_logging()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from database import engine, Base, SessionLocal
 from sqlalchemy import event
 
@@ -154,7 +156,6 @@ from app.models.reminder import Reminder
 from app.models.subscription import Subscription
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.debt_share import DebtShare
-from app.models.authorized_device import AuthorizedDevice
 from app.models.deferred_payment import DeferredPayment
 
 
@@ -192,6 +193,9 @@ security_middleware = SecurityMiddleware()
 app.middleware("http")(security_middleware)
 
 # CORS middleware
+# LAN IP included so devices paired over the network (QR pairing flow in
+# auth.py) can actually read responses, not just fire the request.
+_lan_ip = auth.get_local_ip()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -199,6 +203,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "https://localhost:5173",
         "https://127.0.0.1:5173",
+        f"http://{_lan_ip}:5173",
+        f"https://{_lan_ip}:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -258,11 +264,14 @@ def health_check():
             
             # Check if integrity is OK
             if integrity_result != "ok":
-                return {
-                    "status": "unhealthy",
-                    "integrity_check": integrity_result,
-                    "error": "Database integrity check failed"
-                }, 500
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "status": "unhealthy",
+                        "integrity_check": integrity_result,
+                        "error": "Database integrity check failed"
+                    }
+                )
             
             # Check WAL mode
             res_wal = db.execute(text("PRAGMA journal_mode;")).fetchone()
@@ -302,10 +311,13 @@ def health_check():
         finally:
             db.close()
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e)
-        }, 500
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "unhealthy",
+                "error": str(e)
+            }
+        )
 
 if __name__ == "__main__":
     import uvicorn
