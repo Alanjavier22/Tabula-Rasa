@@ -18,5 +18,11 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Convention already used across the codebase (e.g. src/db/db.ts stub
+      // params) to mark a binding as intentionally unused - just wasn't wired
+      // into the lint rule.
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
   },
 ])
