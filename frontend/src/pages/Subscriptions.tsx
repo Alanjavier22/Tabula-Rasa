@@ -77,6 +77,7 @@ const Subscriptions = () => {
       setAccounts(accRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
+      setToast({ message: 'No se pudieron cargar las suscripciones', type: 'error' });
     } finally {
       setLoading(false);
     }
