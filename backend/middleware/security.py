@@ -3,21 +3,35 @@ from fastapi import Request, HTTPException, status
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from app.models.device import PairedDevice
-import os
+from app.api.auth import get_local_ip
+from app.security_config import JWT_SECRET, ALGORITHM
 from datetime import datetime, timezone
 from typing import cast, Any
 
-# JWT Config (Must match auth.py)
-JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-local-finance-key-change-in-production")
-ALGORITHM = "HS256"
+# Origins allowed to talk to this API - must track main.py's CORS allow_origins.
+# "client_ip is loopback" alone is NOT a safe trust boundary: any page open in
+# the same browser (e.g. a malicious site in another tab) can also fire a
+# fetch() to https://127.0.0.1:8001/... and the OS will happily route it, so
+# the server sees the exact same loopback IP as the real frontend. The Origin
+# header is the only signal that actually distinguishes "our frontend" from
+# "any other open tab" - browsers set it on every cross-origin request and JS
+# cannot spoof it. Requests with no Origin header (curl, native tooling on the
+# same machine) are left alone since they aren't the browser-CSRF vector.
+ALLOWED_ORIGINS = {
+    "http://localhost:5173", "https://localhost:5173",
+    "http://127.0.0.1:5173", "https://127.0.0.1:5173",
+    f"http://{get_local_ip()}:5173", f"https://{get_local_ip()}:5173",
+}
 
 class SecurityMiddleware:
     """
     Middleware to enforce local handshake security using JWT.
     Blocks external IP requests without a valid JWT from a PairedDevice.
     """
-    
-    # Endpoints exempt from security check (public endpoints)
+
+    # Endpoints exempt from the JWT/device check (public/bootstrap endpoints).
+    # NOTE: these still go through the Origin check below - it runs first and
+    # applies to every path, including these.
     EXEMPT_PATHS = [
         "/",
         "/health",
@@ -29,15 +43,25 @@ class SecurityMiddleware:
         "/docs",
         "/openapi.json",
     ]
-    
+
     async def __call__(self, request: Request, call_next):
+        # Reject any browser request whose Origin isn't our own frontend, before
+        # any IP-based trust decision is made (closes the CSRF-via-loopback gap
+        # described above for every path, exempt or not).
+        origin = request.headers.get("origin")
+        if origin is not None and origin not in ALLOWED_ORIGINS:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Origin not allowed"
+            )
+
         client_ip = request.client.host if request.client else "unknown"
         path = request.url.path
-        
+
         # Exempt public endpoints
         if any(path.startswith(exempt) for exempt in self.EXEMPT_PATHS):
             return await call_next(request)
-        
+
         # Allow loopback (localhost) without auth
         if client_ip in ("127.0.0.1", "::1", "localhost"):
             return await call_next(request)
