@@ -31,7 +31,6 @@ export class SmartImporter {
     const now = new Date().toISOString();
 
     // Get existing hashes for efficient lookup
-    // @ts-ignore
     const existingTxns = await db.transactions.toArray();
     const existingHashes = new Set<string>();
     for (const txn of existingTxns) {
@@ -57,10 +56,8 @@ export class SmartImporter {
         }
 
         // Atomic transaction: create transaction + update account balance + mark snapshot stale
-        // @ts-ignore
         await db.transaction('rw', [db.transactions, db.accounts, db.net_worth_snapshots, db.sync_queue], async () => {
           // Get account
-          // @ts-ignore
           const account = await db.accounts.get(txn.account_id);
           if (!account) {
             throw new Error(`Account not found: ${txn.account_id}`);
@@ -83,12 +80,10 @@ export class SmartImporter {
             hash, // Store hash for future deduplication
           };
 
-          // @ts-ignore
           await db.transactions.put(newTxn);
 
           // Update account balance atomically
           const balanceChange = txn.transaction_type === 'income' ? txn.amount : -txn.amount;
-          // @ts-ignore
           await db.accounts.update(txn.account_id, {
             balance: account.balance + balanceChange,
             updated_at: now,
@@ -99,14 +94,12 @@ export class SmartImporter {
           const month = date.getMonth() + 1;
           const year = date.getFullYear();
 
-          // @ts-ignore
           const snapshot = await db.net_worth_snapshots
             .where('[month+year]')
             .equals([month, year])
             .first();
 
           if (snapshot) {
-            // @ts-ignore
             await db.net_worth_snapshots.update(snapshot.id, {
               is_stale: true,
               updated_at: now,
@@ -114,7 +107,6 @@ export class SmartImporter {
           } else {
             // Create snapshot with zero values if missing
             const snapshotDate = new Date(year, month - 1, 1).toISOString();
-            // @ts-ignore
             await db.net_worth_snapshots.add({
               id: uuidv4(),
               date: snapshotDate,
@@ -132,7 +124,6 @@ export class SmartImporter {
           }
 
           // Add to sync queue
-          // @ts-ignore
           await db.sync_queue.add({
             id: uuidv4(),
             table_name: 'transactions',
@@ -142,7 +133,6 @@ export class SmartImporter {
             retry_count: 0,
           });
 
-          // @ts-ignore
           await db.sync_queue.add({
             id: uuidv4(),
             table_name: 'accounts',
