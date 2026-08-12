@@ -152,7 +152,7 @@ def set_maintenance_lock(db: Session, locked: bool) -> None:
     
     db.commit()
     status = "LOCKED" if locked else "UNLOCKED"
-    print(f"🔒 System maintenance: {status}")
+    backup_logger.info(f"[MAINTENANCE] System maintenance: {status}")
 
 
 def is_maintenance_locked(db: Session) -> bool:
@@ -205,7 +205,7 @@ def complete_migration(db: Session) -> None:
         db: Database session
     """
     set_maintenance_lock(db, locked=False)
-    print("✅ Migration completed, system unlocked")
+    backup_logger.info("[MAINTENANCE] Migration completed, system unlocked")
 
 
 def rollback_to_backup(backup_path: str, db: Session) -> None:
@@ -225,7 +225,7 @@ def rollback_to_backup(backup_path: str, db: Session) -> None:
     # Restore backup
     try:
         shutil.copy2(backup_path, _DB_PATH)
-        print(f"✅ Database restored from: {backup_path}")
+        backup_logger.info(f"[MAINTENANCE] Database restored from: {backup_path}")
     except Exception as e:
         raise IOError(f"Failed to restore backup: {e}")
     
