@@ -66,17 +66,18 @@ const Accounts = () => {
   }, [showCreateModal, showEditModal, showStatementModal]);
 
   // --- React Query: Data Fetching ---
-  const { data: accounts = [], isLoading: accountsLoading } = useQuery<Account[]>({
+  const { data: accounts = [], isLoading: accountsLoading, isError: accountsError, refetch: refetchAccounts } = useQuery<Account[]>({
     queryKey: ['accounts'],
     queryFn: () => accountsAPI.getAll().then(res => res.data ?? []),
   });
 
-  const { data: statements = [], isLoading: statementsLoading } = useQuery<CreditCardStatement[]>({
+  const { data: statements = [], isLoading: statementsLoading, isError: statementsError, refetch: refetchStatements } = useQuery<CreditCardStatement[]>({
     queryKey: ['statements'],
     queryFn: () => statementsAPI.getAll().then(res => res.data ?? []),
   });
 
   const isLoading = accountsLoading || statementsLoading;
+  const isError = accountsError || statementsError;
 
   // --- Mutations ---
   const invalidateAll = () => {
@@ -270,6 +271,20 @@ const Accounts = () => {
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64 text-white font-medium">Sincronizando cuentas...</div>;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+        <p className="text-white font-medium">No se pudieron cargar las cuentas.</p>
+        <button
+          onClick={() => { refetchAccounts(); refetchStatements(); }}
+          className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
   }
 
   return (
