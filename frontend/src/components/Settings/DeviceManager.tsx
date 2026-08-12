@@ -71,7 +71,7 @@ export default function DeviceManager() {
     try {
       const url = new URL(pairingCode.qr_url);
       return `${url.protocol}//${url.host}`;
-    } catch (e) {
+    } catch {
       return null;
     }
   };
