@@ -1,5 +1,8 @@
-from sqlalchemy import create_engine, event, pool
-from sqlalchemy.orm import declarative_base, sessionmaker
+from datetime import datetime, timezone
+from sqlalchemy import create_engine, event, inspect, pool
+from sqlalchemy.orm import declarative_base, sessionmaker, Mapper
+from sqlalchemy.orm.attributes import set_committed_value
+from sqlalchemy.types import DateTime as SQLDateTime
 import os
 
 # Database file path — ABSOLUTE para ser consistente sin importar el CWD del launcher.
@@ -27,6 +30,23 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
     cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.execute("PRAGMA busy_timeout=30000")
     cursor.close()
+
+# SQLite no tiene tipo de dato con zona horaria: todo DateTime se guarda y se lee
+# naive, aunque se haya escrito con datetime.now(timezone.utc). Este listener global
+# (aplica a TODOS los modelos vía propagate=True, sin tocar cada Column) adjunta
+# tzinfo=UTC a cualquier datetime naive apenas se carga desde la DB, para que Pydantic
+# lo serialice con offset explícito ("+00:00") en vez de un ISO string ambiguo que el
+# frontend interpretaba como hora local. set_committed_value evita marcar el atributo
+# como modificado (no dispara onupdate ni un UPDATE espurio en el próximo commit).
+@event.listens_for(Mapper, "load")
+def _coerce_utc_datetimes(target, context):
+    mapper = inspect(target).mapper
+    for attr in mapper.column_attrs:
+        column = attr.columns[0]
+        if isinstance(column.type, SQLDateTime):
+            value = target.__dict__.get(attr.key)
+            if isinstance(value, datetime) and value.tzinfo is None:
+                set_committed_value(target, attr.key, value.replace(tzinfo=timezone.utc))
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
