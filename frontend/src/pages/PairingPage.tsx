@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Smartphone, ArrowRight, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { authAPI } from '../services/api';
 import { format } from 'date-fns';
+import type { AxiosError } from 'axios';
 
 export default function PairingPage() {
   const [pin, setPin] = useState('');
@@ -46,9 +47,9 @@ export default function PairingPage() {
       setTimeout(() => {
         window.location.href = '/';
       }, 1500);
-    } catch (err: any) {
+    } catch (err) {
       console.error('[Pairing] Error:', err);
-      setError(err.response?.data?.detail || 'Error al vincular el dispositivo. Verifica el PIN.');
+      setError((err as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al vincular el dispositivo. Verifica el PIN.');
       setStatus('error');
     }
   };
