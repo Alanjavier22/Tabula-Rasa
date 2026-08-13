@@ -61,10 +61,6 @@ const Subscriptions = () => {
     };
   }, [showModal]);
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
-
   const fetchAll = async () => {
     try {
       const [subRes, catRes, accRes] = await Promise.all([
@@ -82,6 +78,10 @@ const Subscriptions = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
 
   const handleDelete = async (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
