@@ -56,10 +56,6 @@ const Reminders = () => {
     };
   }, [showCreateModal, showEditModal]);
 
-  useEffect(() => {
-    fetchReminders();
-  }, []);
-
   const fetchReminders = async () => {
     try {
       const response = await remindersAPI.getAll();
@@ -70,6 +66,10 @@ const Reminders = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchReminders();
+  }, []);
 
   const handleDelete = async (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
