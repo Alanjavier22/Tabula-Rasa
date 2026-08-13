@@ -5,18 +5,22 @@ import { AIWhatIfSimulator } from './AIWhatIfSimulator';
 import { AIAgentService } from '../../services/AIAgentService';
 import api from '../../services/api';
 import type { WhatIfScenario } from '../../services/AIAgentService';
+import type { Transaction, Goal, SuggestedScenario } from '../../types';
+
+/** Sugerencias hardcodeadas de fallback traen icon/color; las de la API no. */
+type ScenarioSuggestion = SuggestedScenario & { icon?: string; color?: string };
 
 interface WhatIfModalProps {
   isOpen: boolean;
   onClose: () => void;
-  transactions: any[];
+  transactions: Transaction[];
   currentNetWorth: number;
   monthlyIncome?: number;
   fixedExpenses?: number;
   totalDebt?: number;
   monthlyDebtPayment?: number;
   avgMonthlySpend?: number;
-  goals?: any[];
+  goals?: Goal[];
 }
 
 export const WhatIfModal = React.memo<WhatIfModalProps>(({
@@ -34,7 +38,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
   const [whatIfPrompt, setWhatIfPrompt] = useState('');
   const [whatIfScenario, setWhatIfScenario] = useState<WhatIfScenario | null>(null);
   const [loadingWhatIf, setLoadingWhatIf] = useState(false);
-  const [dynamicSuggestions, setDynamicSuggestions] = useState<any[]>([]);
+  const [dynamicSuggestions, setDynamicSuggestions] = useState<SuggestedScenario[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   // Reset state when modal closes
@@ -60,12 +64,12 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
     setLoadingWhatIf(true);
     try {
       // Deep Context: Send 150 transactions with proper schema mapping to avoid 422
-      const categoryTransactions = transactions.slice(0, 150).map((txn: any) => ({
+      const categoryTransactions = transactions.slice(0, 150).map((txn) => ({
         id: txn.id || `temp-${Math.random()}`,
         description: txn.description || 'Unknown',
         amount: Math.round(txn.amount || 0),
         date: txn.date || new Date().toISOString().split('T')[0],
-        category_id: txn.category_name || 'Uncategorized', // Using category_name as ID for AI context
+        category_id: txn.category?.name || 'Uncategorized', // nombre de categoría como contexto, no un ID real
       }));
 
       // Use provided props or fall back to 0
@@ -103,7 +107,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
   const fetchSuggestions = async () => {
     setLoadingSuggestions(true);
     try {
-      const response = await api.get('/api/ai/whatif/suggest-scenarios');
+      const response = await api.get<SuggestedScenario[]>('/api/ai/whatif/suggest-scenarios');
       setDynamicSuggestions(response.data);
     } catch (error) {
       console.error('Error fetching dynamic suggestions:', error);
@@ -116,7 +120,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
     return null;
   }
 
-  const suggestionsToUse = dynamicSuggestions.length > 0 ? dynamicSuggestions : [
+  const suggestionsToUse: ScenarioSuggestion[] = dynamicSuggestions.length > 0 ? dynamicSuggestions : [
     { user_prompt: "¿Qué pasaría si me compro una laptop de $1500?", title: "Compra Laptop", description: "Simular gasto puntual", icon: "💻", color: "from-blue-500/20 to-indigo-500/20" },
     { user_prompt: "¿Cómo afectaría si aumento mi ahorro en $200?", title: "Ahorro Extra", description: "Mejorar capacidad de ahorro", icon: "💰", color: "from-emerald-500/20 to-teal-500/20" },
     { user_prompt: "¿Y si reduzco mis gastos de comida un 30%?", title: "Comida en Casa", description: "Optimizar gastos variables", icon: "🍕", color: "from-orange-500/20 to-rose-500/20" }
