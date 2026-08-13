@@ -12,8 +12,8 @@ import { formatMoney } from '../../utils/money';
 import type { Transaction } from '../../types';
 
 interface TransactionRowProps {
-  transaction: Transaction & { category?: any };
-  onEdit?: (txn: Transaction & { category?: any }) => void;
+  transaction: Transaction;
+  onEdit?: (txn: Transaction) => void;
   onDelete?: (id: string) => void;
 }
 
@@ -74,10 +74,10 @@ export const TransactionRow = memo<TransactionRowProps>(({ transaction, onEdit, 
           )}
         </div>
         <div className="flex items-center gap-2">
-          {(transaction as any).beneficiary && (
+          {transaction.beneficiary && (
             <>
-              <p className="text-[11px] font-medium text-indigo-400/60 truncate max-w-[180px]" title={(transaction as any).beneficiary}>
-                → {(transaction as any).beneficiary}
+              <p className="text-[11px] font-medium text-indigo-400/60 truncate max-w-[180px]" title={transaction.beneficiary}>
+                → {transaction.beneficiary}
               </p>
               <span className="w-1 h-1 rounded-full bg-slate-700"></span>
             </>
