@@ -1,54 +1,32 @@
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  configAPI, 
-  categoriesAPI, 
-  driveConfigAPI, 
+import {
+  configAPI,
+  categoriesAPI,
+  driveConfigAPI,
   backupAPI,
-  aiAPI
 } from '../services/api';
-import { 
-  Save, 
-  RefreshCw, 
-  FileSpreadsheet, 
-  AlertTriangle,
-  Cloud, 
-  CheckCircle, 
-  Download, 
-  Database, 
-  Cpu, 
+import {
+  Save,
+  RefreshCw,
+  Cpu,
   Settings as SettingsIcon,
-  ShieldAlert,
   ChevronRight,
   Lock,
-  Sparkles
+  Sparkles,
+  Cloud,
 } from 'lucide-react';
 import DeviceManager from '../components/Settings/DeviceManager';
+import GeneralTab from '../components/Settings/GeneralTab';
+import AITab from '../components/Settings/AITab';
+import LabsTab from '../components/Settings/LabsTab';
+import CloudTab from '../components/Settings/CloudTab';
 import Toast from '../components/Toast';
 import type { Category, BackupFile, Config } from '../types';
 import type { AxiosError } from 'axios';
+import type { ConfigData, GoogleDriveCredentials, GoogleDriveStatus } from '../components/Settings/types';
 
-interface ConfigData {
-  vehicle_categories: string[];
-  safe_to_spend_buffer: number;
-  gemini_api_key: string;
-  ai_persona: string;
-}
-
-interface GoogleDriveCredentials {
-  client_id: string;
-  client_secret: string;
-  refresh_token: string;
-}
-
-interface GoogleDriveStatus {
-  is_configured: boolean;
-  has_client_id: boolean;
-  has_client_secret: boolean;
-  has_refresh_token: boolean;
-}
-
-  type SettingsTab = 'general' | 'ai' | 'labs' | 'cloud' | 'security';
+type SettingsTab = 'general' | 'ai' | 'labs' | 'cloud' | 'security';
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -331,15 +309,6 @@ const Settings = () => {
     }
   };
 
-  const personas = [
-    { id: 'professional', label: 'Analista Senior', desc: 'Preciso, educado y directo al punto.', icon: '👔' },
-    { id: 'roast', label: 'Modo Roast', desc: 'Sin piedad. Te humillará por cada café que compres fuera.', icon: '🔥' },
-    { id: 'gamified', label: 'RPG Master', desc: 'Convierte tus finanzas en una misión de nivel legendario.', icon: '⚔️' },
-    { id: 'coach', label: 'Motivador Personal', desc: '¡Vamos! Un pequeño ahorro hoy es una victoria mañana.', icon: '📣' },
-    { id: 'sabio', label: 'Maestro Zen', desc: 'Encuentra el equilibrio entre el gasto y la paz interior.', icon: '🧘' },
-    { id: 'detective', label: 'Forense Financiero', desc: 'Seguirá el rastro de cada centavo perdido.', icon: '🔍' },
-  ];
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-white">
@@ -420,490 +389,56 @@ const Settings = () => {
                 className="bg-slate-800/40 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 p-8 lg:p-10"
               >
                 {activeTab === 'general' && (
-                  <div className="space-y-10">
-                    <section>
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                          <Database className="w-5 h-5 text-emerald-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-xl font-bold text-white">Exportar Transacciones</h2>
-                          <p className="text-slate-400 text-sm">Descarga tu historial financiero completo</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-black/20 rounded-3xl p-6 border border-white/5 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-                            <FileSpreadsheet className="w-6 h-6 text-emerald-500" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-white">Reporte CSV</p>
-                            <p className="text-xs text-slate-500">Formato compatible con Excel y Sheets</p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={handleExportCSV}
-                          disabled={exporting}
-                          className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-900/20"
-                        >
-                          {exporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                          Descargar
-                        </button>
-                      </div>
-                    </section>
-
-                    <section>
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-                          <ShieldAlert className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-xl font-bold text-white">Fondo de Seguridad</h2>
-                          <p className="text-slate-400 text-sm">Reserva una parte de tu capital para emergencias</p>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-black/20 rounded-3xl p-6 border border-white/5">
-                        <div className="flex items-center gap-4">
-                          <div className="flex-1">
-                            <label className="block text-xs font-black text-white/30 uppercase tracking-widest mb-2">Monto de Buffer ($)</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={config.safe_to_spend_buffer}
-                              onChange={e => setConfig({ ...config, safe_to_spend_buffer: parseFloat(e.target.value) || 0 })}
-                              className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all"
-                            />
-                          </div>
-                          <div className="w-1/2 p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10">
-                            <p className="text-[10px] text-blue-400 font-bold uppercase mb-1">Impacto en Liquidez</p>
-                            <p className="text-xs text-slate-400 leading-relaxed">
-                              Este monto se restará de tu "Gasto Seguro" total para protegerte de imprevistos.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-
-                    <section>
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
-                          <FileSpreadsheet className="w-5 h-5 text-indigo-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-xl font-bold text-white">Categorías de Vehículo</h2>
-                          <p className="text-slate-400 text-sm">Categorías vinculadas al análisis de movilidad</p>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {categories
-                          .sort((a, b) => a.name.length - b.name.length)
-                          .map((category) => (
-                          <button
-                            key={category.id}
-                            onClick={() => toggleCategory(category.id)}
-                            className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all ${
-                              config.vehicle_categories.includes(category.id)
-                                ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.1)]'
-                                : 'bg-black/20 border-white/5 text-slate-500 hover:border-white/10'
-                            }`}
-                          >
-                            <span className="text-xs font-bold text-center leading-tight">{category.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-                  </div>
+                  <GeneralTab
+                    categories={categories}
+                    config={config}
+                    onBufferChange={(value) => setConfig({ ...config, safe_to_spend_buffer: value })}
+                    exporting={exporting}
+                    onExportCSV={handleExportCSV}
+                    onToggleCategory={toggleCategory}
+                  />
                 )}
 
                 {activeTab === 'ai' && (
-                  <div className="space-y-10">
-                    <section>
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-                          <Lock className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-xl font-bold text-white">Seguridad API</h2>
-                          <p className="text-slate-400 text-sm">Conexión con el cerebro de Google Gemini</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-black/20 rounded-3xl p-6 border border-white/5">
-                        <label className="block text-xs font-black text-white/30 uppercase tracking-widest mb-3">Gemini API Key</label>
-                        <div className="relative">
-                          <input
-                            type="password"
-                            value={config.gemini_api_key}
-                            onChange={e => setConfig({ ...config, gemini_api_key: e.target.value })}
-                            placeholder="Ingresa tu API Key de Gemini..."
-                            className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-4 text-white font-mono text-sm focus:outline-none focus:border-purple-500/50 transition-all"
-                          />
-                        </div>
-                      </div>
-                    </section>
-
-                    <section>
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
-                            <Cloud className="w-5 h-5 text-indigo-400" />
-                          </div>
-                          <div>
-                            <h2 className="text-xl font-bold text-white">Credenciales OAuth</h2>
-                            <p className="text-slate-400 text-sm">Vínculo con Google Drive para respaldos</p>
-                          </div>
-                        </div>
-                        {hasDriveCredentials && (
-                          <div className="px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3" />
-                            Sincronizado
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="bg-black/20 rounded-3xl p-8 border border-white/5 space-y-5">
-                        <div className="grid grid-cols-1 gap-5">
-                          <div>
-                            <label className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Client ID</label>
-                            <input
-                              type="text"
-                              value={driveCredentials.client_id}
-                              onChange={(e) => setDriveCredentials({ ...driveCredentials, client_id: e.target.value })}
-                              className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-all"
-                              placeholder=".apps.googleusercontent.com"
-                            />
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            <div>
-                              <label className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Client Secret</label>
-                              <input
-                                type="password"
-                                value={driveCredentials.client_secret}
-                                onChange={(e) => setDriveCredentials({ ...driveCredentials, client_secret: e.target.value })}
-                                className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-all"
-                                placeholder="GOCSPX-..."
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Refresh Token</label>
-                              <input
-                                type="password"
-                                value={driveCredentials.refresh_token}
-                                onChange={(e) => setDriveCredentials({ ...driveCredentials, refresh_token: e.target.value })}
-                                className="w-full bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500/50 transition-all"
-                                placeholder="//..."
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-wrap gap-4">
-                          <button
-                            onClick={handleSaveDriveCredentials}
-                            disabled={savingDriveCredentials}
-                            className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-xs font-black uppercase tracking-widest disabled:opacity-50"
-                          >
-                            {savingDriveCredentials ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 text-blue-400" />}
-                            <span>Guardar Credenciales</span>
-                          </button>
-
-                          <button
-                            onClick={handleAuthorizeDrive}
-                            disabled={authorizingDrive || (!driveCredentials.client_id && !hasDriveCredentials)}
-                            className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-900/40 disabled:opacity-30"
-                          >
-                            {authorizingDrive ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                            <span>Autorizar con Google</span>
-                          </button>
-                        </div>
-                      </div>
-                    </section>
-
-                    <section>
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
-                          <RefreshCw className="w-5 h-5 text-amber-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-xl font-bold text-white">Pruebas de Conectividad</h2>
-                          <p className="text-slate-400 text-sm">Verifica los canales de comunicación externos</p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-black/20 rounded-3xl p-6 border border-white/5">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              <Sparkles className="w-4 h-4 text-purple-400" />
-                              <span className="text-sm font-bold text-white">Google Gemini</span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={async () => {
-                              setTestingGemini(true);
-                              try {
-                                const res = await aiAPI.testComponent('sentinel');
-                                if (res.data.status === 'success') {
-                                  setToast({ message: 'Conexión con Gemini exitosa', type: 'success' });
-                                } else {
-                                  setToast({ message: 'Error de conexión: ' + res.data.message, type: 'error' });
-                                }
-                              } catch {
-                                setToast({ message: 'Error de servidor al probar conexión', type: 'error' });
-                              } finally {
-                                setTestingGemini(false);
-                              }
-                            }}
-                            disabled={testingGemini}
-                            className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-slate-300 transition-all border border-white/5 flex items-center justify-center gap-2 disabled:opacity-50"
-                          >
-                            {testingGemini ? (
-                              <RefreshCw className="w-3 h-3 animate-spin text-purple-400" />
-                            ) : (
-                              <Sparkles className="w-3 h-3 text-purple-400" />
-                            )}
-                            {testingGemini ? 'Verificando...' : 'Verificar API Key'}
-                          </button>
-                        </div>
-
-                        <div className="bg-black/20 rounded-3xl p-6 border border-white/5">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              <Cloud className="w-4 h-4 text-blue-400" />
-                              <span className="text-sm font-bold text-white">Google Drive</span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={async () => {
-                              setTestingDrive(true);
-                              try {
-                                const res = await driveConfigAPI.test();
-                                if (res.data.success) {
-                                  setToast({ message: 'OAuth2 funcionando correctamente', type: 'success' });
-                                } else {
-                                  setToast({ message: 'Error: ' + res.data.message, type: 'error' });
-                                }
-                              } catch (e) {
-                                const msg = (e as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error de servidor al probar OAuth2';
-                                setToast({ message: msg, type: 'error' });
-                              } finally {
-                                setTestingDrive(false);
-                              }
-                            }}
-                            disabled={testingDrive}
-                            className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-slate-300 transition-all border border-white/5 flex items-center justify-center gap-2 disabled:opacity-50"
-                          >
-                            {testingDrive ? (
-                              <RefreshCw className="w-3 h-3 animate-spin text-blue-400" />
-                            ) : (
-                              <Cloud className="w-3 h-3 text-blue-400" />
-                            )}
-                            {testingDrive ? 'Verificando...' : 'Verificar OAuth2'}
-                          </button>
-                        </div>
-                      </div>
-                    </section>
-                  </div>
+                  <AITab
+                    geminiApiKey={config.gemini_api_key}
+                    onGeminiApiKeyChange={(value) => setConfig({ ...config, gemini_api_key: value })}
+                    hasDriveCredentials={hasDriveCredentials}
+                    driveCredentials={driveCredentials}
+                    onDriveCredentialsChange={setDriveCredentials}
+                    savingDriveCredentials={savingDriveCredentials}
+                    onSaveDriveCredentials={handleSaveDriveCredentials}
+                    authorizingDrive={authorizingDrive}
+                    onAuthorizeDrive={handleAuthorizeDrive}
+                    testingGemini={testingGemini}
+                    setTestingGemini={setTestingGemini}
+                    testingDrive={testingDrive}
+                    setTestingDrive={setTestingDrive}
+                    setToast={setToast}
+                  />
                 )}
 
                 {activeTab === 'labs' && (
-                  <div className="space-y-10">
-                    <section>
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
-                          <Cpu className="w-5 h-5 text-purple-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-xl font-bold text-white">Personalidad del Asistente</h2>
-                          <p className="text-slate-400 text-sm">Define cómo interactúa la IA contigo</p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {personas.map((p) => (
-                          <button
-                            key={p.id}
-                            onClick={() => {
-                              setConfig({ ...config, ai_persona: p.id });
-                              handleQuickSave('ai_persona', p.id, 'string');
-                            }}
-                            className={`flex items-start gap-4 p-5 rounded-3xl border transition-all text-left group ${
-                              config.ai_persona === p.id
-                                ? 'bg-purple-500/10 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]'
-                                : 'bg-black/20 border-white/5 hover:border-white/10'
-                            }`}
-                          >
-                            <span className="text-3xl transition-transform group-hover:scale-110 duration-300">{p.icon}</span>
-                            <div>
-                              <h3 className={`font-bold text-sm mb-1 ${config.ai_persona === p.id ? 'text-purple-400' : 'text-white'}`}>
-                                {p.label}
-                              </h3>
-                              <p className="text-xs text-slate-500 leading-normal">{p.desc}</p>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-
-                    <section>
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
-                          <Sparkles className="w-5 h-5 text-indigo-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-xl font-bold text-white">Diagnóstico de Componentes</h2>
-                          <p className="text-slate-400 text-sm">Prueba el razonamiento de los motores de IA</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        {[
-                          { id: 'sentinel', name: 'Sentinel Agent', desc: 'Orquestador de salud financiera y alertas.' },
-                          { id: 'anomaly', name: 'Anomaly Scanner', desc: 'Detección de gastos atípicos y fugas.' },
-                          { id: 'fiscal', name: 'Fiscal Intelligence', desc: 'Cálculo de impuestos y proyecciones SRI.' },
-                          { id: 'whatif', name: 'What-If Simulator', desc: 'Simulación de escenarios y proyecciones de ahorro.' },
-                          { id: 'audio', name: 'Multimodal Engine', desc: 'Procesamiento de notas de voz y documentos (OCR).' },
-                          { id: 'categorization', name: 'Semantic Brain', desc: 'Categorización inteligente de transacciones.' }
-                        ].map((comp) => (
-                          <div key={comp.id} className="group bg-black/20 rounded-3xl p-6 border border-white/5 flex items-center justify-between hover:border-white/10 transition-all">
-                            <div className="flex-1">
-                              <h3 className="font-bold text-white text-sm group-hover:text-amber-400 transition-all">{comp.name}</h3>
-                              <p className="text-xs text-slate-500">{comp.desc}</p>
-                            </div>
-                            <button
-                              onClick={async (e) => {
-                                const btn = e.currentTarget;
-                                btn.disabled = true;
-                                try {
-                                  const { aiAPI } = await import('../services/api');
-                                  const res = await aiAPI.testComponent(comp.id);
-                                  if (res.data.status === 'success') {
-                                    setToast({ message: `${comp.name}: OK`, type: 'success' });
-                                  } else {
-                                    setToast({ message: `${comp.name}: Error`, type: 'error' });
-                                  }
-                                } catch {
-                                  setToast({ message: 'Error de servidor', type: 'error' });
-                                } finally {
-                                  btn.disabled = false;
-                                }
-                              }}
-                              className="px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[10px] font-black uppercase rounded-xl border border-indigo-500/20 transition-all"
-                            >
-                              Test
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  </div>
+                  <LabsTab
+                    aiPersona={config.ai_persona}
+                    onPersonaChange={(personaId) => {
+                      setConfig({ ...config, ai_persona: personaId });
+                      handleQuickSave('ai_persona', personaId, 'string');
+                    }}
+                    setToast={setToast}
+                  />
                 )}
 
                 {activeTab === 'cloud' && (
-                  <div className="space-y-10">
-                    <section>
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                            <Cloud className="w-5 h-5 text-emerald-400" />
-                          </div>
-                          <div>
-                            <h2 className="text-xl font-bold text-white">Backups en la Nube</h2>
-                            <p className="text-slate-400 text-sm">Instantáneas de seguridad de tu base de datos</p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={handleCreateBackup}
-                          disabled={creatingBackup}
-                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest transition-all shadow-lg"
-                        >
-                          {creatingBackup ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                          Nuevo Backup
-                        </button>
-                      </div>
-
-                      <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-                        {loadingBackups ? (
-                          <div className="p-10 text-center text-slate-500 text-sm animate-pulse">Consultando historial...</div>
-                        ) : backups.length > 0 ? (
-                          backups.map((backup: BackupFile) => (
-                            <div key={backup.id} className="group flex items-center justify-between p-4 bg-black/20 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
-                              <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/10 transition-all">
-                                  <Database className="w-5 h-5 text-slate-500 group-hover:text-emerald-400" />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-bold text-white/80 group-hover:text-white transition-all">{backup.name}</p>
-                                  <p className="text-[10px] text-slate-500 font-medium">
-                                    {new Date(backup.createdTime).toLocaleString('es-EC')}
-                                  </p>
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => handleRestoreBackup(backup.id)}
-                                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 opacity-0 group-hover:opacity-100"
-                              >
-                                Restaurar
-                              </button>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="p-10 text-center text-slate-500 text-sm bg-black/10 rounded-3xl border border-dashed border-white/5">
-                            No se han encontrado backups.
-                          </div>
-                        )}
-                      </div>
-                    </section>
-
-                    <section className="pt-10 border-t border-red-500/10">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
-                          <AlertTriangle className="w-5 h-5 text-rose-500" />
-                        </div>
-                        <div>
-                          <h2 className="text-xl font-bold text-rose-500">Zona de Peligro</h2>
-                          <p className="text-slate-400 text-sm">Acciones críticas e irreversibles</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-rose-500/5 rounded-[2rem] p-8 border border-rose-500/10 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-8 opacity-5">
-                          <AlertTriangle className="w-32 h-32 text-rose-500" />
-                        </div>
-                        <div className="relative z-10">
-                          <h3 className="text-rose-400 font-bold mb-2">Vaciar Base de Datos</h3>
-                          <p className="text-slate-400 text-xs mb-6 max-w-lg leading-relaxed">
-                            Se eliminarán todas las transacciones, estados de cuenta, presupuestos, metas, suscripciones, 
-                            recordatorios, snapshots, activos y logs de importación. 
-                            Las cuentas se conservarán con saldo en $0. Las categorías y configuración permanecen intactas.
-                          </p>
-                          <button
-                            onClick={async () => {
-                              const firstConfirm = window.confirm("¡ADVERTENCIA!\n\n¿Estás seguro?");
-                              if (!firstConfirm) return;
-                              const secondConfirm = window.prompt('Escribe "ELIMINAR TODO":');
-                              if (secondConfirm !== 'ELIMINAR TODO') return;
-                              try {
-                                await configAPI.wipeDatabase();
-                                setToast({ message: 'Sistema reiniciado', type: 'success' });
-                                setTimeout(() => window.location.reload(), 1500);
-                              } catch {
-                                setToast({ message: 'Error al limpiar', type: 'error' });
-                              }
-                            }}
-                            className="px-6 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white transition-all text-xs font-black uppercase tracking-widest"
-                          >
-                            Eliminar Todo el Historial
-                          </button>
-                        </div>
-                      </div>
-                    </section>
-                  </div>
+                  <CloudTab
+                    backups={backups}
+                    loadingBackups={loadingBackups}
+                    creatingBackup={creatingBackup}
+                    onCreateBackup={handleCreateBackup}
+                    onRestoreBackup={handleRestoreBackup}
+                    setToast={setToast}
+                  />
                 )}
-
                 {activeTab === 'security' && (
                   <div className="space-y-10">
                     <section>
