@@ -59,9 +59,31 @@ Se hizo en dos rondas dentro de la misma sesión (109 restantes tras la primera,
 
 **Correr `npm run lint` en `frontend/` para ver el estado actualizado.**
 
-### 6. Archivos "god" que conviene partir
-**Backend** (`backend/app/`): `utils/backup.py` (992 líneas), `api/metrics.py` (840), `api/ai_insights.py` (809), `services/account_intelligence.py` (525), `api/ai.py` (507), `api/ai_assistant.py` (904 — router + ~20 schemas de tools de Gemini + dispatcher de 20 ramas, todo en un solo archivo).
-**Frontend** (`frontend/src/`): `pages/Accounts.tsx` (1263), `pages/Dashboard.tsx` (1097), `pages/Settings.tsx` (937), `pages/Budgets.tsx` (792), `services/ReportingService.ts` (759), `pages/Goals.tsx` (651), `pages/Reminders.tsx` (643), `pages/Subscriptions.tsx` (628), `pages/Transactions.tsx` (626), `components/StatementImportModal.tsx` (615), `pages/Categories.tsx` (606).
+### 6. Archivos "god" que conviene partir — RESUELTO 2026-08-13
+
+**Backend** (`backend/app/`), 6 archivos partidos por dominio/concern:
+- `utils/backup.py` (1000L) → `backup_local.py` (checkpoint/rotar/crear/restaurar local) + `backup_gdrive.py` (Google Drive). Actualizados los 3 callers y el test que monkeypatchea `SessionLocal`.
+- `api/ai_assistant.py` (904L) → las ~24 tools de solo lectura + su schema de Gemini a `services/ai_assistant_tools.py`; el `if/elif` de 20 ramas del dispatcher se reemplazó por un dict de closures + `inspect.isawaitable`. Router queda en 265L.
+- `api/metrics.py` (848L) → `metrics_cashflow.py` + `metrics_balance_sheet.py` + `metrics_dashboard.py`, agregados en `metrics.py` (router delgado). 14 endpoints verificados contra el schema OpenAPI, sin cambios de superficie.
+- `api/ai_insights.py` (809L) → las 12 funciones `_build_*_summary` a `services/insights_builders.py`. Router queda en 387L (solo los 2 endpoints que arman el prompt).
+- `services/account_intelligence.py` (533L) → `account_statement_parser.py` (heurísticas Pandas sin IA/DB) + `account_import_finalizer.py` (persistencia pura, sin relación con parsing) + `account_intelligence.py` (189L, solo orquestación IA + categorización + dedup).
+- `api/ai.py` (510L) → `ai_shared.py` (helpers/modelos compartidos) + `ai_categories.py` + `ai_whatif.py` + `ai_anomalies.py` + `ai_receipts.py`, agregados en `ai.py` (44L). `ai_receipts.py` no se fusionó con `ai_audio.py` pese a compartir prefijo de ruta porque tienen `get_gemini_key` con fallback distinto (uno cae a env var, el otro no) — documentado en el docstring.
+
+**Frontend** (`frontend/src/`), 10 archivos partidos (modales/tabs/widgets extraídos a componentes):
+- `pages/Accounts.tsx` (1285L) → `components/accounts/{CreateAccountModal,EditAccountModal,AccountStatementModal,shared}.tsx`. Queda en 594L.
+- `pages/Dashboard.tsx` (1119L) → 7 widgets a `components/dashboard/` (AIInsightsSection, PaymentAlertsPanel, DashboardMetricsRow, ExpenseBreakdownChart, IncomeExpenseBarChart, DailySpendingChart, NetWorthChart, CashFlowForecastChart). Queda en 592L. Verificado visualmente con Playwright contra el dev server real.
+- `pages/Settings.tsx` (931L) → `components/Settings/{GeneralTab,AITab,LabsTab,CloudTab,types}.tsx` (Security tab ya era solo `<DeviceManager />`). Verificado visualmente: las 5 pestañas renderizan con datos reales.
+- `pages/Budgets.tsx` (797L) → `components/budgets/BudgetFormModal.tsx` (crear/editar/recurrente en un wrapper). El modal de "pago" ya delegaba en `TransactionForm` existente.
+- `pages/Goals.tsx` (652L) → `components/goals/GoalFormModal.tsx`.
+- `pages/Reminders.tsx` (650L) → `components/reminders/ReminderFormModal.tsx`.
+- `pages/Subscriptions.tsx` (632L) → `components/subscriptions/SubscriptionFormModal.tsx`.
+- `pages/Categories.tsx` (606L) → `components/categories/CategoryFormModal.tsx` (reusado para crear/editar vía prop `isCreate`). Al extraer se encontraron clases Tailwind construidas dinámicamente (`bg-${accentColor}-500/10`) que el JIT scanner no detecta — corregido a strings de clase completos, verificado visualmente que el color se aplica.
+- `pages/Transactions.tsx` (588L) → `hooks/useAudioTransactionCapture.ts` (grabación de voz + envío a Gemini).
+- `components/StatementImportModal.tsx` (639L) → partido parcialmente a propósito: `components/statementImport/{StatementUploadStep,ShareTransactionModal}.tsx` (piezas autocontenidas de bajo riesgo). El paso de auditoría/revisión (tabla de transacciones + metadata, ~260L) se dejó intacto por ser la parte de mayor complejidad y mayor impacto si algo sale mal en el import de estados de cuenta reales. Queda en 550L.
+
+**`services/ReportingService.ts`** ya no aparecía en el listado original al momento de retomar este ítem — bajó a 36 líneas en una refactorización previa, no era candidato.
+
+Verificación aplicada a cada archivo: `tsc --noEmit -p tsconfig.app.json` + `eslint` (frontend, 0 errores nuevos — línea base de 18 `react-hooks/set-state-in-effect` diferidos sin cambio) / `pytest` (backend, 38 passed) tras cada corte, más verificación visual con Playwright contra el dev server real (con datos reales, sin mocks) para Accounts, Dashboard, Settings, Budgets, Categories y StatementImportModal — incluyó atrapar y corregir un bug real introducido durante el propio refactor (un `</div>` de más en Dashboard.tsx que rompía el árbol JSX) antes de commitear.
 
 ### 7. Boilerplate CRUD duplicado — RESUELTO (revisión completa) 2026-08-13
 Se agregó `backend/app/api/crud_factory.py` (`make_crud_router`), que genera POST/GET/GET-by-id/PUT/[DELETE] con hooks (`pre_create`, `pre_update`, `before_id_routes` para rutas estáticas que deben registrarse antes de `/{id}`). Migrados a usarlo: `accounts.py`, `categories.py`, `reminders.py`, `subscriptions.py`, `ious.py`, `transaction_splits.py` (6 de 32 módulos) — cada uno conserva sus endpoints extra (`set-balance`, `export`/`import`, `pay`, `settle`, `batch`, etc.) sobre el router devuelto por el factory. `transaction_splits.py` es el ejemplo de que `pre_create`/`pre_update` alcanzan incluso cuando el create/update tiene validaciones de negocio (categoría existe, suma de splits no excede el monto de la transacción) — no hace falta que sea 100% mecánico para migrar, solo que la lógica quepa en esos hooks.
