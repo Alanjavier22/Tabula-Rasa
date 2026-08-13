@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { goalsAPI, aiGoalsAPI } from '../services/api';
-import type { Goal, GoalStatus } from '../types';
+import type { Goal, GoalStatus, SmartGoalResponse } from '../types';
 import { formatMoney, toCents } from '../utils/money';
 import { 
   Plus, 
@@ -57,7 +57,7 @@ const Goals = () => {
   }, [showCreateModal, showEditModal]);
 
   // AI Recommendations State
-  const [smartRecommendations, setSmartRecommendations] = useState<any | null>(null);
+  const [smartRecommendations, setSmartRecommendations] = useState<SmartGoalResponse | null>(null);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   const fetchGoals = async () => {
@@ -318,7 +318,7 @@ const Goals = () => {
               
               {smartRecommendations.recommendations.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {smartRecommendations.recommendations.map((rec: any, idx: number) => (
+                  {smartRecommendations.recommendations.map((rec, idx) => (
                     <motion.div 
                       key={idx} 
                       initial={{ opacity: 0, x: 20 }}
