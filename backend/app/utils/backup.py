@@ -275,15 +275,23 @@ def get_google_drive_credentials() -> Optional[tuple[str, str, str]]:
         if not client_id_config or not client_secret_config or not refresh_token_config:
             backup_logger.warning("[GOOGLE_DRIVE] Google Drive credentials not fully configured in database.")
             return None
-        
+
         client_id = client_id_config.value
         client_secret = client_secret_config.value
-        refresh_token = refresh_token_config.value
-        
-        if not client_id or not client_secret or not refresh_token:
+        raw_refresh_token = refresh_token_config.value
+
+        if not client_id or not client_secret or not raw_refresh_token:
             backup_logger.warning("[GOOGLE_DRIVE] Google Drive credentials contain empty values.")
             return None
-        
+
+        from app.utils.crypto import decrypt_value_with_status, encrypt_value
+        refresh_token, was_encrypted = decrypt_value_with_status(str(raw_refresh_token))
+        if not was_encrypted:
+            # Valor legacy en texto plano (instalación previa a este cambio):
+            # se re-escribe cifrado para que la próxima lectura ya lo encuentre así.
+            refresh_token_config.value = encrypt_value(refresh_token)
+            db.commit()
+
         return (str(client_id), str(client_secret), str(refresh_token))
     except Exception as e:
         backup_logger.error(f"[GOOGLE_DRIVE] Error retrieving credentials from database: {e}")
