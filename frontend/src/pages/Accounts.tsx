@@ -3,12 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Decimal from 'decimal.js-light';
 import { motion, AnimatePresence } from 'framer-motion';
 import { accountsAPI, statementsAPI } from '../services/api';
-import type { Account, CreditCardStatement } from '../types';
+import type { Account, CreditCardStatement, AccountPayload, StatementPayload } from '../types';
+import type { AxiosError } from 'axios';
 import { formatMoney, toDecimal, toCents, clampZero } from '../utils/money';
 import { Plus, Trash2, Edit, Wallet, CreditCard, PiggyBank, TrendingUp, DollarSign, ChevronDown, ChevronUp, Clock, CheckCircle2, Link, X, Building2, ShieldCheck, RefreshCw, Info, Calendar, Layers, AlignLeft } from 'lucide-react';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import Select from '../components/common/Select';
+
+type ApiError = AxiosError<{ detail?: string }>;
 
 const emptyForm = {
   name: '',
@@ -87,18 +90,18 @@ const Accounts = () => {
   };
 
   const createMutation = useMutation({
-    mutationFn: (payload: any) => accountsAPI.create(payload),
+    mutationFn: (payload: AccountPayload) => accountsAPI.create(payload),
     onSuccess: () => {
       invalidateAll();
       setShowCreateModal(false);
       setForm(emptyForm);
       setToast({ message: 'Cuenta creada', type: 'success' });
     },
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al crear cuenta', type: 'error' }),
+    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al crear cuenta', type: 'error' }),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: any }) => accountsAPI.update(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: AccountPayload }) => accountsAPI.update(id, payload),
     onSuccess: () => {
       invalidateAll();
       setShowEditModal(false);
@@ -106,7 +109,7 @@ const Accounts = () => {
       setEditForm(emptyForm);
       setToast({ message: 'Cuenta actualizada', type: 'success' });
     },
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al actualizar cuenta', type: 'error' }),
+    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al actualizar cuenta', type: 'error' }),
   });
 
   const deleteMutation = useMutation({
@@ -115,12 +118,12 @@ const Accounts = () => {
       invalidateAll();
       setToast({ message: 'Cuenta eliminada', type: 'success' });
     },
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al eliminar cuenta', type: 'error' }),
+    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al eliminar cuenta', type: 'error' }),
     onSettled: () => setDeleteConfirm({ isOpen: false, id: null }),
   });
 
   const createStatementMutation = useMutation({
-    mutationFn: (payload: any) => statementsAPI.create(payload),
+    mutationFn: (payload: StatementPayload) => statementsAPI.create(payload),
     onSuccess: () => {
       invalidateAll();
       setShowStatementModal(false);
@@ -128,11 +131,11 @@ const Accounts = () => {
       setEditingStatement(null);
       setToast({ message: 'Estado de cuenta creado', type: 'success' });
     },
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al crear estado de cuenta', type: 'error' }),
+    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al crear estado de cuenta', type: 'error' }),
   });
 
   const updateStatementMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: any }) => statementsAPI.update(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: StatementPayload }) => statementsAPI.update(id, payload),
     onSuccess: () => {
       invalidateAll();
       setShowStatementModal(false);
@@ -140,13 +143,13 @@ const Accounts = () => {
       setEditingStatement(null);
       setToast({ message: 'Estado de cuenta actualizado', type: 'success' });
     },
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al actualizar estado de cuenta', type: 'error' }),
+    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al actualizar estado de cuenta', type: 'error' }),
   });
 
   const deleteStatementMutation = useMutation({
     mutationFn: (id: string) => statementsAPI.delete(id),
     onSuccess: () => invalidateAll(),
-    onError: (error: any) => setToast({ message: error.response?.data?.detail || 'Error al eliminar estado de cuenta', type: 'error' }),
+    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al eliminar estado de cuenta', type: 'error' }),
   });
 
   const saving = createMutation.isPending || updateMutation.isPending || createStatementMutation.isPending || updateStatementMutation.isPending;
@@ -227,6 +230,9 @@ const Accounts = () => {
     e.preventDefault();
     createMutation.mutate({
       ...form,
+      // El Select de tipo de cuenta es un componente genérico (value: string);
+      // el cast es seguro porque sus `options` sólo listan valores de AccountType.
+      account_type: form.account_type as Account['account_type'],
       balance: toCents(form.balance || 0),
       credit_limit: form.credit_limit ? toCents(form.credit_limit) : null,
       statement_day: form.statement_day ? parseInt(form.statement_day) : null,
@@ -241,6 +247,7 @@ const Accounts = () => {
       id: editingAccount.id,
       payload: {
         ...editForm,
+        account_type: editForm.account_type as Account['account_type'],
         balance: toCents(editForm.balance || 0),
         credit_limit: editForm.credit_limit ? toCents(editForm.credit_limit) : null,
         statement_day: editForm.statement_day ? parseInt(editForm.statement_day) : null,
