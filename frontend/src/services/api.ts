@@ -75,8 +75,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // /auth/me y /auth/pair/* fallan con 401/403 como resultado ESPERADO
+    // (todavía no hay sesión, o se está reintentando el pairing) - AuthGuard
+    // ya maneja esos casos por su cuenta. Si el interceptor también los
+    // tratara como "sesión inválida", el primer chequeo de /auth/me en un
+    // dispositivo sin parear todavía dispara un window.location.href antes
+    // de que el pairing automático llegue a correr, y cada reload vuelve a
+    // fallar el mismo chequeo -> loop infinito de recargas.
+    const url: string = error.config?.url || '';
+    const isAuthCheckEndpoint = url.includes('/auth/me') || url.includes('/auth/pair/');
+
     // 401: Invalid or expired token, 403: Forbidden (not paired or revoked)
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    if (!isAuthCheckEndpoint && (error.response?.status === 401 || error.response?.status === 403)) {
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
       console.warn(`[API] ${error.response.status} - auth failure`);
