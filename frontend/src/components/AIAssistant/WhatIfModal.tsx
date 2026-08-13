@@ -92,7 +92,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
     } finally {
       setLoadingWhatIf(false);
     }
-  }, [whatIfPrompt, transactions, currentNetWorth]);
+  }, [whatIfPrompt, transactions, currentNetWorth, monthlyIncome, fixedExpenses, totalDebt, monthlyDebtPayment, avgMonthlySpend, goals]);
 
   const handleClose = useCallback(() => {
     setWhatIfPrompt('');
