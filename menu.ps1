@@ -301,28 +301,74 @@ function Stop-ProjectProcesses {
     return $killedSomething
 }
 
+function Get-ProjectProcessIds {
+    # Identifica procesos de ESTE proyecto por ruta, no por puerto - así agarra
+    # también al proceso supervisor de "uvicorn --reload" (que no tiene el
+    # socket abierto él mismo, solo su worker hijo lo tiene) y no le pega a
+    # otros python.exe/node.exe de la máquina que no tengan nada que ver.
+    $ids = New-Object System.Collections.Generic.HashSet[int]
+
+    Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.ExecutablePath -eq $script:venvPython -or
+            ($_.CommandLine -and $_.CommandLine -match [regex]::Escape($script:backendPath))
+        } |
+        ForEach-Object { [void]$ids.Add([int]$_.ProcessId) }
+
+    Get-CimInstance Win32_Process -Filter "Name='node.exe' OR Name='cmd.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -and $_.CommandLine -match [regex]::Escape($script:frontendPath) } |
+        ForEach-Object { [void]$ids.Add([int]$_.ProcessId) }
+
+    return $ids
+}
+
 function Stop-SpecificPorts {
-    $ports = @(8001, 5173)
     $killedSomething = $false
 
-    foreach ($port in $ports) {
-        # Buscamos quién tiene secuestrado el puerto
-        $connections = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-        if ($connections) {
+    # Varias pasadas: un worker de "uvicorn --reload" en crash-loop puede morir
+    # y renacer con otro PID entre que lo detectamos y lo matamos. Una sola
+    # pasada deja zombies sueltos que se van acumulando entre reinicios - esa
+    # fue la causa real de que el puerto 8001 terminara con 5 procesos
+    # distintos peleándoselo.
+    for ($pass = 1; $pass -le 3; $pass++) {
+        $anyThisPass = $false
+
+        # 1) Procesos de este proyecto por ruta (agarra también al supervisor,
+        #    que no está "escuchando" nada él mismo).
+        foreach ($processId in (Get-ProjectProcessIds)) {
+            try {
+                # /T mata también los hijos (workers de --reload, hijos de npm)
+                & taskkill /F /T /PID $processId 2>&1 | Out-Null
+                Write-Host "  PID $processId (árbol del proyecto) detenido." -ForegroundColor Green
+                $anyThisPass = $true
+            } catch { }
+        }
+
+        # 2) Red de seguridad: cualquier cosa escuchando en los puertos del
+        #    aplicativo que no se haya reconocido por ruta arriba.
+        foreach ($port in @(8001, 5173)) {
+            $connections = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
             foreach ($conn in $connections) {
                 try {
-                    $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
-                    if ($process) {
-                        Stop-Process -Id $process.Id -Force
-                        Write-Host "  Proceso $($process.ProcessName) (PID: $($process.Id)) detenido en puerto $port." -ForegroundColor Green
-                        $killedSomething = $true
-                    }
-                } catch {
-                    Write-Host "  Error al detener proceso en puerto $port." -ForegroundColor Red
-                }
+                    & taskkill /F /T /PID $conn.OwningProcess 2>&1 | Out-Null
+                    Write-Host "  PID $($conn.OwningProcess) (árbol, puerto $port) detenido." -ForegroundColor Green
+                    $anyThisPass = $true
+                } catch { }
             }
         }
+
+        if ($anyThisPass) {
+            $killedSomething = $true
+            Start-Sleep -Milliseconds 700
+        } else {
+            break
+        }
     }
+
+    if (-not $killedSomething) {
+        Write-Host "  No se encontraron procesos del proyecto activos." -ForegroundColor Gray
+    }
+
     return $killedSomething
 }
 
