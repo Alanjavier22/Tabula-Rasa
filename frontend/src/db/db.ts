@@ -160,6 +160,3 @@ export const db = new DatabaseStub();
 export async function phoenixHardReset(): Promise<void> {
   window.location.reload();
 }
-
-/** Re-export LocalTransaction type for components that import it from db/db */
-export type { LocalTransaction } from '../types/schemas';
