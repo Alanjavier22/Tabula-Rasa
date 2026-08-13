@@ -56,8 +56,15 @@ El resto de los ~23 módulos no se revisó módulo por módulo en esta ronda. El
 ### 9. Archivos de backup de `finance.db` acumulados
 `backend/finance.db.backup`, `.pre_phase1_backup`, `.pre_uuid_migration` (+ el nuevo `.pre_healthcheck_backup_<fecha>` de esta sesión). Todos gitignorados, no es un problema de repo, solo clutter en disco si se quiere limpiar a mano.
 
-### 10. CORS/pairing entre dispositivos LAN — verificar en vivo
-Esta fase agregó la IP LAN detectada dinámicamente tanto al `ALLOWED_ORIGINS` del middleware de seguridad como al `allow_origins` de CORS en `main.py` (antes solo tenían `localhost`/`127.0.0.1`, lo cual en teoría ya bloqueaba el flujo de pairing QR entre el PC y el celular). No se probó en vivo con un dispositivo real en la LAN — vale la pena confirmar que el pairing por QR sigue funcionando end-to-end después de este cambio.
+### 10. CORS/pairing entre dispositivos LAN — RESUELTO 2026-08-12
+El usuario vinculó un segundo dispositivo real (Android) contra el host en la misma LAN ingresando la URL + PIN a mano. La cookie de sesión httpOnly quedó seteada y el dispositivo aparece activo en `/auth/devices`, confirmando que CORS + `ALLOWED_ORIGINS` con la IP LAN dinámica funcionan end-to-end. El ítem 13 (no había imagen QR real para escanear) también se resolvió en la misma sesión, y de paso se encontró y corrigió un bug independiente que hacía que el QR, aun renderizado, apuntara a un puerto muerto (ver ítem 13).
+
+Bugs reales encontrados y corregidos en el camino (no estaban probados hasta esta verificación en vivo):
+- El interceptor de `api.ts` trataba cualquier 401/403 (incluido el chequeo esperado de `/auth/me` sin sesión todavía) como "sesión inválida" y forzaba un `window.location.href` - en el dispositivo host esto generaba un loop infinito de recargas apenas se abría la página, porque el auto-pairing nunca llegaba a correr antes del primer reload. Se excluyó `/auth/me` y `/auth/pair/*` de esa lógica.
+- `AuthGuard.tsx`/`api.ts` apuntaban el auto-pairing del host a `127.0.0.1:8001` fijo, sin importar si la página se servía desde `localhost:5173`. Con cookie `SameSite=Lax` eso son dos orígenes distintos para el navegador - la cookie seteada en el pairing nunca volvía en los requests siguientes hechos a `localhost`. Ahora ambos usan `window.location.hostname` dinámico.
+- `menu.ps1` dejaba procesos zombie de sesiones anteriores compitiendo por el puerto 8001, sirviendo código viejo pese a reiniciar - ver commit de `Stop-SpecificPorts`.
+
+Pendiente real, no crítico: probar en vivo que la cámara escanea el QR nuevo end-to-end (el mecanismo ya está verificado - URL correcta + pairing manual funcionando -, falta solo la confirmación visual de "apunto la cámara y funciona"), y revocación de dispositivo en vivo.
 
 ### 11. `db/db.ts` (stub de Dexie) — AUDITADO Y RESUELTO 2026-08-12
 Auditoría completa de los servicios que dependían de `db/db.ts`. Resultado: ninguno causaba "datos vacíos silenciosos" visibles hoy porque ninguno se ejecutaba - eran código 100% huérfano (nada en `pages/` ni `components/` los importaba), restos de una arquitectura offline-first con IndexedDB + cola de sincronización que el proyecto abandonó a favor del backend FastAPI como fuente de verdad.
@@ -77,6 +84,19 @@ Auditoría completa de los servicios que dependían de `db/db.ts`. Resultado: ni
 - `VehicleService.ts` — el usuario confirmó que control de gastos de vehículo (combustible/mantenimiento) sí es una función que quiere. No existe ningún modelo (`Vehicle`/`FuelLog`/`MaintenanceLog`) en `backend/app/models/`, ni endpoints, ni página en el frontend - el archivo actual depende 100% del stub y no tiene ningún llamador real hoy, pero no se borra porque la intención es diseñarlo de cero (modelo + migraciones + endpoints + UI) en una sesión dedicada, no reparar el archivo existente.
 
 `db/db.ts` en sí se mantiene (lo siguen usando `VehicleService.ts` y `GlobalErrorBoundary.tsx`, este último de forma sana vía `phoenixHardReset`).
+
+### 12. Datetimes del backend sin sufijo de zona horaria — el frontend los interpreta como hora local — PARCIALMENTE RESUELTO 2026-08-12
+El backend serializa datetimes en UTC pero sin `Z`/offset (ej. `"2026-08-13T01:23:17"`). Un ISO string sin zona lo interpreta el navegador como hora **local**, no UTC - en un usuario en Ecuador (UTC-5) esto corrió `device.last_sync` 5 horas hacia el futuro, mostrando "Sinc: en alrededor de 5 horas" en vez de "hace unos segundos" en `DeviceManager.tsx`. Corregido ahí con un helper `parseBackendUTC()` que agrega `Z` si falta antes de pasarlo a `new Date()`.
+
+**El mismo patrón (`new Date(campoDelBackend)` sin ajustar zona) aparece en ~14 lugares más**, sin corregir todavía: `Snapshots.tsx`, `Settings.tsx` (backup.createdTime), `Goals.tsx`, `Subscriptions.tsx` (x3), `Reminders.tsx` (x3), `IOUWidget.tsx`, `Transactions.tsx`, `SentinelBubble.tsx` (health.timestamp - éste sí es sensible a la hora exacta, no solo la fecha), `TransactionForm.tsx`, `FiscalDashboard.tsx` (x2), `DatePicker.tsx`. La mayoría formatea solo la fecha (`toLocaleDateString`) donde el corrimiento de unas horas rara vez cambia el día calendario mostrado, salvo cerca de medianoche - impacto bajo pero real. `SentinelBubble.tsx` sí muestra hora exacta y está igual de afectado que `DeviceManager` lo estaba.
+**Sugerencia de abordaje:** en vez de tocar archivo por archivo, lo más robusto es que el backend serialice con offset explícito (Pydantic v2 lo hace solo si el `datetime` conserva `tzinfo`; probablemente se pierde al pasar por SQLite, que no tiene tipo de zona horaria nativo) - un fix ahí arreglaría los ~15 lugares de una sola vez en vez de tocar cada componente.
+
+### 13. Pairing por QR: no existía una imagen QR real, solo texto — RESUELTO 2026-08-12
+`DeviceManager.tsx` (botón "Vincular Nuevo") pedía `qr_url` al backend (`/auth/pair/generate`) pero nunca lo renderizaba como imagen QR - solo mostraba la URL como texto plano para tipear a mano. `QRScanner.tsx` sí existe y funciona (consume un QR con la cámara), pero el lado que *genera* el QR para escanear nunca se había construido. Se agregó `<QRCodeSVG value={pairingCode.qr_url} />` (la librería `qrcode.react` ya estaba en `package.json`, sin usar), conservando el texto como alternativa manual.
+
+De paso se encontró un segundo bug independiente: `generate_pairing_code()` en `backend/app/api/auth.py` armaba la URL del QR con el puerto **8000** (resto de una migración de puerto vieja, `api.ts` ya tenía código defensivo para limpiar ese puerto de `localStorage`), cuando el backend corre en **8001** desde hace tiempo - cualquier QR escaneado habría fallado igual aunque se renderizara, porque apuntaba a un puerto sin nada escuchando. Corregido en el mismo commit del fix del puerto.
+
+Pendiente real, no crítico: confirmar con la cámara de un celular escaneando el QR en vivo (el mecanismo ya está verificado por otras vías - ver ítem 10).
 
 ---
 
