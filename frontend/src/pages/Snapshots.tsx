@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { snapshotsAPI } from '../services/api';
 import type { NetWorthSnapshot } from '../types';
+import type { AxiosError } from 'axios';
 import { 
   Sparkles, 
   TrendingUp, 
@@ -50,10 +51,11 @@ const Snapshots = () => {
     try {
       const res = await snapshotsAPI.analyze(snapshotId);
       setAnalysis({ text: res.data.analysis || 'La IA no devolvió un análisis para este snapshot.', snapshotId });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error analyzing snapshot:', error);
-      const msg = error.response?.status === 400 
-        ? error.response.data.detail || 'Error en el análisis'
+      const axiosError = error as AxiosError<{ detail?: string }>;
+      const msg = axiosError.response?.status === 400
+        ? axiosError.response.data?.detail || 'Error en el análisis'
         : 'Error al conectar con la IA';
       setToast({ message: msg, type: 'warning', duration: 8000 });
     } finally {
