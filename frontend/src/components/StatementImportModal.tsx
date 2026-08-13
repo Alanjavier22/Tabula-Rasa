@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { intelligenceAPI, accountsAPI } from '../services/api';
 import { Upload, X, CheckCircle, AlertCircle, FileText, Trash2, CreditCard, Calendar, DollarSign, User } from 'lucide-react';
-import type { Account } from '../types';
+import type { Account, StatementExtractedTransaction, StatementParsingResponse } from '../types';
+import type { AxiosError } from 'axios';
 import Select from './common/Select';
 import { formatMoney } from '../utils/money';
 import { motion } from 'framer-motion';
@@ -11,6 +12,28 @@ interface StatementImportModalProps {
   onSuccess: (count: number) => void;
 }
 
+type ExtractedStatementRow = StatementExtractedTransaction & {
+  selected: boolean;
+  shared_with?: string;
+  shared_amount?: number;
+};
+
+type StatementMetadataDraft = Pick<StatementParsingResponse,
+  | 'issuer_identity'
+  | 'statement_period'
+  | 'statement_month'
+  | 'statement_year'
+  | 'statement_balance_cents'
+  | 'payment_due_date'
+  | 'cut_off_date'
+  | 'total_new_consumos_cents'
+  | 'total_pagos_cents'
+  | 'credit_limit_cents'
+> & {
+  user_share_cents: number;
+  debt_shares: unknown[];
+};
+
 const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [accountId, setAccountId] = useState<string>('');
@@ -19,9 +42,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
   
   // Datos extraídos de la IA
   const [importLogId, setImportLogId] = useState<string | null>(null);
-  const [extractedTransactions, setExtractedTransactions] = useState<any[]>([]);
-  const [statementMetadata, setStatementMetadata] = useState<any | null>(null);
-  const [auditInfo, setAuditInfo] = useState<any | null>(null);
+  const [extractedTransactions, setExtractedTransactions] = useState<ExtractedStatementRow[]>([]);
+  const [statementMetadata, setStatementMetadata] = useState<StatementMetadataDraft | null>(null);
+  const [auditInfo, setAuditInfo] = useState<StatementParsingResponse['audit'] | null>(null);
   
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -49,7 +72,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       const newUserShare = Math.max(0, statementMetadata.statement_balance_cents - totalShared);
       
       if (newUserShare !== statementMetadata.user_share_cents) {
-        setStatementMetadata((prev: any) => ({
+        setStatementMetadata((prev) => prev && ({
           ...prev,
           user_share_cents: newUserShare
         }));
@@ -106,7 +129,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       const parsed = response.data.parsed_data;
       if (parsed.transactions && parsed.transactions.length > 0) {
         // Seleccionamos por defecto las que NO son duplicadas
-        const txsWithSelection = parsed.transactions.map((tx: any) => ({
+        const txsWithSelection = parsed.transactions.map((tx) => ({
           ...tx,
           selected: !tx.is_duplicate
         }));
@@ -133,9 +156,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       } else {
         setResult({ success: false, message: 'No se detectaron transacciones en el documento.' });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Processing error:', error);
-      const detail = error.response?.data?.detail || 'Error al procesar el estado de cuenta con IA.';
+      const detail = (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al procesar el estado de cuenta con IA.';
       setResult({ success: false, message: detail });
     } finally {
       setProcessing(false);
@@ -155,9 +178,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
     try {
       // Enviamos al backend la confirmación junto con los metadatos de deuda para crear el CreditCardStatement
       const response = await intelligenceAPI.confirmImport(
-        importLogId, 
+        importLogId,
         selectedTransactions,
-        statementMetadata
+        statementMetadata ?? undefined
       );
       
       setResult({ success: true, message: `Éxito: ${response.data.imported_count} transacciones importadas y deudas actualizadas.` });
@@ -168,9 +191,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
         // Solo después de que se supone que el modal se cierra o el proceso termina totalmente
         setSaving(false);
       }, 2000);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Save error:', error);
-      const detail = error.response?.data?.detail || 'Error al guardar el estado de cuenta.';
+      const detail = (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al guardar el estado de cuenta.';
       setResult({ success: false, message: detail });
       setSaving(false);
     }
@@ -586,13 +609,14 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={() => {
-                  const newTransactions = extractedTransactions.map((t, i) => 
-                    i === sharingTransaction.index ? { 
-                      ...t, 
-                      shared_with: sharingTransaction.name, 
-                      shared_amount: sharingTransaction.amount 
+                  if (!statementMetadata) return;
+                  const newTransactions = extractedTransactions.map((t, i) =>
+                    i === sharingTransaction.index ? {
+                      ...t,
+                      shared_with: sharingTransaction.name,
+                      shared_amount: sharingTransaction.amount
                     } : t
                   );
                   setExtractedTransactions(newTransactions);
