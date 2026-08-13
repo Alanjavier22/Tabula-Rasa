@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Info, CheckCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
+import type { AxiosError } from 'axios';
 
 interface FinancialWarning {
   level: 'warning' | 'info' | 'success';
@@ -51,7 +52,7 @@ export const FinancialWarnings: React.FC = () => {
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-red-400" />
             <span className="text-red-400 text-sm">
-              {(query.error as any)?.response?.data?.detail || 'Error al cargar alertas financieras'}
+              {(query.error as AxiosError<{ detail?: string }> | null)?.response?.data?.detail || 'Error al cargar alertas financieras'}
             </span>
           </div>
           <button
