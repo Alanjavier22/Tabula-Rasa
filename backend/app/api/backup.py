@@ -376,13 +376,15 @@ def google_oauth_callback(code: str, db: Session = Depends(get_db)):
                 </html>
             """)
 
-        # Save Refresh Token to DB
+        # Save Refresh Token to DB (encrypted at rest)
+        from app.utils.crypto import encrypt_value
+        encrypted_token = encrypt_value(refresh_token)
         token_cfg = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
         if not token_cfg:
-            token_cfg = Config(key="GOOGLE_DRIVE_REFRESH_TOKEN", value=refresh_token, value_type="string", is_public=False)
+            token_cfg = Config(key="GOOGLE_DRIVE_REFRESH_TOKEN", value=encrypted_token, value_type="string", is_public=False)
             db.add(token_cfg)
         else:
-            token_cfg.value = refresh_token
+            token_cfg.value = encrypted_token
         
         db.commit()
         
