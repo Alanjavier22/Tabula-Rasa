@@ -125,11 +125,17 @@ export default function DeviceManager() {
               {pairingCode.pin}
             </div>
 
+            {pairingCode.qr_url && (
+              <div className="p-4 bg-white rounded-2xl shadow-2xl">
+                <QRCodeSVG value={pairingCode.qr_url} size={180} level="M" />
+              </div>
+            )}
+
             <div className="space-y-4 max-w-sm">
               <div className="p-4 bg-black/40 rounded-2xl border border-white/5 space-y-2">
                 <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">Instrucciones de Acceso</p>
                 <p className="text-sm text-slate-300 font-medium leading-relaxed">
-                  Ingresa esta dirección en el navegador de tu celular:
+                  Escanea el código QR con la cámara de tu celular, o ingresa esta dirección a mano:
                 </p>
                 <div className="flex items-center justify-center gap-2 py-2 px-4 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-400 font-mono text-sm break-all">
                   {accessUrl || 'Cargando IP...'}
