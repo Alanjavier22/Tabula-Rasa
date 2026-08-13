@@ -74,12 +74,6 @@ const Budgets = () => {
     };
   }, [showCreateModal, showEditModal, showPaymentModal, showRecurringModal]);
 
-  useEffect(() => {
-    fetchBudgets();
-    fetchCategories();
-    fetchAccounts();
-  }, []);
-
   const fetchBudgets = async () => {
     try {
       const response = await budgetsAPI.getAll();
@@ -111,6 +105,12 @@ const Budgets = () => {
       setToast({ message: 'No se pudieron cargar las cuentas', type: 'error' });
     }
   };
+
+  useEffect(() => {
+    fetchBudgets();
+    fetchCategories();
+    fetchAccounts();
+  }, []);
 
   const handleDelete = async (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
