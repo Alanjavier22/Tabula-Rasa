@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { remindersAPI } from '../services/api';
 import type { Reminder, ReminderFrequency, ReminderStatus } from '../types';
+import type { AxiosError } from 'axios';
+
+type ValidationErrorResponse = AxiosError<{ detail?: string | Array<{ msg: string }> }>;
 import { formatMoney, toCents } from '../utils/money';
 import { 
   Plus, 
@@ -81,11 +84,12 @@ const Reminders = () => {
       await remindersAPI.delete(deleteConfirm.id);
       setToast({ message: 'Alerta eliminada del sistema', type: 'success' });
       fetchReminders();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting reminder:', error);
-      const errorMessage = Array.isArray(error.response?.data?.detail)
-        ? error.response.data.detail[0]?.msg || 'Error al eliminar recordatorio'
-        : error.response?.data?.detail || 'Error al eliminar recordatorio';
+      const detail = (error as ValidationErrorResponse).response?.data?.detail;
+      const errorMessage = Array.isArray(detail)
+        ? detail[0]?.msg || 'Error al eliminar recordatorio'
+        : detail || 'Error al eliminar recordatorio';
       setToast({ message: errorMessage, type: 'error' });
     } finally {
       setDeleteConfirm({ isOpen: false, id: null });
@@ -123,11 +127,12 @@ const Reminders = () => {
       setForm(emptyForm);
       setToast({ message: 'Nueva alerta programada', type: 'success' });
       fetchReminders();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error creating reminder:', error);
-      const errorMessage = Array.isArray(error.response?.data?.detail)
-        ? error.response.data.detail[0]?.msg || 'Error al crear recordatorio'
-        : error.response?.data?.detail || 'Error al crear recordatorio';
+      const detail = (error as ValidationErrorResponse).response?.data?.detail;
+      const errorMessage = Array.isArray(detail)
+        ? detail[0]?.msg || 'Error al crear recordatorio'
+        : detail || 'Error al crear recordatorio';
       setToast({ message: errorMessage, type: 'error' });
     } finally {
       setSaving(false);
@@ -153,11 +158,12 @@ const Reminders = () => {
       setEditForm(emptyForm);
       setToast({ message: 'Configuración de alerta actualizada', type: 'success' });
       fetchReminders();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating reminder:', error);
-      const errorMessage = Array.isArray(error.response?.data?.detail)
-        ? error.response.data.detail[0]?.msg || 'Error al actualizar recordatorio'
-        : error.response?.data?.detail || 'Error al actualizar recordatorio';
+      const detail = (error as ValidationErrorResponse).response?.data?.detail;
+      const errorMessage = Array.isArray(detail)
+        ? detail[0]?.msg || 'Error al actualizar recordatorio'
+        : detail || 'Error al actualizar recordatorio';
       setToast({ message: errorMessage, type: 'error' });
     } finally {
       setSaving(false);
@@ -169,11 +175,12 @@ const Reminders = () => {
       await remindersAPI.update(id, { status: 'completed' });
       setToast({ message: 'Misión cumplida', type: 'success' });
       fetchReminders();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error marking reminder as complete:', error);
-      const errorMessage = Array.isArray(error.response?.data?.detail)
-        ? error.response.data.detail[0]?.msg || 'Error al actualizar recordatorio'
-        : error.response?.data?.detail || 'Error al actualizar recordatorio';
+      const detail = (error as ValidationErrorResponse).response?.data?.detail;
+      const errorMessage = Array.isArray(detail)
+        ? detail[0]?.msg || 'Error al actualizar recordatorio'
+        : detail || 'Error al actualizar recordatorio';
       setToast({ message: errorMessage, type: 'error' });
     }
   };
