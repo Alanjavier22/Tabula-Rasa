@@ -45,6 +45,7 @@ import type {
   AuthDevice,
   AccountPayload,
   StatementPayload,
+  TransactionPayload,
 } from '../types/index';
 
 const getDynamicBaseUrl = () => {
@@ -136,8 +137,8 @@ api.interceptors.response.use(
 export const transactionsAPI = {
   getAll: (params?: { limit?: number; offset?: number }) => api.get<Transaction[]>('/transactions/', { params }),
   getById: (id: string) => api.get<Transaction>(`/transactions/${id}`),
-  create: (data: Partial<Transaction>) => api.post<Transaction>('/transactions/', data),
-  update: (id: string, data: Partial<Transaction>) => api.put<Transaction>(`/transactions/${id}`, data),
+  create: (data: TransactionPayload) => api.post<Transaction>('/transactions/', data),
+  update: (id: string, data: TransactionPayload) => api.put<Transaction>(`/transactions/${id}`, data),
   delete: (id: string) => api.delete<{ message: string }>(`/transactions/${id}`),
 };
 
