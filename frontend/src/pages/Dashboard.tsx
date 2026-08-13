@@ -2,22 +2,17 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import Decimal from 'decimal.js-light';
 import { accountsAPI, statementsAPI, metricsAPI, budgetsAPI, snapshotsAPI, alertsAPI, transactionsAPI, subscriptionsAPI as subsAPI, categoriesAPI, goalsAPI, iousAPI, maintenanceAPI } from '../services/api';
-import { formatMoney, toDecimal, clampZero } from '../utils/money';
+import { toDecimal, clampZero } from '../utils/money';
 import Toast from '../components/Toast';
 import type { Account, CreditCardStatement, SafeToSpendResponse, NetWorthResponse, VehicleTelemetryResponse, CashFlowForecastResponse, DashboardSummaryResponse, AlertsResponse, IOU, Transaction, Subscription, Category, Goal, DebtShare } from '../types';
 import type { EcuadorFiscalRules } from '../services/ReportingService';
 import type { AxiosError } from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, 
-  AlertCircle, 
-  AlertTriangle, 
-  CreditCard, 
-  Calendar, 
-  Bell, 
-  Loader2, 
-  RefreshCw, 
-  TrendingUp, 
+  Sparkles,
+  AlertTriangle,
+  Calendar,
+  RefreshCw,
 } from 'lucide-react';
 
 import SafeToSpendCard from '../components/dashboard/SafeToSpendCard';
@@ -26,28 +21,17 @@ import CreditCardSummary from '../components/dashboard/CreditCardSummary';
 import IOUWidget from '../components/IOUWidget';
 import DebtSharesWidget from '../components/DebtSharesWidget';
 import SkeletonCard from '../components/dashboard/SkeletonCard';
-import SkeletonChart from '../components/dashboard/SkeletonChart';
 import { WhatIfModal } from '../components/AIAssistant/WhatIfModal';
 import { AIAnomalyScanner } from '../components/AIAssistant/AIAnomalyScanner';
 import { IntegrityStatus } from '../components/IntegrityStatus';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area, LineChart, Line, ReferenceLine,
-  PieChart, Pie,
-} from 'recharts';
-
-const COLORS = [
-  '#a855f7', // Purple
-  '#3b82f6', // Blue
-  '#10b981', // Emerald
-  '#f59e0b', // Amber
-  '#ef4444', // Red
-  '#ec4899', // Pink
-  '#06b6d4', // Cyan
-  '#84cc16', // Lime
-  '#f97316', // Orange
-  '#6366f1'  // Indigo
-];
+import AIInsightsSection from '../components/dashboard/AIInsightsSection';
+import PaymentAlertsPanel from '../components/dashboard/PaymentAlertsPanel';
+import DashboardMetricsRow from '../components/dashboard/DashboardMetricsRow';
+import ExpenseBreakdownChart from '../components/dashboard/ExpenseBreakdownChart';
+import IncomeExpenseBarChart from '../components/dashboard/IncomeExpenseBarChart';
+import DailySpendingChart from '../components/dashboard/DailySpendingChart';
+import NetWorthChart from '../components/dashboard/NetWorthChart';
+import CashFlowForecastChart from '../components/dashboard/CashFlowForecastChart';
 
 // Referencia estable para fallback de queries sin datos: `|| []` crea un array nuevo en
 // cada render, lo que invalida los useMemo que dependen de él (recomputan siempre en vez
@@ -514,176 +498,20 @@ const Dashboard = () => {
           )}
         </motion.div>
 
-        {/* AI Insights Section Overhaul */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-purple-500/20">
-                <Sparkles className="w-5 h-5 text-purple-400" />
-              </div>
-              Insights Estratégicos
-            </h2>
-            <button
-              onClick={() => insightsMutation.mutate()}
-              disabled={insightsMutation.isPending}
-              className={`flex items-center gap-2 px-5 py-2 rounded-full text-white text-sm font-bold transition-all border ${
-                insightsMutation.isPending
-                  ? 'bg-slate-800 border-slate-700 opacity-70 animate-pulse'
-                  : 'bg-slate-900/50 border-purple-500/50 hover:bg-purple-500/10 hover:border-purple-400'
-              }`}
-            >
-              {insightsMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
-              ) : (
-                <RefreshCw className="w-4 h-4 text-purple-400" />
-              )}
-              {insightsMutation.isPending ? 'Consultando IA...' : 'Refrescar Análisis'}
-            </button>
-          </div>
-
-          {insights ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <AnimatePresence>
-                {insights.map((insight, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="group bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-5 hover:border-purple-500/30 transition-all hover:bg-slate-800/50 shadow-lg"
-                  >
-                    <div className="flex gap-4">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 text-sm font-bold border border-purple-500/20 group-hover:bg-purple-500/20 transition-all">
-                        {index + 1}
-                      </div>
-                      <p className="text-slate-200 text-sm leading-relaxed">{insight}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-
-              {/* Anomaly & Patterns merged as cards */}
-              {aiAlerts.map((alert, i) => (
-                <motion.div
-                  key={`alert-${i}`}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-red-500/5 backdrop-blur-xl rounded-2xl border border-red-500/20 p-5"
-                >
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
-                      <AlertCircle className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">Riesgo Detectado</h4>
-                      <p className="text-red-200 text-sm leading-relaxed">{alert}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-              
-              {aiPatterns.map((pattern, i) => (
-                <motion.div
-                  key={`pattern-${i}`}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-amber-500/5 backdrop-blur-xl rounded-2xl border border-amber-500/20 p-5"
-                >
-                  <div className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400">
-                      <TrendingUp className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-amber-400 text-xs font-bold uppercase tracking-wider mb-1">Patrón de Gasto</h4>
-                      <p className="text-amber-200 text-sm leading-relaxed">{pattern}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          ) : !insightsMutation.isPending && (
-            <div className="flex flex-col items-center justify-center py-12 px-4 bg-slate-800/20 rounded-3xl border border-dashed border-slate-700">
-              <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center mb-4">
-                <Sparkles className="w-8 h-8 text-purple-400/50" />
-              </div>
-              <h3 className="text-white font-semibold mb-1">Análisis IA Pendiente</h3>
-              <p className="text-slate-400 text-sm text-center max-w-xs">Haz clic en el botón para que la IA escanee tu situación actual y genere estrategias personalizadas.</p>
-            </div>
-          )}
-        </div>
+        <AIInsightsSection
+          insights={insights}
+          aiAlerts={aiAlerts}
+          aiPatterns={aiPatterns}
+          isPending={insightsMutation.isPending}
+          onRefresh={() => insightsMutation.mutate()}
+        />
 
       {/* Credit Card Quick Summary */}
       <CreditCardSummary statements={statements} cards={creditCards} />
 
-      {/* Payment Alerts */}
       {paymentAlerts && paymentAlerts.alerts && paymentAlerts.alerts.length > 0 && (
-        <div className="mb-6">
-          <div className="bg-gradient-to-r from-amber-900/30 to-red-900/30 backdrop-blur-xl rounded-2xl border border-amber-500/40 p-4 lg:p-6">
-            <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-              <Bell className="w-5 h-5 text-amber-400" />
-              Alertas de Pago
-              <span className="ml-auto text-sm font-normal text-amber-400">
-                Pendiente total: ${formatMoney(paymentAlerts.total_pending)}
-              </span>
-            </h3>
-            <div className="space-y-2">
-              {paymentAlerts.alerts.map((alert, idx) => (
-                <div
-                  key={`${alert.account_id}-${alert.alert_type}-${idx}`}
-                  className={`flex items-center justify-between p-3 rounded-xl ${
-                    alert.severity === 'critical' ? 'bg-red-500/15 border border-red-500/30' :
-                    alert.severity === 'warning' ? 'bg-amber-500/15 border border-amber-500/30' :
-                    'bg-slate-700/30 border border-slate-600/30'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${
-                      alert.severity === 'critical' ? 'bg-red-500/20' :
-                      alert.severity === 'warning' ? 'bg-amber-500/20' :
-                      'bg-blue-500/20'
-                    }`}>
-                      {alert.alert_type === 'overdue' ? (
-                        <AlertCircle className="w-4 h-4 text-red-400" />
-                      ) : alert.alert_type === 'payment_due' ? (
-                        <CreditCard className="w-4 h-4 text-amber-400" />
-                      ) : (
-                        <Calendar className="w-4 h-4 text-blue-400" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-white text-sm font-medium">{alert.account_name}</p>
-                      <p className="text-xs text-slate-400">
-                        {alert.alert_type === 'overdue' && `Vencido hace ${Math.abs(alert.days_remaining)} días`}
-                        {alert.alert_type === 'payment_due' && (
-                          alert.days_remaining === 0 ? 'Vence hoy' :
-                          alert.days_remaining === 1 ? 'Vence mañana' :
-                          `Vence en ${alert.days_remaining} días`
-                        )}
-                        {alert.alert_type === 'statement_cut' && `Corte en ${alert.days_remaining} días`}
-                        {alert.due_date && ` · ${alert.due_date}`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-bold text-sm ${
-                      alert.severity === 'critical' ? 'text-red-400' :
-                      alert.severity === 'warning' ? 'text-amber-400' :
-                      'text-slate-300'
-                    }`}>
-                      ${formatMoney(alert.amount_pending)}
-                    </p>
-                    {alert.bank_name && (
-                      <p className="text-xs text-slate-500">{alert.bank_name}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <PaymentAlertsPanel data={paymentAlerts} />
       )}
-
-
 
       {/* IOU Widget - Dinero Flotante */}
       <div className="mb-6">
@@ -694,374 +522,21 @@ const Dashboard = () => {
         <DebtSharesWidget statements={statements} />
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 text-center">
-          <p className="text-slate-400 text-xs mb-1">Balance Neto (Este mes)</p>
-          <p className={`text-xl font-bold ${netBalance.gte(0) ? 'text-green-400' : 'text-red-400'}`}>
-            ${formatMoney(netBalance)}
-          </p>
-        </div>
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 text-center">
-          <p className="text-slate-400 text-xs mb-1">Saldos pendientes de tarjetas (tuyo)</p>
-          <p className="text-xl font-bold text-orange-400">${formatMoney(totalStatementDue)}</p>
-        </div>
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 text-center">
-          <p className="text-slate-400 text-xs mb-1">Te deben terceros</p>
-          <p className="text-xl font-bold text-yellow-400">${formatMoney(totalThirdPartyDebt)}</p>
-        </div>
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-purple-500/50 p-4 text-center">
-          <p className="text-slate-400 text-xs mb-1">🚗 Costo Vehículo</p>
-          <p className="text-xl font-bold text-purple-400">${formatMoney(vehicleCost)}</p>
-          {vehicleTelemetry && (
-            <div className="mt-2 space-y-1">
-              {vehicleTelemetry.total_distance > 0 ? (
-                <p className="text-[10px] text-slate-400">
-                  ${formatMoney(vehicleTelemetry.cost_per_km)}/km | Hist: ${formatMoney(vehicleTelemetry.historical_cost_per_km)}/km
-                </p>
-              ) : vehicleTelemetry.total_vehicle_cost > 0 ? (
-                <p className="text-[10px] text-slate-500">Requiere +1 lectura de odómetro</p>
-              ) : null}
-              
-              {vehicleTelemetry.next_maintenance_estimate !== null && (
-                <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
-                  vehicleTelemetry.next_maintenance_estimate < 500 ? 'bg-red-500/20 text-red-400' : 
-                  vehicleTelemetry.next_maintenance_estimate < 1000 ? 'bg-amber-500/20 text-amber-400' : 
-                  'bg-emerald-500/20 text-emerald-400'
-                }`}>
-                  Mantenimiento en: {Math.round(vehicleTelemetry.next_maintenance_estimate)} km
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Charts Row */}
+      <DashboardMetricsRow
+        netBalance={netBalance}
+        totalStatementDue={totalStatementDue}
+        totalThirdPartyDebt={totalThirdPartyDebt}
+        vehicleCost={vehicleCost}
+        vehicleTelemetry={vehicleTelemetry}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Expense Breakdown Pie */}
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Distribución de Gastos</h3>
-          {dashboardSummary ? (
-            expenseBreakdown.length > 0 ? (
-              <div className="flex flex-col gap-4">
-                <div className="flex-1 min-w-0">
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-                      <Pie
-                        data={expenseBreakdown.map((item, i) => ({
-                          ...item,
-                          value: typeof item.value === 'string' ? parseFloat(item.value) : item.value,
-                          fill: COLORS[i % COLORS.length]
-                        }))}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={65}
-                        outerRadius={90}
-                        dataKey="value"
-                        stroke="none"
-                        label={false}
-                        nameKey="name"
-                        cornerRadius={6}
-                        paddingAngle={5}
-                      />
-                        <Tooltip
-                          contentStyle={{ 
-                            background: 'rgba(15, 23, 42, 0.8)', 
-                            backdropFilter: 'blur(12px)',
-                            border: '1px solid rgba(148, 163, 184, 0.1)', 
-                            borderRadius: '12px', 
-                            color: '#fff',
-                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                          }}
-                          itemStyle={{ color: '#fff' }}
-                          formatter={(value, name) => {
-                            const total = expenseBreakdown.reduce((sum, item) => {
-                              const val = typeof item.value === 'string' ? parseFloat(item.value) : item.value;
-                              return sum + (isNaN(val) ? 0 : val);
-                            }, 0);
-                            const numValue = typeof value === 'number' ? value : Number(value ?? 0);
-                            const percentage = total > 0 ? ((numValue / total) * 100).toFixed(1) : 0;
-                            return [`$${formatMoney(numValue)} (${percentage}%)`, name];
-                          }}
-                        />
-                      </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="space-y-2 text-xs max-h-[250px] overflow-y-auto pr-1">
-                  <div className="grid grid-cols-2 gap-2">
-                    {expenseBreakdown.map((item, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
-                        <span className="text-slate-300 truncate flex-1" title={item.name}>{item.name}</span>
-                        <span className="text-slate-400 font-medium flex-shrink-0">${formatMoney(item.value)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-slate-500 text-center py-8">Sin datos</p>
-            )
-          ) : (
-            <SkeletonChart height="h-56" />
-          )}
-        </div>
-
-        {/* Income vs Expenses Bar */}
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Histórico de Ingresos vs Gastos</h3>
-          {dashboardSummary && monthlyComparison.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={monthlyComparison} barGap={8}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" vertical={false} />
-                <XAxis 
-                  dataKey="mes" 
-                  tick={{ fill: '#94a3b8', fontSize: 12 }}
-                  tickFormatter={(value: string) => {
-                    const [year, month] = value.split('-');
-                    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                    const monthIndex = parseInt(month) - 1;
-                    return `${monthNames[monthIndex]} de ${year}`;
-                  }}
-                />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                <Tooltip
-                  contentStyle={{ 
-                    background: 'rgba(15, 23, 42, 0.8)', 
-                    backdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(148, 163, 184, 0.1)', 
-                    borderRadius: '12px', 
-                    color: '#fff',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                  }}
-                  cursor={{ fill: 'rgba(148, 163, 184, 0.05)' }}
-                  labelFormatter={(label) => {
-                    if (typeof label !== 'string') return '';
-                    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                    const [year, month] = label.split('-');
-                    const monthIndex = parseInt(month) - 1;
-                    return `${monthNames[monthIndex]} de ${year}`;
-                  }}
-                  formatter={(value, name) => [`$${(typeof value === 'number' ? value : Number(value ?? 0)).toLocaleString()}`, name]}
-                />
-                <Bar dataKey="Ingresos" fill="url(#gradIngresos)" radius={[10, 10, 0, 0]} barSize={12} />
-                <Bar dataKey="Gastos" fill="url(#gradGastos)" radius={[10, 10, 0, 0]} barSize={12} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-slate-500 text-center py-8">Sin datos</p>
-          )}
-        </div>
+        <ExpenseBreakdownChart dashboardSummary={dashboardSummary} expenseBreakdown={expenseBreakdown} />
+        <IncomeExpenseBarChart hasData={!!dashboardSummary} monthlyComparison={monthlyComparison} />
       </div>
 
-      {/* Daily Spending Area Chart */}
-      <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6 mb-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Gasto Diario</h3>
-        {dashboardSummary && dailySpending.length > 0 ? (
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={dailySpending}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" vertical={false} />
-              <XAxis
-                dataKey="date"
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickFormatter={(value: string) => {
-                  const [month, day] = value.split('-');
-                  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                  const monthIndex = parseInt(month) - 1;
-                  const dayNum = parseInt(day);
-                  return `${dayNum} de ${monthNames[monthIndex]}`;
-                }}
-              />
-              <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickFormatter={(value) => `$${value.toLocaleString()}`}
-              />
-              <Tooltip
-                contentStyle={{ 
-                  background: 'rgba(15, 23, 42, 0.8)', 
-                  backdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(148, 163, 184, 0.1)', 
-                  borderRadius: '12px', 
-                  color: '#fff',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                }}
-                labelFormatter={(label) => {
-                  if (typeof label !== 'string') return '';
-                  const [month, day] = label.split('-');
-                  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                  const monthIndex = parseInt(month) - 1;
-                  const dayNum = parseInt(day);
-                  return `${dayNum} de ${monthNames[monthIndex]}`;
-                }}
-                formatter={(value) => [`$${(typeof value === 'number' ? value : Number(value ?? 0)).toLocaleString()}`, 'Gasto']}
-              />
-              <Area type="monotone" dataKey="gasto" stroke="#a855f7" fill="url(#gradGastoDiario)" strokeWidth={3} />
-            </AreaChart>
-          </ResponsiveContainer>
-        ) : dashboardSummary ? (
-          <p className="text-slate-500 text-center py-8">Sin datos</p>
-        ) : (
-          <SkeletonChart height="h-56" />
-        )}
-      </div>
-
-      {/* Net Worth Line Chart */}
-      {netWorth ? (
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white">Patrimonio Neto</h3>
-            <div className="text-right">
-              <p className="text-xs text-slate-400">Activos: ${formatMoney(netWorth.assets)}</p>
-              <p className="text-xs text-slate-400">Pasivos: ${formatMoney(netWorth.liabilities)}</p>
-              <p className={`text-sm font-bold ${toDecimal(netWorth.net_worth).gte(0) ? 'text-green-400' : 'text-red-400'}`}>
-                Patrimonio Neto: ${formatMoney(netWorth.net_worth)}
-              </p>
-            </div>
-          </div>
-          {(netWorth.history ?? []).length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={netWorth.history}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
-                  tickFormatter={(value: string) => {
-                    const [year, month] = value.split('-');
-                    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                    const monthIndex = parseInt(month) - 1;
-                    return `${monthNames[monthIndex]} de ${year}`;
-                  }}
-                />
-                <YAxis
-                  tick={{ fill: '#94a3b8', fontSize: 11 }}
-                  tickFormatter={(value) => `$${(value / 100).toLocaleString()}`}
-                />
-                <Tooltip
-                  contentStyle={{ 
-                    background: 'rgba(15, 23, 42, 0.8)', 
-                    backdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(148, 163, 184, 0.1)', 
-                    borderRadius: '12px', 
-                    color: '#fff',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                  }}
-                  labelFormatter={(label) => {
-                    if (typeof label !== 'string') return '';
-                    const [year, month] = label.split('-');
-                    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                    const monthIndex = parseInt(month) - 1;
-                    return `${monthNames[monthIndex]} de ${year}`;
-                  }}
-                  formatter={(value, name) => [`$${formatMoney(value)}`, name ?? '']}
-                />
-                <Line type="monotone" dataKey="income" stroke="#10b981" strokeWidth={3} name="Ingresos" dot={{ r: 4, fill: '#10b981' }} activeDot={{ r: 6 }} />
-                <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={3} name="Gastos" dot={{ r: 4, fill: '#ef4444' }} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-slate-500 text-center py-8">Sin datos históricos</p>
-          )}
-        </div>
-      ) : (
-        <SkeletonChart height="h-56" />
-      )}
-
-
-
-
-
-      {/* Cash Flow Forecast */}
-      {cashFlowForecast ? (
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6 mb-6">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-            <h3 className="text-lg font-semibold text-white">Proyección de Liquidez</h3>
-            <div className="flex items-center gap-2">
-              {[30, 60, 90].map(days => (
-                <button
-                  key={days}
-                  onClick={() => setForecastDays(days)}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${
-                    forecastDays === days
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/30'
-                      : 'bg-slate-700/50 text-slate-400 hover:bg-slate-600/50 hover:text-white'
-                  }`}
-                >
-                  {days}d
-                </button>
-              ))}
-              {cashFlowForecast.has_negative_balance && (
-                <div className="flex items-center gap-2 text-red-400 text-sm font-bold ml-2">
-                  <AlertCircle className="w-5 h-5" />
-                  <span className="hidden sm:inline">Riesgo de Liquidez</span>
-                </div>
-              )}
-            </div>
-          </div>
-          {cashFlowForecast.forecast && cashFlowForecast.forecast.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={cashFlowForecast.forecast}>
-                <defs>
-                  <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
-                <XAxis
-                  dataKey="date"
-                  stroke="#94a3b8"
-                  fontSize={12}
-                  tickFormatter={(value: string) => {
-                    const parts = value.split('-');
-                    const month = parts[1];
-                    const day = parts[2];
-                    return `${day}-${month}`;
-                  }}
-                />
-                <YAxis
-                  stroke="#94a3b8"
-                  fontSize={12}
-                  tickFormatter={(value) => `$${(value / 100).toLocaleString()}`}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
-                  labelStyle={{ color: '#f1f5f9' }}
-                  itemStyle={{ color: '#f1f5f9' }}
-                  labelFormatter={(label) => {
-                    if (typeof label !== 'string') return '';
-                    const [year, month, day] = label.split('-');
-                    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                    const monthIndex = parseInt(month) - 1;
-                    const dayNum = parseInt(day);
-                    return `${dayNum} de ${monthNames[monthIndex].toLowerCase()} de ${year}`;
-                  }}
-                  formatter={(value) => [`$${formatMoney(value)}`, 'Balance Proyectado']}
-                />
-                <ReferenceLine y={0} stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" />
-                <Area
-                  type="monotone"
-                  dataKey="projected_balance"
-                  name="Balance Proyectado"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorBalance)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-slate-500 text-center py-8">Sin datos de proyección</p>
-          )}
-        </div>
-      ) : (
-        <SkeletonChart height="h-64" />
-      )}
-
-
-
-
-
+      <DailySpendingChart dashboardSummary={dashboardSummary} dailySpending={dailySpending} />
+      <NetWorthChart netWorth={netWorth} />
+      <CashFlowForecastChart cashFlowForecast={cashFlowForecast} forecastDays={forecastDays} setForecastDays={setForecastDays} />
       {toast && (
         <Toast
           message={toast.message}
