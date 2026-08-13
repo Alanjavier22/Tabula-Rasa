@@ -102,13 +102,14 @@ export type StatementPayload = Partial<Omit<CreditCardStatement, 'payment_due_da
   notes?: string | null;
 };
 
-// El backend acepta null explícito en category_id/account_id/goal_id para
-// desvincular el campo (Transaction los tipa sin null porque en lectura, si
-// la transacción ya tiene categoría/cuenta, siempre vienen presentes).
-export type TransactionPayload = Partial<Omit<Transaction, 'category_id' | 'account_id' | 'goal_id'>> & {
+// El backend acepta null explícito en estos campos para desvincularlos
+// (Transaction los tipa sin null porque en lectura, si la transacción ya
+// tiene categoría/cuenta/tipo de gasto, siempre vienen presentes).
+export type TransactionPayload = Partial<Omit<Transaction, 'category_id' | 'account_id' | 'goal_id' | 'expense_type'>> & {
   category_id?: string | null;
   account_id?: string | null;
   goal_id?: string | null;
+  expense_type?: ExpenseType | null;
 };
 
 export interface PaymentAlert {
