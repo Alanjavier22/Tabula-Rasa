@@ -21,10 +21,6 @@ const SafeToSpendWidget = () => {
   const [loading, setLoading] = useState(true);
   const [insight, setInsight] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchSafeToSpend();
-  }, []);
-
   const fetchSafeToSpend = async () => {
     try {
       setLoading(true);
@@ -56,6 +52,10 @@ const SafeToSpendWidget = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchSafeToSpend();
+  }, []);
 
   const getStatus = (): SafeToSpendStatus => {
     if (!data) return 'safe';
