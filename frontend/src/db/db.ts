@@ -10,92 +10,92 @@
  */
 
 /** Minimal Dexie-compatible table stub */
-class TableStub {
+class TableStub<T = unknown> {
   private name: string;
-  
+
   constructor(name: string) {
     this.name = name;
   }
 
   where(_field: string) {
-    return new WhereClauseStub(this.name);
+    return new WhereClauseStub<T>(this.name);
   }
 
   orderBy(_field: string) {
-    return new CollectionStub(this.name);
+    return new CollectionStub<T>(this.name);
   }
 
-  async each(_callback: (item: any) => void): Promise<void> {}
+  async each(_callback: (item: T) => void): Promise<void> {}
 
   async count(): Promise<number> {
     return 0;
   }
 
-  async add(_item: any): Promise<string> {
+  async add(_item: T): Promise<string> {
     return '';
   }
 
-  async put(_item: any): Promise<string> {
+  async put(_item: T): Promise<string> {
     return '';
   }
 
-  async bulkPut(_items: any[]): Promise<void> {}
+  async bulkPut(_items: T[]): Promise<void> {}
 
-  async update(_id: string, _changes: any): Promise<number> {
+  async update(_id: string, _changes: Partial<T>): Promise<number> {
     return 0;
   }
 
-  async get(_id: string): Promise<any> {
+  async get(_id: string): Promise<T | undefined> {
     return undefined;
   }
 
-  async toArray(): Promise<any[]> {
+  async toArray(): Promise<T[]> {
     return [];
   }
 
-  filter(_predicate: (item: any) => boolean) {
-    return new CollectionStub(this.name);
+  filter(_predicate: (item: T) => boolean) {
+    return new CollectionStub<T>(this.name);
   }
 }
 
 /** Minimal WhereClause stub */
-class WhereClauseStub {
+class WhereClauseStub<T = unknown> {
   private tableName: string;
 
   constructor(tableName: string) {
     this.tableName = tableName;
   }
 
-  between(_lower: any, _upper: any, _includeLower?: boolean, _includeUpper?: boolean) {
-    return new CollectionStub(this.tableName);
+  between(_lower: unknown, _upper: unknown, _includeLower?: boolean, _includeUpper?: boolean) {
+    return new CollectionStub<T>(this.tableName);
   }
 
-  equals(_value: any) {
-    return new CollectionStub(this.tableName);
+  equals(_value: unknown) {
+    return new CollectionStub<T>(this.tableName);
   }
 
-  anyOf(_values: any[]) {
-    return new CollectionStub(this.tableName);
+  anyOf(_values: unknown[]) {
+    return new CollectionStub<T>(this.tableName);
   }
 
-  and(_predicate: (item: any) => boolean) {
-    return new CollectionStub(this.tableName);
+  and(_predicate: (item: T) => boolean) {
+    return new CollectionStub<T>(this.tableName);
   }
 
   startsWithIgnoreCase(_prefix: string) {
-    return new CollectionStub(this.tableName);
+    return new CollectionStub<T>(this.tableName);
   }
 }
 
 /** Minimal Collection stub */
-class CollectionStub {
+class CollectionStub<T = unknown> {
   constructor(_tableName: string) {}
 
-  and(_predicate: (item: any) => boolean) {
+  and(_predicate: (item: T) => boolean) {
     return this;
   }
 
-  filter(_predicate: (item: any) => boolean) {
+  filter(_predicate: (item: T) => boolean) {
     return this;
   }
 
@@ -111,9 +111,9 @@ class CollectionStub {
     return this;
   }
 
-  async each(_callback: (item: any) => void): Promise<void> {}
+  async each(_callback: (item: T) => void): Promise<void> {}
 
-  async toArray(): Promise<any[]> {
+  async toArray(): Promise<T[]> {
     return [];
   }
 
@@ -121,9 +121,51 @@ class CollectionStub {
     return 0;
   }
 
-  async first(): Promise<any> {
+  async first(): Promise<T | undefined> {
     return undefined;
   }
+}
+
+/**
+ * Shapes for the tables VehicleService.ts actually reads/writes today.
+ * No backend model exists yet for these (ver TECH_DEBT.md ítem 11) — estos
+ * campos son solo los que ese servicio ya asume, no un diseño de la feature.
+ */
+interface VehicleRecord {
+  id: string;
+  current_odometer: number;
+  updated_at: string;
+}
+
+interface FuelLogRecord {
+  id: string;
+  is_deleted: boolean;
+  updated_at: string;
+  vehicle_id: string;
+  date: string;
+  odometer_reading: number;
+  cost_cents: number;
+  gallons_or_liters: number;
+}
+
+interface MaintenanceLogRecord {
+  id: string;
+  is_deleted: boolean;
+  updated_at: string;
+  vehicle_id: string;
+  date: string;
+  odometer_reading: number;
+  cost_cents: number;
+  description?: string;
+}
+
+interface SyncQueueRecord {
+  id: string;
+  table_name: string;
+  action: string;
+  payload: unknown;
+  timestamp: string;
+  retry_count: number;
 }
 
 /** Database stub with all tables referenced by legacy services */
@@ -135,18 +177,18 @@ class DatabaseStub {
   subscriptions = new TableStub('subscriptions');
   reminders = new TableStub('reminders');
   snapshots = new TableStub('snapshots');
-  sync_queue = new TableStub('sync_queue');
+  sync_queue = new TableStub<SyncQueueRecord>('sync_queue');
   ious = new TableStub('ious');
   statements = new TableStub('statements');
   config = new TableStub('config');
   exchange_rates = new TableStub('exchange_rates');
   net_worth_snapshots = new TableStub('net_worth_snapshots');
   credit_card_statements = new TableStub('credit_card_statements');
-  fuel_logs = new TableStub('fuel_logs');
-  maintenance_logs = new TableStub('maintenance_logs');
-  vehicles = new TableStub('vehicles');
+  fuel_logs = new TableStub<FuelLogRecord>('fuel_logs');
+  maintenance_logs = new TableStub<MaintenanceLogRecord>('maintenance_logs');
+  vehicles = new TableStub<VehicleRecord>('vehicles');
 
-  async transaction(_mode: string, _table: any, callback: () => Promise<any>): Promise<any> {
+  async transaction<T>(_mode: string, _tables: string[], callback: () => Promise<T>): Promise<T> {
     return await callback();
   }
 }
