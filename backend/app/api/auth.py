@@ -171,7 +171,7 @@ def generate_pairing_code(request: Request):
     
     # Construir URL que el QR contendrá (apunta al frontend en la LAN)
     lan_ip = get_local_ip()
-    api_url = f"http://{lan_ip}:8000"
+    api_url = f"http://{lan_ip}:8001"
     frontend_url = f"http://{lan_ip}:5173"
     qr_url = f"{frontend_url}/?{urlencode({'apiUrl': api_url, 'pin': pin})}"
 
