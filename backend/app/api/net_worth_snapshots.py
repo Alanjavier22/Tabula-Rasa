@@ -40,6 +40,8 @@ class NetWorthSnapshotResponse(BaseModel):
     net_worth: int
     snapshot_date: datetime
     metadata_json: Optional[str] = None
+    is_stale: bool = False
+    is_locked: bool = False
 
     class Config:
         from_attributes = True
