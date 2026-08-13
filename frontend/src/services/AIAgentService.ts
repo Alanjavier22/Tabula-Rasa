@@ -1,11 +1,21 @@
 import api from './api';
 import { prepareForAI, hydrateAIResponse } from '../utils/privacy';
+import type { Transaction, Category, Goal, Subscription } from '../types';
 
 export interface AICategorySuggestion {
   transaction_id: string;
   suggested_category_id: string;
   confidence: number;
   reasoning: string;
+}
+
+/** Shape enviado a /api/ai/simulate-what-if - no es un Transaction completo. */
+export interface WhatIfTransactionInput {
+  id: string;
+  description: string;
+  amount: number;
+  date: string;
+  category_id: string;
 }
 
 export interface WhatIfProjection {
@@ -49,8 +59,8 @@ export interface AnomalyScanResult {
 
 export class AIAgentService {
   static async suggestCategorizations(
-    transactions: any[],
-    categories: any[]
+    transactions: Transaction[],
+    categories: Category[]
   ): Promise<AICategorySuggestion[]> {
     // Sanitize transactions before sending to AI
     const { sanitized: sanitizedTxns, hydrationMap } = prepareForAI(transactions);
@@ -61,7 +71,7 @@ export class AIAgentService {
       name: cat.name,
     }));
 
-    const response = await api.post(
+    const response = await api.post<AICategorySuggestion[]>(
       '/api/ai/suggest-categories',
       {
         transactions: sanitizedTxns,
@@ -80,20 +90,20 @@ export class AIAgentService {
 
   static async simulateWhatIfScenario(
     userPrompt: string,
-    categoryTransactions: any[],
+    categoryTransactions: WhatIfTransactionInput[],
     currentNetWorth: number,
     monthlyIncome: number = 0,
     fixedExpenses: number = 0,
     totalDebt: number = 0,
     monthlyDebtPayment: number = 0,
     monthlyCashFlow: number = 0,
-    goals: any[] = []
+    goals: Goal[] = []
   ): Promise<WhatIfScenario> {
     const { sanitized: sanitizedTxns, hydrationMap } = prepareForAI(categoryTransactions);
 
     const avgMonthlySpend = Math.round(categoryTransactions.reduce((sum, t) => sum + t.amount, 0) / 12);
 
-    const response = await api.post(
+    const response = await api.post<WhatIfScenario>(
       '/api/ai/simulate-what-if',
       {
         user_prompt: userPrompt,
@@ -121,19 +131,19 @@ export class AIAgentService {
   }
 
   static async scanForAnomalies(
-    recentTransactions: any[],
-    currentSubscriptions: any[],
-    categories: any[],
-    goals: any[]
+    recentTransactions: Transaction[],
+    currentSubscriptions: Subscription[],
+    categories: Category[],
+    goals: Goal[]
   ): Promise<AnomalyScanResult> {
     // FIX: Use single hydrationMap for token coherence across txns and subscriptions
-    const combinedData = [...recentTransactions, ...currentSubscriptions];
+    const combinedData: Array<Transaction | Subscription> = [...recentTransactions, ...currentSubscriptions];
     const { sanitized: sanitizedCombined, hydrationMap } = prepareForAI(combinedData);
-    
+
     const sanitizedTxns = sanitizedCombined.slice(0, recentTransactions.length);
     const sanitizedSubs = sanitizedCombined.slice(recentTransactions.length);
 
-    const response = await api.post(
+    const response = await api.post<AnomalyScanResult>(
       '/api/ai/scan-anomalies',
       {
         transactions: sanitizedTxns,
