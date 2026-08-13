@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { intelligenceAPI, accountsAPI, categoriesAPI } from '../services/api';
 import { Upload, X, CheckCircle, AlertCircle, FileSpreadsheet, Trash2, Calendar, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
-import type { Account } from '../types';
+import type { Account, Category, AccountExtractedTransaction, AccountParsingResponse } from '../types';
+import type { AxiosError } from 'axios';
 import Select from './common/Select';
 import { formatMoney } from '../utils/money';
 
@@ -11,17 +12,19 @@ interface AccountImportModalProps {
   onSuccess: (count: number) => void;
 }
 
+type ExtractedTransactionRow = AccountExtractedTransaction & { selected: boolean };
+
 const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [accountId, setAccountId] = useState<string>('');
   const [bankAccounts, setBankAccounts] = useState<Account[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [processing, setProcessing] = useState(false);
-  
+
   // Datos extraídos de la IA
   const [importLogId, setImportLogId] = useState<string | null>(null);
-  const [extractedTransactions, setExtractedTransactions] = useState<any[]>([]);
-  const [accountMetadata, setAccountMetadata] = useState<any | null>(null);
+  const [extractedTransactions, setExtractedTransactions] = useState<ExtractedTransactionRow[]>([]);
+  const [accountMetadata, setAccountMetadata] = useState<Omit<AccountParsingResponse, 'transactions'> | null>(null);
   
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -95,7 +98,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
       const parsed = response.data.parsed_data;
       if (parsed.transactions && parsed.transactions.length > 0) {
         // Seleccionamos por defecto las que NO son duplicadas
-        const txsWithSelection = parsed.transactions.map((tx: any) => ({
+        const txsWithSelection = parsed.transactions.map((tx) => ({
           ...tx,
           selected: !tx.is_duplicate
         }));
@@ -114,9 +117,9 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
       } else {
         setResult({ success: false, message: 'No se detectaron transacciones válidas en el archivo.' });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Processing error:', error);
-      const detail = error.response?.data?.detail || 'Error al procesar los movimientos con IA.';
+      const detail = (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al procesar los movimientos con IA.';
       setResult({ success: false, message: detail });
     } finally {
       setProcessing(false);
@@ -146,9 +149,9 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
         onClose();
         setSaving(false);
       }, 2000);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Save error:', error);
-      const detail = error.response?.data?.detail || 'Error al guardar los movimientos.';
+      const detail = (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al guardar los movimientos.';
       setResult({ success: false, message: detail });
       setSaving(false);
     }
