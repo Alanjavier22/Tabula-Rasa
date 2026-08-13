@@ -25,10 +25,22 @@ Pendiente de esa fase, no automatizable: verificación manual en vivo (pairing Q
 - `frontend/src/types/schemas.ts` — varios en los schemas Zod
 **Sugerencia de abordaje:** empezar por `api.ts` (define los tipos de respuesta reales una sola vez, todo lo demás los hereda), después las páginas que más lo usan.
 
-### 5. Reglas de `react-hooks` del nuevo ruleset (34 ocurrencias: `immutability`, `purity`, `set-state-in-effect`, `exhaustive-deps`)
-**Por qué se dejó afuera:** cada una requiere revisión de comportamiento caso por caso (agregar una dependencia a un `useEffect` a ciegas puede causar loops infinitos o refetches de más). No son mecánicas como las que sí se corrigieron en esta fase (unused-vars, ban-ts-comment).
-**Archivos con más ocurrencias:** `SentinelBubble.tsx` (5), `TransactionForm.tsx` (2), `StatementImportModal.tsx` (2), `Dashboard.tsx` (4), y un caso suelto en ~20 archivos más (`App.tsx`, `Budgets.tsx`, `Goals.tsx`, `Subscriptions.tsx`, `Settings.tsx`, `Reminders.tsx`, `Categories.tsx`, `Snapshots.tsx`, `PairingPage.tsx`, `IOUWidget.tsx`, `DeferredWidget.tsx`, `SafeToSpendWidget.tsx`, `AuthGuard.tsx`, `DeviceManager.tsx`, `WhatIfModal.tsx`, `AIAnomalyScanner.tsx`, `AIAssistantDrawer.tsx`, `Select.tsx`).
-**Correr `npm run lint` en `frontend/` para ver la lista actualizada.**
+### 5. Reglas de `react-hooks` del nuevo ruleset (`immutability`, `purity`, `set-state-in-effect`, `exhaustive-deps`) — PARCIALMENTE RESUELTO 2026-08-13
+
+**Resuelto — `immutability` (12 ocurrencias, 0 restantes):** en 9 archivos (`Snapshots.tsx`, `Subscriptions.tsx`, `DeferredWidget.tsx`, `IOUWidget.tsx`, `SafeToSpendWidget.tsx`, `Budgets.tsx`, `Categories.tsx`, `Goals.tsx`, `Reminders.tsx`) el patrón era `useEffect(() => { fetchX(); }, [])` con `const fetchX = ...` declarado *después* del efecto. Es puro reordenamiento de sentencias (mover la función antes del `useEffect`) sin cambio de comportamiento — funcionaba en runtime porque el efecto corre después del render, pero violaba el análisis estático del compiler.
+
+**Resuelto — `purity` (5 ocurrencias, 0 restantes):**
+- `SentinelBubble.tsx` — las posiciones/duraciones de las 6 partículas flotantes se generaban con `Math.random()` directo en el JSX del `.map()`, es decir en cada render. Bug real (no solo cosmético del lint): cualquier re-render mientras el panel está abierto (ej. refetch de React Query) hacía que las partículas "saltaran" a posiciones nuevas en vez de animarse continuas. Se movió la generación a un `useMemo(..., [])` (una sola vez al montar). El `Math.random()` en sí sigue siendo "impuro" para el linter aunque esté memoizado (la regla no distingue estabilidad entre renders de determinismo dentro de un render), así que se agregó un bloque `eslint-disable`/`eslint-enable react-hooks/purity` justificado alrededor del `useMemo` — es decoración visual, no necesita determinismo real.
+- `AIAnomalyScanner.tsx:65` (`Date.now()` en `handleAddSubscription`) — falso positivo: la llamada está dentro de un `onClick` handler, no del render body: el compiler no distingue el contexto y marca cualquier `Date.now()`/`Math.random()` en el árbol de la función del componente. Se silenció puntualmente con `eslint-disable-next-line` justificado.
+
+**Resuelto — `exhaustive-deps` (6 ocurrencias, 0 restantes):**
+- `Dashboard.tsx` (las 4 del ítem 14, ver más abajo): `pendingIOUs`/`accounts`/`statements` se derivaban con `(results[i].data as X[]) || []` — el `|| []` crea un array nuevo en cada render, invalidando los `useMemo` que dependen de ellos (recalculaban siempre en vez de solo cuando cambiaban los datos reales). Se agregó una constante `EMPTY_ARRAY` a nivel de módulo como fallback estable.
+- `WhatIfModal.tsx:95` — bug real, no cosmético: `handleSimulateWhatIf` (`useCallback`) usa `monthlyIncome`, `fixedExpenses`, `totalDebt`, `monthlyDebtPayment`, `avgMonthlySpend` y `goals` de las props pero el array de deps solo tenía `[whatIfPrompt, transactions, currentNetWorth]`. Como el componente está envuelto en `React.memo`, si esas props cambiaban después del primer render, el callback memoizado seguía usando los valores viejos (closure obsoleto) — el usuario podía simular un escenario con ingresos/gastos desactualizados. Se agregaron las deps faltantes.
+- `StatementImportModal.tsx:58` — el efecto que recalcula `user_share_cents` dependía solo de `statementMetadata?.statement_balance_cents`, no del objeto completo. Se cambió a depender de `statementMetadata` entero; el guard existente (`if (newUserShare !== statementMetadata.user_share_cents)`) ya evita el loop infinito que causaría depender del objeto que el mismo efecto actualiza.
+
+**Pendiente, dejado deliberadamente afuera — `set-state-in-effect` (18 ocurrencias, subió de 9 a 18 al arreglar `immutability` de arriba):** esta regla trata **cualquier** patrón `useEffect(() => { fetchX() }, [])` con `fetchX` async que termina en `setState()` (aun después de un `await`) como anti-patrón de "fetch en efecto" — es la recomendación de React de usar una librería de data-fetching (TanStack Query, SWR) en vez de `useEffect`+`useState` a mano. Es el patrón usado en prácticamente **todas** las páginas de esta app (`App.tsx`, `Settings.tsx`, `TransactionForm.tsx`, `Select.tsx`, `DeviceManager.tsx`, `PairingPage.tsx`, y los mismos 9 archivos de arriba, entre otros) y no es un bug — es fetch-on-mount funcionando correctamente. "Arreglarlo" de verdad implicaría migrar el data-fetching de toda la app a una librería, que es un cambio arquitectónico aparte, no limpieza de lint. Decisión explícita del usuario 2026-08-13: documentar y no tocar por ahora.
+
+**Correr `npm run lint` en `frontend/` para ver el estado actualizado.**
 
 ### 6. Archivos "god" que conviene partir
 **Backend** (`backend/app/`): `utils/backup.py` (992 líneas), `api/metrics.py` (840), `api/ai_insights.py` (809), `services/account_intelligence.py` (525), `api/ai.py` (507), `api/ai_assistant.py` (904 — router + ~20 schemas de tools de Gemini + dispatcher de 20 ramas, todo en un solo archivo).
@@ -108,8 +120,7 @@ Health check pedido por el usuario ante la duda de si el rendimiento había baja
 
 Verificado con pytest (38 passed, sin regresiones).
 
-**Pendiente, baja prioridad:**
-- **`useMemo` con memoización rota en `Dashboard.tsx`** (líneas ~201-342): varios `results[i].data as X || []` crean un array nuevo en cada render cuando `data` es falsy, invalidando la dependencia de los `useMemo` (`totalBalance`, `latestStatements`, `totalIOUsTheyOwe`) — confirmado por ESLint (`react-hooks/exhaustive-deps`). No causa refetches, solo recómputo de más; cosmético, parte de las 34 violaciones de hooks del ítem 5.
+**`useMemo` con memoización rota en `Dashboard.tsx` — RESUELTO 2026-08-13** (ver ítem 5): `results[i].data as X || []` creaba un array nuevo en cada render cuando `data` era falsy, invalidando la dependencia de los `useMemo` (`totalBalance`, `latestStatements`, `totalIOUsTheyOwe`). Se agregó una constante `EMPTY_ARRAY` estable a nivel de módulo como fallback.
 
 **Confirmado que está bien, no tocar:** code-splitting por ruta ya implementado (`React.lazy`/`Suspense` en `App.tsx:12-23`), dependencias del bundle razonables (`date-fns`, `decimal.js-light`, sin moment/lodash completo), índices de `Transaction`/`TransactionSplit` ya cubren los filtros comunes (fecha, cuenta, categoría, fingerprint).
 
