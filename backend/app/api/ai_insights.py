@@ -508,7 +508,7 @@ def get_insights(db: Session = Depends(get_db)):
     burn_rate_ratio = current_daily_burn / historical_daily_burn if historical_daily_burn > 0 else 1.0
 
     # Use the centralized calculation from metrics.py for consistency
-    from app.api.metrics import get_safe_to_spend as calc_sts
+    from app.api.metrics_cashflow import get_safe_to_spend as calc_sts
     sts_data = calc_sts(db)
     safe_to_spend = sts_data.safe_to_spend
 
@@ -699,7 +699,7 @@ def get_financial_warnings(db: Session = Depends(get_db)):
     budget_summary = _build_budget_summary(db, now)
     
     # Use the centralized calculation from metrics.py for consistency
-    from app.api.metrics import get_safe_to_spend as calc_sts
+    from app.api.metrics_cashflow import get_safe_to_spend as calc_sts
     sts_data = calc_sts(db)
     safe_to_spend = sts_data.safe_to_spend
 

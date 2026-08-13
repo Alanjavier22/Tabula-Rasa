@@ -11,7 +11,7 @@ import os
 import json
 from app.models.config import Config
 from app.models.goal import Goal, GoalStatus
-from app.api.metrics import get_safe_to_spend
+from app.api.metrics_cashflow import get_safe_to_spend
 
 router = APIRouter(
     prefix="/ai/goals", 
