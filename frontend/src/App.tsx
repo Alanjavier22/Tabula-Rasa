@@ -51,7 +51,7 @@ function App() {
         // Thin Client: Use backend API instead of IndexedDB
         try {
           const snapshots = await snapshotsAPI.getAll();
-          const staleCount = snapshots.data.filter((s: any) => s.is_stale).length;
+          const staleCount = snapshots.data.filter((s) => s.is_stale).length;
           if (staleCount > 5) {
             console.log(`🔍 Se encontraron ${staleCount} snapshots obsoletos, iniciando reconciliación...`);
             await snapshotsAPI.reconcile();
@@ -79,7 +79,7 @@ function App() {
       if (!lastHeartbeat || now - parseInt(lastHeartbeat) > heartbeatInterval) {
         // Use requestIdleCallback if available, otherwise run immediately
         if ('requestIdleCallback' in window) {
-          (window as any).requestIdleCallback(() => runIntegrityHeartbeat());
+          window.requestIdleCallback(() => runIntegrityHeartbeat());
         } else {
           setTimeout(() => runIntegrityHeartbeat(), 1000);
         }
