@@ -60,10 +60,6 @@ const Goals = () => {
   const [smartRecommendations, setSmartRecommendations] = useState<any | null>(null);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
-  useEffect(() => {
-    fetchGoals();
-  }, []);
-
   const fetchGoals = async () => {
     try {
       const response = await goalsAPI.getAll();
@@ -75,6 +71,10 @@ const Goals = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchGoals();
+  }, []);
 
   const handleDelete = async (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
