@@ -41,7 +41,39 @@ def ensure_jwt_secret():
         with open(env_path, "w", encoding="utf-8") as f:
             f.writelines(new_lines)
 
+def ensure_encryption_key():
+    from cryptography.fernet import Fernet
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    encryption_key = os.getenv("CONFIG_ENCRYPTION_KEY")
+
+    if not encryption_key:
+        new_key = Fernet.generate_key().decode()
+        os.environ["CONFIG_ENCRYPTION_KEY"] = new_key
+
+        lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+        updated = False
+        new_lines = []
+        for line in lines:
+            if line.strip().startswith("CONFIG_ENCRYPTION_KEY="):
+                new_lines.append(f"CONFIG_ENCRYPTION_KEY={new_key}\n")
+                updated = True
+            else:
+                new_lines.append(line)
+
+        if not updated:
+            if new_lines and not new_lines[-1].endswith("\n"):
+                new_lines.append("\n")
+            new_lines.append(f"CONFIG_ENCRYPTION_KEY={new_key}\n")
+
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+
 ensure_jwt_secret()
+ensure_encryption_key()
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -195,17 +227,11 @@ app.middleware("http")(security_middleware)
 # CORS middleware
 # LAN IP included so devices paired over the network (QR pairing flow in
 # auth.py) can actually read responses, not just fire the request.
+from app.security_config import get_allowed_origins
 _lan_ip = auth.get_local_ip()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://localhost:5173",
-        "https://127.0.0.1:5173",
-        f"http://{_lan_ip}:5173",
-        f"https://{_lan_ip}:5173",
-    ],
+    allow_origins=get_allowed_origins(_lan_ip),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
