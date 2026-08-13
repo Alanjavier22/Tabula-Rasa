@@ -270,14 +270,14 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
                     <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 p-4 rounded-xl shadow-2xl ring-1 ring-black/50">
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Mes {label}</p>
                       <div className="space-y-2">
-                        {payload.map((entry: any, index: number) => (
+                        {payload.map((entry, index) => (
                           <div key={index} className="flex items-center justify-between gap-8">
                             <div className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
                               <span className="text-sm text-slate-300">{entry.name}</span>
                             </div>
                             <span className="text-sm font-mono font-bold text-white">
-                              {formatFullCurrency(entry.value)}
+                              {formatFullCurrency(typeof entry.value === 'number' ? entry.value : Number(entry.value ?? 0))}
                             </span>
                           </div>
                         ))}
@@ -295,7 +295,7 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
               iconType="circle"
               content={({ payload }) => (
                 <div className="flex justify-end gap-6 mb-8">
-                  {payload?.map((entry: any, index: number) => (
+                  {payload?.map((entry, index) => (
                     <div key={index} className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
                       <span className="text-xs font-semibold text-slate-400 uppercase tracking-tighter">
