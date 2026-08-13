@@ -19,6 +19,8 @@ import {
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TransactionForm from '../components/TransactionForm';
+import type { TransactionFormData } from '../components/TransactionForm';
+import type { AxiosError } from 'axios';
 import Select from '../components/common/Select';
 
 const emptyForm = {
@@ -208,7 +210,7 @@ const Budgets = () => {
     setShowPaymentModal(true);
   };
 
-  const handlePaymentSubmit = async (data: any) => {
+  const handlePaymentSubmit = async (data: TransactionFormData) => {
     setSaving(true);
     try {
       await transactionsAPI.create({
@@ -244,9 +246,9 @@ const Budgets = () => {
       setToast({ message: 'Ecosistema de presupuestos sincronizado', type: 'success' });
       setShowRecurringModal(false);
       fetchBudgets();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error generating recurring budgets:', error);
-      const errorMessage = error.response?.data?.detail || 'Error al generar recurrentes';
+      const errorMessage = (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al generar recurrentes';
       setToast({ message: errorMessage, type: 'error' });
     } finally {
       setSaving(false);
