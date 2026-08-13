@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { authAPI } from '../services/api';
 import api from '../services/api';
+import type { AxiosError } from 'axios';
 
 // Mismo hostname que la página, no 127.0.0.1 fijo - si la página se sirve
 // desde "localhost", la cookie de sesión queda con Domain localhost, y hay
@@ -49,9 +50,10 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
       // La cookie de sesión ya quedó seteada por el backend en esta misma respuesta.
       window.history.replaceState({}, document.title, window.location.pathname);
       setIsAuthenticated(true);
-    } catch (err: any) {
+    } catch (err) {
       window.history.replaceState({}, document.title, window.location.pathname);
-      const detail = err.response?.data?.detail || err.message || 'Error al vincular el dispositivo.';
+      const axiosErr = err as AxiosError<{ detail?: string }>;
+      const detail = axiosErr.response?.data?.detail || axiosErr.message || 'Error al vincular el dispositivo.';
       setDeepLinkError(detail);
     } finally {
       setIsDeepLinkPairing(false);
@@ -70,8 +72,8 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
         setIsAuthenticated(true);
         setIsLocalhostConnecting(false);
         return;
-      } catch (err: any) {
-        if (err?.response?.status === 403) {
+      } catch (err) {
+        if ((err as AxiosError).response?.status === 403) {
           setLocalhostError('Acceso denegado: este endpoint solo está disponible desde la máquina host.');
           setIsLocalhostConnecting(false);
           return;
