@@ -11,11 +11,6 @@ const IOUWidget = () => {
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [settling, SetSettling] = useState(false);
 
-  useEffect(() => {
-    fetchPendingIous();
-    fetchAccounts();
-  }, []);
-
   const fetchPendingIous = async () => {
     try {
       const res = await iousAPI.getPending();
@@ -35,6 +30,11 @@ const IOUWidget = () => {
       console.error('Error fetching accounts:', error);
     }
   };
+
+  useEffect(() => {
+    fetchPendingIous();
+    fetchAccounts();
+  }, []);
 
   const handleSettleClick = (iouId: string) => {
     setSettleModal({ isOpen: true, iouId });
