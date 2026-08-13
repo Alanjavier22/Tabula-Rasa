@@ -143,12 +143,14 @@ De paso se encontró un segundo bug independiente: `generate_pairing_code()` en 
 
 Pendiente real, no crítico: confirmar con la cámara de un celular escaneando el QR en vivo (el mecanismo ya está verificado por otras vías - ver ítem 10).
 
-### 15. Rutas de IA duplicadas e inalcanzables: `/api/ai/audio-to-txns` y `/api/ai/parse-receipt` — hallazgo 2026-08-13, no bloqueante
-Tanto `ai.py` como `ai_audio.py`/`ai_vision.py` registran un handler para `POST /api/ai/audio-to-txns` y `POST /api/ai/parse-receipt` bajo el mismo prefix. `main.py` incluye `ai.router` antes que `ai_audio.router`/`ai_vision.router`, y FastAPI resuelve por orden de registro (primer match gana) — los handlers de `ai_audio.py` (`AudioToTransactionsResponse`, con `raw_transcript`) y `ai_vision.py` (`ReceiptParseResponse`, con `merchant`, `total_amount`, `splits`, `confidence`) para esas dos rutas específicas nunca se ejecutan.
+### 15. Rutas de IA duplicadas e inalcanzables: `/api/ai/audio-to-txns` y `/api/ai/parse-receipt` — RESUELTO 2026-08-13
+Tanto `ai.py` como `ai_audio.py`/`ai_vision.py` registraban un handler para `POST /api/ai/audio-to-txns` y `POST /api/ai/parse-receipt` bajo el mismo prefix. `main.py` incluía `ai.router` antes que `ai_audio.router`/`ai_vision.router`, y FastAPI resuelve por orden de registro (primer match gana) — los handlers de `ai_audio.py` (`AudioToTransactionsResponse`, con `raw_transcript`) y `ai_vision.py` (`ReceiptParseResponse`, con `merchant`, `total_amount`, `splits`, `confidence`) para esas dos rutas específicas nunca se ejecutaban. Confirmado que no era un bug activo: el frontend ya estaba escrito contra el shape simple que sí respondía (`ai.py`, `{transactions: [...]}`).
 
-**No es un bug activo:** verificado que el frontend (`Transactions.tsx` para audio, `DocumentImportModal.tsx` para recibos) ya está escrito contra el shape simple que realmente responde (`ai.py`, `{transactions: [...]}`) — el código de `DocumentImportModal.tsx:103` incluso tiene un comentario reconociéndolo explícitamente. Nadie perdió una feature; los dos schemas más ricos simplemente nunca llegaron a consumirse desde el frontend.
+**Decisión del usuario 2026-08-13: borrar el código muerto** (no vale la pena el esfuerzo de exponer los schemas más ricos sin un pedido de producto real detrás).
+- `ai_vision.py` se borró entero: su único endpoint era ese `parse-receipt` inalcanzable, sin nada más en el archivo. Se sacó su import y `app.include_router(ai_vision.router)` de `main.py`.
+- `ai_audio.py` conservó el archivo — `document-to-txns` y `batch-category-mapping` son endpoints reales y en uso (`api.ts`), y ambos reusan `TransactionSuggestion`/`AudioToTransactionsResponse`/`sanitize_pii`. Se borró únicamente la función `audio_to_transactions` (handler muerto de `/audio-to-txns`), dejando el resto intacto.
 
-**Pendiente real si se quiere aprovechar:** decidir si esos campos extra (transcript crudo, merchant, confidence) valen la pena. Si sí, hay que renombrar una de las dos rutas duplicadas (o quitar el handler muerto de `ai.py`) y actualizar el frontend para consumir los campos nuevos. Si no, borrar el handler inalcanzable de `ai_audio.py`/`ai_vision.py` y su schema — es puro peso muerto en el backend.
+Verificado con pytest (38 passed, sin regresiones).
 
 ---
 
