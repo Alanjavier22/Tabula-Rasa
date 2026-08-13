@@ -176,7 +176,7 @@ def get_google_drive_status(db: Session = Depends(get_db)):
 @router.post("/drive/test")
 def test_drive_connection():
     """Perform a real handshake test with Google Drive API."""
-    from app.utils.backup import test_google_drive_connection
+    from app.utils.backup_gdrive import test_google_drive_connection
     result = test_google_drive_connection()
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])

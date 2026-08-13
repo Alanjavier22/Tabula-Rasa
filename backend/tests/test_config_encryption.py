@@ -49,7 +49,7 @@ def test_decrypt_value_with_status_flags_legacy_plaintext():
 def test_get_google_drive_credentials_self_heals_legacy_plaintext_token(monkeypatch, db_session):
     from app.models.config import Config
     from app.utils.crypto import decrypt_value_with_status
-    import app.utils.backup as backup_module
+    import app.utils.backup_gdrive as backup_module
 
     monkeypatch.setattr(backup_module, "SessionLocal", lambda: db_session)
     # SessionLocal-returned session gets closed by the function under test;

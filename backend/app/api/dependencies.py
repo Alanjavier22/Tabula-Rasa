@@ -11,7 +11,7 @@ def check_maintenance_lock(db: Session = Depends(get_db)) -> None:
     This should be used as a dependency in all write endpoints (POST/PUT/DELETE)
     except migration endpoints.
     """
-    from app.utils.backup import is_maintenance_locked
+    from app.utils.backup_local import is_maintenance_locked
     
     if is_maintenance_locked(db):
         raise HTTPException(

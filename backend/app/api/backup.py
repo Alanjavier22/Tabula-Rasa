@@ -7,16 +7,18 @@ from pydantic import BaseModel
 from typing import Optional, List, Any, cast
 from database import get_db
 from app.api.auth import get_current_device
-from app.utils.backup import (
-    create_external_backup,
-    list_external_backups,
-    restore_from_google_drive,
+from app.utils.backup_local import (
     get_current_db_timestamp,
     parse_backup_timestamp,
     list_pre_restore_backups,
     delete_pre_restore_backup,
     rollback_to_pre_restore,
-    get_google_drive_credentials
+)
+from app.utils.backup_gdrive import (
+    create_external_backup,
+    list_external_backups,
+    restore_from_google_drive,
+    get_google_drive_credentials,
 )
 from fastapi.responses import HTMLResponse
 import logging
