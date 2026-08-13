@@ -62,6 +62,17 @@ def test_match_card_by_name_direct_and_partial():
     assert _match_card_by_name("COMPRA SUPERMERCADO", "Visa Platinum") is False
 
 
+def test_match_card_by_name_ignores_generic_words():
+    # Un nombre de tarjeta que incluye una palabra genérica de banca no debe
+    # matchear cualquier descripción que mencione esa palabra sola - si no,
+    # "PAGO TARJETA" (genérico) haría match con "Tarjeta A" por la palabra
+    # "TARJETA" en vez de por el nombre real de la tarjeta.
+    assert _match_card_by_name("PAGO TARJETA VISA", "Tarjeta A") is False
+    assert _match_card_by_name("PAGO DE MI CREDITO", "Mi Credito Personal") is False
+    # El nombre completo sigue matcheando igual si aparece literal en la descripción.
+    assert _match_card_by_name("CONFIRMACION PAGO TARJETA A EXITOSO", "Tarjeta A") is True
+
+
 # --- find_target_credit_card ---
 
 def test_find_target_credit_card_prefers_direct_link(db_session):

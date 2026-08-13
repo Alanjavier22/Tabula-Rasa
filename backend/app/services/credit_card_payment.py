@@ -41,6 +41,15 @@ CARD_BRAND_KEYWORDS = {
     "diners": ["DINERS", "DINNERS", "DINERS CLUB"],
 }
 
+# Palabras genéricas de banca/pago que no identifican una tarjeta específica.
+# Si el nombre de una tarjeta las contiene (ej. "Tarjeta A", "Mi Crédito"),
+# no deben contar como match por sí solas - si no, "PAGO TARJETA" matchea
+# cualquier tarjeta cuyo nombre incluya la palabra "TARJETA".
+_GENERIC_CARD_NAME_WORDS = {
+    "TARJETA", "CREDITO", "CRÉDITO", "DEBITO", "DÉBITO", "BANCO", "CUENTA",
+    "ESTADO", "PAGO", "MI", "DE", "DEL", "LA", "EL", "LOS", "LAS",
+}
+
 
 def is_credit_card_payment(description: str) -> bool:
     """Check if a transaction description looks like a credit card payment."""
@@ -70,8 +79,8 @@ def _match_card_by_name(description: str, card_name: str) -> bool:
     # Check direct name match
     if name_upper in desc_upper:
         return True
-    # Check individual words of the card name (at least 2 chars)
-    words = [w for w in name_upper.split() if len(w) >= 3]
+    # Check individual words of the card name (at least 3 chars, excluyendo genéricas)
+    words = [w for w in name_upper.split() if len(w) >= 3 and w not in _GENERIC_CARD_NAME_WORDS]
     for word in words:
         if word in desc_upper:
             return True
