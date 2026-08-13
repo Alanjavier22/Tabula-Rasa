@@ -37,7 +37,7 @@ export default function PairingPage() {
       // La cookie de sesión httpOnly ya quedó seteada por el backend en esta
       // misma respuesta. Sólo persistimos la baseURL para que AuthGuard sepa
       // contra qué backend preguntar en visitas futuras.
-      const baseUrl = response.config.baseURL || (window.location.hostname === 'localhost' ? 'http://127.0.0.1:8001' : `http://${window.location.hostname}:8001`);
+      const baseUrl = response.config.baseURL || `http://${window.location.hostname}:8001`;
       localStorage.setItem('finance_base_url', baseUrl);
       
       setStatus('success');

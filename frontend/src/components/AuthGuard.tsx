@@ -2,7 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { authAPI } from '../services/api';
 import api from '../services/api';
 
-const LOCALHOST_BASE_URL = 'http://127.0.0.1:8001';
+// Mismo hostname que la página, no 127.0.0.1 fijo - si la página se sirve
+// desde "localhost", la cookie de sesión queda con Domain localhost, y hay
+// que seguir pegándole a localhost en los requests siguientes (api.ts). Si
+// no, son orígenes distintos para SameSite=Lax y el navegador nunca manda
+// la cookie de vuelta, dejando cada request post-pairing en 401.
+const LOCALHOST_BASE_URL = `http://${window.location.hostname}:8001`;
 const LOCALHOST_HOSTS = ['localhost', '127.0.0.1'];
 const MAX_RETRIES = 10;
 const RETRY_DELAY_MS = 2000;

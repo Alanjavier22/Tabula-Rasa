@@ -361,12 +361,18 @@ export const authAPI = {
   generatePairingCode: () => api.post<{ pin: string; expires_in_seconds: number; qr_url: string }>('/auth/pair/generate'),
   consumePairingCode: (pin: string, deviceName: string) => api.post<{ paired: boolean; device_name: string }>('/auth/pair/consume', { pin, device_name: deviceName }),
   getPairingStatus: (pin: string) => api.get<{ status: string; token?: string; device_name?: string }>(`/auth/pair/status?pin=${pin}`),
-  pairLocalhost: () => axios.post<{ paired: boolean; device_name: string }>('http://127.0.0.1:8001/auth/pair/localhost', {}, { withCredentials: true }),
+  // Usa el mismo hostname que la página (no 127.0.0.1 fijo): si la página se
+  // sirve desde "localhost", la cookie que setea el backend queda con Domain
+  // localhost, y hay que seguir pegándole a localhost en los requests
+  // siguientes - si no, son orígenes distintos para SameSite=Lax y el
+  // navegador nunca manda la cookie de vuelta.
+  pairLocalhost: () => axios.post<{ paired: boolean; device_name: string }>(`http://${window.location.hostname}:8001/auth/pair/localhost`, {}, { withCredentials: true }),
   me: () => api.get<{ device_id: string; device_name: string }>('/auth/me'),
   logout: () => api.post<{ message: string }>('/auth/logout'),
   listDevices: () => api.get<any[]>('/auth/devices'),
   revokeDevice: (id: string) => api.delete<{ message: string }>(`/auth/devices/${id}`),
 };
+
 
 export const maintenanceAPI = {
   healBalances: () => api.post<{ message: string }>('/maintenance/heal-balances'),
