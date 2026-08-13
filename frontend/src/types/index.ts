@@ -575,6 +575,18 @@ export interface ImportBatchResponse {
   message: string;
 }
 
+// --- POST /ai-assistant/chat ---
+export interface AiAssistantFunctionCall {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+export interface AiAssistantChatResponse {
+  response: string | null;
+  function_calls: AiAssistantFunctionCall[] | null;
+  has_mutations: boolean;
+}
+
 // --- /config ---
 export interface Config {
   id: string;
