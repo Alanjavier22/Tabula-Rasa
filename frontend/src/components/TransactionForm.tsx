@@ -5,7 +5,7 @@ import type { Category, Account, TransactionType, PaymentMethod, ExpenseType, Tr
 import Select from './common/Select';
 import DatePicker from './common/DatePicker';
 
-interface TransactionFormData {
+export interface TransactionFormData {
   description: string;
   amount: string;
   transaction_type: TransactionType;
