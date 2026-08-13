@@ -16,14 +16,21 @@ Pendiente de esa fase, no automatizable: verificación manual en vivo (pairing Q
 
 ## Media prioridad
 
-### 4. `any` de TypeScript sin tipar (197 ocurrencias)
-**Por qué se dejó afuera:** requiere modelar tipos reales (formas de respuesta de la API, props de eventos) archivo por archivo — no es mecánico, alto riesgo de hacerlo mal a las apuradas.
-**Peores archivos** (al momento de este corte):
-- `frontend/src/services/api.ts` — ~30+ usos, la mayoría en firmas de respuesta (`api.get<any>(...)`)
-- `frontend/src/pages/Dashboard.tsx` — ~26 usos
-- `frontend/src/pages/Accounts.tsx` — ~10 usos
-- `frontend/src/types/schemas.ts` — varios en los schemas Zod
-**Sugerencia de abordaje:** empezar por `api.ts` (define los tipos de respuesta reales una sola vez, todo lo demás los hereda), después las páginas que más lo usan.
+### 4. `any` de TypeScript sin tipar — PARCIALMENTE RESUELTO 2026-08-13 (109 restantes de ~197)
+**Resuelto — `api.ts`, `Dashboard.tsx`, `Accounts.tsx` (0 `any` restantes en los 3):**
+- `services/api.ts` (29→0): se agregaron ~25 interfaces nuevas a `types/index.ts` con los shapes reales de respuesta, extraídos leyendo los `response_model`/`return` exactos del backend (no adivinados) — cubren `categories/export`, `metrics/cash-flow-projection`, `ai/insights`, `backup/list`, `fiscal/report`+`trend`, `ai/audio-to-txns`+`parse-receipt`, `ai/suggest-categories`, `ai/goals/smart-recommendations`, `intelligence/*` (import de estados de cuenta y de cuentas bancarias), `snapshots/{id}/analyze`+`reconcile`, `transactions/import-batch`, `config`, `auth/devices`.
+- `types/schemas.ts` (5→0): el archivo completo (312 líneas — schemas Zod + interfaces `Local*`/`Sync*` de la arquitectura Dexie abandonada, ver ítem 11) resultó ser código huérfano sin un solo importador real en el resto del código. Se borró entero (decisión explícita del usuario), incluyendo el re-export muerto en `db/db.ts`.
+- `pages/Dashboard.tsx` (27→0): tipos reales para los `results[i].data` de `useQueries` (`IOU[]`, `Transaction[]`, `Subscription[]`, `Category[]`, `Goal[]`), `AxiosError` para el `onError` de insights, y se sacaron las anotaciones `: any` de los callbacks de Recharts (`formatter`/`labelFormatter`/`tickFormatter`) — la librería misma tipa esos parámetros como `any` en su propia definición, así que alcanza con no re-anotarlos para que el lint quede conforme.
+- `pages/Accounts.tsx` (10→0): `AxiosError<{ detail?: string }>` para los 6 `onError`, y dos tipos nuevos en `types/index.ts` (`AccountPayload`, `StatementPayload`) para los payloads de create/update — no se pudo reusar `Partial<Account>`/`Partial<CreditCardStatement>` directamente porque el backend usa `exclude_unset=True`: enviar `null` explícito en `credit_limit`/`statement_day`/`payment_day`/`payment_due_date`/`cut_off_date`/`notes` borra el valor existente, comportamiento real que el form usa para "vaciar" esos campos — los tipos de lectura (`T | undefined`) no lo permiten, hacía falta un tipo de escritura aparte.
+
+**Hallazgos colaterales corregidos en el camino** (typar `api.ts` con los shapes reales del backend expuso mismatches en archivos que no estaban en el plan original):
+- `db/db.ts` tenía un re-export muerto de `LocalTransaction` (nadie lo importaba) — se limpió al borrar `schemas.ts`.
+- `uploadGuayaquilExcel` en `api.ts` llamaba a `POST /transactions/import-guayaquil`, endpoint que no existe en el backend, y no tenía ningún llamador — código muerto, borrado. La función real de importar Excel de banco (incluye Banco Guayaquil) es `AccountImportModal.tsx` → `intelligenceAPI.uploadAccountDocument()` → `POST /intelligence/parse-account/{id}`, que sí funciona.
+- `DeviceManager.tsx` y `Settings.tsx` tenían interfaces locales (`Device`, `BackupFile`) duplicando y ligeramente desincronizadas de la forma real del backend (`created_at`/`size` no contemplaban `null`) — se reemplazaron por los tipos compartidos `AuthDevice`/`BackupFile` de `types/index.ts`.
+- `Snapshots.tsx:52` asumía que `snapshotsAPI.analyze()` siempre devuelve texto; el backend puede devolver `analysis: null` si Gemini no responde — se agregó un mensaje de fallback.
+- Ver también ítem 15 (rutas de IA duplicadas e inalcanzables, hallazgo relacionado del mismo repaso de `api.ts`).
+
+**Pendiente (109 ocurrencias restantes, sin tocar esta ronda):** `db/db.ts` (18 — la mayoría en `VehicleService.ts`/código del stub Dexie, ver ítem 11), `Settings.tsx` (8), `StatementImportModal.tsx` (7), `AIAgentService.ts` (8), `Transactions.tsx` (6), `AccountImportModal.tsx` (6), `utils/privacy.ts` (5), `components/transactions/TransactionRow.tsx` (5), `AIAnomalyScanner.tsx` (5), y el resto en archivos con 1-4 ocurrencias cada uno. Mismo criterio que antes: no es mecánico, revisar caso por caso al tocar cada archivo.
 
 ### 5. Reglas de `react-hooks` del nuevo ruleset (`immutability`, `purity`, `set-state-in-effect`, `exhaustive-deps`) — PARCIALMENTE RESUELTO 2026-08-13
 
@@ -135,6 +142,13 @@ Verificado con pytest (38 passed, sin regresiones).
 De paso se encontró un segundo bug independiente: `generate_pairing_code()` en `backend/app/api/auth.py` armaba la URL del QR con el puerto **8000** (resto de una migración de puerto vieja, `api.ts` ya tenía código defensivo para limpiar ese puerto de `localStorage`), cuando el backend corre en **8001** desde hace tiempo - cualquier QR escaneado habría fallado igual aunque se renderizara, porque apuntaba a un puerto sin nada escuchando. Corregido en el mismo commit del fix del puerto.
 
 Pendiente real, no crítico: confirmar con la cámara de un celular escaneando el QR en vivo (el mecanismo ya está verificado por otras vías - ver ítem 10).
+
+### 15. Rutas de IA duplicadas e inalcanzables: `/api/ai/audio-to-txns` y `/api/ai/parse-receipt` — hallazgo 2026-08-13, no bloqueante
+Tanto `ai.py` como `ai_audio.py`/`ai_vision.py` registran un handler para `POST /api/ai/audio-to-txns` y `POST /api/ai/parse-receipt` bajo el mismo prefix. `main.py` incluye `ai.router` antes que `ai_audio.router`/`ai_vision.router`, y FastAPI resuelve por orden de registro (primer match gana) — los handlers de `ai_audio.py` (`AudioToTransactionsResponse`, con `raw_transcript`) y `ai_vision.py` (`ReceiptParseResponse`, con `merchant`, `total_amount`, `splits`, `confidence`) para esas dos rutas específicas nunca se ejecutan.
+
+**No es un bug activo:** verificado que el frontend (`Transactions.tsx` para audio, `DocumentImportModal.tsx` para recibos) ya está escrito contra el shape simple que realmente responde (`ai.py`, `{transactions: [...]}`) — el código de `DocumentImportModal.tsx:103` incluso tiene un comentario reconociéndolo explícitamente. Nadie perdió una feature; los dos schemas más ricos simplemente nunca llegaron a consumirse desde el frontend.
+
+**Pendiente real si se quiere aprovechar:** decidir si esos campos extra (transcript crudo, merchant, confidence) valen la pena. Si sí, hay que renombrar una de las dos rutas duplicadas (o quitar el handler muerto de `ai.py`) y actualizar el frontend para consumir los campos nuevos. Si no, borrar el handler inalcanzable de `ai_audio.py`/`ai_vision.py` y su schema — es puro peso muerto en el backend.
 
 ---
 
