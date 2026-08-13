@@ -369,8 +369,9 @@ class AccountIntelligenceService:
             
             for attempt in range(max_retries):
                 try:
-                    response = client.models.generate_content(
-                        model=LITE_MODEL, 
+                    response = await asyncio.to_thread(
+                        client.models.generate_content,
+                        model=LITE_MODEL,
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             system_instruction=system_instruction,
@@ -442,11 +443,18 @@ class AccountIntelligenceService:
                 if cat_id in categories_dict:
                     tx_dict['category_name'] = categories_dict[cat_id]
             
-            # Re-evaluar duplicados con el fingerprint final
-            existing = self.db.query(Transaction).filter(Transaction.fingerprint == fp, Transaction.is_deleted == False).first()
-            
-            tx_dict['is_duplicate'] = (existing is not None)
             enriched_transactions.append(tx_dict)
+
+        # Re-evaluar duplicados con el fingerprint final en una sola query IN (...)
+        # en vez de una query por transacción dentro del loop de arriba.
+        all_fingerprints = [tx_dict['fingerprint'] for tx_dict in enriched_transactions]
+        existing_fingerprints = {
+            row[0] for row in self.db.query(Transaction.fingerprint).filter(
+                Transaction.fingerprint.in_(all_fingerprints), Transaction.is_deleted == False
+            ).all()
+        }
+        for tx_dict in enriched_transactions:
+            tx_dict['is_duplicate'] = tx_dict['fingerprint'] in existing_fingerprints
 
         parsed_data['transactions'] = enriched_transactions
         return parsed_data
