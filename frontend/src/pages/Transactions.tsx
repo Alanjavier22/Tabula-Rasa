@@ -1,21 +1,23 @@
-import { useState, memo, useDeferredValue, useEffect, useMemo } from 'react';
+import { useState, useDeferredValue, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { transactionsAPI, categoriesAPI, accountsAPI, goalsAPI } from '../services/api';
-import type { TransactionType, PaymentMethod, ExpenseType } from '../types';
+import type { TransactionType, PaymentMethod, ExpenseType, Transaction } from '../types';
 import { formatMoney, toCents } from '../utils/money';
-import { Plus, Trash2, Edit, Upload, Mic, MicOff, FileImage, Search, Bot, CreditCard } from 'lucide-react';
+import { Plus, Upload, Mic, MicOff, FileImage, Search, Bot, CreditCard } from 'lucide-react';
 import { aiAPI } from '../services/api';
+import type { AxiosError } from 'axios';
 import AccountImportModal from '../components/AccountImportModal';
 import DocumentImportModal from '../components/DocumentImportModal';
 import StatementImportModal from '../components/StatementImportModal';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TransactionForm from '../components/TransactionForm';
+import type { TransactionFormData } from '../components/TransactionForm';
 import DatePicker from '../components/common/DatePicker';
 import { VirtualTransactionList } from '../components/transactions/VirtualTransactionList';
 
-const emptyForm = {
+const emptyForm: TransactionFormData = {
   description: '',
   amount: '',
   transaction_type: 'expense' as TransactionType,
@@ -28,67 +30,12 @@ const emptyForm = {
   beneficiary: '',
 };
 
-const TransactionRow = memo(({ transaction, onEdit, onDelete }: { transaction: any; onEdit: (t: any) => void; onDelete: (id: string) => void }) => (
-  <tr key={transaction.id} className="hover:bg-slate-700/30 transition-colors">
-    <td className="px-3 lg:px-6 py-3 lg:py-4">
-      <div className="text-sm font-medium text-white break-words">
-        {transaction.description}
-      </div>
-    </td>
-    <td className="px-3 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
-      <span
-        className={`px-2 lg:px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-          transaction.transaction_type === 'income'
-            ? 'bg-green-500/20 text-green-400'
-            : 'bg-red-500/20 text-red-400'
-        }`}
-      >
-        {transaction.transaction_type === 'income' ? 'Ingreso' : 'Gasto'}
-      </span>
-    </td>
-    <td className="px-3 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
-      <span
-        className={`text-sm font-semibold ${
-          transaction.transaction_type === 'income'
-            ? 'text-green-400'
-            : 'text-red-400'
-        }`}
-      >
-        {transaction.transaction_type === 'income' ? '+' : '-'}
-        ${formatMoney(transaction.amount)}
-      </span>
-    </td>
-    <td className="px-3 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-sm text-slate-300">
-      {new Date(transaction.date).toLocaleDateString('es-ES')}
-    </td>
-    <td className="px-3 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-sm text-slate-300 hidden md:table-cell">
-      {transaction.payment_method === 'cash' ? 'Efectivo' :
-       transaction.payment_method === 'credit_card' ? 'T. Crédito' :
-       transaction.payment_method === 'debit_card' ? 'T. Débito' :
-       transaction.payment_method === 'transfer' ? 'Transferencia' : 'Otro'}
-    </td>
-    <td className="px-3 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-right text-sm font-medium">
-      <button onClick={() => onEdit(transaction)} className="text-blue-400 hover:text-blue-300 mr-3">
-        <Edit className="w-4 h-4" />
-      </button>
-      <button
-        onClick={() => onDelete(transaction.id)}
-        className="text-red-400 hover:text-red-300"
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
-    </td>
-  </tr>
-));
-
-TransactionRow.displayName = 'TransactionRow';
-
 const Transactions = () => {
   const queryClient = useQueryClient();
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [showModal, setShowModal] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<any>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
   const [showImportModal, setShowImportModal] = useState(false);
   const [showDocumentImportModal, setShowDocumentImportModal] = useState(false);
@@ -163,7 +110,7 @@ const Transactions = () => {
     }
   };
 
-  const handleEdit = (transaction: any) => {
+  const handleEdit = (transaction: Transaction) => {
     setEditingTransaction(transaction);
     setForm({
       description: transaction.description || '',
@@ -180,7 +127,7 @@ const Transactions = () => {
     setShowModal(true);
   };
 
-  const handleSubmit = async (formData: any) => {
+  const handleSubmit = async (formData: TransactionFormData) => {
     try {
       if (editingTransaction) {
         const amountCents = toCents(parseFloat(formData.amount.replace(/[^0-9.-]/g, '')));
@@ -342,9 +289,9 @@ const Transactions = () => {
       } else {
         setToast({ message: 'No se detectaron transacciones en el audio', type: 'warning' });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error processing audio:', error);
-      const detail = error.response?.data?.detail || 'Error al procesar el audio con IA. Intenta de nuevo.';
+      const detail = (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al procesar el audio con IA. Intenta de nuevo.';
       setToast({ message: detail, type: 'error' });
       setIsRecording(false);
     } finally {
@@ -356,7 +303,7 @@ const Transactions = () => {
   const filteredTransactions = useMemo(() => {
     if (!transactions) return [];
     
-    return transactions.filter((txn: any) => {
+    return transactions.filter((txn) => {
       const matchesSearch = !deferredSearchQuery || 
         txn.description?.toLowerCase().includes(deferredSearchQuery.toLowerCase());
       
