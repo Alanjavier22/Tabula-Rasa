@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import axios from 'axios';
+import axios, { type AxiosError } from 'axios';
 import { motion } from 'framer-motion';
 
 interface QRScannerProps {
@@ -65,9 +65,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onSuccess, onCancel }) => 
       localStorage.setItem('finance_base_url', apiUrl);
 
       onSuccess();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setError(err.response?.data?.detail || err.message || "Error al procesar el QR.");
+      const axiosErr = err as AxiosError<{ detail?: string }>;
+      setError(axiosErr.response?.data?.detail || axiosErr.message || "Error al procesar el QR.");
     } finally {
       setLoading(false);
     }
