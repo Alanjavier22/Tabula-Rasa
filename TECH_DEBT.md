@@ -6,19 +6,11 @@ Cada ítem trae contexto suficiente para retomarlo sin tener que redescubrir tod
 
 ---
 
-## Alta prioridad
+## Alta prioridad — COMPLETADO 2026-08-12
 
-### 1. Migrar JWT de sesión de `localStorage` a cookie httpOnly
-**Por qué se dejó afuera:** requiere rehacer el flujo de pairing (backend setear cookie, frontend dejar de leer/escribir `localStorage` para el token, ajustar CORS `credentials`/`SameSite`). Riesgo de romper el pairing QR entre dispositivos si no se hace con cuidado. Decidido explícitamente con el usuario: bajo riesgo real (app local-first, un solo usuario, su propia LAN), se pospone.
-**Dónde:** `frontend/src/services/api.ts` (lectura/escritura del token), `frontend/src/components/AuthGuard.tsx`, `backend/app/api/auth.py` (emisión del JWT), `backend/middleware/security.py`.
+Los 3 ítems de esta sección se implementaron y verificaron (ver plan `replicated-purring-bonbon.md`): JWT migrado a cookie httpOnly (`tabula_session`, `SameSite=Lax`, `secure` dinámico), `GOOGLE_DRIVE_REFRESH_TOKEN` cifrado con Fernet (self-healing sobre valores legacy en claro), y suite de tests ampliada de 21 a 37 tests (CRUD de accounts/transactions/categories/budgets + `statement_intelligence.py`). De paso se corrigió un bug real: `PUT /budgets/update-recurring` era inalcanzable por orden de registro de rutas.
 
-### 2. Cifrar en reposo el `GOOGLE_DRIVE_REFRESH_TOKEN`
-**Por qué se dejó afuera:** hallazgo de severidad baja, no bloqueante. Hoy se guarda en texto plano en la tabla `Config` (mitigado parcialmente por el masking al leer vía API).
-**Dónde:** `backend/app/api/backup.py:365-387` (`google_oauth_callback`). Sugerencia: Fernet con una clave derivada de `JWT_SECRET` o una nueva env var, cifrar antes de `db.add(Config(...))`.
-
-### 3. Ampliar la suite de tests más allá de lo crítico
-**Qué se hizo ya:** `backend/tests/` tiene 17 tests (precisión monetaria, matching de pagos con tarjeta, consistencia de IDs UUID) — cero cobertura antes de esto.
-**Qué falta:** CRUD básico de los endpoints principales (accounts, transactions, categories, budgets), y cobertura de `statement_intelligence.py` / fingerprinting (el pipeline de importación de estados de cuenta vía Gemini, que es el área más compleja del backend). Nada de frontend tiene tests (no hay vitest/RTL configurado).
+Pendiente de esa fase, no automatizable: verificación manual en vivo (pairing QR con celular real en LAN, revocación de dispositivo, inspección de flags de cookie en devtools) — ver ítem 10 más abajo.
 
 ---
 
@@ -42,15 +34,17 @@ Cada ítem trae contexto suficiente para retomarlo sin tener que redescubrir tod
 **Backend** (`backend/app/`): `utils/backup.py` (992 líneas), `api/metrics.py` (840), `api/ai_insights.py` (809), `services/account_intelligence.py` (525), `api/ai.py` (507), `api/ai_assistant.py` (904 — router + ~20 schemas de tools de Gemini + dispatcher de 20 ramas, todo en un solo archivo).
 **Frontend** (`frontend/src/`): `pages/Accounts.tsx` (1263), `pages/Dashboard.tsx` (1097), `pages/Settings.tsx` (937), `pages/Budgets.tsx` (792), `services/ReportingService.ts` (759), `pages/Goals.tsx` (651), `pages/Reminders.tsx` (643), `pages/Subscriptions.tsx` (628), `pages/Transactions.tsx` (626), `components/StatementImportModal.tsx` (615), `pages/Categories.tsx` (606).
 
-### 7. Boilerplate CRUD duplicado
-32 módulos en `backend/app/api/` repiten el mismo patrón (router + get/post/put/delete + response_model) sin una base genérica compartida. Candidato a un factory/mixin de FastAPI, pero bajo impacto real — es limpieza, no un bug.
+### 7. Boilerplate CRUD duplicado — PARCIALMENTE RESUELTO 2026-08-12
+Se agregó `backend/app/api/crud_factory.py` (`make_crud_router`), que genera POST/GET/GET-by-id/PUT/[DELETE] con hooks (`pre_create`, `pre_update`, `before_id_routes` para rutas estáticas que deben registrarse antes de `/{id}`). Migrados a usarlo: `accounts.py`, `categories.py`, `reminders.py`, `subscriptions.py`, `ious.py` (5 de 32 módulos) — cada uno conserva sus endpoints extra (`set-balance`, `export`/`import`, `pay`, `settle`, etc.) sobre el router devuelto por el factory.
+
+**Deliberadamente no migrados**, porque el delete/list tiene lógica de negocio no trivial y forzarlos al factory sería sobre-ingeniería: `goals.py` (delete con reembolso + desvinculación de transacciones), `budgets.py` (ya tiene su propio orden de rutas documentado, ver comentario en el archivo), y el resto de los 32 módulos no se tocaron por no ser mecánicos 1:1 o por bajo ROI de tocarlos ahora. El factory queda disponible para adoptarlo oportunistamente en el resto cuando se toquen esos archivos por otra razón.
 
 ---
 
 ## Baja prioridad / cosas menores encontradas en el camino
 
-### 8. `_match_card_by_name` puede dar falsos positivos con palabras genéricas
-**Dónde:** `backend/app/services/credit_card_payment.py:66-78`. Matchea cualquier palabra ≥3 letras del nombre de la tarjeta contra la descripción — si una tarjeta se llama literalmente "Tarjeta A", cualquier descripción que diga "PAGO TARJETA" hace match por la palabra genérica "TARJETA", no por el nombre real. No es un bug de seguridad (el fallback es no-crear-nada si es ambiguo), pero puede asignar un pago al banco equivocado en casos borde. Detectado escribiendo `backend/tests/test_credit_card_payment.py`, no estaba en el alcance original.
+### 8. `_match_card_by_name` puede dar falsos positivos con palabras genéricas — RESUELTO 2026-08-12
+**Dónde:** `backend/app/services/credit_card_payment.py:66-78`. Se agregó `_GENERIC_CARD_NAME_WORDS` (palabras de banca/pago comunes en español) excluida del matcheo por palabra suelta, así "PAGO TARJETA" ya no matchea una tarjeta llamada "Tarjeta A" solo por la palabra "TARJETA" — el match por nombre completo sigue funcionando igual. Cubierto por `test_match_card_by_name_ignores_generic_words` en `backend/tests/test_credit_card_payment.py`.
 
 ### 9. Archivos de backup de `finance.db` acumulados
 `backend/finance.db.backup`, `.pre_phase1_backup`, `.pre_uuid_migration` (+ el nuevo `.pre_healthcheck_backup_<fecha>` de esta sesión). Todos gitignorados, no es un problema de repo, solo clutter en disco si se quiere limpiar a mano.
@@ -58,8 +52,24 @@ Cada ítem trae contexto suficiente para retomarlo sin tener que redescubrir tod
 ### 10. CORS/pairing entre dispositivos LAN — verificar en vivo
 Esta fase agregó la IP LAN detectada dinámicamente tanto al `ALLOWED_ORIGINS` del middleware de seguridad como al `allow_origins` de CORS en `main.py` (antes solo tenían `localhost`/`127.0.0.1`, lo cual en teoría ya bloqueaba el flujo de pairing QR entre el PC y el celular). No se probó en vivo con un dispositivo real en la LAN — vale la pena confirmar que el pairing por QR sigue funcionando end-to-end después de este cambio.
 
-### 11. `db/db.ts` (stub de Dexie) sigue siendo un stub
-Servicios activos (`ReportingService`, `SearchService`, `CurrencyService`, `IntegrityService`, `RecurringTransactionService`, `ScheduledBackupService`, `SmartImporter`, `SnapshotService`, `VehicleService`, `DataHydrationOverlay`) dependen de `db/db.ts`, que según su propio comentario "esa capa nunca se completó". No se investigó a fondo cuáles de estos servicios están realmente devolviendo datos reales vs silenciosamente vacíos como pasaba con `MaintenanceService` (que sí se confirmó roto y se borró). Vale la pena una auditoría dedicada: por cada servicio, confirmar si el dato que muestra en la UI es real o si viene de un stub que devuelve `[]`.
+### 11. `db/db.ts` (stub de Dexie) — AUDITADO Y RESUELTO 2026-08-12
+Auditoría completa de los servicios que dependían de `db/db.ts`. Resultado: ninguno causaba "datos vacíos silenciosos" visibles hoy porque ninguno se ejecutaba - eran código 100% huérfano (nada en `pages/` ni `components/` los importaba), restos de una arquitectura offline-first con IndexedDB + cola de sincronización que el proyecto abandonó a favor del backend FastAPI como fuente de verdad.
+
+**Borrados (reemplazados por una función real que ya funciona vía backend, o sin ningún llamador):**
+- `SnapshotService.ts` → reemplazado por `Snapshots.tsx` + `snapshotsAPI` (backend `net_worth_snapshots.py`)
+- `RecurringTransactionService.ts` → reemplazado por el botón "Pagar" de `Subscriptions.tsx` (`subscriptionsAPI.pay()`)
+- `ScheduledBackupService.ts` → reemplazado por el backup real a Google Drive en `Settings.tsx` (`backupAPI`)
+- `SmartImporter.ts` → reemplazado por `transactions/import-batch` + `statement_intelligence.py` (importador con IA)
+- `IntegrityService.ts` → lo esencial (sanar balances) ya lo cubre el botón "Integridad" del Dashboard (`maintenanceAPI.healBalances()`); los chequeos extra (ecuación contable, IOUs huérfanos) no existen en el backend y no se reconstruyeron
+- `SearchService.ts` → sin backend ni UI de búsqueda en ningún lado (huérfano completo, nunca se conectó una search bar)
+- `CurrencyService.ts` → sin tabla `exchange_rates` ni selector de moneda real en el backend/UI (el campo `currency` del form de cuentas está hardcodeado a USD)
+- `DataHydrationOverlay.tsx` → diseñado para el patrón "hidratar desde IndexedDB al iniciar", que ya no aplica (cada página trae datos en vivo con React Query)
+- `AIAssistantDrawer.tsx` → reemplazado por `CommandPalette.tsx` (Ctrl+K, montado en `Layout.tsx`), que ya es un chat de IA real contra `ai_assistant.py`. Se limpiaron de paso los métodos muertos de `ReportingService.ts` que sólo este componente llamaba (`prepareAuditContext`, `getTransactionsWithCategories`, `generateReport`, `getTrendData`, `getEstablishmentIntelligence`, `filterTransactions`, `aggregateTransactions`, `createTransactionOptimistic`, `updateTransactionOptimistic`, `deleteTransactionOptimistic`, `getPendingMutationCount`, `bulkUpdateTransactions`, `sanitizeForAI`, `hydrateAIResponse`, `clearHydrationMap`) - se conservó únicamente `setFiscalRules`, que sí usa `Dashboard.tsx` y no depende del stub.
+
+**Conservado, pendiente de construir como feature real:**
+- `VehicleService.ts` — el usuario confirmó que control de gastos de vehículo (combustible/mantenimiento) sí es una función que quiere. No existe ningún modelo (`Vehicle`/`FuelLog`/`MaintenanceLog`) en `backend/app/models/`, ni endpoints, ni página en el frontend - el archivo actual depende 100% del stub y no tiene ningún llamador real hoy, pero no se borra porque la intención es diseñarlo de cero (modelo + migraciones + endpoints + UI) en una sesión dedicada, no reparar el archivo existente.
+
+`db/db.ts` en sí se mantiene (lo siguen usando `VehicleService.ts` y `GlobalErrorBoundary.tsx`, este último de forma sana vía `phoenixHardReset`).
 
 ---
 
