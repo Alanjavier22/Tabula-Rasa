@@ -12,6 +12,7 @@ from app.models.import_log import ImportLog
 from app.models.account import Account
 from app.services.statement_intelligence import StatementIntelligenceService
 from app.services.account_intelligence import AccountIntelligenceService
+from app.services.account_import_finalizer import finalize_account_import
 from app.services.snapshot_service import recalculate_stale_snapshots
 
 router = APIRouter(
@@ -172,9 +173,8 @@ async def confirm_account_import(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    service = AccountIntelligenceService(db)
     try:
-        count = service.finalize_import(import_log_id, payload.confirmed_transactions)
+        count = finalize_account_import(db, import_log_id, payload.confirmed_transactions)
         background_tasks.add_task(recalculate_stale_snapshots, db)
         return {"status": "success", "imported_count": count, "message": "Movimientos importados correctamente."}
     except Exception as e:
