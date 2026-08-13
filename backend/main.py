@@ -209,7 +209,7 @@ def increment_version(mapper, connection, target):
     if hasattr(target, 'version'):
         target.version += 1
 
-from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, config, subscriptions, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, ai, ai_vision, ai_goals, alerts, fiscal, backup, ai_insights, ai_audio, ai_sentinel, ai_audit, intelligence, export, deferred, maintenance
+from app.api import transactions, categories, accounts, budgets, goals, reminders, statements, metrics, config, subscriptions, transaction_splits, ious, net_worth_snapshots, ai_assistant, auth, ai, ai_goals, alerts, fiscal, backup, ai_insights, ai_audio, ai_sentinel, ai_audit, intelligence, export, deferred, maintenance
 
 from middleware.security import SecurityMiddleware
 from init_db import init_db
@@ -254,7 +254,6 @@ app.include_router(ious.router)
 app.include_router(net_worth_snapshots.router)
 app.include_router(ai.router)
 app.include_router(ai_assistant.router)
-app.include_router(ai_vision.router)
 app.include_router(ai_goals.router)
 app.include_router(ai_sentinel.router)
 app.include_router(ai_audit.router)
