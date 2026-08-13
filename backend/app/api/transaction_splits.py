@@ -2,18 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any, cast
 from database import get_db
-from app.api.auth import get_current_device
+from app.api.crud_factory import make_crud_router
 from app.models.transaction_split import TransactionSplit
 from app.models.transaction import Transaction
 from app.models.category import Category
 from pydantic import BaseModel
-
-router = APIRouter(
-    prefix="/transaction-splits", 
-    tags=["transaction-splits"], 
-    dependencies=[Depends(get_current_device)],
-    redirect_slashes=False
-)
 
 
 class TransactionSplitBase(BaseModel):
@@ -44,38 +37,67 @@ class TransactionSplitResponse(BaseModel):
         from_attributes = True
 
 
-@router.post("/", response_model=TransactionSplitResponse)
-def create_transaction_split(split: TransactionSplitCreate, db: Session = Depends(get_db)):
-    # Validate amount is positive
-    if split.amount <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Split amount must be greater than 0."
-        )
-
-    transaction = db.query(Transaction).filter(Transaction.id == split.transaction_id).first()
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    if split.category_id:
-        if not db.query(Category).filter(Category.id == split.category_id).first():
+def _validate_category(category_id: Optional[str], db: Session) -> None:
+    if category_id:
+        if not db.query(Category).filter(Category.id == category_id).first():
             raise HTTPException(status_code=404, detail="Category not found")
 
-    existing_splits = db.query(TransactionSplit).filter(
-        TransactionSplit.transaction_id == split.transaction_id
-    ).all()
-    existing_sum = sum((s.amount for s in existing_splits), 0)
 
-    if transaction and existing_sum + split.amount > cast(int, transaction.amount or 0):
+def _validate_split_sum(transaction: Transaction, new_amount: int, existing_sum: int) -> None:
+    if new_amount <= 0:
+        raise HTTPException(status_code=400, detail="Split amount must be greater than 0.")
+    if existing_sum + new_amount > cast(int, transaction.amount or 0):
         raise HTTPException(
             status_code=400,
-            detail=f"Split sum ({existing_sum + split.amount}) exceeds transaction amount ({transaction.amount})"
+            detail=f"Split sum ({existing_sum + new_amount}) exceeds transaction amount ({transaction.amount})"
         )
 
-    db_split = TransactionSplit(**split.model_dump())
-    db.add(db_split)
-    db.commit()
-    db.refresh(db_split)
-    return db_split
+
+def _pre_create(payload: TransactionSplitCreate, db: Session) -> None:
+    transaction = db.query(Transaction).filter(Transaction.id == payload.transaction_id).first()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    _validate_category(payload.category_id, db)
+
+    existing_sum = sum(
+        (s.amount for s in db.query(TransactionSplit).filter(
+            TransactionSplit.transaction_id == payload.transaction_id
+        ).all()),
+        0
+    )
+    _validate_split_sum(transaction, payload.amount, existing_sum)
+
+
+def _pre_update(existing: TransactionSplit, payload: TransactionSplitUpdate, db: Session) -> None:
+    transaction = db.query(Transaction).filter(Transaction.id == existing.transaction_id).first()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    _validate_category(payload.category_id, db)
+
+    if payload.amount is not None:
+        existing_sum = sum(
+            (s.amount for s in db.query(TransactionSplit).filter(
+                TransactionSplit.transaction_id == existing.transaction_id,
+                TransactionSplit.id != existing.id
+            ).all()),
+            0
+        )
+        _validate_split_sum(transaction, payload.amount, existing_sum)
+
+
+router: APIRouter = make_crud_router(
+    prefix="/transaction-splits",
+    tags=["transaction-splits"],
+    model=TransactionSplit,
+    create_schema=TransactionSplitCreate,
+    update_schema=TransactionSplitUpdate,
+    response_schema=TransactionSplitResponse,
+    entity_name="Transaction split",
+    filter_deleted=False,
+    include_list=False,
+    pre_create=_pre_create,
+    pre_update=_pre_update,
+)
 
 
 @router.get("/", response_model=List[TransactionSplitResponse])
@@ -84,65 +106,6 @@ def get_transaction_splits(skip: int = 0, limit: int = 100, transaction_id: Opti
     if transaction_id:
         query = query.filter(TransactionSplit.transaction_id == transaction_id)
     return query.offset(skip).limit(limit).all()
-
-
-@router.get("/{split_id}", response_model=TransactionSplitResponse)
-def get_transaction_split(split_id: str, db: Session = Depends(get_db)):
-    split = db.query(TransactionSplit).filter(TransactionSplit.id == split_id).first()
-    if not split:
-        raise HTTPException(status_code=404, detail="Transaction split not found")
-    return split
-
-
-@router.put("/{split_id}", response_model=TransactionSplitResponse)
-def update_transaction_split(split_id: str, split: TransactionSplitUpdate, db: Session = Depends(get_db)):
-    db_split = db.query(TransactionSplit).filter(TransactionSplit.id == split_id).first()
-    if not db_split:
-        raise HTTPException(status_code=404, detail="Transaction split not found")
-
-    transaction = db.query(Transaction).filter(Transaction.id == db_split.transaction_id).first()
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-
-    if split.category_id:
-        if not db.query(Category).filter(Category.id == split.category_id).first():
-            raise HTTPException(status_code=404, detail="Category not found")
-
-    if split.amount is not None:
-        # Validate amount is positive
-        if split.amount <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Split amount must be greater than 0."
-            )
-
-        existing_splits = db.query(TransactionSplit).filter(
-            TransactionSplit.transaction_id == db_split.transaction_id,
-            TransactionSplit.id != split_id
-        ).all()
-        existing_sum = sum((s.amount for s in existing_splits), 0)
-
-        if transaction and existing_sum + split.amount > cast(int, transaction.amount or 0):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Split sum ({existing_sum + split.amount}) exceeds transaction amount ({transaction.amount})"
-            )
-
-    for key, value in split.model_dump(exclude_unset=True).items():
-        setattr(db_split, key, value)
-    db.commit()
-    db.refresh(db_split)
-    return db_split
-
-
-@router.delete("/{split_id}")
-def delete_transaction_split(split_id: str, db: Session = Depends(get_db)):
-    db_split = db.query(TransactionSplit).filter(TransactionSplit.id == split_id).first()
-    if not db_split:
-        raise HTTPException(status_code=404, detail="Transaction split not found")
-    db.delete(db_split)
-    db.commit()
-    return {"message": "Transaction split deleted successfully"}
 
 
 @router.post("/batch/{transaction_id}", response_model=List[TransactionSplitResponse])
