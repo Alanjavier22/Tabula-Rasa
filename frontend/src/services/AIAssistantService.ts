@@ -1,6 +1,7 @@
 import api from './api';
 import { prepareForAI, hydrateAIResponse } from '../utils/privacy';
 import { aiCashFlowService } from './AICashFlowService';
+import type { AiAssistantChatResponse } from '../types';
 
 // Lives outside api.ts on purpose: api.ts is the base HTTP client and
 // shouldn't depend on higher-level services. AICashFlowService (and
@@ -46,7 +47,7 @@ export const aiAssistantAPI = {
       };
     }
 
-    const response = await api.post<any>('/ai-assistant/chat', {
+    const response = await api.post<AiAssistantChatResponse>('/ai-assistant/chat', {
       message: sanitizedMessage,
       cash_flow_context: cashFlowContext,
       assets_context: assetsContext,
@@ -55,7 +56,7 @@ export const aiAssistantAPI = {
     }, { timeout: 900000 });
 
     // Hydrate response with original values
-    const hydratedResponse = hydrateAIResponse(response.data.response, messageMap);
+    const hydratedResponse = hydrateAIResponse(response.data.response || '', messageMap);
 
     return {
       ...response.data,
