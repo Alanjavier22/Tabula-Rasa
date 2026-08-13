@@ -49,7 +49,7 @@ const Snapshots = () => {
     setAnalysis(null);
     try {
       const res = await snapshotsAPI.analyze(snapshotId);
-      setAnalysis({ text: res.data.analysis, snapshotId });
+      setAnalysis({ text: res.data.analysis || 'La IA no devolvió un análisis para este snapshot.', snapshotId });
     } catch (error: any) {
       console.error('Error analyzing snapshot:', error);
       const msg = error.response?.status === 400 
