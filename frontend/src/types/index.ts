@@ -399,10 +399,6 @@ export interface MonthlyTrendItem {
 }
 
 // --- POST /api/ai/audio-to-txns, POST /api/ai/parse-receipt ---
-// OJO: ambas rutas están registradas dos veces en el backend (también en
-// ai_audio.py / ai_vision.py con schemas más ricos), pero por orden de
-// registro en main.py siempre responde el handler de ai.py con este shape
-// más simple - ver TECH_DEBT.md.
 export interface AiExtractedTransaction {
   description: string;
   amount: number;
@@ -414,6 +410,13 @@ export interface AiExtractedTransaction {
 
 export interface AudioToTxnResponse {
   transactions: AiExtractedTransaction[];
+}
+
+// --- GET /api/ai/whatif/suggest-scenarios ---
+export interface SuggestedScenario {
+  title: string;
+  description: string;
+  user_prompt: string;
 }
 
 // --- POST /api/ai/suggest-categories ---
