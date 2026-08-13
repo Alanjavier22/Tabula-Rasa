@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import DeviceManager from '../components/Settings/DeviceManager';
 import Toast from '../components/Toast';
-import type { Category } from '../types';
+import type { Category, BackupFile } from '../types';
 
 interface ConfigData {
   vehicle_categories: string[];
@@ -45,13 +45,6 @@ interface GoogleDriveStatus {
   has_client_id: boolean;
   has_client_secret: boolean;
   has_refresh_token: boolean;
-}
-
-interface BackupFile {
-  id: string;
-  name: string;
-  createdTime: string;
-  size?: string;
 }
 
   type SettingsTab = 'general' | 'ai' | 'labs' | 'cloud' | 'security';
