@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { statementsAPI } from '../services/api';
 import type { CreditCardStatement, DebtShare, Cents } from '../types';
+import type { AxiosError } from 'axios';
 import { Users, DollarSign, CheckCircle, X, Plus } from 'lucide-react';
 import Toast from './Toast';
 
@@ -54,9 +55,9 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
       setFormData({ person_name: '', amount: '', description: '', status: 'pending' });
       // Refresh statements
       window.location.reload();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error adding debt share:', error);
-      setToast({ message: error.response?.data?.detail || 'Error al agregar deuda compartida', type: 'error' });
+      setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al agregar deuda compartida', type: 'error' });
     } finally {
       setAdding(false);
     }
@@ -67,9 +68,9 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
       await statementsAPI.updateDebtShare(shareId, { status: newStatus });
       setToast({ message: 'Estado actualizado', type: 'success' });
       window.location.reload();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating debt share:', error);
-      setToast({ message: error.response?.data?.detail || 'Error al actualizar estado', type: 'error' });
+      setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al actualizar estado', type: 'error' });
     }
   };
 
@@ -79,9 +80,9 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
       await statementsAPI.deleteDebtShare(shareId);
       setToast({ message: 'Deuda compartida eliminada', type: 'success' });
       window.location.reload();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting debt share:', error);
-      setToast({ message: error.response?.data?.detail || 'Error al eliminar deuda compartida', type: 'error' });
+      setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al eliminar deuda compartida', type: 'error' });
     }
   };
 
