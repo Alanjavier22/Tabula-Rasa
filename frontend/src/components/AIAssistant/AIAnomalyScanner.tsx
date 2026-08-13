@@ -4,13 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AIAgentService } from '../../services/AIAgentService';
 import type { AnomalyScanResult, ZombieSubscription } from '../../services/AIAgentService';
 import { subscriptionsAPI } from '../../services/api';
-import type { Cents } from '../../types';
+import type { Cents, Transaction, Subscription, Category, Goal } from '../../types';
 
 interface AIAnomalyScannerProps {
-  recentTransactions: any[];
-  currentSubscriptions: any[];
-  categories: any[];
-  goals: any[];
+  recentTransactions: Transaction[];
+  currentSubscriptions: Subscription[];
+  categories: Category[];
+  goals: Goal[];
   onClose?: () => void;
 }
 
@@ -48,7 +48,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
         goals
       );
       setResult(scanResult);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error scanning for anomalies:', error);
     } finally {
       setIsScanning(false);
