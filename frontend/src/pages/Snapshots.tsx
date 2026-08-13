@@ -28,10 +28,6 @@ const Snapshots = () => {
   const [analysis, setAnalysis] = useState<{ text: string; snapshotId: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning', duration?: number } | null>(null);
 
-  useEffect(() => {
-    fetchSnapshots();
-  }, []);
-
   const fetchSnapshots = async () => {
     try {
       const res = await snapshotsAPI.getAll();
@@ -43,6 +39,10 @@ const Snapshots = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchSnapshots();
+  }, []);
 
   const handleAnalyze = async (snapshotId: string) => {
     setAnalyzing(true);
