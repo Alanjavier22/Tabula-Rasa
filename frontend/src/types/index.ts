@@ -215,6 +215,8 @@ export interface NetWorthSnapshot {
   net_worth: Cents;
   snapshot_date: string;
   metadata_json?: string;
+  is_stale: boolean;
+  is_locked: boolean;
 }
 
 export interface DebtShare {
