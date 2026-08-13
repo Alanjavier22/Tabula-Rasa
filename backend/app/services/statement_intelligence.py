@@ -121,8 +121,9 @@ class StatementIntelligenceService:
         
         for attempt in range(max_retries):
             try:
-                response = client.models.generate_content(
-                    model=MULTIMODAL_MODEL, 
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=MULTIMODAL_MODEL,
                     contents=cast(Any, [
                         types.Part.from_bytes(data=file_data, mime_type=mime_type),
                         types.Part.from_text(text=prompt)
