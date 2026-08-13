@@ -83,6 +83,24 @@ export interface Account {
   needs_review?: boolean;  // FASE 7: Conflict flag
 }
 
+// El backend usa `exclude_unset=True` en los PUT de accounts/statements: un
+// campo enviado como `null` explícito borra el valor existente en la DB,
+// distinto de omitirlo (que lo deja intacto). Por eso estos payloads de
+// escritura permiten `null` en los campos opcionales que el usuario puede
+// "vaciar" desde el form, a diferencia de Account/CreditCardStatement (los
+// tipos de lectura), donde esos mismos campos son `T | undefined`.
+export type AccountPayload = Partial<Omit<Account, 'credit_limit' | 'statement_day' | 'payment_day'>> & {
+  credit_limit?: Cents | null;
+  statement_day?: number | null;
+  payment_day?: number | null;
+};
+
+export type StatementPayload = Partial<Omit<CreditCardStatement, 'payment_due_date' | 'cut_off_date' | 'notes'>> & {
+  payment_due_date?: string | null;
+  cut_off_date?: string | null;
+  notes?: string | null;
+};
+
 export interface PaymentAlert {
   account_id: string;
   account_name: string;
@@ -284,14 +302,286 @@ export interface CashFlowForecastResponse {
 export interface DashboardSummaryResponse {
   total_income: number;
   total_expenses: number;
-  expense_breakdown: Array<{ name: string; value: number }>;
-  daily_spending: Array<{ date: string; gasto: number }>;
-  monthly_comparison: Array<{ mes: string; Ingresos: number; Gastos: number }>;
+  // El backend declara estos 3 arrays como `list[dict]` (sin schema Pydantic
+  // estricto) y `value`/`gasto` salen de columnas Decimal - Pydantic las
+  // serializa como string, no number, de ahí el union.
+  expense_breakdown: Array<{ name: string; value: number | string }>;
+  daily_spending: Array<{ date: string; gasto: number | string }>;
+  monthly_comparison: Array<{ mes: string; Ingresos: number | string; Gastos: number | string }>;
   sankey_data: {
     nodes: Array<{ name: string }>;
     links: Array<{ source: number; target: number; value: number }>;
   };
   vehicle_cost: number;
+}
+
+// --- GET /categories/export ---
+export interface CategoryExportItem {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  icon: string | null;
+  is_default: boolean;
+  version: number;
+}
+
+// --- GET /metrics/cash-flow-projection/{days} ---
+export interface CashFlowProjectionDaysResponse {
+  days: number;
+  current_balance: number;
+  projected_balance: number;
+  projected_income: number;
+  projected_expenses: number;
+  seasonal_adjustment: number;
+  breakdown: {
+    subscriptions: number;
+    ious: number;
+    credit_cards: number;
+    debt_shares: number;
+    seasonal: number;
+  };
+}
+
+// --- GET /ai/insights ---
+export interface AiInsightsResponse {
+  insights: string[];
+  alerts: string[];
+  patterns: string[];
+}
+
+// --- GET /backup/list ---
+export interface BackupFile {
+  id: string;
+  name: string;
+  createdTime: string;
+  size?: string | null;
+  is_older_than_current?: boolean | null;
+  age_hours?: number | null;
+}
+
+export interface BackupsListResponse {
+  success: boolean;
+  backups: BackupFile[];
+  message: string;
+}
+
+// --- GET /fiscal/report, GET /fiscal/trend ---
+// Los Decimal de Pydantic se serializan como string por defecto (no number).
+export interface FiscalTotals {
+  total_income: string;
+  total_expenses: string;
+  iva_projected: string;
+  retencion_projected: string;
+  total_deductible: string;
+  iva_pagado_15: string;
+  monto_objeto_retencion: string;
+  transaction_count: number;
+}
+
+export interface FiscalCategoryBreakdownItem {
+  category_id: string;
+  category_name: string;
+  amount: string;
+  formatted: string;
+}
+
+export interface FiscalReportResponse {
+  totals: FiscalTotals;
+  category_breakdown: FiscalCategoryBreakdownItem[];
+}
+
+export interface MonthlyTrendItem {
+  month: string;
+  income: string;
+  expenses: string;
+  iva_projected: string;
+}
+
+// --- POST /api/ai/audio-to-txns, POST /api/ai/parse-receipt ---
+// OJO: ambas rutas están registradas dos veces en el backend (también en
+// ai_audio.py / ai_vision.py con schemas más ricos), pero por orden de
+// registro en main.py siempre responde el handler de ai.py con este shape
+// más simple - ver TECH_DEBT.md.
+export interface AiExtractedTransaction {
+  description: string;
+  amount: number;
+  transaction_type: string;
+  date: string;
+  category_id?: string | null;
+  account_id?: string | null;
+}
+
+export interface AudioToTxnResponse {
+  transactions: AiExtractedTransaction[];
+}
+
+// --- POST /api/ai/suggest-categories ---
+export interface CategorySuggestion {
+  transaction_id: string;
+  suggested_category_id: string;
+  confidence: number;
+  reasoning: string;
+}
+
+// --- GET /api/ai/test-component ---
+export interface TestComponentResponse {
+  status: 'success' | 'error';
+  message: string;
+}
+
+// --- GET /ai/goals/smart-recommendations ---
+export interface GoalRecommendation {
+  goal_id: string;
+  goal_name: string;
+  suggested_transfer_cents: number;
+  reasoning: string;
+}
+
+export interface SmartGoalResponse {
+  recommendations: GoalRecommendation[];
+  total_suggested_cents: number;
+  summary_message: string;
+}
+
+// --- POST /intelligence/import-statement/{account_id}, /intelligence/confirm-import/{id} ---
+export interface StatementExtractedTransaction {
+  date: string;
+  description: string;
+  amount_cents: number;
+  transaction_type: string;
+  category_name: string | null;
+  is_deferred: boolean;
+  deferred_info: string | null;
+  fingerprint: string;
+  category_id?: string;
+  needs_clarification?: boolean;
+  is_duplicate: boolean;
+}
+
+export interface StatementParsingResponse {
+  issuer_identity: string;
+  issuer_confidence: number;
+  bank_name: string;
+  card_type: string;
+  statement_period: string;
+  statement_month: number;
+  statement_year: number;
+  statement_balance_cents: number;
+  payment_due_date: string | null;
+  cut_off_date: string | null;
+  total_new_consumos_cents: number;
+  total_pagos_cents: number;
+  credit_limit_cents: number | null;
+  transactions: StatementExtractedTransaction[];
+  audit: {
+    consumos_match: boolean;
+    pagos_match: boolean;
+    calculated_consumos: number;
+    calculated_pagos: number;
+    extraction_method: string;
+  };
+}
+
+export interface ImportStatementResponse {
+  import_log_id: string;
+  parsed_data: StatementParsingResponse;
+}
+
+export interface ConfirmImportResponse {
+  status: 'success';
+  imported_count: number;
+  message: string;
+}
+
+// --- POST /intelligence/parse-account/{account_id}, /intelligence/confirm-account-import/{id} ---
+export interface AccountExtractedTransaction {
+  date: string;
+  description: string;
+  amount_cents: number;
+  transaction_type: string;
+  category_id?: string | null;
+  category_name?: string | null;
+  beneficiary?: string | null;
+  balance_cents?: number | null;
+  fingerprint: string;
+  needs_clarification?: boolean;
+  is_duplicate: boolean;
+}
+
+export interface AccountParsingResponse {
+  bank_name: string;
+  account_type: string;
+  period_start: string | null;
+  period_end: string | null;
+  total_income_cents: number | null;
+  total_expense_cents: number | null;
+  transactions: AccountExtractedTransaction[];
+}
+
+export interface ParseAccountResponse {
+  import_log_id: string;
+  parsed_data: AccountParsingResponse;
+}
+
+export interface ConfirmAccountImportResponse {
+  status: 'success';
+  imported_count: number;
+  message: string;
+}
+
+// --- POST /snapshots/{id}/analyze, POST /snapshots/reconcile ---
+export interface AnalyzeSnapshotResponse {
+  analysis: string | null;
+  comparison_data: {
+    current_month: string;
+    previous_month: string;
+    current: { total_assets: number; total_liabilities: number; net_worth: number; metadata: Record<string, unknown> };
+    previous: { total_assets: number; total_liabilities: number; net_worth: number; metadata: Record<string, unknown> };
+    changes: {
+      assets_change: number;
+      liabilities_change: number;
+      net_worth_change: number;
+      net_worth_percent_change: number;
+    };
+  };
+}
+
+export interface ReconcileStaleSnapshotsResponse {
+  reconciled_count: number;
+  failed_count: number;
+  message: string;
+}
+
+// --- POST /transactions/import-batch ---
+export interface ImportBatchResponse {
+  imported_count: number;
+  message: string;
+}
+
+// --- /config ---
+export interface Config {
+  id: string;
+  key: string;
+  value: string | null;
+  value_type: string;
+  description: string | null;
+  is_public: boolean;
+}
+
+export interface GoogleDriveCredentials {
+  client_id: string;
+  client_secret: string;
+  refresh_token: string;
+}
+
+// --- GET /auth/devices ---
+export interface AuthDevice {
+  id: string;
+  device_name: string;
+  last_sync: string | null;
+  is_active: boolean;
+  created_at: string | null;
 }
 
 export interface DeferredPayment {
