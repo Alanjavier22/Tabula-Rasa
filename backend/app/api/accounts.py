@@ -1,17 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional, Any, cast
+from typing import Optional, Any, cast
 from database import get_db
-from app.api.auth import get_current_device
+from app.api.crud_factory import make_crud_router
 from app.models.account import Account, AccountType
 from pydantic import BaseModel, StrictInt
-
-router = APIRouter(
-    prefix="/accounts", 
-    tags=["accounts"], 
-    dependencies=[Depends(get_current_device)],
-    redirect_slashes=False
-)
 
 
 class AccountBase(BaseModel):
@@ -62,53 +55,15 @@ class AccountResponse(BaseModel):
         from_attributes = True
 
 
-@router.post("/", response_model=AccountResponse)
-def create_account(account: AccountCreate, db: Session = Depends(get_db)):
-    db_account = Account(**account.model_dump())
-    db.add(db_account)
-    db.commit()
-    db.refresh(db_account)
-    return db_account
-
-
-@router.get("/", response_model=List[AccountResponse])
-def get_accounts(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    accounts = db.query(Account).filter(Account.is_deleted == False).offset(skip).limit(limit).all()
-    return accounts
-
-
-@router.get("/{account_id}", response_model=AccountResponse)
-def get_account(account_id: str, db: Session = Depends(get_db)):
-    account = db.query(Account).filter(Account.id == account_id).first()
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-    return account
-
-
-@router.put("/{account_id}", response_model=AccountResponse)
-def update_account(account_id: str, account: AccountUpdate, db: Session = Depends(get_db)):
-    db_account = db.query(Account).filter(Account.id == account_id).first()
-    if not db_account:
-        raise HTTPException(status_code=404, detail="Account not found")
-    
-    update_data = account.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_account, key, cast(Any, value))
-    
-    db.commit()
-    db.refresh(db_account)
-    return db_account
-
-
-@router.delete("/{account_id}")
-def delete_account(account_id: str, db: Session = Depends(get_db)):
-    db_account = db.query(Account).filter(Account.id == account_id).first()
-    if not db_account:
-        raise HTTPException(status_code=404, detail="Account not found")
-    
-    db.delete(db_account)
-    db.commit()
-    return {"message": "Account deleted successfully"}
+router: APIRouter = make_crud_router(
+    prefix="/accounts",
+    tags=["accounts"],
+    model=Account,
+    create_schema=AccountCreate,
+    update_schema=AccountUpdate,
+    response_schema=AccountResponse,
+    entity_name="Account",
+)
 
 
 class SetBalanceRequest(BaseModel):
