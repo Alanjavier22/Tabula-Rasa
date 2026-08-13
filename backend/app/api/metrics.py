@@ -150,37 +150,42 @@ def get_net_worth(db: Session = Depends(get_db)):
 
     net_worth = assets - liabilities
 
-    monthly_data = db.query(
+    # Agregación en SQL en vez de N+1 (antes: una query de transacciones por mes
+    # + acceso lazy a .splits por cada una). Mismo patrón que ya usa
+    # dashboard-summary más abajo: sumar por separado transacciones simples (sin
+    # splits) y transacciones con splits (sumando el split, no el monto original).
+    simple_monthly = db.query(
         func.strftime("%Y-%m", Transaction.date).label("month"),
         func.sum(case((Transaction.transaction_type == "income", Transaction.amount), else_=0)).label("income"),
         func.sum(case((Transaction.transaction_type == "expense", Transaction.amount), else_=0)).label("expense")
     ).filter(
+        Transaction.is_deleted == False,
+        ~Transaction.id.in_(db.query(TransactionSplit.transaction_id))
+    ).group_by("month").all()
+
+    split_monthly = db.query(
+        func.strftime("%Y-%m", Transaction.date).label("month"),
+        func.sum(case((Transaction.transaction_type == "income", TransactionSplit.amount), else_=0)).label("income"),
+        func.sum(case((Transaction.transaction_type == "expense", TransactionSplit.amount), else_=0)).label("expense")
+    ).join(TransactionSplit, Transaction.id == TransactionSplit.transaction_id).filter(
         Transaction.is_deleted == False
-    ).group_by(func.strftime("%Y-%m", Transaction.date)).order_by("month").all()
+    ).group_by("month").all()
 
-    history = []
-    for row in monthly_data:
-        month_income = Decimal(str(row.income or 0))
-        month_expense = Decimal(str(row.expense or 0))
+    monthly_map: Dict[str, Dict[str, Decimal]] = {}
+    for row in simple_monthly:
+        monthly_map[row.month] = {
+            "income": Decimal(str(row.income or 0)),
+            "expense": Decimal(str(row.expense or 0)),
+        }
+    for row in split_monthly:
+        bucket = monthly_map.setdefault(row.month, {"income": Decimal("0"), "expense": Decimal("0")})
+        bucket["income"] += Decimal(str(row.income or 0))
+        bucket["expense"] += Decimal(str(row.expense or 0))
 
-        month_txns = db.query(Transaction).filter(
-            func.strftime("%Y-%m", Transaction.date) == row.month,
-            Transaction.is_deleted == False
-        ).all()
-
-        for txn in month_txns:
-            if txn.splits:
-                split_total = Decimal(str(sum((s.amount for s in txn.splits), 0)))
-                if txn.transaction_type == "income":
-                    month_income = month_income - Decimal(str(txn.amount)) + split_total
-                else:
-                    month_expense = month_expense - Decimal(str(txn.amount)) + split_total
-
-        history.append({
-            "month": row.month,
-            "income": month_income,
-            "expense": month_expense,
-        })
+    history = [
+        {"month": month, "income": data["income"], "expense": data["expense"]}
+        for month, data in sorted(monthly_map.items())
+    ]
 
     return NetWorthResponse(
         net_worth=net_worth,
