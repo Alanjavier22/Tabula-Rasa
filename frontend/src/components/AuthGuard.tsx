@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { authAPI } from '../services/api';
 import api from '../services/api';
-import { getTokenKey } from '../services/api';
 
 const LOCALHOST_BASE_URL = 'http://127.0.0.1:8001';
 const LOCALHOST_HOSTS = ['localhost', '127.0.0.1'];
@@ -18,6 +17,16 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
 
   const isLocalhost = LOCALHOST_HOSTS.includes(window.location.hostname);
 
+  const checkSession = React.useCallback(async () => {
+    try {
+      await authAPI.me();
+      setIsAuthenticated(true);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const autoLinkViaDeepLink = React.useCallback(async (apiUrl: string, pin: string) => {
     setIsDeepLinkPairing(true);
     setDeepLinkError(null);
@@ -27,14 +36,12 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
       api.defaults.baseURL = apiUrl;
 
       const deviceName = `Mobile-${navigator.platform || 'Unknown'}`;
-      const res = await api.post('/auth/pair/consume', {
+      await api.post('/auth/pair/consume', {
         pin,
         device_name: deviceName,
       });
 
-      const tokenKey = getTokenKey();
-      localStorage.setItem(tokenKey, res.data.access_token);
-
+      // La cookie de sesión ya quedó seteada por el backend en esta misma respuesta.
       window.history.replaceState({}, document.title, window.location.pathname);
       setIsAuthenticated(true);
     } catch (err: any) {
@@ -52,11 +59,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const res = await authAPI.pairLocalhost();
-        const { access_token } = res.data;
-
-        const tokenKey = getTokenKey();
-        localStorage.setItem(tokenKey, access_token);
+        await authAPI.pairLocalhost();
         localStorage.setItem('finance_base_url', LOCALHOST_BASE_URL);
 
         setIsAuthenticated(true);
@@ -80,34 +83,46 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
   }, []);
 
   useEffect(() => {
-    try {
-      const tokenKey = getTokenKey();
-      const token = localStorage.getItem(tokenKey);
-      const baseUrl = localStorage.getItem('finance_base_url');
+    let cancelled = false;
 
-      if (token && baseUrl) {
-        setIsAuthenticated(true);
-        return;
+    (async () => {
+      try {
+        const baseUrl = localStorage.getItem('finance_base_url');
+        if (baseUrl) {
+          api.defaults.baseURL = baseUrl;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const apiUrl = params.get('apiUrl');
+        const pin = params.get('pin');
+
+        if (apiUrl && pin) {
+          await autoLinkViaDeepLink(apiUrl, pin);
+          return;
+        }
+
+        // Sólo vale la pena consultar /auth/me si ya sabemos a qué backend
+        // preguntarle (baseUrl de una vinculación previa) o si estamos en el
+        // propio host, donde /auth/pair/localhost siempre es una alternativa.
+        if (baseUrl || isLocalhost) {
+          const hasSession = await checkSession();
+          if (hasSession || cancelled) return;
+        }
+
+        if (isLocalhost && !attemptedRef.current) {
+          attemptedRef.current = true;
+          autoLinkLocalhost();
+        }
+      } catch (err) {
+        console.error('Error during authentication initialization:', err);
+        setDeepLinkError('Error al procesar la URL de vinculación.');
       }
+    })();
 
-      const params = new URLSearchParams(window.location.search);
-      const apiUrl = params.get('apiUrl');
-      const pin = params.get('pin');
-
-      if (apiUrl && pin) {
-        autoLinkViaDeepLink(apiUrl, pin);
-        return;
-      }
-
-      if (isLocalhost && !attemptedRef.current) {
-        attemptedRef.current = true;
-        autoLinkLocalhost();
-      }
-    } catch (err) {
-      console.error('Error during authentication initialization:', err);
-      setDeepLinkError('Error al procesar la URL de vinculación.');
-    }
-  }, [isLocalhost, autoLinkLocalhost, autoLinkViaDeepLink]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isLocalhost, autoLinkViaDeepLink, autoLinkLocalhost, checkSession]);
 
   if (isAuthenticated) {
     return <>{children}</>;

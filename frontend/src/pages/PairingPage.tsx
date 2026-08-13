@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Smartphone, ArrowRight, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { authAPI, getTokenKey } from '../services/api';
+import { authAPI } from '../services/api';
 import { format } from 'date-fns';
 
 export default function PairingPage() {
@@ -33,12 +33,10 @@ export default function PairingPage() {
 
     try {
       const response = await authAPI.consumePairingCode(pin, deviceName);
-      
-      // Save token (port-aware)
-      const tokenKey = getTokenKey();
-      localStorage.setItem(tokenKey, response.data.access_token);
-      
-      // Save base URL for AuthGuard to recognize session
+
+      // La cookie de sesión httpOnly ya quedó seteada por el backend en esta
+      // misma respuesta. Sólo persistimos la baseURL para que AuthGuard sepa
+      // contra qué backend preguntar en visitas futuras.
       const baseUrl = response.config.baseURL || (window.location.hostname === 'localhost' ? 'http://127.0.0.1:8001' : `http://${window.location.hostname}:8001`);
       localStorage.setItem('finance_base_url', baseUrl);
       

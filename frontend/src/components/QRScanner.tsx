@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { getTokenKey } from '../services/api';
 
 interface QRScannerProps {
   onSuccess: () => void;
@@ -47,6 +46,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onSuccess, onCancel }) => 
       // Overwrite the base URL dynamically based on the QR code (ignores .env)
       const dynamicApi = axios.create({
         baseURL: apiUrl,
+        withCredentials: true,
         headers: {
           'Content-Type': 'application/json',
         }
@@ -55,17 +55,15 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onSuccess, onCancel }) => 
       // Get device name
       const deviceName = `Mobile-${navigator.platform || 'Unknown'}`;
 
-      // Hit the specific endpoint
-      const response = await dynamicApi.post('/auth/pair/consume', {
+      // Hit the specific endpoint - la cookie de sesión httpOnly queda
+      // seteada por el backend en esta misma respuesta.
+      await dynamicApi.post('/auth/pair/consume', {
         pin,
         device_name: deviceName
       });
 
-      // Synchronous Storage as requested by user
       localStorage.setItem('finance_base_url', apiUrl);
-      const tokenKey = getTokenKey();
-      localStorage.setItem(tokenKey, response.data.access_token);
-      
+
       onSuccess();
     } catch (err: any) {
       console.error(err);

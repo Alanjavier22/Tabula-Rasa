@@ -37,43 +37,23 @@ const getDynamicBaseUrl = () => {
 
 const API_BASE_URL = getDynamicBaseUrl();
 
-/**
- * Extract port from URL for port-aware token storage
- */
-const getPortFromUrl = (url: string): string => {
-  try {
-    const urlObj = new URL(url);
-    const port = urlObj.port || (urlObj.protocol === 'https:' ? '443' : '80');
-    return port;
-  } catch {
-    return '8001'; // Default fallback
-  }
-};
-
-/**
- * Get port-specific token key (e.g., finance_token_8001)
- */
-export const getTokenKey = (): string => {
-  const baseUrl = localStorage.getItem('finance_base_url') || API_BASE_URL;
-  const port = getPortFromUrl(baseUrl);
-  return `finance_token_${port}`;
-};
-
 // 60-second default timeout to fail fast on simple network requests
+// withCredentials: la sesión viaja en una cookie httpOnly, no en localStorage.
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 60000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Dynamic Interceptor for Local-First Auth
+// Dynamic Interceptor - reencamina cada request a la baseURL vinculada por el
+// usuario (relevante para el escenario multi-dispositivo, donde el móvil
+// vincula contra la IP LAN del host en vez de localhost).
 api.interceptors.request.use(
   (config) => {
     const baseUrl = localStorage.getItem('finance_base_url');
-    const tokenKey = getTokenKey();
-    const token = localStorage.getItem(tokenKey);
 
     if (baseUrl) {
       // Clear old 8000 port from localStorage if present
@@ -82,11 +62,6 @@ api.interceptors.request.use(
       } else {
         config.baseURL = baseUrl;
       }
-    }
-    
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-      config.headers['X-Tabula-Auth'] = token; // Compatibility with industrial security middleware
     }
 
     return config;
@@ -103,13 +78,12 @@ api.interceptors.response.use(
     // 401: Invalid or expired token, 403: Forbidden (not paired or revoked)
     if (error.response?.status === 401 || error.response?.status === 403) {
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      
+
       console.warn(`[API] ${error.response.status} - auth failure`);
-      
-      // Clear auth (port-aware)
-      const tokenKey = getTokenKey();
-      localStorage.removeItem(tokenKey);
-      
+
+      // Best-effort: sólo el backend puede borrar la cookie httpOnly.
+      api.post('/auth/logout').catch(() => {});
+
       // Only redirect if not on localhost AND not already on /pair
       if (!isLocalhost && window.location.pathname !== '/pair') {
         window.location.href = '/pair';
@@ -375,9 +349,11 @@ export const driveConfigAPI = {
 
 export const authAPI = {
   generatePairingCode: () => api.post<{ pin: string; expires_in_seconds: number; qr_url: string }>('/auth/pair/generate'),
-  consumePairingCode: (pin: string, deviceName: string) => api.post<any>('/auth/pair/consume', { pin, device_name: deviceName }),
+  consumePairingCode: (pin: string, deviceName: string) => api.post<{ paired: boolean; device_name: string }>('/auth/pair/consume', { pin, device_name: deviceName }),
   getPairingStatus: (pin: string) => api.get<{ status: string; token?: string; device_name?: string }>(`/auth/pair/status?pin=${pin}`),
-  pairLocalhost: () => axios.post<{ access_token: string; token_type: string }>('http://127.0.0.1:8001/auth/pair/localhost'),
+  pairLocalhost: () => axios.post<{ paired: boolean; device_name: string }>('http://127.0.0.1:8001/auth/pair/localhost', {}, { withCredentials: true }),
+  me: () => api.get<{ device_id: string; device_name: string }>('/auth/me'),
+  logout: () => api.post<{ message: string }>('/auth/logout'),
   listDevices: () => api.get<any[]>('/auth/devices'),
   revokeDevice: (id: string) => api.delete<{ message: string }>(`/auth/devices/${id}`),
 };
