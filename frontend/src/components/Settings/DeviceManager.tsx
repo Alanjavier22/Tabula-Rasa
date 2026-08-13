@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Smartphone, Trash2, Plus, Clock, ShieldCheck, RefreshCw, AlertTriangle, Key } from 'lucide-react';
 import { authAPI } from '../../services/api';
+import type { AuthDevice } from '../../types';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { QRCodeSVG } from 'qrcode.react';
@@ -15,16 +16,8 @@ const parseBackendUTC = (iso: string): Date => {
   return new Date(hasTimezone ? iso : `${iso}Z`);
 };
 
-interface Device {
-  id: string;
-  device_name: string;
-  last_sync: string | null;
-  is_active: boolean;
-  created_at: string;
-}
-
 export default function DeviceManager() {
-  const [devices, setDevices] = useState<Device[]>([]);
+  const [devices, setDevices] = useState<AuthDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [pairingCode, setPairingCode] = useState<{ pin: string; expires_in: number; qr_url?: string } | null>(null);
   const [generating, setGenerating] = useState(false);
