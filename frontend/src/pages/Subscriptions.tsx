@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscriptionsAPI, categoriesAPI, accountsAPI } from '../services/api';
 import type { Subscription, Category, Account, SubscriptionFrequency } from '../types';
+import type { AxiosError } from 'axios';
 import { formatMoney, toCents } from '../utils/money';
 import { 
   Plus, 
@@ -34,6 +35,8 @@ const emptyForm = {
   category_id: '',
   is_active: true,
 };
+
+type SubscriptionFormData = typeof emptyForm;
 
 const Subscriptions = () => {
   const queryClient = useQueryClient();
@@ -93,9 +96,9 @@ const Subscriptions = () => {
       await subscriptionsAPI.delete(deleteConfirm.id);
       setToast({ message: 'Suscripción removida del ecosistema', type: 'success' });
       fetchAll();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting subscription:', error);
-      setToast({ message: error.response?.data?.detail || 'Error al eliminar suscripción', type: 'error' });
+      setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al eliminar suscripción', type: 'error' });
     } finally {
       setDeleteConfirm({ isOpen: false, id: null });
     }
@@ -126,9 +129,9 @@ const Subscriptions = () => {
       fetchAll();
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error paying subscription:', error);
-      setToast({ message: error.response?.data?.detail || 'Error al registrar pago', type: 'error' });
+      setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al registrar pago', type: 'error' });
     } finally {
       setPayingId(null);
     }
@@ -148,7 +151,7 @@ const Subscriptions = () => {
     return { label: null, color: 'text-slate-400', glow: 'border-white/5' };
   };
 
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: SubscriptionFormData) => {
     setSaving(true);
     try {
       if (editingSubscription) {
@@ -178,9 +181,9 @@ const Subscriptions = () => {
       setEditingSubscription(null);
       setForm(emptyForm);
       fetchAll();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving subscription:', error);
-      setToast({ message: error.response?.data?.detail || 'Error en la operación', type: 'error' });
+      setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error en la operación', type: 'error' });
     } finally {
       setSaving(false);
     }
