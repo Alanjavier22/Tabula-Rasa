@@ -35,9 +35,16 @@ Pendiente de esa fase, no automatizable: verificación manual en vivo (pairing Q
 **Frontend** (`frontend/src/`): `pages/Accounts.tsx` (1263), `pages/Dashboard.tsx` (1097), `pages/Settings.tsx` (937), `pages/Budgets.tsx` (792), `services/ReportingService.ts` (759), `pages/Goals.tsx` (651), `pages/Reminders.tsx` (643), `pages/Subscriptions.tsx` (628), `pages/Transactions.tsx` (626), `components/StatementImportModal.tsx` (615), `pages/Categories.tsx` (606).
 
 ### 7. Boilerplate CRUD duplicado — PARCIALMENTE RESUELTO 2026-08-12
-Se agregó `backend/app/api/crud_factory.py` (`make_crud_router`), que genera POST/GET/GET-by-id/PUT/[DELETE] con hooks (`pre_create`, `pre_update`, `before_id_routes` para rutas estáticas que deben registrarse antes de `/{id}`). Migrados a usarlo: `accounts.py`, `categories.py`, `reminders.py`, `subscriptions.py`, `ious.py` (5 de 32 módulos) — cada uno conserva sus endpoints extra (`set-balance`, `export`/`import`, `pay`, `settle`, etc.) sobre el router devuelto por el factory.
+Se agregó `backend/app/api/crud_factory.py` (`make_crud_router`), que genera POST/GET/GET-by-id/PUT/[DELETE] con hooks (`pre_create`, `pre_update`, `before_id_routes` para rutas estáticas que deben registrarse antes de `/{id}`). Migrados a usarlo: `accounts.py`, `categories.py`, `reminders.py`, `subscriptions.py`, `ious.py`, `transaction_splits.py` (6 de 32 módulos) — cada uno conserva sus endpoints extra (`set-balance`, `export`/`import`, `pay`, `settle`, `batch`, etc.) sobre el router devuelto por el factory. `transaction_splits.py` es el ejemplo de que `pre_create`/`pre_update` alcanzan incluso cuando el create/update tiene validaciones de negocio (categoría existe, suma de splits no excede el monto de la transacción) — no hace falta que sea 100% mecánico para migrar, solo que la lógica quepa en esos hooks.
 
-**Deliberadamente no migrados**, porque el delete/list tiene lógica de negocio no trivial y forzarlos al factory sería sobre-ingeniería: `goals.py` (delete con reembolso + desvinculación de transacciones), `budgets.py` (ya tiene su propio orden de rutas documentado, ver comentario en el archivo), y el resto de los 32 módulos no se tocaron por no ser mecánicos 1:1 o por bajo ROI de tocarlos ahora. El factory queda disponible para adoptarlo oportunistamente en el resto cuando se toquen esos archivos por otra razón.
+**Deliberadamente no migrados**, porque el delete/list tiene lógica de negocio no trivial y forzarlos al factory sería sobre-ingeniería: `goals.py` (delete con reembolso + desvinculación de transacciones), `budgets.py` (ya tiene su propio orden de rutas documentado, ver comentario en el archivo).
+
+**Revisados y descartados en la ronda del 2026-08-12** (no son candidatos limpios, no vale la pena forzarlos):
+- `deferred.py` — no tiene endpoint PUT; migrarlo agregaría un endpoint que nunca existió, cambiando la superficie de la API sin que nadie lo pidiera.
+- `net_worth_snapshots.py` — el create usa `POST /create` en vez de `POST /` (el factory asume `/`), y la mayoría de sus endpoints son de negocio no-CRUD (`analyze`, `reconcile`, `lock`), no un CRUD simple.
+- `alerts.py` — no es CRUD, es un único `GET /payment-reminders`.
+
+El resto de los ~23 módulos no se revisó módulo por módulo en esta ronda. El factory queda disponible para adoptarlo oportunistamente cuando se toquen esos archivos por otra razón — antes de migrar cualquiera, chequear que tenga create/list/get/update/delete reales sobre `/` y `/{id}` (si falta alguno, no forzarlo).
 
 ---
 
