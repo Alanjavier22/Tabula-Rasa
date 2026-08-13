@@ -62,6 +62,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
         name: zombie.description,
         amount: zombie.estimated_amount as Cents,
         frequency: 'monthly',
+        // eslint-disable-next-line react-hooks/purity -- dentro de un onClick handler, no del render body; el compiler no distingue el contexto
         next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       });
       setSyncedZombies(prev => [...prev, idx]);
