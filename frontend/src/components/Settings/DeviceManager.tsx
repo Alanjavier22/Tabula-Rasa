@@ -3,6 +3,17 @@ import { Smartphone, Trash2, Plus, Clock, ShieldCheck, RefreshCw, AlertTriangle,
 import { authAPI } from '../../services/api';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { QRCodeSVG } from 'qrcode.react';
+
+// El backend serializa datetimes en UTC pero sin sufijo de zona horaria
+// ("2026-08-13T01:23:17", sin "Z") - un ISO string sin zona lo interpreta
+// el navegador como hora LOCAL, no UTC, así que sin este ajuste "Sinc: hace
+// X" queda corrido por el offset local completo (en Ecuador, UTC-5, se veía
+// "Sinc: en 5 horas" en vez de "hace unos segundos").
+const parseBackendUTC = (iso: string): Date => {
+  const hasTimezone = /[Zz]|[+-]\d{2}:\d{2}$/.test(iso);
+  return new Date(hasTimezone ? iso : `${iso}Z`);
+};
 
 interface Device {
   id: string;
@@ -164,7 +175,7 @@ export default function DeviceManager() {
                   <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-0.5">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      Sinc: {device.last_sync ? formatDistanceToNow(new Date(device.last_sync), { addSuffix: true, locale: es }) : 'Nunca'}
+                      Sinc: {device.last_sync ? formatDistanceToNow(parseBackendUTC(device.last_sync), { addSuffix: true, locale: es }) : 'Nunca'}
                     </span>
                     <span className="flex items-center gap-1">
                       <ShieldCheck className="w-3 h-3" />
