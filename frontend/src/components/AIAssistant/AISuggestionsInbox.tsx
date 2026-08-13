@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import type { AICategorySuggestion } from '../../services/AIAgentService';
+import type { Transaction, Category } from '../../types';
 
 interface AISuggestionsInboxProps {
   suggestions: AICategorySuggestion[];
-  transactions: any[];
-  categories: any[];
+  transactions: Transaction[];
+  categories: Category[];
 }
 
 export const AISuggestionsInbox: React.FC<AISuggestionsInboxProps> = ({
