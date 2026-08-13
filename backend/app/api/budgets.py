@@ -127,6 +127,45 @@ def get_budget(budget_id: str, db: Session = Depends(get_db)):
     return enrich_budget_response(budget)
 
 
+@router.put("/update-recurring", response_model=List[BudgetResponse])
+def update_recurring_budgets_endpoint(
+    request: GenerateRecurringBudgetsRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Update existing recurring budgets for a specific month and year.
+    Creates new budgets if they don't exist.
+
+    Args:
+        request: GenerateRecurringBudgetsRequest with month, year, and optional budget_items
+
+    Returns:
+        List of created/updated BudgetResponse objects
+
+    Raises:
+        HTTPException 400: If month/year is invalid
+    """
+    try:
+        budgets = update_recurring_budgets(
+            db=db,
+            month=request.month,
+            year=request.year,
+            budget_items=request.budget_items
+        )
+
+        now = datetime.now(timezone.utc)
+        return [enrich_budget_response(b, now) for b in budgets]
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating recurring budgets: {str(e)}")
+
+
+# NOTA: esta ruta con path param debe ir DESPUÉS de las rutas estáticas de arriba
+# (/update-recurring, /generate-recurring) - FastAPI hace matching en el orden de
+# registro, y "/{budget_id}" matchea cualquier string como si fuera un id,
+# incluyendo esos paths literales, dejándolos inalcanzables si se registran antes.
 @router.put("/{budget_id}", response_model=BudgetResponse)
 def update_budget(budget_id: str, budget: BudgetUpdate, db: Session = Depends(get_db)):
     db_budget = db.query(Budget).filter(Budget.id == budget_id).first()
@@ -187,38 +226,3 @@ def generate_recurring_budgets_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating recurring budgets: {str(e)}")
-
-
-@router.put("/update-recurring", response_model=List[BudgetResponse])
-def update_recurring_budgets_endpoint(
-    request: GenerateRecurringBudgetsRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Update existing recurring budgets for a specific month and year.
-    Creates new budgets if they don't exist.
-    
-    Args:
-        request: GenerateRecurringBudgetsRequest with month, year, and optional budget_items
-        
-    Returns:
-        List of created/updated BudgetResponse objects
-        
-    Raises:
-        HTTPException 400: If month/year is invalid
-    """
-    try:
-        budgets = update_recurring_budgets(
-            db=db,
-            month=request.month,
-            year=request.year,
-            budget_items=request.budget_items
-        )
-        
-        now = datetime.now(timezone.utc)
-        return [enrich_budget_response(b, now) for b in budgets]
-        
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error updating recurring budgets: {str(e)}")
