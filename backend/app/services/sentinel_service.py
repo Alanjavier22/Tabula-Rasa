@@ -7,7 +7,7 @@ import asyncio
 import time
 from app.services.anomaly_detector import detect_anomalies
 from app.services.forecaster import get_financial_projection
-from app.api.ai_insights import _build_transaction_summary, _build_liquidity_summary, _build_credit_card_summary
+from app.services.insights_builders import _build_transaction_summary, _build_liquidity_summary, _build_credit_card_summary
 import google.genai as genai
 from google.genai import types
 from app.services.ai_models import REASONING_MODEL
@@ -39,7 +39,7 @@ class SentinelService:
         cc_summary = _build_credit_card_summary(self.db, now)
         
         # Nuevos puntos de datos para Sentinel
-        from app.api.ai_insights import _build_goals_summary, _build_debt_share_summary, _build_subscription_summary, _build_reminder_summary
+        from app.services.insights_builders import _build_goals_summary, _build_debt_share_summary, _build_subscription_summary, _build_reminder_summary
         from app.services.ai_assistant_tools import get_fiscal_summary
         from app.services.snapshot_service import SnapshotService
         

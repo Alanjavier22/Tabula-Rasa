@@ -441,7 +441,7 @@ async def get_financial_executive_summary(db: Session, api_key: str) -> dict:
     """
     from app.services.sentinel_service import SentinelService
     from app.services.forecaster import get_financial_projection
-    from app.api.ai_insights import _build_liquidity_summary
+    from app.services.insights_builders import _build_liquidity_summary
 
     sentinel = SentinelService(db, api_key)
     health_report = await sentinel.generate_health_report()
