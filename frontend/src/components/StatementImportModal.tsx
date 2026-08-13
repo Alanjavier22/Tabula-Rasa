@@ -55,7 +55,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
         }));
       }
     }
-  }, [extractedTransactions, statementMetadata?.statement_balance_cents]);
+  }, [extractedTransactions, statementMetadata]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
