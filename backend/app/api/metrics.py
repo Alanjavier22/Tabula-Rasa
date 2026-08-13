@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any, cast
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, case
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
@@ -578,7 +578,10 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         ]
 
         # Sankey data for current month
-        current_month_txns = db.query(Transaction).filter(
+        current_month_txns = db.query(Transaction).options(
+            joinedload(Transaction.category),
+            joinedload(Transaction.splits).joinedload(TransactionSplit.category)
+        ).filter(
             func.strftime("%Y-%m", Transaction.date) == current_month_str,
             Transaction.is_deleted == False
         ).all()
