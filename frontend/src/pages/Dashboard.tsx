@@ -4,7 +4,9 @@ import Decimal from 'decimal.js-light';
 import { accountsAPI, statementsAPI, metricsAPI, budgetsAPI, snapshotsAPI, alertsAPI, transactionsAPI, subscriptionsAPI as subsAPI, categoriesAPI, goalsAPI, iousAPI, maintenanceAPI } from '../services/api';
 import { formatMoney, toDecimal, clampZero } from '../utils/money';
 import Toast from '../components/Toast';
-import type { Account, CreditCardStatement, SafeToSpendResponse, NetWorthResponse, VehicleTelemetryResponse, CashFlowForecastResponse, DashboardSummaryResponse, AlertsResponse } from '../types';
+import type { Account, CreditCardStatement, SafeToSpendResponse, NetWorthResponse, VehicleTelemetryResponse, CashFlowForecastResponse, DashboardSummaryResponse, AlertsResponse, IOU, Transaction, Subscription, Category, Goal, DebtShare } from '../types';
+import type { EcuadorFiscalRules } from '../services/ReportingService';
+import type { AxiosError } from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, 
@@ -178,7 +180,7 @@ const Dashboard = () => {
               configAPI.getByKey('retencion_iva_rate')
             ]);
 
-            const rules: any = {};
+            const rules: Partial<EcuadorFiscalRules> = {};
             if (ivaRes.data?.value) rules.iva_rate = parseFloat(ivaRes.data.value);
             if (retSrcRes.data?.value) rules.retencion_source_rate = parseFloat(retSrcRes.data.value);
             if (retIvaRes.data?.value) rules.retencion_iva_rate = parseFloat(retIvaRes.data.value);
@@ -203,17 +205,17 @@ const Dashboard = () => {
     ]
   });
 
-  const pendingIOUs = (results[0].data as any[]) || EMPTY_ARRAY;
+  const pendingIOUs = (results[0].data as IOU[]) || EMPTY_ARRAY;
   const accounts = (results[1].data as Account[]) || EMPTY_ARRAY;
   const statements = (results[2].data as CreditCardStatement[]) || EMPTY_ARRAY;
   const safeToSpend = (results[3].data as unknown) as SafeToSpendResponse | undefined;
   const netWorth = results[4].data as NetWorthResponse | undefined;
   const vehicleTelemetry = results[5].data as VehicleTelemetryResponse | undefined;
   const cashFlowForecast = results[7].data as CashFlowForecastResponse | undefined;
-  const transactions = (results[8].data as any[]) || [];
-  const subscriptions = (results[9].data as any[]) || [];
-  const categories = (results[10].data as any[]) || [];
-  const goals = (results[13].data as any[]) || [];
+  const transactions = (results[8].data as Transaction[]) || EMPTY_ARRAY;
+  const subscriptions = (results[9].data as Subscription[]) || EMPTY_ARRAY;
+  const categories = (results[10].data as Category[]) || EMPTY_ARRAY;
+  const goals = (results[13].data as Goal[]) || EMPTY_ARRAY;
   const dashboardSummary = results[11].data as DashboardSummaryResponse | undefined;
 
   // Widgets already degrade gracefully with `|| []`/undefined fallbacks when a
@@ -239,7 +241,7 @@ const Dashboard = () => {
       setAiAlerts(response.data.alerts ?? []);
       setAiPatterns(response.data.patterns ?? []);
     },
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ detail?: string }>) => {
       console.error('Error generating insights:', error);
       const status = error.response?.status;
       const detail = error.response?.data?.detail;
@@ -339,18 +341,18 @@ const Dashboard = () => {
   // La deuda neta es lo que debo pagar menos lo que me deben terceros
   const totalIOUsTheyOwe = useMemo(() => {
     return (pendingIOUs || [])
-      .filter((iou: any) => {
+      .filter((iou: IOU) => {
         const type = String(iou.iou_type || '').toLowerCase();
         return type === 'they_owe' || type.includes('they_owe');
       })
-      .reduce((sum: Decimal, iou: any) => sum.plus(toDecimal(iou.amount)), new Decimal(0));
+      .reduce((sum: Decimal, iou: IOU) => sum.plus(toDecimal(iou.amount)), new Decimal(0));
   }, [pendingIOUs]);
 
   const totalThirdPartyDebt = useMemo(() => {
     const debtSharesSum = latestStatements.reduce(
       (sum, s) => sum.plus(
         (s.debt_shares ?? []).reduce(
-          (ds: Decimal, d: any) => ds.plus(d.status === 'pending' ? toDecimal(d.amount) : 0),
+          (ds: Decimal, d: DebtShare) => ds.plus(d.status === 'pending' ? toDecimal(d.amount) : 0),
           new Decimal(0)
         )
       ),
@@ -368,7 +370,7 @@ const Dashboard = () => {
   const dailySpending = useMemo(() => {
     const data = dashboardSummary?.daily_spending ?? [];
     // Convert from cents (strings) to dollars (numbers) for chart scaling
-    return data.map((item: any) => ({
+    return data.map((item) => ({
       ...item,
       gasto: typeof item.gasto === 'string' ? parseFloat(item.gasto) / 100 : item.gasto / 100
     }));
@@ -378,7 +380,7 @@ const Dashboard = () => {
   const monthlyComparison = useMemo(() => {
     const dashboardData = dashboardSummary?.monthly_comparison ?? [];
     // Convert from cents to dollars and strings to numbers
-    return dashboardData.map((item: any) => ({
+    return dashboardData.map((item) => ({
       ...item,
       Ingresos: typeof item.Ingresos === 'string' ? parseFloat(item.Ingresos) / 100 : item.Ingresos / 100,
       Gastos: typeof item.Gastos === 'string' ? parseFloat(item.Gastos) / 100 : item.Gastos / 100
@@ -747,7 +749,7 @@ const Dashboard = () => {
                   <ResponsiveContainer width="100%" height={220}>
                     <PieChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                       <Pie
-                        data={expenseBreakdown.map((item: any, i: number) => ({
+                        data={expenseBreakdown.map((item, i) => ({
                           ...item,
                           value: typeof item.value === 'string' ? parseFloat(item.value) : item.value,
                           fill: COLORS[i % COLORS.length]
@@ -773,13 +775,14 @@ const Dashboard = () => {
                             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                           }}
                           itemStyle={{ color: '#fff' }}
-                          formatter={(value: any, name: any) => {
-                            const total = expenseBreakdown.reduce((sum: number, item: any) => {
+                          formatter={(value, name) => {
+                            const total = expenseBreakdown.reduce((sum, item) => {
                               const val = typeof item.value === 'string' ? parseFloat(item.value) : item.value;
                               return sum + (isNaN(val) ? 0 : val);
                             }, 0);
-                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                            return [`$${formatMoney(value)} (${percentage}%)`, name];
+                            const numValue = typeof value === 'number' ? value : Number(value ?? 0);
+                            const percentage = total > 0 ? ((numValue / total) * 100).toFixed(1) : 0;
+                            return [`$${formatMoney(numValue)} (${percentage}%)`, name];
                           }}
                         />
                       </PieChart>
@@ -833,14 +836,14 @@ const Dashboard = () => {
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                   }}
                   cursor={{ fill: 'rgba(148, 163, 184, 0.05)' }}
-                  labelFormatter={(label: any) => {
+                  labelFormatter={(label) => {
                     if (typeof label !== 'string') return '';
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                     const [year, month] = label.split('-');
                     const monthIndex = parseInt(month) - 1;
                     return `${monthNames[monthIndex]} de ${year}`;
                   }}
-                  formatter={(value: any, name: any) => [`$${value.toLocaleString()}`, name]}
+                  formatter={(value, name) => [`$${(typeof value === 'number' ? value : Number(value ?? 0)).toLocaleString()}`, name]}
                 />
                 <Bar dataKey="Ingresos" fill="url(#gradIngresos)" radius={[10, 10, 0, 0]} barSize={12} />
                 <Bar dataKey="Gastos" fill="url(#gradGastos)" radius={[10, 10, 0, 0]} barSize={12} />
@@ -872,7 +875,7 @@ const Dashboard = () => {
               />
               <YAxis
                 tick={{ fill: '#94a3b8', fontSize: 11 }}
-                tickFormatter={(value: any) => `$${value.toLocaleString()}`}
+                tickFormatter={(value) => `$${value.toLocaleString()}`}
               />
               <Tooltip
                 contentStyle={{ 
@@ -883,7 +886,7 @@ const Dashboard = () => {
                   color: '#fff',
                   boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                 }}
-                labelFormatter={(label: any) => {
+                labelFormatter={(label) => {
                   if (typeof label !== 'string') return '';
                   const [month, day] = label.split('-');
                   const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -891,7 +894,7 @@ const Dashboard = () => {
                   const dayNum = parseInt(day);
                   return `${dayNum} de ${monthNames[monthIndex]}`;
                 }}
-                formatter={(value: any) => [`$${value.toLocaleString()}`, 'Gasto']}
+                formatter={(value) => [`$${(typeof value === 'number' ? value : Number(value ?? 0)).toLocaleString()}`, 'Gasto']}
               />
               <Area type="monotone" dataKey="gasto" stroke="#a855f7" fill="url(#gradGastoDiario)" strokeWidth={3} />
             </AreaChart>
@@ -932,7 +935,7 @@ const Dashboard = () => {
                 />
                 <YAxis
                   tick={{ fill: '#94a3b8', fontSize: 11 }}
-                  tickFormatter={(value: any) => `$${(value / 100).toLocaleString()}`}
+                  tickFormatter={(value) => `$${(value / 100).toLocaleString()}`}
                 />
                 <Tooltip
                   contentStyle={{ 
@@ -943,14 +946,14 @@ const Dashboard = () => {
                     color: '#fff',
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                   }}
-                  labelFormatter={(label: any) => {
+                  labelFormatter={(label) => {
                     if (typeof label !== 'string') return '';
                     const [year, month] = label.split('-');
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                     const monthIndex = parseInt(month) - 1;
                     return `${monthNames[monthIndex]} de ${year}`;
                   }}
-                  formatter={(value: any, name: any) => [`$${formatMoney(value)}`, name ?? '']}
+                  formatter={(value, name) => [`$${formatMoney(value)}`, name ?? '']}
                 />
                 <Line type="monotone" dataKey="income" stroke="#10b981" strokeWidth={3} name="Ingresos" dot={{ r: 4, fill: '#10b981' }} activeDot={{ r: 6 }} />
                 <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={3} name="Gastos" dot={{ r: 4, fill: '#ef4444' }} activeDot={{ r: 6 }} />
@@ -1019,13 +1022,13 @@ const Dashboard = () => {
                 <YAxis
                   stroke="#94a3b8"
                   fontSize={12}
-                  tickFormatter={(value: any) => `$${(value / 100).toLocaleString()}`}
+                  tickFormatter={(value) => `$${(value / 100).toLocaleString()}`}
                 />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
                   labelStyle={{ color: '#f1f5f9' }}
                   itemStyle={{ color: '#f1f5f9' }}
-                  labelFormatter={(label: any) => {
+                  labelFormatter={(label) => {
                     if (typeof label !== 'string') return '';
                     const [year, month, day] = label.split('-');
                     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -1033,7 +1036,7 @@ const Dashboard = () => {
                     const dayNum = parseInt(day);
                     return `${dayNum} de ${monthNames[monthIndex].toLowerCase()} de ${year}`;
                   }}
-                  formatter={(value: any) => [`$${formatMoney(value)}`, 'Balance Proyectado']}
+                  formatter={(value) => [`$${formatMoney(value)}`, 'Balance Proyectado']}
                 />
                 <ReferenceLine y={0} stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" />
                 <Area
