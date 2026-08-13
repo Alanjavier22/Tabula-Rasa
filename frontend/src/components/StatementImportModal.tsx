@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { intelligenceAPI, accountsAPI } from '../services/api';
-import { Upload, X, CheckCircle, AlertCircle, FileText, Trash2, CreditCard, Calendar, DollarSign, User } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Trash2, CreditCard, Calendar, DollarSign, User } from 'lucide-react';
 import type { Account, StatementExtractedTransaction, StatementParsingResponse } from '../types';
 import type { AxiosError } from 'axios';
-import Select from './common/Select';
 import { formatMoney } from '../utils/money';
 import { motion } from 'framer-motion';
+import StatementUploadStep from './statementImport/StatementUploadStep';
+import ShareTransactionModal, { type SharingTransactionState } from './statementImport/ShareTransactionModal';
 
 interface StatementImportModalProps {
   onClose: () => void;
@@ -49,7 +50,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [sharingTransaction, setSharingTransaction] = useState<{ index: number; name: string; amount: number } | null>(null);
+  const [sharingTransaction, setSharingTransaction] = useState<SharingTransactionState | null>(null);
 
   useEffect(() => {
     // Cargar solo cuentas de tipo Tarjeta de Crédito
@@ -199,6 +200,21 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
     }
   };
 
+  const handleConfirmShare = () => {
+    if (!statementMetadata || !sharingTransaction) return;
+    const newTransactions = extractedTransactions.map((t, i) =>
+      i === sharingTransaction.index ? {
+        ...t,
+        shared_with: sharingTransaction.name,
+        shared_amount: sharingTransaction.amount
+      } : t
+    );
+    setExtractedTransactions(newTransactions);
+    const totalShared = newTransactions.filter(t => t.selected && t.shared_amount).reduce((sum, t) => sum + (t.shared_amount || 0), 0);
+    setStatementMetadata({...statementMetadata, user_share_cents: statementMetadata.statement_balance_cents - totalShared});
+    setSharingTransaction(null);
+  };
+
   return (
     <>
       <motion.div
@@ -231,75 +247,18 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
           <div className="p-4 md:p-5 space-y-4 md:space-y-5">
             {/* Paso 1: Selección y Upload */}
             {!extractedTransactions.length && (
-              <div className="space-y-6">
-                {creditCardAccounts.length === 0 ? (
-                  <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-center">
-                    <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-                    <p>No tienes tarjetas de crédito configuradas.</p>
-                    <p className="text-sm opacity-80 mt-1">Crea una cuenta de tipo "Tarjeta de Crédito" primero.</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700">
-                      <label className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Tarjeta Destino</label>
-                      <Select
-                        value={accountId}
-                        onChange={(value) => setAccountId(value)}
-                        options={creditCardAccounts.map(acc => ({ value: acc.id.toString(), label: acc.name }))}
-                      />
-                    </div>
-
-                    <div
-                      onDragEnter={handleDrag}
-                      onDragLeave={handleDrag}
-                      onDragOver={handleDrag}
-                      onDrop={handleDrop}
-                      className={`border-2 border-dashed rounded-2xl p-5 md:p-6 text-center transition-all duration-300 ${
-                        dragActive ? 'border-purple-500 bg-purple-500/10 scale-[1.01]' : 'border-slate-600 hover:border-purple-500 hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <input
-                        type="file"
-                        accept="image/*,.pdf"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                        id="statement-upload"
-                      />
-                      <label htmlFor="statement-upload" className="cursor-pointer flex flex-col items-center">
-                        <div className={`${dragActive ? 'text-purple-400 scale-110' : 'text-slate-400'} transition-all duration-300 mb-2`}>
-                          <FileText className="w-12 h-12" />
-                        </div>
-                        <p className="text-base text-white font-bold mb-1">
-                          {file ? file.name : 'Arrastra tu PDF aquí'}
-                        </p>
-                        <p className="text-slate-400 text-xs">
-                          {file ? 'Haz clic abajo para analizar' : 'Soporta PDFs y capturas de imagen'}
-                        </p>
-                      </label>
-                    </div>
-
-                    {file && (
-                      <button
-                        onClick={handleProcess}
-                        disabled={processing}
-                        className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold text-sm hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
-                      >
-                        {processing ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            Auditando Estado de Cuenta...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-4 h-4" />
-                            Analizar con Inteligencia Artificial
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
+              <StatementUploadStep
+                creditCardAccounts={creditCardAccounts}
+                accountId={accountId}
+                onAccountIdChange={setAccountId}
+                file={file}
+                dragActive={dragActive}
+                onDrag={handleDrag}
+                onDrop={handleDrop}
+                onFileSelect={handleFileSelect}
+                processing={processing}
+                onProcess={handleProcess}
+              />
             )}
 
             {/* Paso 2: Auditoría y Confirmación */}
@@ -576,61 +535,13 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       
       {/* Mini-Modal para repartir gasto (Premium replacement for prompt) */}
       {sharingTransaction && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-80 shadow-2xl transform animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-bold text-white mb-1">Repartir Gasto</h3>
-            <p className="text-xs text-slate-400 mb-4 truncate">{extractedTransactions[sharingTransaction.index].description}</p>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Persona</label>
-                <input 
-                  type="text" 
-                  value={sharingTransaction.name}
-                  onChange={(e) => setSharingTransaction({...sharingTransaction, name: e.target.value})}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Monto de cobro ($)</label>
-                <input 
-                  type="number" 
-                  value={sharingTransaction.amount / 100}
-                  onChange={(e) => setSharingTransaction({...sharingTransaction, amount: parseFloat(e.target.value) * 100})}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 outline-none"
-                />
-              </div>
-            </div>
-            
-            <div className="flex gap-2 mt-6">
-              <button 
-                onClick={() => setSharingTransaction(null)}
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-700 text-slate-400 text-sm font-bold hover:bg-slate-800"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  if (!statementMetadata) return;
-                  const newTransactions = extractedTransactions.map((t, i) =>
-                    i === sharingTransaction.index ? {
-                      ...t,
-                      shared_with: sharingTransaction.name,
-                      shared_amount: sharingTransaction.amount
-                    } : t
-                  );
-                  setExtractedTransactions(newTransactions);
-                  const totalShared = newTransactions.filter(t => t.selected && t.shared_amount).reduce((sum, t) => sum + (t.shared_amount || 0), 0);
-                  setStatementMetadata({...statementMetadata, user_share_cents: statementMetadata.statement_balance_cents - totalShared});
-                  setSharingTransaction(null);
-                }}
-                className="flex-1 px-3 py-2 rounded-lg bg-purple-600 text-white text-sm font-bold hover:bg-purple-500"
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
+        <ShareTransactionModal
+          sharingTransaction={sharingTransaction}
+          transactionDescription={extractedTransactions[sharingTransaction.index].description}
+          onChange={setSharingTransaction}
+          onCancel={() => setSharingTransaction(null)}
+          onConfirm={handleConfirmShare}
+        />
       )}
     </>
   );
