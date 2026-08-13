@@ -18,10 +18,12 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import type { TooltipContentProps } from 'recharts';
 import { formatMoney, toNumber } from '../../utils/money';
 import { fiscalAPI } from '../../services/api';
 import { Download, FileJson, FileCode, Percent, Receipt, ArrowUpRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { FiscalReportResponse, MonthlyTrendItem } from '../../types';
 
 // Chart colors - hex values for Recharts legend
 const COLORS = {
@@ -75,10 +77,10 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, color, icon, 
 /**
  * Custom tooltip for charts with monetary formatting
  */
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: TooltipContentProps) => {
   if (active && payload && payload.length) {
     const formattedLabel = (() => {
-      if (!label) return label;
+      if (typeof label !== 'string') return label;
       const [year, month] = label.split('-');
       const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
       const monthIndex = parseInt(month) - 1;
@@ -88,7 +90,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return (
       <div className="bg-slate-900/90 backdrop-blur-xl p-4 rounded-2xl shadow-2xl border border-white/10">
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{formattedLabel}</p>
-        {payload.map((entry: any, index: number) => (
+        {payload.map((entry, index) => (
           <div key={index} className="flex items-center gap-2 mt-1">
             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color === 'url(#colorIncome)' ? '#10b981' : entry.color === 'url(#colorExpenses)' ? '#8b5cf6' : entry.color === 'url(#colorIva15)' ? '#ef4444' : '#10b981' }} />
             <p className="text-sm font-semibold text-white">
@@ -107,8 +109,8 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   endDate,
   categoryIds,
 }) => {
-  const [report, setReport] = useState<any>(null);
-  const [trendData, setTrendData] = useState<Array<any>>([]);
+  const [report, setReport] = useState<FiscalReportResponse | null>(null);
+  const [trendData, setTrendData] = useState<MonthlyTrendItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -395,7 +397,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
                   tickLine={false}
                   domain={yDomain}
                 />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                <Tooltip content={CustomTooltip} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
                 <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }} />
                 <Bar dataKey="income" name="Ingresos" fill="url(#colorIncome)" radius={[6, 6, 0, 0]} barSize={16} />
                 <Bar dataKey="expenses" name="Gastos Deducibles" fill="url(#colorExpenses)" radius={[6, 6, 0, 0]} barSize={16} />
@@ -431,7 +433,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
                   stroke="#0f172a"
                   strokeWidth={3}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={CustomTooltip} />
               </PieChart>
             </ResponsiveContainer>
 
