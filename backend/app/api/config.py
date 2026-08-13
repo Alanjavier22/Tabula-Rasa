@@ -216,15 +216,17 @@ def set_google_drive_credentials(credentials: GoogleDriveCredentials, db: Sessio
         )
         db.add(client_secret_config)
     
-    # Refresh Token
+    # Refresh Token (encrypted at rest)
+    from app.utils.crypto import encrypt_value
+    encrypted_refresh_token = encrypt_value(credentials.refresh_token)
     refresh_token_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
     if refresh_token_config:
-        refresh_token_config.value = cast(Any, credentials.refresh_token)
+        refresh_token_config.value = cast(Any, encrypted_refresh_token)
         refresh_token_config.updated_at = cast(Any, datetime.now())
     else:
         refresh_token_config = Config(
             key="GOOGLE_DRIVE_REFRESH_TOKEN",
-            value=credentials.refresh_token,
+            value=encrypted_refresh_token,
             value_type="string",
             description="Google Drive OAuth Refresh Token",
             is_public=False
