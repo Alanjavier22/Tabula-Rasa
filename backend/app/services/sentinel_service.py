@@ -40,7 +40,7 @@ class SentinelService:
         
         # Nuevos puntos de datos para Sentinel
         from app.api.ai_insights import _build_goals_summary, _build_debt_share_summary, _build_subscription_summary, _build_reminder_summary
-        from app.api.ai_assistant import get_fiscal_summary
+        from app.services.ai_assistant_tools import get_fiscal_summary
         from app.services.snapshot_service import SnapshotService
         
         # FASE: Automatización de Snapshots (El Sentinel 'cierra el mes' continuamente)

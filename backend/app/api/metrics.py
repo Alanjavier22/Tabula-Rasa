@@ -70,7 +70,7 @@ def get_safe_to_spend(db: Session = Depends(get_db)):
 
         # Get fiscal burden (IVA/Retenciones)
         try:
-            from app.api.ai_assistant import get_fiscal_summary
+            from app.services.ai_assistant_tools import get_fiscal_summary
             fiscal = get_fiscal_summary(db)
             projected_taxes = Decimal(str(fiscal["iva_projected"] + fiscal["retencion_projected"]))
         except Exception as e:
