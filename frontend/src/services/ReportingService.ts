@@ -8,7 +8,7 @@
  * `setFiscalRules`, que sólo guarda las reglas fiscales en memoria.
  */
 
-interface EcuadorFiscalRules {
+export interface EcuadorFiscalRules {
   iva_rate: number; // 15%
   retencion_source_rate: number; // 1% (configurable)
   retencion_iva_rate: number; // 30% del IVA (configurable)
