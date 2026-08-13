@@ -25,7 +25,8 @@ import {
 } from 'lucide-react';
 import DeviceManager from '../components/Settings/DeviceManager';
 import Toast from '../components/Toast';
-import type { Category, BackupFile } from '../types';
+import type { Category, BackupFile, Config } from '../types';
+import type { AxiosError } from 'axios';
 
 interface ConfigData {
   vehicle_categories: string[];
@@ -101,7 +102,7 @@ const Settings = () => {
         ai_persona: 'professional',
       };
 
-      configRes.data.forEach((c: any) => {
+      configRes.data.forEach((c: Config) => {
         if (c.key === 'vehicle_categories' && c.value) {
           configs.vehicle_categories = JSON.parse(c.value);
         } else if (c.key === 'safe_to_spend_buffer' && c.value) {
@@ -140,7 +141,7 @@ const Settings = () => {
       if (res.data.success) {
         setBackups(res.data.backups);
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('Error loading backups:', e);
     } finally {
       setLoadingBackups(false);
@@ -156,7 +157,7 @@ const Settings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const upsertConfig = async (key: string, data: any) => {
+      const upsertConfig = async (key: string, data: Partial<Config>) => {
         try {
           await configAPI.getByKey(key);
           await configAPI.update(key, data);
@@ -208,7 +209,7 @@ const Settings = () => {
     }
   };
 
-  const handleQuickSave = async (key: string, value: any, type: 'string' | 'json' | 'number') => {
+  const handleQuickSave = async (key: string, value: string | number | string[], type: 'string' | 'json' | 'number') => {
     try {
       const data = {
         key,
@@ -285,7 +286,7 @@ const Settings = () => {
       } else {
         setToast({ message: res.data.message, type: 'warning' });
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('Error creating backup:', e);
       setToast({ message: 'Error al crear backup', type: 'error' });
     } finally {
@@ -302,9 +303,9 @@ const Settings = () => {
         window.open(res.data.auth_url, '_blank', 'width=600,height=600');
         setToast({ message: 'Se ha abierto la ventana de autorización de Google', type: 'warning' });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error getting auth URL:', error);
-      const msg = error.response?.data?.detail || 'Error al iniciar autorización';
+      const msg = (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al iniciar autorización';
       setToast({ message: msg, type: 'error' });
     } finally {
       setAuthorizingDrive(false);
@@ -324,7 +325,7 @@ const Settings = () => {
       } else {
         setToast({ message: res.data.message, type: 'warning' });
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('Error restoring backup:', e);
       setToast({ message: 'Error al restaurar backup', type: 'error' });
     }
@@ -685,8 +686,8 @@ const Settings = () => {
                                 } else {
                                   setToast({ message: 'Error: ' + res.data.message, type: 'error' });
                                 }
-                              } catch (e: any) {
-                                const msg = e.response?.data?.detail || 'Error de servidor al probar OAuth2';
+                              } catch (e) {
+                                const msg = (e as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error de servidor al probar OAuth2';
                                 setToast({ message: msg, type: 'error' });
                               } finally {
                                 setTestingDrive(false);
