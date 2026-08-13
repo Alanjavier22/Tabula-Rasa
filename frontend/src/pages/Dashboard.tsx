@@ -47,6 +47,11 @@ const COLORS = [
   '#6366f1'  // Indigo
 ];
 
+// Referencia estable para fallback de queries sin datos: `|| []` crea un array nuevo en
+// cada render, lo que invalida los useMemo que dependen de él (recomputan siempre en vez
+// de solo cuando cambian los datos reales).
+const EMPTY_ARRAY: never[] = [];
+
 const Dashboard = () => {
   const [insights, setInsights] = useState<string[] | null>(null);
   const [aiAlerts, setAiAlerts] = useState<string[]>([]);
@@ -198,9 +203,9 @@ const Dashboard = () => {
     ]
   });
 
-  const pendingIOUs = (results[0].data as any[]) || [];
-  const accounts = (results[1].data as Account[]) || [];
-  const statements = (results[2].data as CreditCardStatement[]) || [];
+  const pendingIOUs = (results[0].data as any[]) || EMPTY_ARRAY;
+  const accounts = (results[1].data as Account[]) || EMPTY_ARRAY;
+  const statements = (results[2].data as CreditCardStatement[]) || EMPTY_ARRAY;
   const safeToSpend = (results[3].data as unknown) as SafeToSpendResponse | undefined;
   const netWorth = results[4].data as NetWorthResponse | undefined;
   const vehicleTelemetry = results[5].data as VehicleTelemetryResponse | undefined;
