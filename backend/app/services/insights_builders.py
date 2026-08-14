@@ -16,6 +16,8 @@ from app.models.goal import Goal, GoalStatus
 from app.models.subscription import Subscription
 from datetime import datetime, timedelta
 from typing import Any, cast
+from app.services.categorizer import normalize_description
+from app.services.privacy import mask_description
 
 
 def _build_transaction_summary(db: Session, now: datetime) -> dict:
@@ -60,6 +62,52 @@ def _build_transaction_summary(db: Session, now: datetime) -> dict:
         "atypical_transactions": atypical[:5],
         "transaction_count": len(transactions),
     }
+
+
+def _build_recurring_small_expenses(db: Session, now: datetime) -> list:
+    """
+    Detecta gastos hormiga: comercios/descripciones recurrentes (>=3 veces en 30 días)
+    con monto promedio por debajo del gasto promedio general. Nombre enmascarado con
+    mask_description (misma utilidad que categorizer.py usa para mandarle el
+    beneficiario a Gemini).
+    """
+    start_date = now - timedelta(days=30)
+
+    transactions = db.query(Transaction).filter(
+        Transaction.date >= start_date,
+        Transaction.transaction_type == 'expense',
+        Transaction.is_deleted == False
+    ).all()
+
+    if not transactions:
+        return []
+
+    avg_expense = sum(t.amount for t in transactions) // max(len(transactions), 1)
+
+    groups: dict[str, dict] = {}
+    for t in transactions:
+        key = normalize_description(t.beneficiary) if t.beneficiary else normalize_description(t.description)
+        if not key:
+            continue
+        if key not in groups:
+            groups[key] = {"count": 0, "total": 0, "label": t.beneficiary or t.description}
+        groups[key]["count"] += 1
+        groups[key]["total"] += t.amount
+
+    recurring = [
+        g for g in groups.values()
+        if g["count"] >= 3 and (g["total"] // g["count"]) < avg_expense
+    ]
+    recurring.sort(key=lambda g: g["total"], reverse=True)
+
+    return [
+        {
+            "name": mask_description(g["label"]),
+            "occurrences": g["count"],
+            "total_amount": g["total"],
+        }
+        for g in recurring[:5]
+    ]
 
 
 def _build_budget_summary(db: Session, now: datetime) -> list:
