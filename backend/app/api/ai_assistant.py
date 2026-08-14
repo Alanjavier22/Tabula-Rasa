@@ -4,7 +4,7 @@ from typing import List, Optional, Any, Dict, Callable, Awaitable, Union, cast
 import inspect
 import os
 import google.genai as genai
-from app.services.ai_models import AGENT_MODEL
+from app.services.ai_models import AGENT_MODEL, with_gemini_retry
 from google.genai import types
 from database import get_db, SessionLocal
 from app.api.auth import get_current_device
@@ -202,9 +202,9 @@ GUÍA DE HERRAMIENTAS:
             doc_bytes = base64.b64decode(request.document_base64)
             mime_type = request.document_mime_type or "application/pdf"
             doc_part = types.Part.from_bytes(data=doc_bytes, mime_type=mime_type)
-            response = chat.send_message([doc_part, request.message])
+            response = with_gemini_retry(lambda: chat.send_message([doc_part, request.message]))
         else:
-            response = chat.send_message(request.message)
+            response = with_gemini_retry(lambda: chat.send_message(request.message))
         
         function_calls_made = []
         
@@ -233,7 +233,7 @@ GUÍA DE HERRAMIENTAS:
                 )
             
             # Send the function results back to the model
-            response = chat.send_message(cast(Any, tool_responses))
+            response = with_gemini_retry(lambda: chat.send_message(cast(Any, tool_responses)))
             turn += 1
             
         # FAIL-FAST: No mutation tracking needed since AI is read-only
