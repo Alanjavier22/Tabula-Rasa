@@ -14,6 +14,8 @@ const PERSONAS = [
   { id: 'coach', label: 'Motivador Personal', desc: '¡Vamos! Un pequeño ahorro hoy es una victoria mañana.', icon: '📣' },
   { id: 'sabio', label: 'Maestro Zen', desc: 'Encuentra el equilibrio entre el gasto y la paz interior.', icon: '🧘' },
   { id: 'detective', label: 'Forense Financiero', desc: 'Seguirá el rastro de cada centavo perdido.', icon: '🔍' },
+  { id: 'minimalist', label: 'Minimalista', desc: 'Cero relleno. Solo el hecho, el impacto y la acción.', icon: '⚪' },
+  { id: 'professor', label: 'Catedrático', desc: 'Convierte cada uno de tus gastos en una clase magistral.', icon: '🎓' },
 ];
 
 const DIAGNOSTIC_COMPONENTS = [
