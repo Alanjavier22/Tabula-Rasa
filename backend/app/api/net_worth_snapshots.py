@@ -6,7 +6,7 @@ import json
 import os
 import google.genai as genai
 from database import get_db
-from app.services.ai_models import REASONING_MODEL
+from app.services.ai_models import REASONING_MODEL, with_gemini_retry
 from app.api.auth import get_current_device
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.account import Account
@@ -178,10 +178,10 @@ Sé directo y conciso. Dame exactamente:
 
 Responde en español, máximo 100 palabras."""
 
-        response = client.models.generate_content(
+        response = with_gemini_retry(lambda: client.models.generate_content(
             model=REASONING_MODEL,
             contents=prompt
-        )
+        ))
         return {"analysis": response.text, "comparison_data": comparison_data}
 
     except Exception as e:
