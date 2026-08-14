@@ -25,13 +25,42 @@
 
 Bienvenido al repositorio de **Tabula Rasa**. Este no es un simple rastreador de gastos; es un ecosistema financiero de **Grado Industrial** diseñado bajo el paradigma de **Local-First AI**. Tabula Rasa funciona como tu cerebro financiero privado, residiendo íntegramente en tu hardware. Elimina la dependencia de nubes corporativas y garantiza la privacidad absoluta de tu patrimonio, al tiempo que integra modelos fundacionales de Inteligencia Artificial como auditores, consejeros y procesadores de datos multimodales.
 
-Este documento es un "Deep Dive" (análisis de Rayos X) exhaustivo de la arquitectura, las capacidades, el motor de inteligencia y la topografía de módulos del sistema. Ningún detalle técnico ha sido omitido.
+Este documento es un "Deep Dive" (análisis de Rayos X) exhaustivo de la arquitectura, las capacidades, el motor de inteligencia y la topografía de módulos del sistema. Ningún detalle técnico ha sido omitido — y donde algo todavía no está construido, este documento lo dice explícitamente en vez de maquillarlo.
+
+## 📑 Índice
+
+1. [Arquitectura de Sistemas y Visión de Ingeniería](#arquitectura)
+2. [El Ecosistema de Inteligencia Agentizada](#inteligencia-agentizada)
+3. [Topografía de Módulos](#topografia-modulos)
+4. [Orquestación y DevOps](#devops)
+5. [Guía de Inicio Rápido](#inicio-rapido)
+6. [Estructura de Directorios Clave](#estructura-directorios)
+7. [Novedades y Optimizaciones Recientes](#novedades)
 
 ---
 
+<a id="arquitectura"></a>
 ## 🏗️ 1. Arquitectura de Sistemas y Visión de Ingeniería
 
 El núcleo de Tabula Rasa fue concebido para operar bajo un estrés constante de cálculo financiero, garantizando que jamás se pierda ni se corrompa un solo centavo de tu historial.
+
+### 🗺️ Vista de Alto Nivel
+
+```mermaid
+flowchart LR
+    subgraph LAN["Tu Red Local · Local-First"]
+        FE["React 19 + Vite\nCentro de Mando UI"]
+        BE["FastAPI · Python 3.12\nMotor Lógico Async"]
+        DB[("SQLite WAL\nBúnker de Datos")]
+        MOB["Móvil / Tablet\n(PIN Pairing)"]
+        FE <--> BE
+        BE <--> DB
+        MOB -.Wi-Fi + PIN.-> BE
+    end
+    BE -."Contexto anonimizado\n(privacy.py)".-> AI["Gemini 3.1 Flash-Lite\n(Internet, solo al consultar)"]
+```
+
+Todo lo que importa —balances, historial, deudas— vive en `DB`. La única llamada que sale de tu red es la consulta puntual a Gemini, y solo con el contexto ya desinfectado.
 
 ### 🧬 El Stack Tecnológico y Persistencia
 *   **Backend (El Motor Lógico)**: Construido en **FastAPI (Python 3.12)**. Elegido por su insuperable capacidad de procesamiento asíncrono y la validación de datos estricta mediante **Pydantic**.
@@ -48,17 +77,18 @@ El núcleo de Tabula Rasa fue concebido para operar bajo un estrés constante de
 
 ---
 
+<a id="inteligencia-agentizada"></a>
 ## 🧠 2. El Ecosistema de Inteligencia Agentizada
 
 La IA en Tabula Rasa no es un "chatbot" superficial; es un **ecosistema de agentes autónomos y reactivos** con "ojos" (multimodalidad), "manos" (Function Calling) y una memoria estructurada de tus hábitos financieros. 
 
 ### 👁️ Capacidades Multimodales y Background Autónomo
-1.  **Statement Intelligence (AI Vision)**: Utiliza `ai_vision.py` y `statement_intelligence.py` para ingerir extractos bancarios en PDF o imágenes. Extrae fechas de corte, pagos mínimos, y desgloses de diferidos con precisión absoluta.
+1.  **Statement Intelligence (AI Vision)**: `statement_intelligence.py` ingiere extractos bancarios en PDF o imágenes vía Gemini Vision. Extrae fechas de corte, pagos mínimos y desgloses de diferidos. La misma capa multimodal (`ai_receipts.py`) también lee recibos de compra y transcribe comandos de voz.
 2.  **Sentinel Agent & Health Monitoring**: El orquestador `sentinel_service.py` vigila la base de datos 24/7. Genera un "Health Score" proactivo basado en liquidez, deudas inminentes y trayectoria de ahorro.
 3.  **AI Insights & Anomaly Detector**: `ai_insights.py` y `anomaly_detector.py` realizan auditorías constantes buscando pagos duplicados, desviaciones en el "burn rate" y sugerencias de optimización fiscal.
 4.  **AI Audio Interface**: Integración en `ai_audio.py` para procesamiento de comandos de voz, permitiendo una interacción manos libres con el asistente financiero.
-5.  **Autonomous Background Snapshotter**: El servicio `autonomous_snapshot.py` garantiza que tu patrimonio neto se documente automáticamente al final de cada ciclo, sin intervención humana.
-6.  **AI Goal Optimization**: `ai_goals.py` analiza dinámicamente tus metas y recalcula probabilidades de éxito basándose en tu comportamiento de gasto real de los últimos 90 días.
+5.  **Snapshot Reconciliation Engine**: `snapshot_reconciler.py` detecta cuándo una fotografía mensual de patrimonio neto quedó desactualizada (por ejemplo, al editar una transacción de un mes ya cerrado) y la recalcula bajo demanda, para que tu historial nunca muestre cifras obsoletas.
+6.  **AI Goal Optimization**: `ai_goals.py` calcula tu "Safe-to-Spend" real y, solo cuando detecta un excedente saludable, le pide a Gemini que decida cuánto de ese sobrante conviene reasignar a tus metas activas — de forma conservadora y sin exceder jamás el monto pendiente de cada una.
 
 ### 🎭 Las 6 Personalidades del Cerebro Financiero
 El orquestador de chat de la aplicación adapta su comportamiento estructural, léxico y profundidad de razonamiento según la faceta de asesoría que selecciones:
@@ -87,11 +117,12 @@ La IA de Tabula Rasa tiene **estrictamente prohibido alucinar sumas matemáticas
 
 | Categoría | Funciones Expuestas al LLM | Propósito Operativo |
 | :--- | :--- | :--- |
-| **Flujo de Caja** | `get_cash_flow_context`, `get_projection`, `get_monthly_summary` | Permitir a la IA proyectar simulaciones Monte Carlo, evaluar supervivencia de fondos a 30/60/90 días y comparar desempeños históricos. |
-| **Auditoría** | `get_audit_report`, `get_duplicate_transactions`, `get_recent_transactions` | Extraer transacciones huérfanas, candidatos a duplicidad y patrones de "quemado" de fondos inmediatos. |
+| **Flujo de Caja** | `get_cash_flow_context`, `get_monthly_summary` | Permitir a la IA leer el flujo de caja actual y comparar el desempeño mensual histórico sin sumar cifras a ciegas. |
+| **Auditoría** | `get_audit_report`, `get_duplicate_transactions`, `get_recent_transactions`, `get_import_history` | Extraer transacciones huérfanas, candidatos a duplicidad, patrones de "quemado" de fondos inmediatos e historial de extractos ya importados. |
 | **Búsqueda / Resolución** | `search_categories`, `search_accounts` | Resolver UUIDs semánticamente cuando el usuario pregunta por "comida" o "banco pichincha". |
 | **Control de Gastos** | `get_budget_status`, `get_all_budgets_status` | Analizar porcentajes de consumo de presupuesto para alertar desviaciones de la meta mensual. |
 | **Obligaciones Fijas** | `get_active_subscriptions`, `get_upcoming_reminders` | Analizar compromisos ineludibles que la IA debe restar de tu "Safe-to-Spend" real. |
+| **Metas y Ahorro** | `get_active_goals` | Consultar el progreso real de tus metas activas antes de sugerir una reasignación de excedente. |
 | **Patrimonio Integral** | `get_assets_context`, `get_net_worth_history`, `get_debt_summary`, `get_total_balance`, `get_account_balance` | Entender la riqueza global, la carga de deudas personales (IOUs) y el desempeño del patrimonio neto ("Net Worth") a lo largo del tiempo. |
 | **Inteligencia Fiscal/Alta** | `get_fiscal_summary`, `get_financial_executive_summary`, `get_sentinel_health`, `get_credit_card_details` | Ejecutar proyecciones del IVA, revisar el "Health Score" global del Sentinel y evaluar riesgos en fechas de corte de tarjetas de crédito. |
 
@@ -102,20 +133,21 @@ La IA de Tabula Rasa tiene **estrictamente prohibido alucinar sumas matemáticas
 
 ---
 
+<a id="topografia-modulos"></a>
 ## 🗺️ 3. Topografía de Módulos (Rayos X Operativo)
 
-El frontend de Tabula Rasa abarca toda la complejidad de la contabilidad de partida doble, estructurada en 12 módulos lógicos altamente especializados que garantizan una visibilidad total del patrimonio.
+El frontend de Tabula Rasa abarca toda la complejidad de la contabilidad de partida doble, estructurada en 12 módulos de negocio altamente especializados, más dos capas transversales de infraestructura (sincronización local y motor de renderizado) que los atraviesan a todos.
 
 ### 📈 1. Panel de Control (Dashboard Estratégico)
 El centro de mando neurálgico diseñado para la toma de decisiones inmediatas.
 *   **Métrica Estrella: Safe-to-Spend**: No te dice "cuánto hay", te dice cuánto puedes gastar hoy. El algoritmo cruza saldos, presupuestos comprometidos, suscripciones próximas y un colchón de seguridad.
-*   **Sankey Dynamic Flow**: Visualización termodinámica del flujo de fondos, mostrando cómo el ingreso se ramifica hacia gastos, deudas y ahorro.
+*   **Suite de Visualización Financiera**: Batería de gráficos dedicados (`NetWorthChart`, `CashFlowForecastChart`, `ExpenseBreakdownChart`, `IncomeExpenseBarChart`, `DailySpendingChart`) que cruzan ingresos, gastos, deudas y patrimonio neto desde ángulos complementarios en vez de un único gráfico genérico.
 *   **Sentinel Health Indicator**: Widget de auditoría en tiempo real que monitorea la integridad de la base de datos y tu solvencia financiera.
 *   **Simulador What-If**: Proyecta escenarios hipotéticos (ej. compras grandes o préstamos) para ver su impacto en la liquidez futura a 12 meses.
 
 ### 💸 2. Transacciones e Inteligencia de Importación
 *   **Idempotencia Criptográfica (SHA-256)**: Cada transacción genera un hash único. Puedes subir el mismo extracto 100 veces y el sistema ignorará duplicados con precisión quirúrgica.
-*   **Categorización Semántica**: Motor KNN que aprende de tus correcciones manuales para clasificar automáticamente nuevos movimientos.
+*   **Categorización por Patrones Aprendidos**: Motor de reglas semánticas (`categorizer.py`) que memoriza cada corrección manual que haces —por descripción y beneficiario— y la reutiliza para clasificar automáticamente movimientos futuros similares.
 *   **Sistema de Splits (Divisiones)**: Permite desglosar un solo pago (ej. supermercado) en múltiples categorías (Alimentación, Hogar, Mascotas).
 *   **Internal Transfer Logic**: Marca movimientos entre cuentas propias para evitar la inflación artificial de las métricas de gasto.
 
@@ -129,8 +161,8 @@ El centro de mando neurálgico diseñado para la toma de decisiones inmediatas.
 *   **Ciclos de Corte**: Inteligencia que mueve gastos entre meses lógicos basados en fechas de corte y no solo meses calendario.
 
 ### 🎯 5. Metas de Ahorro e Inversión
-*   **Proyección Temporal**: El sistema analiza tu ratio de ahorro real histórico y predice la fecha exacta (mes/año) en la que alcanzarás tu objetivo.
-*   **Visualización de Progreso**: Tracking dinámico de contribuciones y estados de cumplimiento.
+*   **Recomendaciones Inteligentes de Aporte**: Cuando detecta un excedente real en tu "Safe-to-Spend", la IA sugiere cuánto mover a cada meta activa, de forma conservadora y sin exceder jamás el monto pendiente.
+*   **Visualización de Progreso**: Tracking dinámico de contribuciones, montos objetivo y estados de cumplimiento por meta.
 
 ### 📊 6. Presupuestos Operativos
 *   **Burning Rate dinámico**: Barras de progreso con lógica de semáforo que alertan si tu ritmo de gasto diario superará el techo mensual antes de tiempo.
@@ -144,9 +176,8 @@ El centro de mando neurálgico diseñado para la toma de decisiones inmediatas.
 *   **Gestión P2P (IOUs)**: Registro dual de dinero prestado y adeudado a terceros (amigos, familiares).
 *   **Debt Shares**: Consolidador de gastos compartidos. Si pagas una cuenta grupal, el sistema vincula los reembolsos de tus amigos a la deuda original de tu tarjeta, manteniendo tu balance personal intacto.
 
-### 🏎️ 10. Telemetría Vehicular
-*   **Costo Real por KM**: Intercepta consumos de combustible y mantenimiento, cruzándolos con el odómetro para dar métricas de eficiencia.
-*   **Mantenimiento Preventivo**: Pronósticos de servicios técnicos (aceite, frenos, llantas) basados en tendencias de kilometraje.
+### 🏎️ 10. Telemetría Vehicular — 🚧 En Roadmap
+A diferencia de los demás módulos de este documento, este todavía **no existe en el producto**: no hay modelos `Vehicle`/`FuelLog`/`MaintenanceLog` en el backend, no hay endpoints, ni página en el frontend. Es una función que el usuario confirmó querer (costo real por km, mantenimiento preventivo), pendiente de diseñarse desde cero —modelo, migraciones, endpoints y UI— en una sesión dedicada, y no como un parche sobre el stub visual actual.
 
 ### 📸 11. Snapshots y Patrimonio Neto (Net Worth)
 *   **Fotografía Mensual Inmutable**: Cierre automático de mes que consolida activos y pasivos en un registro histórico de crecimiento.
@@ -166,6 +197,7 @@ El centro de mando neurálgico diseñado para la toma de decisiones inmediatas.
 
 ---
 
+<a id="devops"></a>
 ## 🚀 4. Orquestación y DevOps (Zero-Friction Setup)
 
 La verdadera "magia" de instalación detrás del proyecto reside en su monumental script maestro de PowerShell: `menu.ps1`. Ha sido programado con técnicas de sistemas operativos de misión crítica para ofrecer una experiencia empresarial de *Zero-Touch Configuration*.
@@ -179,6 +211,7 @@ La verdadera "magia" de instalación detrás del proyecto reside en su monumenta
 
 ---
 
+<a id="inicio-rapido"></a>
 ## 🛠️ 5. Guía de Inicio Rápido (Para Usuarios y Desarrolladores)
 
 ### Requisitos Mínimos del Hardware
@@ -198,6 +231,7 @@ El objetivo de este proyecto es que su levantamiento no requiera conocimientos d
 
 ---
 
+<a id="estructura-directorios"></a>
 ## 📂 6. Estructura de Directorios Clave
 
 ```text
@@ -223,6 +257,7 @@ TABULA-RASA/
 ```
 
 ---
+<a id="novedades"></a>
 ## 🛠️ 7. Novedades y Optimizaciones Recientes (Estabilidad & Rendimiento)
 
 Recientemente se ha implementado un paquete masivo de estabilidad y calidad de código:
