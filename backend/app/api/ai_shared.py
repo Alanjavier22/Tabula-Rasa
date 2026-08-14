@@ -16,7 +16,7 @@ import json
 import os
 import google.genai as genai
 from google.genai import types
-from app.services.ai_models import LITE_MODEL
+from app.services.ai_models import LITE_MODEL, with_gemini_retry
 from app.models.config import Config
 
 
@@ -50,7 +50,7 @@ async def call_gemini_json(prompt: str, api_key: str, response_schema: Optional[
     try:
         client = genai.Client(api_key=api_key)
 
-        response = client.models.generate_content(
+        response = with_gemini_retry(lambda: client.models.generate_content(
             model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -58,7 +58,7 @@ async def call_gemini_json(prompt: str, api_key: str, response_schema: Optional[
                 response_mime_type="application/json",
                 response_schema=response_schema
             )
-        )
+        ))
 
         if not response.text:
             raise HTTPException(status_code=500, detail="Gemini returned an empty response")
