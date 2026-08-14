@@ -30,6 +30,10 @@ interface SentinelHealth {
 export const SentinelBubble: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewAlert, setHasNewAlert] = useState(false);
+  // El Sentinel se monta una sola vez en Layout, envolviendo todas las rutas de la app.
+  // Sin este flag, useQuery dispararía la llamada a Gemini al abrir la app,
+  // antes de que el usuario interactúe con el Sentinel en absoluto.
+  const [hasOpenedOnce, setHasOpenedOnce] = useState(false);
 
   const { data: health, isLoading, error } = useQuery({
     queryKey: ['sentinel-health'],
@@ -39,6 +43,7 @@ export const SentinelBubble: React.FC = () => {
     },
     staleTime: 1000 * 60 * 30, // 30 minutes
     refetchOnWindowFocus: false,
+    enabled: hasOpenedOnce,
   });
 
   useEffect(() => {
@@ -76,6 +81,7 @@ export const SentinelBubble: React.FC = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => {
+            if (!hasOpenedOnce) setHasOpenedOnce(true);
             setIsOpen(!isOpen);
             setHasNewAlert(false);
           }}
