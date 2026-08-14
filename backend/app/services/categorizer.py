@@ -41,7 +41,13 @@ class AICategorizationBatchResponse(BaseModel):
 
 def normalize_description(description: str) -> str:
     """Normalize a transaction description for pattern matching."""
-    return (description or "").strip().upper()
+    import re
+    import unicodedata
+    text = (description or "").strip().upper()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 # Descriptions that are too generic to be useful as pattern keys
@@ -193,7 +199,7 @@ def get_semantic_category(description: str, amount: int, db_session=None, transa
     """
     Fallback for single-transaction categorization (UI usage).
     """
-    results = categorize_batch([{'description': description, 'amount': amount, 'transaction_type': transaction_type}], db_session)
+    results = categorize_batch([{'description': description, 'amount': amount, 'transaction_type': transaction_type}], db_session, throttle=False)
     return results.get(0)
 
 
@@ -225,7 +231,7 @@ def get_heuristic_category(description: str, db, transaction_type: str = 'expens
     return None
 
 
-def categorize_batch(transactions: list, db_session=None) -> dict:
+def categorize_batch(transactions: list, db_session=None, throttle: bool = True) -> dict:
     """
     Categorize multiple transactions efficiently using Rule-based logic + Batch AI.
     """
@@ -292,10 +298,12 @@ def categorize_batch(transactions: list, db_session=None) -> dict:
         logger.info(f"[Categorizer] Iniciando procesamiento de {len(pending_ai)} transacciones en {len(chunks)} lotes...")
 
         for i, chunk in enumerate(chunks):
-            # Throttling: Pausa obligatoria para no saturar los 15 RPM (incluso en el primer lote para dar aire tras Tier 3)
-            wait_time = 6 if i > 0 else 3
-            logger.info(f"[Categorizer] Throttling: Esperando {wait_time}s para respetar cuota API...")
-            time.sleep(wait_time)
+            # Throttling: pausa breve entre lotes. LITE_MODEL admite 150 RPM real,
+            # este margen es solo para no saturar en ráfagas de varios lotes seguidos.
+            if throttle:
+                wait_time = 1 if i > 0 else 0.5
+                logger.info(f"[Categorizer] Throttling: Esperando {wait_time}s...")
+                time.sleep(wait_time)
             
             # Create a compact prompt for the batch (include beneficiary for context)
             tx_list_str = "\n".join([
