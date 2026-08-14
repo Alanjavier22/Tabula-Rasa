@@ -19,7 +19,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from google.genai import types
 import google.genai as genai
-from app.services.ai_models import MULTIMODAL_MODEL
+from app.services.ai_models import MULTIMODAL_MODEL, with_gemini_retry
 from database import get_db
 from app.models.category import Category
 from app.api.ai_shared import get_gemini_key
@@ -65,11 +65,11 @@ async def audio_to_txns(
             f"\nCATEGORÍAS:\n{cat_ctx}\nCUENTAS:\n{acc_ctx}\n"
         )
         audio_bytes = base64.b64decode(request.audio_base64)
-        response = client.models.generate_content(
+        response = with_gemini_retry(lambda: client.models.generate_content(
             model=MULTIMODAL_MODEL,
             contents=cast(Any, [system_instruction, types.Part.from_bytes(data=audio_bytes, mime_type=f"audio/{request.audio_format}")]),
             config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=AudioToTxnResponse, temperature=0.1)
-        )
+        ))
         if not response.text:
             raise ValueError("Empty audio response")
 
@@ -89,11 +89,11 @@ async def parse_receipt(
         today_str = datetime.now().strftime("%Y-%m-%d")
         system_instruction = f"Eres un auditor experto extrayendo datos de recibos. Hoy es {today_str}. Reglas: Montos en CENTAVOS, fecha YYYY-MM-DD."
         image_bytes = await file.read()
-        response = client.models.generate_content(
+        response = with_gemini_retry(lambda: client.models.generate_content(
             model=MULTIMODAL_MODEL,
             contents=cast(Any, [system_instruction, types.Part.from_bytes(data=image_bytes, mime_type=file.content_type or "image/jpeg")]),
             config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=AudioToTxnResponse, temperature=0.1)
-        )
+        ))
         if not response.text:
             raise ValueError("Empty receipt response")
 
