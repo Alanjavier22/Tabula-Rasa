@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from app.models.transaction import Transaction
 import google.genai as genai
 from google.genai import types
-from app.services.ai_models import REASONING_MODEL
+from app.services.ai_models import REASONING_MODEL, with_gemini_retry
 import json
 import logging
 
@@ -72,13 +72,13 @@ class AuditService:
         """
         
         try:
-            response = self.client.models.generate_content(
+            response = with_gemini_retry(lambda: self.client.models.generate_content(
                 model=REASONING_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json"
                 )
-            )
+            ))
             result = json.loads(cast(str, response.text))
             return result.get("is_duplicate", False)
         except Exception as e:
