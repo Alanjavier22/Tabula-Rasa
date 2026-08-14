@@ -6,7 +6,7 @@ import google.genai as genai
 from google.genai import types
 from pydantic import BaseModel
 from typing import List, Optional, Any, cast
-from app.services.ai_models import REASONING_MODEL
+from app.services.ai_models import REASONING_MODEL, with_gemini_retry
 import os
 import json
 from app.models.config import Config
@@ -90,7 +90,7 @@ def get_smart_goal_recommendations(db: Session = Depends(get_db)):
     """
 
     try:
-        response = client.models.generate_content(
+        response = with_gemini_retry(lambda: client.models.generate_content(
             model=REASONING_MODEL,
             contents=user_prompt,
             config=types.GenerateContentConfig(
@@ -118,7 +118,7 @@ def get_smart_goal_recommendations(db: Session = Depends(get_db)):
                     "required": ["recommendations", "total_suggested_cents", "summary_message"]
                 }
             )
-        )
+        ))
         
         response_text = (response.text or "").strip()
         if not response_text:
