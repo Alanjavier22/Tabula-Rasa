@@ -109,8 +109,20 @@ Se agregó `backend/app/api/crud_factory.py` (`make_crud_router`), que genera PO
 ### 8. `_match_card_by_name` puede dar falsos positivos con palabras genéricas — RESUELTO 2026-08-12
 **Dónde:** `backend/app/services/credit_card_payment.py:66-78`. Se agregó `_GENERIC_CARD_NAME_WORDS` (palabras de banca/pago comunes en español) excluida del matcheo por palabra suelta, así "PAGO TARJETA" ya no matchea una tarjeta llamada "Tarjeta A" solo por la palabra "TARJETA" — el match por nombre completo sigue funcionando igual. Cubierto por `test_match_card_by_name_ignores_generic_words` en `backend/tests/test_credit_card_payment.py`.
 
-### 9. Archivos de backup de `finance.db` acumulados
-`backend/finance.db.backup`, `.pre_phase1_backup`, `.pre_uuid_migration` (+ el nuevo `.pre_healthcheck_backup_<fecha>` de esta sesión). Todos gitignorados, no es un problema de repo, solo clutter en disco si se quiere limpiar a mano.
+### 9. Archivos y carpetas residuo acumulados — RESUELTO 2026-08-13
+Auditoría de todo el árbol del proyecto (no solo `finance.db.*`) buscando residuos. Todo lo encontrado estaba gitignorado (no era problema de repo, solo clutter en disco). Borrado con confirmación explícita del usuario:
+- Backups viejos de `finance.db`: `.backup`, `.pre_phase1_backup`, `.pre_uuid_migration` (29-abr, de migraciones ya cerradas) y `.pre_healthcheck_backup_20260812_102027` (del health check ya verificado completo).
+- `backend/backups/`: 3 backups manuales/de restore (`current_before_restore_20260505_223116.db`, `tabula_rasa_backup_20260513_203707.sqlite3`, `tabula_rasa_backup_20260516_103039.sqlite3`).
+- `./temp_uploads/` en la raíz del proyecto — carpeta vacía, duplicada de `backend/temp_uploads/`.
+- `backend/temp_uploads/ddf9aa61-....pdf` — PDF huérfano de una subida del 13-may nunca limpiada tras procesarse.
+- `backend/temp_restore/` — vacía, resto de una operación de restore pasada.
+- `backend/__pycache__/`, `backend/scripts/__pycache__/`, `.pytest_cache/` (raíz), `backend/.pytest_cache/` — cache regenerable.
+
+**Logs en dos ubicaciones — investigado 2026-08-13, no es deuda:** `backend/backend.log` y los 4 de la raíz (`backend.log`, `backend_error.log`, `frontend.log`, `frontend_error.log`) son dos mecanismos de logging distintos e intencionales, no una duplicación accidental:
+- `backend/backend.log`: `RotatingFileHandler` de Python configurado en `setup_logging()` (`backend/main.py:95-132`), path fijo a `os.path.dirname(__file__)` (siempre `backend/`, sin importar desde dónde se lance el proceso). Rotación real (10MB × 5 backups). Es el log persistente de la app, sobrevive entre reinicios. Efecto colateral menor sin impacto: como `TestClient` de pytest importa `main.py`, las corridas de tests también escriben ahí (ruido, no bug).
+- Los 4 de la raíz: los define `menu.ps1:13-16` y los llena `Start-Process -RedirectStandardOutput/-RedirectStandardError` (líneas 542 y 585) al lanzar uvicorn y `npm run dev` — captura cruda de stdout/stderr de la sesión. `menu.ps1:448-451` los limpia (`Clear-Content`) antes de cada arranque, así que son efímeros por diseño. `menu.ps1:565` los usa para mostrar las últimas líneas de `backend_error.log` si el arranque falla — es la herramienta de diagnóstico rápido del menú.
+
+Conclusión: nada que corregir, cada uno cumple un propósito distinto (log persistente rotado vs. captura efímera de sesión para troubleshooting).
 
 ### 10. CORS/pairing entre dispositivos LAN — RESUELTO 2026-08-12
 El usuario vinculó un segundo dispositivo real (Android) contra el host en la misma LAN ingresando la URL + PIN a mano. La cookie de sesión httpOnly quedó seteada y el dispositivo aparece activo en `/auth/devices`, confirmando que CORS + `ALLOWED_ORIGINS` con la IP LAN dinámica funcionan end-to-end. El ítem 13 (no había imagen QR real para escanear) también se resolvió en la misma sesión, y de paso se encontró y corrigió un bug independiente que hacía que el QR, aun renderizado, apuntara a un puerto muerto (ver ítem 13).
