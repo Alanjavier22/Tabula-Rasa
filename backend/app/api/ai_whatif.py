@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta
 import google.genai as genai
 from google.genai import types
-from app.services.ai_models import REASONING_MODEL
+from app.services.ai_models import REASONING_MODEL, with_gemini_retry
 from sqlalchemy.orm import Session
 from database import get_db
 from app.models.category import Category
@@ -118,7 +118,7 @@ STRICT RULES:
 
     try:
         client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
+        response = with_gemini_retry(lambda: client.models.generate_content(
             model=REASONING_MODEL,
             contents=system_prompt,
             config=types.GenerateContentConfig(
@@ -126,7 +126,7 @@ STRICT RULES:
                 response_mime_type="application/json",
                 response_schema=ImpactAnalysis
             )
-        )
+        ))
 
         if not response.text:
              raise ValueError("Empty response from Oracle Engine")
