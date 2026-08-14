@@ -5,7 +5,7 @@ from app.models.config import Config
 from datetime import datetime, timezone
 import google.genai as genai
 from google.genai import errors, types
-from app.services.ai_models import REASONING_MODEL
+from app.services.ai_models import REASONING_MODEL, with_gemini_retry
 import json
 from pydantic import BaseModel
 from typing import List, Any, cast
@@ -16,11 +16,10 @@ from app.services.insights_builders import (
     _build_credit_card_summary,
     _build_liquidity_summary,
     _build_debt_share_summary,
-    _build_subscription_summary,
     _build_goals_summary,
-    _build_historical_trends,
     _build_enhanced_historical_trends,
     _build_rolling_30d_summary,
+    _build_recurring_small_expenses,
 )
 
 from app.api.auth import get_current_device
@@ -37,15 +36,6 @@ class InsightsResponse(BaseModel):
     insights: List[str]
     alerts: List[str]
     patterns: List[str]
-
-
-class FinancialWarning(BaseModel):
-    level: str  # "warning" | "info" | "success"
-    message: str
-
-
-class FinancialWarningsResponse(BaseModel):
-    warnings: List[FinancialWarning]
 
 
 @router.get("/insights")
@@ -75,6 +65,7 @@ def get_insights(db: Session = Depends(get_db)):
     # Unified Payload calculations
     historical = _build_enhanced_historical_trends(db, now)
     rolling = _build_rolling_30d_summary(db, now)
+    recurring_small = _build_recurring_small_expenses(db, now)
     
     import calendar
     day_of_month = now.day
@@ -111,6 +102,9 @@ ACTIVIDAD MÓVIL (ÚLTIMOS 30 DÍAS - Usar este Flujo de Caja como la métrica p
 - Balance de los últimos 30 días: ${rolling['rolling_30d_balance'] / 100:.2f}
 - Desglose de gastos por categoría (últimos 30 días):
 {json.dumps({k: f"${v/100:.2f}" for k, v in rolling['rolling_30d_expense_by_category'].items()}, indent=2, ensure_ascii=False)}
+
+GASTOS HORMIGA (recurrentes, últimos 30 días):
+{chr(10).join([f"- {g['name']}: {g['occurrences']} veces, ${g['total_amount']/100:.2f} acumulado" for g in recurring_small]) if recurring_small else "- Ninguno detectado"}
 
 PRESUPUESTOS DEL MES EN CURSO ({current_month_str}):
 """
@@ -185,7 +179,7 @@ RESUMEN FINANCIERO:
 {financial_snapshot}"""
 
     try:
-        response = client.models.generate_content(
+        response = with_gemini_retry(lambda: client.models.generate_content(
             model=REASONING_MODEL,
             contents=cast(Any, [types.Part.from_text(text=user_prompt)]),
             config=types.GenerateContentConfig(
@@ -200,7 +194,7 @@ RESUMEN FINANCIERO:
                     "required": ["insights", "alerts", "patterns"]
                 }
             ),
-        )
+        ))
 
         result = json.loads((response.text or "{}").strip())
 
@@ -244,144 +238,4 @@ RESUMEN FINANCIERO:
         raise HTTPException(
             status_code=500,
             detail=f"Error inesperado al generar insights: {str(e)}"
-        )
-
-
-@router.get("/financial-warnings", response_model=FinancialWarningsResponse)
-def get_financial_warnings(db: Session = Depends(get_db)):
-    """
-    DEPRECATED: Use /api-sentinel/health instead.
-    This endpoint is kept for backward compatibility but will be removed.
-    """
-    # 1. Get Gemini API key from config
-    config = db.query(Config).filter(Config.key == 'gemini_api_key').first()
-    if not config or not config.value:
-        raise HTTPException(
-            status_code=400,
-            detail="IA en mantenimiento. Configura tu Gemini API Key en la página de Configuración."
-        )
-
-    api_key = config.value
-
-    # 2. Configure Gemini with new SDK
-    client = genai.Client(api_key=cast(str, api_key))
-
-    # 3. Collect compact financial data (optimized for token efficiency)
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    liquidity = _build_liquidity_summary(db)
-    debt_summary = _build_debt_share_summary(db, now)
-    cc_summary = _build_credit_card_summary(db, now)
-    subscription_summary = _build_subscription_summary(db, now)
-    trends = _build_historical_trends(db, now)
-    goals_summary = _build_goals_summary(db)
-    budget_summary = _build_budget_summary(db, now)
-    
-    # Use the centralized calculation from metrics.py for consistency
-    from app.api.metrics_cashflow import get_safe_to_spend as calc_sts
-    sts_data = calc_sts(db)
-    safe_to_spend = sts_data.safe_to_spend
-
-    # 4. Build compact JSON (short keys, decimal values instead of cents)
-    compact_data = {
-        "sts": float(safe_to_spend / 100),  # Safe-to-Spend in dollars
-        "liq": float(liquidity['net_liquid'] / 100),  # Net liquidity
-        "ious": float(liquidity['ious_receivable'] / 100),  # IOUs receivable
-        "debt": float(debt_summary['total_pending_debt_shares'] / 100),  # Pending debt shares
-        "debt_cnt": debt_summary['pending_debt_count'],
-        "debt_by_person": {k: float(v/100) for k, v in {p: d['total_amount'] for p, d in debt_summary['debts_by_person'].items()}.items()},  # Debt by person
-        "cc_due": float(cc_summary['pending_amount'] / 100),  # CC pending payments
-        "cc_limit": float(cc_summary['total_credit_limit'] / 100),  # Total credit limit
-        "cc_util": cc_summary['overall_utilization_pct'],  # Overall utilization %
-        "cc_soon": debt_summary['upcoming_cutoffs_within_7_days'],  # Upcoming cutoffs
-        "sub_total": float(subscription_summary['monthly_total_estimated'] / 100),  # Monthly subscriptions total
-        "sub_upcoming": subscription_summary['upcoming_in_30_days'],  # Subscriptions due in 30 days
-        "trend_pct": trends['trend_percent'],  # Spending trend percentage
-        "trend_up": trends['is_increasing'],  # Is spending increasing
-        "trend_down": trends['is_decreasing'],  # Is spending decreasing
-        "goals_cnt": goals_summary['active_count'],  # Active goals count
-        "goals_total": float(goals_summary['total_target'] / 100),  # Total goals target
-        "goals_curr": float(goals_summary['total_current'] / 100),  # Total goals current
-        "goals_prog": goals_summary['overall_progress_pct'],  # Overall goals progress
-    }
-
-    # 5. Compact prompt for token efficiency
-    # Build detailed debt context for more informative warnings
-    debt_context = ""
-    if debt_summary['debts_by_person']:
-        debt_details = [f"{person}: ${data['total_amount']/100:.2f}" for person, data in debt_summary['debts_by_person'].items()]
-        debt_context = f"Detalles de deudas: {', '.join(debt_details)}. "
-
-    user_prompt = f"""Analiza estos datos financieros. Genera un array JSON con objetos:
-{{"level": "warning"|"info"|"success", "message": "string descriptiva (máx 100 chars)"}}
-Reglas:
-- "warning": si Safe-to-Spend (sts) < 0 (NEGATIVO), o deudas pendientes (debt) > 1000, o gastos aumentando >20%, o utilization de tarjetas > 80%
-- "info": si Safe-to-Spend entre 0-500, o deudas pendientes > 0, o IOUs pendientes, o suscripciones próximas, o utilization > 50%
-- "success": si Safe-to-Spend > 500, sin deudas pendientes, utilization < 50%, y sin riesgos
-- Para deudas pendientes: menciona cuántas personas y el monto total aproximado
-- Para Safe-to-Spend negativo: menciona el valor exacto
-- NO generes alertas sobre "Safe-to-Spend negativo" si el valor es positivo.
-- Máx 3 warnings. Prioriza riesgos de liquidez y tendencias negativas.
-
-Contexto adicional: {debt_context}
-Datos: {json.dumps(compact_data)}"""
-
-    try:
-        response = client.models.generate_content(
-            model=REASONING_MODEL,
-            contents=cast(Any, [types.Part.from_text(text=user_prompt)]),
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema={
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "level": {"type": "string", "enum": ["warning", "info", "success"]},
-                            "message": {"type": "string"}
-                        },
-                        "required": ["level", "message"]
-                    }
-                }
-            ),
-        )
-
-        result = json.loads((response.text or "{}").strip())
-        
-        # Ensure it's a list
-        if not isinstance(result, list):
-            result = [result] if isinstance(result, dict) else []
-
-        warnings = [
-            FinancialWarning(level=w.get("level", "info"), message=w.get("message", ""))
-            for w in result
-        ]
-
-        return {"warnings": warnings}
-
-    except errors.APIError as e:
-        error_msg = str(e)
-        if "quota" in error_msg.lower() or "limit" in error_msg.lower():
-            raise HTTPException(
-                status_code=503,
-                detail="Cuota de IA excedida. Intenta en unos minutos."
-            )
-        elif "not found" in error_msg.lower() or "model" in error_msg.lower():
-            raise HTTPException(
-                status_code=503,
-                detail="El modelo de IA no está disponible. Intenta más tarde."
-            )
-        else:
-            raise HTTPException(
-                status_code=503,
-                detail=f"Servicio de IA temporalmente no disponible: {error_msg}"
-            )
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=500,
-            detail="La IA no devolvió un formato válido."
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error inesperado al generar warnings: {str(e)}"
         )
