@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, cast
 import google.genai as genai
-from app.services.ai_models import MULTIMODAL_MODEL, LITE_MODEL
+from app.services.ai_models import MULTIMODAL_MODEL, LITE_MODEL, with_gemini_retry
 from google.genai import errors, types
 import os
 import base64
@@ -145,7 +145,7 @@ Rules:
 Return ONLY the JSON response matching the schema."""
         
         # Generate content with document (vision)
-        response = client.models.generate_content(
+        response = with_gemini_retry(lambda: client.models.generate_content(
             model=MULTIMODAL_MODEL,
             contents=cast(Any, [
                 types.Part.from_text(text=prompt),
@@ -179,7 +179,7 @@ Return ONLY the JSON response matching the schema."""
                     "required": ["transactions"]
                 }
             )
-        )
+        ))
         
         # Parse response
         result = json.loads(response.text or "{}")
@@ -257,7 +257,7 @@ Rules:
 Return ONLY the JSON response matching the schema: {{"mapping": {{"description": "category_id"}}}}"""
         
         # Generate content
-        response = client.models.generate_content(
+        response = with_gemini_retry(lambda: client.models.generate_content(
             model=LITE_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -275,7 +275,7 @@ Return ONLY the JSON response matching the schema: {{"mapping": {{"description":
                     "required": ["mapping"]
                 }
             )
-        )
+        ))
         
         # Parse response
         result = json.loads(response.text or "{}")
