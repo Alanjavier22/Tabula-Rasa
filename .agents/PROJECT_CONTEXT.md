@@ -16,6 +16,12 @@ graphify update C:\Users\Alan\Documents\tabularasa_main --force
 
 La actualización de código es local y no requiere API key. Las etiquetas de comunidades pueden quedar pendientes de refrescar si cambia la estructura; eso no invalida el grafo de código.
 
+## GitHub
+
+El repositorio público `Alanjavier22/Tabula-Rasa` usa GitHub como respaldo de código y colaboración, no como almacenamiento de datos financieros. La configuración versionada vive en `.github/`: `ci.yml` valida backend y frontend sin llamar a Gemini, las plantillas ordenan Issues y Pull Requests, y `release.yml` prepara notas agrupadas para futuras releases. Dependabot no forma parte de la estrategia del proyecto.
+
+Las releases deben contener código y documentación, nunca `finance.db`, backups, `.env`, logs ni certificados. La Wiki y GitHub Pages son opciones para documentación pública futura; la fuente normativa de decisiones técnicas sigue siendo este archivo junto con `AGENTS.md`.
+
 ## Propósito
 
 Tabula Rasa es una aplicación personal de finanzas, local-first, con backend FastAPI/SQLite y frontend React/Vite. La base financiera vive localmente; Gemini se usa únicamente en los flujos de IA que ya existen y con el contexto sanitizado por la aplicación.
@@ -67,6 +73,7 @@ Verificaciones vigentes:
 - Migración de 15 esquemas Pydantic a `ConfigDict`.
 - Cliente de pruebas alineado con `httpx2==2.13.0`.
 - El menú de arranque comprueba también `jwt` dentro del entorno virtual.
+- GitHub Actions valida automáticamente pruebas, migraciones, dependencias, lint y build cuando el workflow se publique en `main`.
 
 ## Cómo arrancar
 
