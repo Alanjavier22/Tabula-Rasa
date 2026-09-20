@@ -38,9 +38,9 @@ class Transaction(Base):
     expense_type = Column(SQLEnum(ExpenseType, values_callable=lambda x: [e.value for e in x]), nullable=True)
     payment_method = Column(SQLEnum(PaymentMethod, values_callable=lambda x: [e.value for e in x]), nullable=False)
     date = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
-    category_id = Column(String(36), ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True)
-    account_id = Column(String(36), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=True, index=True)
-    goal_id = Column(String(36), ForeignKey("goals.id", ondelete="SET NULL"), nullable=True, index=True)  # Vinculación con metas para progreso automático
+    category_id = Column(String(36), ForeignKey("categories.id"), nullable=True, index=True)
+    account_id = Column(String(36), ForeignKey("accounts.id"), nullable=True, index=True)
+    goal_id = Column(String(36), ForeignKey("goals.id"), nullable=True, index=True)  # Vinculación con metas para progreso automático
     running_balance = Column(Integer, nullable=True)  # Bank running balance in centavos at time of transaction (used for deduplication)
     metadata_json = Column(String, nullable=True)  # JSON string for vehicle telemetry: {"odometer": 15000, "liters": 40}
     is_deleted = Column(Boolean, default=False, server_default="0", nullable=False)
