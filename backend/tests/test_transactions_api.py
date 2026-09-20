@@ -7,7 +7,7 @@ def _create_account(client, account_type="checking"):
     }).json()
 
 
-def test_create_transaction_happy_path(client):
+def test_create_transaction_happy_path(client, db_session):
     account = _create_account(client)
 
     r = client.post("/transactions/", json={
@@ -23,8 +23,13 @@ def test_create_transaction_happy_path(client):
     assert body["transaction_type"] == "expense"
     assert body["account_id"] == account["id"]
 
+    from app.models.transaction import Transaction
+    stored = db_session.query(Transaction).filter(Transaction.id == body["id"]).one()
+    assert stored.is_manual is True
+    assert stored.fingerprint
 
-def test_import_batch(client, monkeypatch):
+
+def test_import_batch(client, db_session, monkeypatch):
     # La categorización en background pega contra el SessionLocal real (no el
     # db_session de este test) y potencialmente contra una API externa de IA -
     # se neutraliza para mantener el test hermético y offline.
@@ -59,6 +64,11 @@ def test_import_batch(client, monkeypatch):
 
     all_txs = client.get("/transactions/").json()
     assert len(all_txs) == 2
+
+    from app.models.transaction import Transaction
+    stored = db_session.query(Transaction).all()
+    assert all(tx.fingerprint for tx in stored)
+    assert all(tx.is_manual is False for tx in stored)
 
 
 def test_check_duplicates(client, db_session):
