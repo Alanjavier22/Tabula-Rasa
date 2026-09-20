@@ -3,18 +3,19 @@
 # 🏛️ Tabula Rasa
 ### Sistema Operativo Financiero Soberano & AI-Agentic Ecosystem
 
-*Privacidad blindada, integridad matemática absoluta (Zero-Floating-Point) y orquestación autónoma impulsada exclusivamente por **Gemini 3.1 Flash-Lite**.*
+*Privacidad local-first, integridad monetaria basada en centavos y asistencia opcional mediante modelos de **Google Gemini**.*
 
-[![Validación continua](https://github.com/Alanjavier22/Tabula-Rasa/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Alanjavier22/Tabula-Rasa/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/Alanjavier22/Tabula-Rasa/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/Alanjavier22/Tabula-Rasa/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/Alanjavier22/Tabula-Rasa/codeql.yml?branch=main&style=for-the-badge&label=CodeQL)](https://github.com/Alanjavier22/Tabula-Rasa/actions/workflows/codeql.yml)
 
 ![React](https://img.shields.io/badge/React_19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-109989?style=for-the-badge&logo=fastapi&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite_WAL-%2307405e.svg?style=for-the-badge&logo=sqlite&logoColor=white)
-![Gemini AI](https://img.shields.io/badge/🤖_Gemini_3.1_Flash--Lite-orange?style=for-the-badge)
+![Gemini AI](https://img.shields.io/badge/🤖_Gemini_AI-orange?style=for-the-badge)
 ![TailwindCSS](https://img.shields.io/badge/TailwindCSS_Glassmorphism-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
-![TanStack Query](https://img.shields.io/badge/React_Query-FF4154?style=for-the-badge&logo=react-query&logoColor=white)
+![TanStack Query](https://img.shields.io/badge/TanStack_Query-FF4154?style=for-the-badge&logo=react-query&logoColor=white)
 ![Recharts](https://img.shields.io/badge/Recharts-22b5bf?style=for-the-badge&logo=recharts&logoColor=white)
 ![Lucide](https://img.shields.io/badge/Lucide_React-F1502F?style=for-the-badge&logo=lucide&logoColor=white)
 ![Python 3.12](https://img.shields.io/badge/Python_3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
@@ -23,11 +24,11 @@
 
 </div>
 
-> **"Finanzas limpias. Privacidad absoluta. Inteligencia implacable."**
+> **"Finanzas limpias. Privacidad por diseño. Inteligencia accionable."**
 
-Bienvenido al repositorio de **Tabula Rasa**. Este no es un simple rastreador de gastos; es un ecosistema financiero de **Grado Industrial** diseñado bajo el paradigma de **Local-First AI**. Tabula Rasa funciona como tu cerebro financiero privado, residiendo íntegramente en tu hardware. Elimina la dependencia de nubes corporativas y garantiza la privacidad absoluta de tu patrimonio, al tiempo que integra modelos fundacionales de Inteligencia Artificial como auditores, consejeros y procesadores de datos multimodales.
+Bienvenido al repositorio de **Tabula Rasa**. Es una aplicación personal de finanzas diseñada bajo el paradigma **Local-First AI**: la base financiera reside localmente en tu equipo y las funciones externas son opcionales. Gemini se utiliza en los flujos de IA cuando está configurado, mientras que Google Drive se reserva para respaldos externos explícitamente habilitados.
 
-Este documento es un "Deep Dive" (análisis de Rayos X) exhaustivo de la arquitectura, las capacidades, el motor de inteligencia y la topografía de módulos del sistema. Ningún detalle técnico ha sido omitido — y donde algo todavía no está construido, este documento lo dice explícitamente en vez de maquillarlo.
+Este documento resume la arquitectura, las capacidades, el motor de inteligencia y la topografía de módulos del sistema. Cuando una capacidad todavía no está construida o permanece fuera de alcance, se marca explícitamente.
 
 ## 📑 Índice
 
@@ -44,7 +45,7 @@ Este documento es un "Deep Dive" (análisis de Rayos X) exhaustivo de la arquite
 <a id="arquitectura"></a>
 ## 🏗️ 1. Arquitectura de Sistemas y Visión de Ingeniería
 
-El núcleo de Tabula Rasa fue concebido para operar bajo un estrés constante de cálculo financiero, garantizando que jamás se pierda ni se corrompa un solo centavo de tu historial.
+El núcleo de Tabula Rasa prioriza la integridad, la trazabilidad y la consistencia de los cálculos financieros locales.
 
 ### 🗺️ Vista de Alto Nivel
 
@@ -57,38 +58,38 @@ flowchart LR
         FE <--> BE
         BE <--> DB
     end
-    BE -."Contexto anonimizado\n(privacy.py)".-> AI["Gemini 3.1 Flash-Lite\n(Internet, solo al consultar)"]
+    BE -."Contexto sanitizado\n(privacy.py)".-> AI["Modelos Gemini configurables\n(Internet, solo al consultar)"]
 ```
 
-Todo lo que importa —balances, historial, deudas— vive en `DB`. La única llamada que sale de tu red es la consulta puntual a Gemini, y solo con el contexto ya desinfectado.
+Todo lo que importa —balances, historial y deudas— vive en `DB`. La aplicación funciona localmente por defecto; las conexiones externas opcionales se limitan a los flujos de Gemini y Google Drive que el usuario configure.
 
 ### 🧬 El Stack Tecnológico y Persistencia
 *   **Backend (El Motor Lógico)**: Construido en **FastAPI (Python 3.12)**. Elegido por su insuperable capacidad de procesamiento asíncrono y la validación de datos estricta mediante **Pydantic**.
-*   **Frontend (Centro de Mando UI)**: Desarrollado en **React 19** impulsado por **Vite** y estandarizado con **Tailwind CSS**. La interfaz aplica principios de diseño **Glassmorphism**, creando un entorno inmersivo, responsivo y visualmente premium, con micro-animaciones fluidas a 60FPS potenciadas por **Framer Motion**.
+*   **Frontend (Centro de Mando UI)**: Desarrollado en **React 19** impulsado por **Vite** y estandarizado con **Tailwind CSS**. La interfaz aplica principios de diseño **Glassmorphism**, es responsiva y utiliza **Framer Motion** para sus micro-interacciones.
 *   **Persistencia (El Búnker de Datos)**: Emplea **SQLite en modo WAL (Write-Ahead Logging)**. A diferencia de un SQLite tradicional que bloquea la base en cada escritura, el modo WAL permite lecturas y escrituras concurrentes, combinando la ligereza de un motor local de un solo archivo con la robustez requerida para transacciones asíncronas y scripts en background.
-*   **Orquestación de IA**: Integración directa (vía SDK nativo) con **Gemini 3.1 Flash-Lite**, habilitando análisis multimodal (Vision), ejecución estructurada de herramientas (Function Calling), procesamiento de voz y generación de contenido altamente tipado y determinista.
+*   **Orquestación de IA**: Router centralizado de modelos Gemini configurables. Actualmente separa tareas agentizadas, razonamiento y multimodalidad entre `gemini-3.1-flash-lite` y `gemini-3.5-flash-lite`, habilitando Vision, Function Calling y procesamiento de voz cuando el usuario configura una clave válida.
 
 ### 📐 Principios de Integridad y Robustez (Core Rules)
-1.  **Aritmética de Centavos (Cero Coma Flotante)**: Es la regla de oro del motor matemático. Todos los cálculos internos, balances, deducciones y registros monetarios en la base de datos se almacenan y operan en **enteros (centavos)**. Esto erradica matemáticamente los errores de redondeo binario que destruyen las aplicaciones financieras amateurs. Solo se convierten a dólares (`/ 100`) en la capa final de presentación de la UI.
-2.  **Idempotencia Criptográfica**: El motor de importación (`transaction_importer.py` y `statement_intelligence.py`) jamás inserta datos a ciegas. Genera un *hash SHA-256* único por transacción (combinando fecha, monto, emisor y tokens de descripción). Si el usuario sube el mismo extracto bancario CSV o PDF diez veces, el sistema ignorará los duplicados con precisión quirúrgica, previniendo el envenenamiento de los datos de flujo de caja.
-3.  **Soft Deletes (Borrado Lógico Inmutable)**: Los registros nunca se eliminan físicamente de la base de datos (`is_deleted = True`). Esto permite la reconstrucción total de historiales de auditoría en caso de errores del usuario y evita rupturas silenciosas en las restricciones de las claves foráneas (Foreign Keys).
-4.  **Soberanía de Datos (Local-First)**: Tus balances, historiales, deudas y configuración jamás salen de tu red local. La base de datos reside únicamente en tu disco duro. Cuando el sistema "piensa" usando la IA, se aplica un protocolo de desinfección en `privacy.py`, enviando únicamente el contexto necesario (anonimizado) para que el LLM opere como un "motor semántico ciego".
-5.  **Acceso local controlado**: La aplicación funciona actualmente en la máquina host y no expone el API financiero a la red local. La vinculación multidispositivo queda reservada para una fase posterior explícita.
+1.  **Aritmética de Centavos**: Los importes monetarios persistidos y los contratos financieros principales se almacenan como **enteros (centavos)**. Los servicios convierten esos valores para presentación, promedios y proyecciones cuando corresponde, evitando depender de coma flotante para registrar saldos o movimientos.
+2.  **Idempotencia Criptográfica**: El motor de importación (`transaction_importer.py` y `statement_intelligence.py`) verifica duplicados antes de insertar. Genera un *hash SHA-256* a partir de la cuenta, fecha, importe, tipo, descripción, saldo corriente cuando existe y orden de ocurrencia. Si el usuario sube el mismo extracto bancario CSV o PDF varias veces, el sistema puede ignorar las filas ya identificadas.
+3.  **Borrado lógico donde aplica**: La mayoría de las entidades financieras conservan registros con `is_deleted = True`, aunque existen eliminaciones físicas explícitas para algunas operaciones de administración, limpieza o restauración.
+4.  **Soberanía de Datos (Local-First)**: La base financiera reside en tu disco duro y la aplicación funciona localmente por defecto. Los flujos que usan Gemini envían contexto sanitizado por `privacy.py`; los respaldos opcionales pueden enviarse a Google Drive si el usuario los configura.
+5.  **Acceso local controlado**: El flujo de producto está limitado actualmente a la máquina host: CORS y pairing solo contemplan orígenes loopback, y no existe un flujo multidispositivo. El lanzador actual hace que Uvicorn escuche en `0.0.0.0`, por lo que la exposición efectiva también depende del firewall y de la red del equipo.
 
 ---
 
 <a id="inteligencia-agentizada"></a>
 ## 🧠 2. El Ecosistema de Inteligencia Agentizada
 
-La IA en Tabula Rasa no es un "chatbot" superficial; es un **ecosistema de agentes autónomos y reactivos** con "ojos" (multimodalidad), "manos" (Function Calling) y una memoria estructurada de tus hábitos financieros. 
+La IA en Tabula Rasa no es un "chatbot" superficial: combina análisis multimodal, Function Calling y contexto financiero calculado por el backend.
 
-### 👁️ Capacidades Multimodales y Background Autónomo
-1.  **Statement Intelligence (AI Vision)**: `statement_intelligence.py` ingiere extractos bancarios en PDF o imágenes vía Gemini Vision. Extrae fechas de corte, pagos mínimos y desgloses de diferidos. La misma capa multimodal (`ai_receipts.py`) también lee recibos de compra y transcribe comandos de voz.
-2.  **Sentinel Agent & Health Monitoring**: El orquestador `sentinel_service.py` vigila la base de datos 24/7. Genera un "Health Score" proactivo basado en liquidez, deudas inminentes y trayectoria de ahorro.
-3.  **AI Insights & Anomaly Detector**: `ai_insights.py` y `anomaly_detector.py` realizan auditorías constantes buscando pagos duplicados, desviaciones en el "burn rate" y sugerencias de optimización fiscal.
-4.  **AI Audio Interface**: Integración en `ai_audio.py` para procesamiento de comandos de voz, permitiendo una interacción manos libres con el asistente financiero.
-5.  **Snapshot Reconciliation Engine**: `snapshot_reconciler.py` detecta cuándo una fotografía mensual de patrimonio neto quedó desactualizada (por ejemplo, al editar una transacción de un mes ya cerrado) y la recalcula bajo demanda, para que tu historial nunca muestre cifras obsoletas.
-6.  **AI Goal Optimization**: `ai_goals.py` calcula tu "Safe-to-Spend" real y, solo cuando detecta un excedente saludable, le pide a Gemini que decida cuánto de ese sobrante conviene reasignar a tus metas activas — de forma conservadora y sin exceder jamás el monto pendiente de cada una.
+### 👁️ Capacidades Multimodales y Procesamiento en Segundo Plano
+1.  **Statement Intelligence (AI Vision)**: `statement_intelligence.py` procesa extractos bancarios en PDF o imágenes vía Gemini Vision. Extrae fechas de corte, pagos mínimos y desgloses de diferidos. `ai_receipts.py` cubre el análisis de recibos y el procesamiento de comandos de voz.
+2.  **Sentinel Agent & Health Monitoring**: `sentinel_service.py` genera bajo demanda un "Health Score" basado en liquidez, deudas próximas y trayectoria de ahorro. La disponibilidad del endpoint no implica una vigilancia permanente en segundo plano.
+3.  **AI Insights & Anomaly Detector**: `ai_insights.py` y `anomaly_detector.py` construyen análisis bajo demanda para detectar pagos duplicados, desviaciones en el "burn rate" y oportunidades de revisión financiera.
+4.  **AI Audio Interface**: Integración en `ai_audio.py` y `ai_receipts.py` para procesamiento de comandos de voz y conversión de audio a transacciones.
+5.  **Snapshot Reconciliation Engine**: `snapshot_reconciler.py` detecta cuándo una fotografía mensual de patrimonio neto quedó desactualizada (por ejemplo, al editar una transacción de un mes ya cerrado) y la recalcula bajo demanda, ayudando a mantener actualizado el historial.
+6.  **AI Goal Optimization**: `backend/app/api/ai_goals.py` calcula tu "Safe-to-Spend" real y, solo cuando detecta un excedente saludable, solicita a Gemini una distribución conservadora para las metas activas con instrucciones de no exceder el monto pendiente.
 
 ### 🎭 Las 6 Personalidades del Cerebro Financiero
 El orquestador de chat de la aplicación adapta su comportamiento estructural, léxico y profundidad de razonamiento según la faceta de asesoría que selecciones:
@@ -127,41 +128,41 @@ La IA de Tabula Rasa tiene **estrictamente prohibido alucinar sumas matemáticas
 | **Inteligencia Fiscal/Alta** | `get_fiscal_summary`, `get_financial_executive_summary`, `get_sentinel_health`, `get_credit_card_details` | Ejecutar proyecciones del IVA, revisar el "Health Score" global del Sentinel y evaluar riesgos en fechas de corte de tarjetas de crédito. |
 
 ### 🛡️ Políticas de Blindaje y Seguridad del Prompting
-*   **Read-Only Strict Enforcement**: La IA es fundamentalmente un auditor inteligente, no un ejecutor a ciegas. Tiene **bloqueados todos los endpoints de escritura y mutación (POST/PUT/DELETE)** en su definición de tools. Si el motor infiere que debes crear una nueva meta financiera o ajustar un presupuesto, te lo sugerirá verbalmente, pero el usuario debe ser quien realice la acción mediante un clic en la interfaz. Cero mutaciones en la sombra.
+*   **Read-Only Strict Enforcement**: La IA es fundamentalmente un auditor inteligente, no un ejecutor a ciegas. Las funciones expuestas al LLM son de consulta y cálculo; no incluyen acciones de escritura o mutación. Si el motor infiere que debes crear una nueva meta financiera o ajustar un presupuesto, te lo sugerirá verbalmente, pero el usuario debe ser quien realice la acción mediante la interfaz.
 *   **Zero-Arithmetic Rules**: Instrucciones sistémicas explícitas prohíben a la IA realizar aritmética profunda. Si requiere un total, se le obliga a llamar a una función del backend.
-*   **Time-Context Injection**: El sistema inyecta en milisegundos la hora exacta y zona horaria (`America/Guayaquil`) en el prompt del sistema antes de cada turno. Esto evita que la IA se desoriente temporalmente y garantiza que las evaluaciones de vencimientos (Due Dates) sean milimétricamente exactas a la realidad.
+*   **Time-Context Injection**: El sistema inyecta la fecha, hora y zona horaria (`America/Guayaquil`) en el prompt del sistema antes de cada turno para dar contexto temporal a las respuestas y evaluaciones de vencimientos.
 
 ---
 
 <a id="topografia-modulos"></a>
 ## 🗺️ 3. Topografía de Módulos (Rayos X Operativo)
 
-El frontend de Tabula Rasa abarca toda la complejidad de la contabilidad de partida doble, estructurada en 12 módulos de negocio altamente especializados, más dos capas transversales de infraestructura (sincronización local y motor de renderizado) que los atraviesan a todos.
+El frontend de Tabula Rasa reúne 12 módulos de negocio especializados, más capas transversales de infraestructura como la navegación, el cliente de API y la presentación visual.
 
 ### 📈 1. Panel de Control (Dashboard Estratégico)
 El centro de mando neurálgico diseñado para la toma de decisiones inmediatas.
 *   **Métrica Estrella: Safe-to-Spend**: No te dice "cuánto hay", te dice cuánto puedes gastar hoy. El algoritmo cruza saldos, presupuestos comprometidos, suscripciones próximas y un colchón de seguridad.
 *   **Suite de Visualización Financiera**: Batería de gráficos dedicados (`NetWorthChart`, `CashFlowForecastChart`, `ExpenseBreakdownChart`, `IncomeExpenseBarChart`, `DailySpendingChart`) que cruzan ingresos, gastos, deudas y patrimonio neto desde ángulos complementarios en vez de un único gráfico genérico.
-*   **Sentinel Health Indicator**: Widget de auditoría en tiempo real que monitorea la integridad de la base de datos y tu solvencia financiera.
+*   **Sentinel Health Indicator**: Widget que muestra el estado calculado por Sentinel sobre la integridad de los datos y distintos indicadores financieros.
 *   **Simulador What-If**: Proyecta escenarios hipotéticos (ej. compras grandes o préstamos) para ver su impacto en la liquidez futura a 12 meses.
 
 ### 💸 2. Transacciones e Inteligencia de Importación
-*   **Idempotencia Criptográfica (SHA-256)**: Cada transacción genera un hash único. Puedes subir el mismo extracto 100 veces y el sistema ignorará duplicados con precisión quirúrgica.
-*   **Categorización por Patrones Aprendidos**: Motor de reglas semánticas (`categorizer.py`) que memoriza cada corrección manual que haces —por descripción y beneficiario— y la reutiliza para clasificar automáticamente movimientos futuros similares.
+*   **Idempotencia Criptográfica (SHA-256)**: Las transacciones importadas reciben un fingerprint y se comparan con los registros existentes para detectar duplicados.
+*   **Categorización por Patrones Aprendidos**: Motor de reglas semánticas (`categorizer.py`) que conserva correcciones manuales —por descripción y beneficiario— para mejorar la clasificación de movimientos futuros similares.
 *   **Sistema de Splits (Divisiones)**: Permite desglosar un solo pago (ej. supermercado) en múltiples categorías (Alimentación, Hogar, Mascotas).
 *   **Internal Transfer Logic**: Marca movimientos entre cuentas propias para evitar la inflación artificial de las métricas de gasto.
 
-### 🏛️ 3. Módulo Fiscal SRI (Cumplimiento Proactivo)
-*   **Clasificador de Rubros Deducibles**: Mapeo automático de gastos hacia categorías oficiales del SRI (Salud, Educación, Vivienda, Alimentación, Vestimenta).
-*   **Exportación Certificada**: Generador de archivos **XML y JSON** listos para ser importados en el portal tributario sin ediciones manuales.
+### 🏛️ 3. Módulo Fiscal SRI (Asistencia Proactiva)
+*   **Clasificador de Rubros Deducibles**: Mapeo automático de gastos hacia categorías de referencia del SRI (Salud, Educación, Vivienda, Alimentación, Vestimenta).
+*   **Exportación de datos**: Generación de archivos **XML y JSON** para apoyar la preparación de información tributaria; deben revisarse antes de presentarlos ante el SRI.
 
 ### 💳 4. Cuentas y Tarjetas (Account Intelligence)
 *   **Diferenciación de Naturaleza**: Gestión separada de cuentas líquidas (Checking/Savings) y líneas de crédito.
-*   **Net Worth Engine**: Cruce automático de saldos contra pasivos de tarjetas para obtener la posición neta real en milisegundos.
+*   **Net Worth Engine**: Cruce automático de saldos contra pasivos de tarjetas para obtener la posición neta consolidada.
 *   **Ciclos de Corte**: Inteligencia que mueve gastos entre meses lógicos basados en fechas de corte y no solo meses calendario.
 
 ### 🎯 5. Metas de Ahorro e Inversión
-*   **Recomendaciones Inteligentes de Aporte**: Cuando detecta un excedente real en tu "Safe-to-Spend", la IA sugiere cuánto mover a cada meta activa, de forma conservadora y sin exceder jamás el monto pendiente.
+*   **Recomendaciones Inteligentes de Aporte**: Cuando detecta un excedente real en tu "Safe-to-Spend", la IA sugiere cuánto mover a cada meta activa mediante una distribución conservadora con límites sobre el monto pendiente.
 *   **Visualización de Progreso**: Tracking dinámico de contribuciones, montos objetivo y estados de cumplimiento por meta.
 
 ### 📊 6. Presupuestos Operativos
@@ -169,30 +170,30 @@ El centro de mando neurálgico diseñado para la toma de decisiones inmediatas.
 *   **Presupuestos por Categoría**: Control granular del flujo de salida de efectivo.
 
 ### 🕰️ 7. Recordatorios y 📱 8. Suscripciones
-*   **Deducción Preventiva**: Estas obligaciones no son solo avisos; el sistema las "bloquea" virtualmente de tu liquidez disponible para garantizar que el dinero esté ahí cuando llegue el cobro.
+*   **Deducción Preventiva**: Estas obligaciones no son solo avisos; el sistema las descuenta virtualmente de la liquidez disponible para reservar ese dinero frente a próximos cobros.
 *   **Análisis de Fugas**: Identificación de suscripciones olvidadas o duplicadas.
 
 ### 🤝 9. Economía Colaborativa (IOUs & Debt Shares)
 *   **Gestión P2P (IOUs)**: Registro dual de dinero prestado y adeudado a terceros (amigos, familiares).
 *   **Debt Shares**: Consolidador de gastos compartidos. Si pagas una cuenta grupal, el sistema vincula los reembolsos de tus amigos a la deuda original de tu tarjeta, manteniendo tu balance personal intacto.
 
-### 🏎️ 10. Telemetría Vehicular — 🚧 En Roadmap
-A diferencia de los demás módulos de este documento, este todavía **no existe en el producto**: no hay modelos `Vehicle`/`FuelLog`/`MaintenanceLog` en el backend, no hay endpoints, ni página en el frontend. Es una función que el usuario confirmó querer (costo real por km, mantenimiento preventivo), pendiente de diseñarse desde cero —modelo, migraciones, endpoints y UI— en una sesión dedicada, y no como un parche sobre el stub visual actual.
+### 🏎️ 10. Telemetría Vehicular — ⚠️ Parcial
+Existe una capa de métricas derivada de transacciones categorizadas como combustible y mantenimiento, expuesta por `/metrics/vehicle-telemetry` y visible en el Dashboard. Todavía no existe un módulo de primer nivel con modelos backend `Vehicle`/`FuelLog`/`MaintenanceLog`, migraciones ni una página dedicada; la gestión completa de vehículos permanece en roadmap.
 
 ### 📸 11. Snapshots y Patrimonio Neto (Net Worth)
-*   **Fotografía Mensual Inmutable**: Cierre automático de mes que consolida activos y pasivos en un registro histórico de crecimiento.
+*   **Fotografía Mensual**: Conserva activos, pasivos y patrimonio neto por período; la reconciliación de snapshots obsoletos está disponible bajo demanda y la creación autónoma de snapshots permanece desactivada actualmente.
 *   **Depreciación de Activos (`asset_depreciation.py`)**: Aplica amortización temporal a bienes físicos (autos, tech, propiedades) para que tu patrimonio neto sea una realidad financiera dura y no una ilusión.
 
 ### 📂 12. Categorías y Personalización Semántica
-*   **Taxonomía Flexible**: Gestión de iconos, colores y reglas de mapeo que alimentan al motor de IA para una clasificación perfecta.
+*   **Taxonomía Flexible**: Gestión de iconos, colores y reglas de mapeo que alimentan al motor de IA para una clasificación consistente.
 
 ### 🔗 13. Vinculación Multidispositivo — 🚧 Fuera de alcance actual
 *   El acceso se mantiene limitado a la máquina host. El pairing por PIN y QR para móviles/tablets queda reservado para una fase posterior, cuando exista una necesidad de producto concreta.
 
-### ⚡ 14. Motor de Renderizado Optimizado por GPU & UI Fluida
+### ⚡ 14. Navegación y UI Fluida
 *   **Menú Lateral Colapsable**: Implementación de navegación lateral contraíble con persistencia en `localStorage`. Cuenta con un modo compacto iconográfico, logo inteligente sintetizado `"T R"`, tooltips contextuales flotantes de alta gama y micro-interacciones hover.
-*   **GPU Layer Compositing (will-change)**: Incorporación de directivas nativas `will-change: width, margin-left` en la estructura de maquetación para transferir las costosas transiciones de dimensiones del procesador de la CPU directamente a la memoria de video de la GPU. Esto previene reordenamientos innecesarios en el hilo principal (**Layout Reflows**) y elimina el lag visual por completo.
-*   **Modales en AnimatePresence**: Integración del ciclo de vida de desmontado de Framer Motion en el modal de **Auditoría Forense IA** e **Importación de Estados de Tarjetas**. Los fondos difuminados translúcidos y las tarjetas de control escalan y se deslizan verticalmente de forma progresiva en 200ms (`y: 15` a `y: 0` y `y: 20` de salida), dosificando la carga de renderizado del difuminado de cristal para garantizar unos impecables y constantes 60-120 FPS.
+*   **Transiciones de layout**: Uso selectivo de `will-change` y animaciones de Framer Motion en la navegación y los modales para mejorar la percepción de fluidez sin prometer un rendimiento fijo en todos los equipos.
+*   **Modales en AnimatePresence**: Integración del ciclo de vida de desmontado de Framer Motion en los modales de **Auditoría Forense IA** e **Importación de Estados de Tarjetas**, con transiciones de entrada y salida coherentes.
 
 
 ---
@@ -200,23 +201,26 @@ A diferencia de los demás módulos de este documento, este todavía **no existe
 <a id="devops"></a>
 ## 🚀 4. Orquestación y DevOps (Zero-Friction Setup)
 
-La verdadera "magia" de instalación detrás del proyecto reside en su monumental script maestro de PowerShell: `menu.ps1`. Ha sido programado con técnicas de sistemas operativos de misión crítica para ofrecer una experiencia empresarial de *Zero-Touch Configuration*.
+La instalación y operación local se coordinan desde el script maestro de PowerShell `menu.ps1`, acompañado por lanzadores para Windows y otros entornos.
 
 ### ⚙️ Capacidades del Motor de Orquestación (`menu.ps1`)
 1.  **Auto-Provisioning y Fallback Autónomo**: Apenas arranca, el script detecta y desactiva los ejecutables fantasma de la Windows Store que secuestran el comando `python`. Escanea el PATH buscando **Python 3.12+** y **Node.js**. Si no los encuentra, intenta instalarlos de forma silenciosa con `Winget`. Si `Winget` no está disponible o falla, realiza una **descarga directa e instalación silenciosa** desde los repositorios oficiales de Python y Node.js de forma totalmente autónoma.
-2.  **Aceleración con `uv` y Fallback a `pip`**: Tras garantizar Python en el sistema, el script intenta instalar e inyectar `uv` (reemplazo ultra rápido de `pip` en Rust) para instalar dependencias de `requirements.txt` en segundos. Si `uv` falla, cae automáticamente de vuelta a `pip` de forma transparente.
+2.  **Aceleración con `uv` y Fallback a `pip`**: Tras garantizar Python en el sistema, el script intenta usar `uv` para instalar las dependencias de `requirements.txt`; si falla, vuelve automáticamente a `pip`.
 3.  **Self-Healing (Curación Automática)**: Cada vez que presionas "Iniciar Aplicativo", el script lanza rutinas de test silenciosas. Intenta importar de forma subyacente librerías críticas (`pydantic`, `sqlalchemy`, `fastapi`, `jwt`). Si detecta un "ImportError" (indicando que tu entorno virtual `venv` está corrupto o carece de bibliotecas), el script destruye el `venv` agresivamente y lo vuelve a ensamblar desde cero de manera invisible. Siempre arrancarás en un entorno inmaculado.
 4.  **Asesino de Zombies (Port Management Quirúrgico)**: Si cerraste bruscamente el terminal en el pasado y los procesos de servidor quedaron atrapados como "zombies" devorando recursos, el script ejecuta un barrido TCP, localiza el PID exacto que secuestró los puertos `8001` y `5173`, y ejecuta un `Stop-Process -Force` para liberarlos, previniendo el temido error "Address already in use".
 5.  **Observabilidad en Tiempo Real**: El menú 3 ("Ver Logs") implementa un bucle dinámico que emula el comando `tail -f` de los servidores Linux. Permite al usuario monitorizar las salidas estándar e interceptar errores tanto del motor de FastAPI como de Vite/React de forma simultánea sin interrumpir su ejecución principal en background.
 
-### 🔁 Integración continua y releases en GitHub
+### 🔁 Integración continua, seguridad y releases en GitHub
 
-El repositorio incluye una validación automática en `.github/workflows/ci.yml`. GitHub Actions ejecuta, sin utilizar la API de Gemini ni datos del usuario:
+El repositorio incluye validación automática en `.github/workflows/ci.yml` y análisis de seguridad en `.github/workflows/codeql.yml`. GitHub Actions ejecuta, sin utilizar la API de Gemini ni datos del usuario:
 
-* **Backend**: instalación reproducible, `pytest`, `pip check` y `alembic check`.
+* **Backend**: instalación reproducible, `pytest`, `pip check` y comprobación de deriva con Alembic.
 * **Frontend**: `npm ci`, lint estricto y build de producción.
+* **Seguridad**: CodeQL para Python y JavaScript/TypeScript.
 
-El workflow se ejecuta en Pull Requests hacia `main`, en pushes a `main` y manualmente. Las releases se preparan mediante tags Git y notas generadas desde `.github/release.yml`; los respaldos, bases de datos y secretos nunca forman parte de una release.
+El workflow se ejecuta en Pull Requests hacia `main`, en pushes a `main` y manualmente; CodeQL también tiene una ejecución semanal. Para el chequeo de esquema, CI inicializa la base con los modelos actuales y ejecuta `alembic stamp head` antes de `alembic check`, porque la cadena histórica contiene migraciones que no pueden arrancar sobre una SQLite vacía.
+
+La rama `main` está protegida: los cambios entran por Pull Request y requieren los checks de backend y frontend aprobados. El release vigente es [v0.1.0 — Primera versión operativa](https://github.com/Alanjavier22/Tabula-Rasa/releases/tag/v0.1.0). Las releases se preparan mediante tags Git y notas agrupadas desde `.github/release.yml`; los respaldos, bases de datos y secretos no deben incluirse en una release.
 
 Para reportar una vulnerabilidad, consultar [SECURITY.md](SECURITY.md). Para cambios de código, utilizar Pull Requests e Issues sin adjuntar información financiera real.
 
@@ -226,9 +230,9 @@ Para reportar una vulnerabilidad, consultar [SECURITY.md](SECURITY.md). Para cam
 ## 🛠️ 5. Guía de Inicio Rápido (Para Usuarios y Desarrolladores)
 
 ### Requisitos Mínimos del Hardware
-*   **Sistema Operativo**: Windows 10/11 (Requiere acceso a PowerShell Administrativo para auto-configuraciones).
+*   **Sistema Operativo**: Windows 10/11 con PowerShell.
 *   **Memoria RAM**: 4GB Mínimo (8GB Recomendado para un entorno React fluido).
-*   **Conexión a Internet**: Exclusiva para la latencia baja de comunicación con la API de Gemini (la base de datos opera completamente sin conexión).
+*   **Conexión a Internet**: No requerida para el núcleo local una vez instaladas las dependencias; necesaria para el auto-provisioning, Gemini y respaldos externos en Google Drive.
 
 ### Instalación en 1 Paso
 El objetivo de este proyecto es que su levantamiento no requiera conocimientos de programación.
@@ -259,13 +263,13 @@ TABULA-RASA/
 ├── frontend/                      # Centro de Control Visual (React/Vite)
 │   ├── src/
 │   │   ├── components/            # Elementos reutilizables UI (Glassmorphism)
-│   │   ├── pages/                 # Los 10 módulos lógicos de la topografía
-│   │   └── services/              # Clientes de API e IndexedDB
+│   │   ├── pages/                 # Páginas de los módulos funcionales
+│   │   └── services/              # Clientes de API y servicios de frontend
 │   ├── index.css                  # Framework de estilos Tailwind
 │   └── package.json               # Dependencias de Node
-├── .agents/                       # Habilidades, prompts persistentes y módulos de LLM
+├── .agents/                       # Contexto persistente y habilidades locales
 ├── menu.ps1                       # 🧠 Orquestador Industrial de DevOps
-├── iniciar.bat                    # Script de conveniencia para Windows
+├── menu.bat                       # Lanzador de conveniencia para Windows
 └── README.md                      # Este manifiesto
 ```
 
@@ -274,11 +278,11 @@ TABULA-RASA/
 ## 🛠️ 7. Novedades y Optimizaciones Recientes (Estabilidad & Rendimiento)
 
 Recientemente se ha implementado un paquete masivo de estabilidad y calidad de código:
-*   **Aseguramiento de Tipos (TS Estricto)**: Corrección del 100% de los errores de tipado de TypeScript en el frontend, garantizando una compilación de producción (`npm run build`) limpia.
+*   **Aseguramiento de Tipos (TS Estricto)**: El frontend mantiene una compilación de producción (`npm run build`) limpia y validada por CI.
 *   **Lazy Loading & Route Splitting**: Implementación de carga perezosa (`React.lazy()`) y suspensión de rutas para acelerar el tiempo de carga del Dashboard.
 *   **Sidebar Colapsable de Alto Impacto**: Un panel lateral completamente colapsable en desktop que persiste su estado en el `localStorage` para mejorar la superficie útil del dashboard.
-*   **Parseador de Fechas Universal (`parse_date_robustly`)**: Módulo defensivo en el backend que limpia automáticamente discrepancias de fecha/hora de bases de datos locales (SQLite) o payloads erráticos, garantizando estabilidad total en importaciones.
-*   **Autogestión de JWT_SECRET**: Generación automática de llaves secretas seguras en el archivo `.env` al arranque del backend.
+*   **Parseador de Fechas Universal (`parse_date_robustly`)**: Módulo defensivo en el backend que normaliza discrepancias de fecha/hora de bases de datos locales (SQLite) o payloads erráticos, reduciendo errores en importaciones.
+*   **Autogestión de JWT_SECRET**: Generación automática de llaves secretas en el archivo `.env` cuando el backend prepara su configuración.
 *   **Filtros de Blacklist Dinámicos en DB**: Reemplazo de palabras clave fijas por consultas dinámicas a la tabla de configuración.
 *   **Migración Completa a Pydantic v2**: Transición de toda la serialización del backend a `.model_dump()`.
 
@@ -288,5 +292,5 @@ Recientemente se ha implementado un paquete masivo de estabilidad y calidad de c
 
 ---
 Desarrollado con ☕ y 🧠 por **Alan Javier Mejia Alvarez**
-*Soberanía financiera, precisión técnica y privacidad absoluta.* 🏛️✨
+*Soberanía financiera, precisión técnica y privacidad por diseño.* 🏛️✨
 
