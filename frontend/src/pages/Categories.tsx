@@ -51,7 +51,7 @@ const Categories = () => {
   };
 
   useEffect(() => {
-    fetchCategories();
+    void Promise.resolve().then(fetchCategories);
   }, []);
 
   const handleExport = async () => {
