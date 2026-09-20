@@ -22,6 +22,7 @@ from app.models.debt_share import DebtShare
 from app.models.account import Account
 from app.models.iou import IOU, IOUType, IOUStatus
 from app.services.categorizer import get_semantic_category
+from app.services.transaction_identity import calculate_transaction_fingerprint
 from app.utils.date_parser import parse_date_robustly
 
 class ExtractedTransaction(BaseModel):
@@ -268,7 +269,13 @@ class StatementIntelligenceService:
                         account_id=log.account_id,
                         category_id=category_id,
                         payment_method='credit_card',
-                        fingerprint=tx_data['fingerprint'],
+                        fingerprint=tx_data.get('fingerprint') or calculate_transaction_fingerprint(
+                            description=tx_data['description'],
+                            amount=abs(tx_data['amount_cents']),
+                            date_value=dt,
+                            transaction_type=tx_data['transaction_type'],
+                            account_id=log.account_id,
+                        ),
                         import_log_id=log.id,
                         is_manual=False,
                         needs_clarification=tx_data.get('needs_clarification', False),
