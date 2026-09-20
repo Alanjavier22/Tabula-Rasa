@@ -128,7 +128,7 @@ class CollectionStub<T = unknown> {
 
 /**
  * Shapes for the tables VehicleService.ts actually reads/writes today.
- * No backend model exists yet for these (ver TECH_DEBT.md ítem 11) — estos
+ * No backend model exists yet for these (ver `.agents/PROJECT_CONTEXT.md`) — estos
  * campos son solo los que ese servicio ya asume, no un diseño de la feature.
  */
 interface VehicleRecord {
