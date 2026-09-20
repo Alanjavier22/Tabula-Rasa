@@ -48,14 +48,12 @@ El núcleo de Tabula Rasa fue concebido para operar bajo un estrés constante de
 
 ```mermaid
 flowchart LR
-    subgraph LAN["Tu Red Local · Local-First"]
+    subgraph LOCAL["Tu Equipo · Local-First"]
         FE["React 19 + Vite\nCentro de Mando UI"]
         BE["FastAPI · Python 3.12\nMotor Lógico Async"]
         DB[("SQLite WAL\nBúnker de Datos")]
-        MOB["Móvil / Tablet\n(PIN Pairing)"]
         FE <--> BE
         BE <--> DB
-        MOB -.Wi-Fi + PIN.-> BE
     end
     BE -."Contexto anonimizado\n(privacy.py)".-> AI["Gemini 3.1 Flash-Lite\n(Internet, solo al consultar)"]
 ```
@@ -73,7 +71,7 @@ Todo lo que importa —balances, historial, deudas— vive en `DB`. La única ll
 2.  **Idempotencia Criptográfica**: El motor de importación (`transaction_importer.py` y `statement_intelligence.py`) jamás inserta datos a ciegas. Genera un *hash SHA-256* único por transacción (combinando fecha, monto, emisor y tokens de descripción). Si el usuario sube el mismo extracto bancario CSV o PDF diez veces, el sistema ignorará los duplicados con precisión quirúrgica, previniendo el envenenamiento de los datos de flujo de caja.
 3.  **Soft Deletes (Borrado Lógico Inmutable)**: Los registros nunca se eliminan físicamente de la base de datos (`is_deleted = True`). Esto permite la reconstrucción total de historiales de auditoría en caso de errores del usuario y evita rupturas silenciosas en las restricciones de las claves foráneas (Foreign Keys).
 4.  **Soberanía de Datos (Local-First)**: Tus balances, historiales, deudas y configuración jamás salen de tu red local. La base de datos reside únicamente en tu disco duro. Cuando el sistema "piensa" usando la IA, se aplica un protocolo de desinfección en `privacy.py`, enviando únicamente el contexto necesario (anonimizado) para que el LLM opere como un "motor semántico ciego".
-5.  **Local-Network Sync & PIN Pairing**: El sistema permite la vinculación de dispositivos secundarios (móviles/tablets) dentro de la misma red local. La seguridad se gestiona mediante un **PIN de vinculación dinámico**, eliminando la necesidad de exponer puertos a internet o depender de nubes externas para la sincronización.
+5.  **Acceso local controlado**: La aplicación funciona actualmente en la máquina host y no expone el API financiero a la red local. La vinculación multidispositivo queda reservada para una fase posterior explícita.
 
 ---
 
@@ -186,8 +184,8 @@ A diferencia de los demás módulos de este documento, este todavía **no existe
 ### 📂 12. Categorías y Personalización Semántica
 *   **Taxonomía Flexible**: Gestión de iconos, colores y reglas de mapeo que alimentan al motor de IA para una clasificación perfecta.
 
-### 🔗 13. Vinculación Local (Pairing)
-*   **Zero-Trust Local Sync**: Sistema de emparejamiento mediante **PIN dinámico** para conectar dispositivos móviles dentro de la misma red Wi-Fi, garantizando que tus datos nunca toquen la nube.
+### 🔗 13. Vinculación Multidispositivo — 🚧 Fuera de alcance actual
+*   El acceso se mantiene limitado a la máquina host. El pairing por PIN y QR para móviles/tablets queda reservado para una fase posterior, cuando exista una necesidad de producto concreta.
 
 ### ⚡ 14. Motor de Renderizado Optimizado por GPU & UI Fluida
 *   **Menú Lateral Colapsable**: Implementación de navegación lateral contraíble con persistencia en `localStorage`. Cuenta con un modo compacto iconográfico, logo inteligente sintetizado `"T R"`, tooltips contextuales flotantes de alta gama y micro-interacciones hover.
@@ -205,7 +203,7 @@ La verdadera "magia" de instalación detrás del proyecto reside en su monumenta
 ### ⚙️ Capacidades del Motor de Orquestación (`menu.ps1`)
 1.  **Auto-Provisioning y Fallback Autónomo**: Apenas arranca, el script detecta y desactiva los ejecutables fantasma de la Windows Store que secuestran el comando `python`. Escanea el PATH buscando **Python 3.12+** y **Node.js**. Si no los encuentra, intenta instalarlos de forma silenciosa con `Winget`. Si `Winget` no está disponible o falla, realiza una **descarga directa e instalación silenciosa** desde los repositorios oficiales de Python y Node.js de forma totalmente autónoma.
 2.  **Aceleración con `uv` y Fallback a `pip`**: Tras garantizar Python en el sistema, el script intenta instalar e inyectar `uv` (reemplazo ultra rápido de `pip` en Rust) para instalar dependencias de `requirements.txt` en segundos. Si `uv` falla, cae automáticamente de vuelta a `pip` de forma transparente.
-3.  **Self-Healing (Curación Automática)**: Cada vez que presionas "Iniciar Aplicativo", el script lanza rutinas de test silenciosas. Intenta importar de forma subyacente librerías críticas (`pydantic`, `sqlalchemy`, `fastapi`). Si detecta un "ImportError" (indicando que tu entorno virtual `venv` está corrupto o carece de bibliotecas), el script destruye el `venv` agresivamente y lo vuelve a ensamblar desde cero de manera invisible. Siempre arrancarás en un entorno inmaculado.
+3.  **Self-Healing (Curación Automática)**: Cada vez que presionas "Iniciar Aplicativo", el script lanza rutinas de test silenciosas. Intenta importar de forma subyacente librerías críticas (`pydantic`, `sqlalchemy`, `fastapi`, `jwt`). Si detecta un "ImportError" (indicando que tu entorno virtual `venv` está corrupto o carece de bibliotecas), el script destruye el `venv` agresivamente y lo vuelve a ensamblar desde cero de manera invisible. Siempre arrancarás en un entorno inmaculado.
 4.  **Asesino de Zombies (Port Management Quirúrgico)**: Si cerraste bruscamente el terminal en el pasado y los procesos de servidor quedaron atrapados como "zombies" devorando recursos, el script ejecuta un barrido TCP, localiza el PID exacto que secuestró los puertos `8001` y `5173`, y ejecuta un `Stop-Process -Force` para liberarlos, previniendo el temido error "Address already in use".
 5.  **Observabilidad en Tiempo Real**: El menú 3 ("Ver Logs") implementa un bucle dinámico que emula el comando `tail -f` de los servidores Linux. Permite al usuario monitorizar las salidas estándar e interceptar errores tanto del motor de FastAPI como de Vite/React de forma simultánea sin interrumpir su ejecución principal en background.
 
@@ -225,9 +223,11 @@ El objetivo de este proyecto es que su levantamiento no requiera conocimientos d
     ```bash
     git clone https://github.com/Alanjavier22/Tabula-Rasa.git
     ```
-2.  **Paso 2**: En tu explorador de archivos de Windows, haz doble clic en el archivo **`iniciar.bat`**. (O ejecuta `.\menu.ps1` desde una terminal si eres un usuario avanzado).
+2.  **Paso 2**: En tu explorador de archivos de Windows, haz doble clic en el archivo **`menu.bat`**. (O ejecuta `.\menu.ps1` desde una terminal si eres un usuario avanzado).
 3.  **Paso 3**: El sistema orquestador se encargará de instalar todo lo necesario, configurará las variables de entorno, levantará el backend y el frontend, y abrirá una ventana en tu navegador por defecto apuntando a: `http://localhost:5173`.
 4.  **Paso 4**: El sistema te pedirá añadir la clave de la API de Gemini en la pantalla de Configuración para desbloquear los módulos de IA.
+
+Si necesitas levantar el backend manualmente, ejecútalo desde `backend` con `venv\Scripts\python.exe -m uvicorn main:app`. El Python global solo se usa para crear o reparar ese entorno virtual; las dependencias de la aplicación, incluido `PyJWT`, viven dentro de `backend\venv`.
 
 ---
 
