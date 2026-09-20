@@ -141,7 +141,7 @@ def export_assets(db: Session = Depends(get_db)):
 def export_snapshots(db: Session = Depends(get_db)):
     """Export net worth snapshots to CSV."""
     try:
-        snapshots = db.query(NetWorthSnapshot).order_by(desc(NetWorthSnapshot.date)).all()
+        snapshots = db.query(NetWorthSnapshot).order_by(desc(NetWorthSnapshot.snapshot_date)).all()
 
         output = io.StringIO()
         output.write('\ufeff')
@@ -154,7 +154,7 @@ def export_snapshots(db: Session = Depends(get_db)):
             liabilities = float(cast(Any, snap.total_liabilities)) / 100
             net = float(cast(Any, snap.net_worth)) / 100
             writer.writerow([
-                snap.date.strftime("%Y-%m-%d") if snap.date else "",
+                snap.snapshot_date.strftime("%Y-%m-%d") if snap.snapshot_date else "",
                 f"{assets:.2f}",
                 f"{liabilities:.2f}",
                 f"{net:.2f}"
