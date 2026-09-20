@@ -23,6 +23,9 @@ export default defineConfig([
       // params) to mark a binding as intentionally unused - just wasn't wired
       // into the lint rule.
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      // Keep state hydration asynchronous inside effects so React's cascading
+      // render guard remains a hard quality gate.
+      'react-hooks/set-state-in-effect': 'error',
     },
   },
 ])
