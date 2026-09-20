@@ -62,22 +62,24 @@ const TransactionForm = ({
   }, []);
 
   useEffect(() => {
-    setForm(initialData);
+    void Promise.resolve().then(() => setForm(initialData));
   }, [initialData]);
 
   useEffect(() => {
-    if (initialSplits && initialSplits.length > 0) {
-      setSplits(initialSplits.map(split => ({
-        // Backend returns cents, divide by 100 for display
-        amount: (split.amount / 100).toString(),
-        category_id: split.category_id?.toString() || '',
-        description: split.description || ''
-      })));
-      setIsSplitEnabled(true);
-    } else {
-      setSplits([{ amount: '', category_id: '', description: '' }]);
-      setIsSplitEnabled(false);
-    }
+    void Promise.resolve().then(() => {
+      if (initialSplits && initialSplits.length > 0) {
+        setSplits(initialSplits.map(split => ({
+          // Backend returns cents, divide by 100 for display
+          amount: (split.amount / 100).toString(),
+          category_id: split.category_id?.toString() || '',
+          description: split.description || ''
+        })));
+        setIsSplitEnabled(true);
+      } else {
+        setSplits([{ amount: '', category_id: '', description: '' }]);
+        setIsSplitEnabled(false);
+      }
+    });
   }, [initialSplits]);
 
   const handleSubmit = async (e: React.FormEvent) => {
