@@ -1,6 +1,8 @@
 """
 Backup API endpoints for manual backup operations and Google Drive management.
 """
+import base64
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -31,6 +33,11 @@ router = APIRouter(
     prefix="/backup",
     tags=["Backup"]
 )
+
+
+def _safe_log_value(value: object) -> str:
+    """Encode untrusted values before writing them to logs."""
+    return base64.b64encode(str(value).encode("utf-8")).decode("ascii")
 
 
 class ManualBackupResponse(BaseModel):
@@ -181,7 +188,10 @@ def restore_from_drive(backup_id: str, request: Optional[RestoreRequest] = None,
         else:
             request.backup_id = backup_id
 
-        logger.info(f"[BACKUP_API] Restore requested for backup_id: {request.backup_id}")
+        logger.info(
+            "[BACKUP_API] Restore requested for backup_id_b64=%s",
+            _safe_log_value(request.backup_id),
+        )
 
         # Safety check: Require explicit confirmation
         if not request.confirmed:
@@ -258,7 +268,10 @@ def delete_pre_restore_backup_endpoint(request: DeletePreRestoreRequest, db: Ses
     Use this after confirming that a restore was successful to clean up temporary backups.
     """
     try:
-        logger.info(f"[BACKUP_API] Delete pre-restore backup requested: {request.backup_path}")
+        logger.info(
+            "[BACKUP_API] Delete pre-restore backup requested: path_b64=%s",
+            _safe_log_value(request.backup_path),
+        )
         result = delete_pre_restore_backup(request.backup_path)
 
         if result["success"]:
@@ -285,7 +298,10 @@ def rollback_to_pre_restore_endpoint(request: RollbackRequest, db: Session = Dep
     Use this if a restore from Google Drive caused issues and you want to revert.
     """
     try:
-        logger.info(f"[BACKUP_API] Rollback to pre-restore requested: {request.backup_path}")
+        logger.info(
+            "[BACKUP_API] Rollback to pre-restore requested: path_b64=%s",
+            _safe_log_value(request.backup_path),
+        )
         result = rollback_to_pre_restore(request.backup_path)
 
         if result["success"]:
