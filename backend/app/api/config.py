@@ -5,7 +5,7 @@ from datetime import datetime
 from database import get_db
 from app.api.auth import get_current_device
 from app.models.config import Config
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 router = APIRouter(
     prefix="/config", 
@@ -42,8 +42,7 @@ class ConfigResponse(BaseModel):
     description: Optional[str] = None
     is_public: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post("/", response_model=ConfigResponse)
