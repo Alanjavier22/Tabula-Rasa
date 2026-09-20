@@ -21,5 +21,6 @@ Reglas de continuidad:
   Cambios: qué se modificó y qué comportamiento queda establecido.
   Validación: pruebas, lint, build o comprobaciones ejecutadas.
   ```
-- No ejecutar `push` ni ninguna operación remota sin confirmación explícita del usuario.
+- Flujo GitHub automático después de una entrega solicitada: trabajar en una rama distinta de `main`, validar el cambio, crear los commits y publicar automáticamente esa rama para abrir o actualizar el Pull Request correspondiente. Si hay commits locales hechos sobre `main` que aún no se han publicado, crear primero una rama de trabajo desde ese estado y continuar allí.
+- La automatización anterior autoriza el `push` únicamente de la rama de trabajo y la creación o actualización del Pull Request. Nunca hacer `push` directo a `main`, force push, merge ni cambios remotos ajenos a la solicitud sin autorización explícita. Esperar CI y CodeQL, reportar el enlace del Pull Request y dejar el merge para la política configurada en GitHub o para la decisión del usuario.
 - No crear commits ni borrar datos del usuario salvo que se solicite expresamente.
