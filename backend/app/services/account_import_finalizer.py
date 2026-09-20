@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.import_log import ImportLog
 from app.models.transaction import Transaction
 from app.services.categorizer import get_semantic_category
+from app.services.transaction_identity import calculate_transaction_fingerprint
 from app.utils.date_parser import parse_date_robustly
 
 
@@ -50,7 +51,14 @@ def finalize_account_import(db: Session, import_log_id: str, confirmed_transacti
                     account_id=log.account_id,
                     category_id=category_id,
                     payment_method='transfer', # Por defecto en cuentas de ahorro
-                    fingerprint=tx_data['fingerprint'],
+                    fingerprint=tx_data.get('fingerprint') or calculate_transaction_fingerprint(
+                        description=tx_data['description'],
+                        amount=abs(tx_data['amount_cents']),
+                        date_value=dt,
+                        transaction_type=tx_data['transaction_type'],
+                        account_id=log.account_id,
+                        running_balance=tx_data.get('balance_cents'),
+                    ),
                     import_log_id=log.id,
                     running_balance=tx_data.get('balance_cents'),
                     beneficiary=tx_data.get('beneficiary'),
