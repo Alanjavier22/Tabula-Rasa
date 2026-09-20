@@ -4,6 +4,7 @@ from app.models.transaction import Transaction
 from app.models.category import Category
 from app.models.account import Account
 from app.models.net_worth_snapshot import NetWorthSnapshot
+from app.services.transaction_identity import unique_transaction_fingerprint
 from typing import List
 import logging
 import datetime
@@ -166,7 +167,17 @@ def import_transactions(
             date=tx_date,
             account_id=tx['account_id'],
             category_id=tx.get('category_id'),
-            running_balance=tx.get('running_balance')
+            running_balance=tx.get('running_balance'),
+            fingerprint=unique_transaction_fingerprint(
+                db,
+                description=tx['description'],
+                amount=tx['amount'],
+                date_value=tx_date,
+                transaction_type=tx['transaction_type'],
+                account_id=tx['account_id'],
+                running_balance=tx.get('running_balance'),
+            ),
+            is_manual=False,
         )
         new_txs.append(new_transaction)
     
