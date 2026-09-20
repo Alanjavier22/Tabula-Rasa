@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.3](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.2...v0.1.3) (2026-09-20)
+
+
+### Correcciones
+
+* **api:** declara default opcional en telemetría ([af8a053](https://github.com/Alanjavier22/Tabula-Rasa/commit/af8a0530ce9a15642242128a3155cd41e8f1000c))
+* **async:** usa I/O asíncrono al leer estados ([60782fa](https://github.com/Alanjavier22/Tabula-Rasa/commit/60782fab5267b1f217316bd5dd855d5871575843))
+* **async:** usa I/O asíncrono en importación ([a1df65e](https://github.com/Alanjavier22/Tabula-Rasa/commit/a1df65eed73a20d90e95a410da4b7240fc561832))
+* remedia hallazgos prioritarios de SonarCloud ([34789f8](https://github.com/Alanjavier22/Tabula-Rasa/commit/34789f8eb2b8bd5737c65a30b4bd066011fc31ec))
+* **security:** limita Uvicorn a loopback por defecto ([57de208](https://github.com/Alanjavier22/Tabula-Rasa/commit/57de208f5a45d6a110af3a7b620ebd9ec9c4e17b))
+* **security:** sanitiza valores de logs de backups ([090e7a6](https://github.com/Alanjavier22/Tabula-Rasa/commit/090e7a66947038675b04f887456d6ae6b97c18e1))
+* **ui:** ordena años fiscales numéricamente ([45e34c3](https://github.com/Alanjavier22/Tabula-Rasa/commit/45e34c3289be29bd34137919b1eb2d75c0566a8c))
+
+
+### Documentación y mantenimiento
+
+* documenta el binding local de Uvicorn ([6dca25b](https://github.com/Alanjavier22/Tabula-Rasa/commit/6dca25ba83c9d4d079503cb9a8bb14b6720dbcfd))
+* excluir bootstrap de cobertura de SonarCloud ([bcc2789](https://github.com/Alanjavier22/Tabula-Rasa/commit/bcc27896560c325e9fb60e24f763139680bb031f))
+
 ## [0.1.2](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.1...v0.1.2) (2026-09-20)
 
 
