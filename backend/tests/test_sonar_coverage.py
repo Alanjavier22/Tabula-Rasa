@@ -30,11 +30,9 @@ def test_backup_log_values_are_encoded_and_endpoints_log_safely(monkeypatch):
         "delete_pre_restore_backup",
         lambda _path: {"success": False, "message": "backup inválido"},
     )
+    delete_request = backup.DeletePreRestoreRequest(backup_path=untrusted_path)
     with pytest.raises(backup.HTTPException) as delete_error:
-        backup.delete_pre_restore_backup_endpoint(
-            backup.DeletePreRestoreRequest(backup_path=untrusted_path),
-            None,
-        )
+        backup.delete_pre_restore_backup_endpoint(delete_request, None)
     assert delete_error.value.status_code == 400
 
     monkeypatch.setattr(
@@ -42,11 +40,9 @@ def test_backup_log_values_are_encoded_and_endpoints_log_safely(monkeypatch):
         "rollback_to_pre_restore",
         lambda _path: {"success": False, "message": "rollback inválido"},
     )
+    rollback_request = backup.RollbackRequest(backup_path=untrusted_path)
     with pytest.raises(backup.HTTPException) as rollback_error:
-        backup.rollback_to_pre_restore_endpoint(
-            backup.RollbackRequest(backup_path=untrusted_path),
-            None,
-        )
+        backup.rollback_to_pre_restore_endpoint(rollback_request, None)
     assert rollback_error.value.status_code == 400
 
 
