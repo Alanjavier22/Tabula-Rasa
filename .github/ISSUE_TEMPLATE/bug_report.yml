@@ -1,0 +1,68 @@
+name: Reporte de error
+description: Reportar un comportamiento incorrecto o una regresión reproducible.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        No incluyas bases de datos, backups, logs completos, API keys ni información financiera personal.
+
+  - type: input
+    id: version
+    attributes:
+      label: Versión o commit
+      description: Indica la release, rama o SHA donde observaste el problema.
+      placeholder: v0.1.0 o 1cebb47
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área afectada
+      options:
+        - Backend
+        - Frontend
+        - Importaciones y datos
+        - IA y Gemini
+        - Arranque o instalación
+        - Documentación
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducir
+      description: Describe los pasos mínimos y deterministas.
+      placeholder: |
+        1. Abrir...
+        2. Seleccionar...
+        3. Ejecutar...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamiento observado
+      description: Incluye el mensaje de error resumido, sin secretos ni datos personales.
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validaciones realizadas
+      description: Indica si ejecutaste pytest, lint, build, health check u otra comprobación.
+    validations:
+      required: false
