@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from database import get_db
@@ -28,8 +28,7 @@ class DebtShareResponse(DebtShareBase):
     id: str
     statement_id: str
     version: int  # FASE 7: OCC versioning
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StatementBase(BaseModel):
@@ -73,8 +72,7 @@ class StatementResponse(BaseModel):
     notes: Optional[str] = None
     debt_shares: List[DebtShareResponse] = []
     version: int  # FASE 7: OCC versioning
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 def serialize_statement(stmt):
