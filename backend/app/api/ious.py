@@ -5,7 +5,7 @@ from database import get_db
 from app.api.crud_factory import make_crud_router
 from app.models.iou import IOU, IOUType, IOUStatus
 from app.models.transaction import Transaction
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
 
@@ -44,8 +44,7 @@ class IOUResponse(BaseModel):
     updated_at: datetime
     version: int  # FASE 7: OCC versioning
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 def _pre_create(payload: IOUCreate, db: Session) -> None:
