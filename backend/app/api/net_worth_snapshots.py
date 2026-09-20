@@ -13,7 +13,7 @@ from app.models.account import Account
 from app.models.iou import IOU, IOUType, IOUStatus
 from app.models.config import Config
 from app.services.snapshot_reconciler import SnapshotReconciler
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 router = APIRouter(
     prefix="/snapshots", 
@@ -43,8 +43,7 @@ class NetWorthSnapshotResponse(BaseModel):
     is_stale: bool = False
     is_locked: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post("/create", response_model=NetWorthSnapshotResponse)
