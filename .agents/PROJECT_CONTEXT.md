@@ -22,7 +22,7 @@ El repositorio público `Alanjavier22/Tabula-Rasa` usa GitHub como respaldo de c
 
 Las releases deben contener código y documentación, nunca `finance.db`, backups, `.env`, logs ni certificados. La Wiki ya tiene las páginas públicas `Inicio` y `Arquitectura`; GitHub Pages queda fuera de alcance. La protección activa de `main` exige Pull Request, los checks de backend y frontend aprobados y bloquea force push. El release vigente es `v0.1.0`. La fuente normativa de decisiones técnicas sigue siendo este archivo junto con `AGENTS.md`.
 
-Flujo GitHub vigente: trabajar en una rama distinta de `main`, ejecutar la validación local, crear commits atómicos y descriptivos en español, solicitar confirmación antes de hacer push, abrir un Pull Request y fusionarlo únicamente cuando CI y CodeQL estén verdes. La configuración del ruleset vive en GitHub y complementa las reglas locales de `AGENTS.md`.
+Flujo GitHub vigente: trabajar en una rama distinta de `main`, ejecutar la validación local, crear commits atómicos y descriptivos en español, publicar automáticamente la rama de trabajo, abrir o actualizar el Pull Request y esperar a que CI y CodeQL terminen en verde. Nunca hacer push directo a `main`, force push ni merge automático; la configuración del ruleset vive en GitHub y complementa las reglas locales de `AGENTS.md`.
 
 ## Propósito
 
