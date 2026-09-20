@@ -1,0 +1,48 @@
+name: Solicitud de funcionalidad
+description: Proponer una mejora alineada con el alcance local-first del proyecto.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Explica el valor de la propuesta y sus límites. No incluyas información financiera real.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema que resuelve
+      description: ¿Qué necesidad concreta queda sin atender?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta
+      description: Describe el comportamiento deseado y el resultado esperado.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área principal
+      options:
+        - Backend
+        - Frontend
+        - Datos y migraciones
+        - IA y Gemini
+        - Instalación y distribución
+        - Documentación
+    validations:
+      required: true
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Riesgos o decisiones pendientes
+      description: Indica impacto en privacidad, llamadas a Gemini, migraciones o compatibilidad.
+    validations:
+      required: false
