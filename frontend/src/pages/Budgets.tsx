@@ -108,9 +108,7 @@ const Budgets = () => {
   };
 
   useEffect(() => {
-    fetchBudgets();
-    fetchCategories();
-    fetchAccounts();
+    void Promise.resolve().then(() => Promise.all([fetchBudgets(), fetchCategories(), fetchAccounts()]));
   }, []);
 
   const handleDelete = async (id: string) => {
