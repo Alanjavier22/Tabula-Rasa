@@ -90,3 +90,8 @@ scratch/
 # --- Herramientas de Análisis Local ---
 .ignore
 pyrefly.toml
+.scannerwork/
+.coverage
+coverage.xml
+coverage/
+htmlcov/

@@ -212,14 +212,14 @@ La instalación y operación local se coordinan desde el script maestro de Power
 
 ### 🔁 Integración continua, seguridad y releases en GitHub
 
-El repositorio incluye validación automática en `.github/workflows/ci.yml`, análisis de seguridad en `.github/workflows/codeql.yml` y preparación automática de releases en `.github/workflows/release-please.yml`. GitHub Actions ejecuta, sin utilizar la API de Gemini ni datos del usuario:
+El repositorio incluye validación automática en `.github/workflows/ci.yml`, análisis de seguridad en `.github/workflows/codeql.yml`, calidad estática y cobertura en `.github/workflows/sonarcloud.yml` y preparación automática de releases en `.github/workflows/release-please.yml`. GitHub Actions ejecuta, sin utilizar la API de Gemini ni datos del usuario:
 
 * **Backend**: instalación reproducible, `pytest`, `pip check` y comprobación de deriva con Alembic.
 * **Frontend**: `npm ci`, lint estricto y build de producción.
-* **Seguridad**: CodeQL para Python y JavaScript/TypeScript.
+* **Seguridad y calidad**: CodeQL y SonarCloud para Python y JavaScript/TypeScript; la cobertura backend se publica desde `backend/coverage.xml`.
 * **Releases**: Release Please interpreta commits Conventional Commits y abre un Pull Request de release cuando una funcionalidad, corrección, mejora de rendimiento o cambio incompatible amerita nueva versión.
 
-El workflow se ejecuta en Pull Requests hacia `main`, en pushes a `main` y manualmente; CodeQL también tiene una ejecución semanal. Para el chequeo de esquema, CI inicializa la base con los modelos actuales y ejecuta `alembic stamp head` antes de `alembic check`, porque la cadena histórica contiene migraciones que no pueden arrancar sobre una SQLite vacía.
+Los workflows de CI, SonarCloud y release se ejecutan en Pull Requests hacia `main`, en pushes a `main` y manualmente; CodeQL también tiene una ejecución semanal. SonarCloud requiere el secreto `SONAR_TOKEN` configurado en GitHub Actions. Para el chequeo de esquema, CI inicializa la base con los modelos actuales y ejecuta `alembic stamp head` antes de `alembic check`, porque la cadena histórica contiene migraciones que no pueden arrancar sobre una SQLite vacía.
 
 La rama `main` está protegida: los cambios entran por Pull Request y requieren los checks de backend y frontend aprobados. La release de referencia actual es [v0.1.0 — Primera versión operativa](https://github.com/Alanjavier22/Tabula-Rasa/releases/tag/v0.1.0). Al fusionar un Pull Request de release, Release Please actualiza `version.txt` y `CHANGELOG.md`, crea el tag semver y publica la release; los respaldos, bases de datos y secretos no deben incluirse.
 
