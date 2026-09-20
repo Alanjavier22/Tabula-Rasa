@@ -20,7 +20,6 @@ const Settings = lazy(() => import('./pages/Settings'));
 const Subscriptions = lazy(() => import('./pages/Subscriptions'));
 const Snapshots = lazy(() => import('./pages/Snapshots'));
 const Fiscal = lazy(() => import('./pages/Fiscal'));
-const PairingPage = lazy(() => import('./pages/PairingPage'));
 
 // Premium, elegant page loader spinner
 const PageLoader = () => (
@@ -31,7 +30,10 @@ const PageLoader = () => (
 );
 
 function App() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme] = useState<'light' | 'dark'>(() => {
+    const savedTheme = localStorage.getItem('ui_theme') as 'light' | 'dark' | null;
+    return savedTheme ?? 'light';
+  });
 
   // FASE 8: Integrity Heartbeat - Runs every 24 hours or on startup
   useEffect(() => {
@@ -91,14 +93,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Load theme from localStorage (Thin Client: no IndexedDB)
-    const savedTheme = localStorage.getItem('ui_theme') as 'light' | 'dark' | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-  }, []);
-
-  useEffect(() => {
     // Apply theme to body
     if (theme === 'dark') {
       document.body.classList.add('dark');
@@ -126,7 +120,6 @@ function App() {
                   <Route path="/snapshots" element={<Snapshots />} />
                   <Route path="/fiscal" element={<Fiscal />} />
                   <Route path="/settings" element={<Settings />} />
-                  <Route path="/pair" element={<PairingPage />} />
                 </Routes>
               </Suspense>
             </AnimatePresence>
