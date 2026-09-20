@@ -72,7 +72,7 @@ const Goals = () => {
   };
 
   useEffect(() => {
-    fetchGoals();
+    void Promise.resolve().then(fetchGoals);
   }, []);
 
   const handleDelete = async (id: string) => {
