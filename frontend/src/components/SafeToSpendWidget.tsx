@@ -54,7 +54,7 @@ const SafeToSpendWidget = () => {
   };
 
   useEffect(() => {
-    fetchSafeToSpend();
+    void Promise.resolve().then(fetchSafeToSpend);
   }, []);
 
   const getStatus = (): SafeToSpendStatus => {
