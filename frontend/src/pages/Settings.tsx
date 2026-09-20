@@ -12,11 +12,9 @@ import {
   Cpu,
   Settings as SettingsIcon,
   ChevronRight,
-  Lock,
   Sparkles,
   Cloud,
 } from 'lucide-react';
-import DeviceManager from '../components/Settings/DeviceManager';
 import GeneralTab from '../components/Settings/GeneralTab';
 import AITab from '../components/Settings/AITab';
 import LabsTab from '../components/Settings/LabsTab';
@@ -26,7 +24,7 @@ import type { Category, BackupFile, Config } from '../types';
 import type { AxiosError } from 'axios';
 import type { ConfigData, GoogleDriveCredentials, GoogleDriveStatus } from '../components/Settings/types';
 
-type SettingsTab = 'general' | 'ai' | 'labs' | 'cloud' | 'security';
+type SettingsTab = 'general' | 'ai' | 'labs' | 'cloud';
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -62,7 +60,6 @@ const Settings = () => {
     { id: 'ai', label: 'Núcleo API', icon: Cpu, color: 'text-indigo-400' },
     { id: 'labs', label: 'AI Labs', icon: Sparkles, color: 'text-amber-400' },
     { id: 'cloud', label: 'Respaldo Cloud', icon: Cloud, color: 'text-emerald-400' },
-    { id: 'security', label: 'Seguridad Acceso', icon: Lock, color: 'text-rose-400' },
   ];
 
   const fetchData = useCallback(async () => {
@@ -127,9 +124,7 @@ const Settings = () => {
   }, []);
 
   useEffect(() => {
-    fetchData();
-    loadDriveCredentials();
-    handleLoadBackups();
+    void Promise.resolve().then(() => Promise.all([fetchData(), loadDriveCredentials(), handleLoadBackups()]));
   }, [fetchData, loadDriveCredentials, handleLoadBackups]);
 
   const handleSave = async () => {
@@ -438,13 +433,6 @@ const Settings = () => {
                     onRestoreBackup={handleRestoreBackup}
                     setToast={setToast}
                   />
-                )}
-                {activeTab === 'security' && (
-                  <div className="space-y-10">
-                    <section>
-                      <DeviceManager />
-                    </section>
-                  </div>
                 )}
               </motion.div>
             </AnimatePresence>
