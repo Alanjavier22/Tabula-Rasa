@@ -3,6 +3,7 @@ import hashlib
 import os
 import logging
 import asyncio
+import anyio
 from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 import google.genai as genai
@@ -72,8 +73,8 @@ class StatementIntelligenceService:
         client = genai.Client(api_key=cast(str, api_key))
         
         # Leemos el archivo para enviarlo a la IA
-        with open(file_path, "rb") as f:
-            file_data = f.read()
+        async with await anyio.open_file(file_path, "rb") as f:
+            file_data = await f.read()
 
         # Obtener categorías actuales para que la IA sepa qué opciones tiene
         categories = self.db.query(Category).all()
