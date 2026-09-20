@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import Session
 from app.api.crud_factory import make_crud_router
 from app.models.reminder import Reminder, ReminderFrequency, ReminderStatus
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, ConfigDict, field_serializer
 from datetime import datetime, date
 
 
@@ -44,8 +44,7 @@ class ReminderResponse(ReminderBase):
             return None
         return dt.isoformat()
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 def _reject_past_due_date(payload: ReminderBase | ReminderUpdate, db: Session) -> None:
