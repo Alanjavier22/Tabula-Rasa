@@ -350,9 +350,13 @@ def get_audit_report(db: Session) -> dict:
     """Get a summary of the current data quality (duplicates, SRI classification)"""
     from app.models.transaction import Transaction
 
-    total = db.query(Transaction).filter(Transaction.is_deleted == False).count()
+    total = db.query(Transaction).filter(
+        Transaction.is_deleted == False,
+        Transaction.transaction_type == "expense",
+    ).count()
     unclassified_sri = db.query(Transaction).filter(
         Transaction.is_deleted == False,
+        Transaction.transaction_type == "expense",
         Transaction.sri_category == None
     ).count()
 
