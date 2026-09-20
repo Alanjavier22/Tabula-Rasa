@@ -17,7 +17,7 @@ class Budget(Base):
     spent = Column(Integer, default=0)
     month = Column(Integer, nullable=False, index=True)  # 1-12
     year = Column(Integer, nullable=False, index=True)
-    category_id = Column(String(36), ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True)
+    category_id = Column(String(36), ForeignKey("categories.id"), nullable=True, index=True)
     is_deleted = Column(Boolean, default=False, server_default="0", nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
