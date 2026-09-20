@@ -63,23 +63,14 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
     });
   }, []);
 
-  // Recalcular automáticamente la responsabilidad cuando cambian las transacciones seleccionadas o compartidas
-  useEffect(() => {
-    if (statementMetadata && extractedTransactions.length > 0) {
-      const totalShared = extractedTransactions
-        .filter(t => t.selected && t.shared_amount)
-        .reduce((sum, t) => sum + (t.shared_amount || 0), 0);
-      
-      const newUserShare = Math.max(0, statementMetadata.statement_balance_cents - totalShared);
-      
-      if (newUserShare !== statementMetadata.user_share_cents) {
-        setStatementMetadata((prev) => prev && ({
-          ...prev,
-          user_share_cents: newUserShare
-        }));
-      }
-    }
-  }, [extractedTransactions, statementMetadata]);
+  const userShareCents = statementMetadata
+    ? Math.max(
+        0,
+        statementMetadata.statement_balance_cents - extractedTransactions
+          .filter(t => t.selected && t.shared_amount)
+          .reduce((sum, t) => sum + (t.shared_amount || 0), 0),
+      )
+    : 0;
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -181,7 +172,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       const response = await intelligenceAPI.confirmImport(
         importLogId,
         selectedTransactions,
-        statementMetadata ?? undefined
+        statementMetadata
+          ? { ...statementMetadata, user_share_cents: userShareCents }
+          : undefined
       );
       
       setResult({ success: true, message: `Éxito: ${response.data.imported_count} transacciones importadas y deudas actualizadas.` });
@@ -210,8 +203,6 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       } : t
     );
     setExtractedTransactions(newTransactions);
-    const totalShared = newTransactions.filter(t => t.selected && t.shared_amount).reduce((sum, t) => sum + (t.shared_amount || 0), 0);
-    setStatementMetadata({...statementMetadata, user_share_cents: statementMetadata.statement_balance_cents - totalShared});
     setSharingTransaction(null);
   };
 
@@ -295,19 +286,19 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                      <div className="pt-3 border-t border-purple-500/20 relative z-10">
                         <div className="flex items-center justify-between mb-2">
                            <span className="text-[10px] font-bold text-purple-300/70 uppercase">Tu Responsabilidad</span>
-                           <span className="text-xs font-bold text-white">${formatMoney(statementMetadata.user_share_cents)}</span>
+                           <span className="text-xs font-bold text-white">${formatMoney(userShareCents)}</span>
                         </div>
                         <div className="w-full h-1.5 bg-purple-900 rounded-lg overflow-hidden relative">
                           <div 
                             className="h-full bg-purple-400 transition-all duration-300" 
-                            style={{ width: `${(statementMetadata.user_share_cents / statementMetadata.statement_balance_cents) * 100}%` }}
+                            style={{ width: `${(userShareCents / statementMetadata.statement_balance_cents) * 100}%` }}
                           />
                         </div>
 
-                       {statementMetadata.user_share_cents < statementMetadata.statement_balance_cents && (
+                       {userShareCents < statementMetadata.statement_balance_cents && (
                          <p className="text-[10px] text-emerald-400 mt-2 font-bold flex items-center gap-1">
                            <User className="w-3 h-3" />
-                           Compartido: ${formatMoney(statementMetadata.statement_balance_cents - statementMetadata.user_share_cents)} serán asignados a terceros.
+                           Compartido: ${formatMoney(statementMetadata.statement_balance_cents - userShareCents)} serán asignados a terceros.
                          </p>
                        )}
                      </div>
@@ -459,8 +450,6 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                                          i === index ? { ...t, shared_with: undefined, shared_amount: undefined } : t
                                        );
                                        setExtractedTransactions(newTransactions);
-                                       const totalShared = newTransactions.filter(t => t.selected && t.shared_amount).reduce((sum, t) => sum + (t.shared_amount || 0), 0);
-                                       setStatementMetadata({...statementMetadata, user_share_cents: statementMetadata.statement_balance_cents - totalShared});
                                      } else {
                                        setSharingTransaction({ index, name: "Dennis", amount: txn.amount_cents / 2 });
                                      }
