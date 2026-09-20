@@ -7,7 +7,7 @@ from app.api.crud_factory import make_crud_router
 from app.models.subscription import Subscription, SubscriptionFrequency
 from app.models.account import Account
 from app.models.category import Category
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SubscriptionBase(BaseModel):
@@ -45,8 +45,7 @@ class SubscriptionResponse(BaseModel):
     is_active: bool = True
     version: int  # FASE 7: OCC versioning
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 def _validate_refs(account_id: Optional[str], category_id: Optional[str], db: Session) -> None:
