@@ -603,15 +603,6 @@ export interface GoogleDriveCredentials {
   refresh_token: string;
 }
 
-// --- GET /auth/devices ---
-export interface AuthDevice {
-  id: string;
-  device_name: string;
-  last_sync: string | null;
-  is_active: boolean;
-  created_at: string | null;
-}
-
 export interface DeferredPayment {
   id: string;
   account_id: string;
