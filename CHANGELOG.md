@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.1...v0.1.2) (2026-09-20)
+
+
+### Documentación y mantenimiento
+
+* integra análisis SonarCloud con cobertura backend ([8b92118](https://github.com/Alanjavier22/Tabula-Rasa/commit/8b921186f988d72fc7cbe42b792e676ba0dd91f0))
+
 ## [0.1.1](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.0...v0.1.1) (2026-09-20)
 
 
