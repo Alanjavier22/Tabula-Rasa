@@ -5,6 +5,8 @@
 
 *Privacidad blindada, integridad matemática absoluta (Zero-Floating-Point) y orquestación autónoma impulsada exclusivamente por **Gemini 3.1 Flash-Lite**.*
 
+[![Validación continua](https://github.com/Alanjavier22/Tabula-Rasa/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Alanjavier22/Tabula-Rasa/actions/workflows/ci.yml)
+
 ![React](https://img.shields.io/badge/React_19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-109989?style=for-the-badge&logo=fastapi&logoColor=white)
@@ -206,6 +208,17 @@ La verdadera "magia" de instalación detrás del proyecto reside en su monumenta
 3.  **Self-Healing (Curación Automática)**: Cada vez que presionas "Iniciar Aplicativo", el script lanza rutinas de test silenciosas. Intenta importar de forma subyacente librerías críticas (`pydantic`, `sqlalchemy`, `fastapi`, `jwt`). Si detecta un "ImportError" (indicando que tu entorno virtual `venv` está corrupto o carece de bibliotecas), el script destruye el `venv` agresivamente y lo vuelve a ensamblar desde cero de manera invisible. Siempre arrancarás en un entorno inmaculado.
 4.  **Asesino de Zombies (Port Management Quirúrgico)**: Si cerraste bruscamente el terminal en el pasado y los procesos de servidor quedaron atrapados como "zombies" devorando recursos, el script ejecuta un barrido TCP, localiza el PID exacto que secuestró los puertos `8001` y `5173`, y ejecuta un `Stop-Process -Force` para liberarlos, previniendo el temido error "Address already in use".
 5.  **Observabilidad en Tiempo Real**: El menú 3 ("Ver Logs") implementa un bucle dinámico que emula el comando `tail -f` de los servidores Linux. Permite al usuario monitorizar las salidas estándar e interceptar errores tanto del motor de FastAPI como de Vite/React de forma simultánea sin interrumpir su ejecución principal en background.
+
+### 🔁 Integración continua y releases en GitHub
+
+El repositorio incluye una validación automática en `.github/workflows/ci.yml`. GitHub Actions ejecuta, sin utilizar la API de Gemini ni datos del usuario:
+
+* **Backend**: instalación reproducible, `pytest`, `pip check` y `alembic check`.
+* **Frontend**: `npm ci`, lint estricto y build de producción.
+
+El workflow se ejecuta en Pull Requests hacia `main`, en pushes a `main` y manualmente. Las releases se preparan mediante tags Git y notas generadas desde `.github/release.yml`; los respaldos, bases de datos y secretos nunca forman parte de una release.
+
+Para reportar una vulnerabilidad, consultar [SECURITY.md](SECURITY.md). Para cambios de código, utilizar Pull Requests e Issues sin adjuntar información financiera real.
 
 ---
 
