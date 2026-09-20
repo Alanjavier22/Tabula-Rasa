@@ -69,7 +69,7 @@ const Reminders = () => {
   };
 
   useEffect(() => {
-    fetchReminders();
+    void Promise.resolve().then(fetchReminders);
   }, []);
 
   const handleDelete = async (id: string) => {
