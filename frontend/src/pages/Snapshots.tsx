@@ -42,7 +42,7 @@ const Snapshots = () => {
   };
 
   useEffect(() => {
-    fetchSnapshots();
+    void Promise.resolve().then(fetchSnapshots);
   }, []);
 
   const handleAnalyze = async (snapshotId: string) => {
