@@ -457,7 +457,7 @@ function Start-Application {
 
     if (Test-Path $script:venvPython) {
         # Check if critical packages and app can be imported
-        & $script:venvPython -c "import fastapi, sqlalchemy, pydantic, cryptography" 2>&1 | Out-Null
+        & $script:venvPython -c "import fastapi, sqlalchemy, pydantic, cryptography, jwt" 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  Entorno virtual corrupto detectado. Reinstalando..." -ForegroundColor Magenta
             try {
