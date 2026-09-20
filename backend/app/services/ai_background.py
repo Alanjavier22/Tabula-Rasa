@@ -21,32 +21,33 @@ def categorize_transactions_background(transaction_ids: list[str]):
     try:
         transactions = db.query(Transaction).filter(Transaction.id.in_(transaction_ids)).all()
         
-        # Filter transactions without category
-        uncategorized = [tx for tx in transactions if not tx.category_id]
-        
-        if not uncategorized:
-            logger.info("No transactions to categorize (all already have categories)")
-            return
-        
-        # Use batch categorization (all in one request)
-        batch_data = []
-        for tx in uncategorized:
-            batch_data.append({
-                "description": tx.description,
-                "amount": tx.amount,
-                "transaction_type": tx.transaction_type.value if hasattr(tx.transaction_type, 'value') else tx.transaction_type
-            })
-        
-        logger.info(f"Sending {len(batch_data)} transactions for batch categorization")
-        results = categorize_batch(batch_data, db_session=db)
-        
-        # Apply results to transactions
-        for i, tx in enumerate(uncategorized):
-            if i in results:
-                cat_id, clarification = results[i]
-                tx.category_id = cat_id
-                tx.needs_clarification = clarification
-                logger.info(f"Categorized transaction {tx.id}: category_id={cat_id}, clarification={clarification}")
+        # Filter transactions without category. Manual rows are never sent to
+        # the automatic categorizer, even if they are currently uncategorized.
+        uncategorized = [
+            tx for tx in transactions
+            if not tx.category_id and not tx.is_manual
+        ]
+
+        if uncategorized:
+            batch_data = []
+            for tx in uncategorized:
+                batch_data.append({
+                    "description": tx.description,
+                    "amount": tx.amount,
+                    "transaction_type": tx.transaction_type.value if hasattr(tx.transaction_type, 'value') else tx.transaction_type
+                })
+
+            logger.info(f"Sending {len(batch_data)} transactions for batch categorization")
+            results = categorize_batch(batch_data, db_session=db)
+
+            for i, tx in enumerate(uncategorized):
+                if i in results:
+                    cat_id, clarification = results[i]
+                    tx.category_id = cat_id
+                    tx.needs_clarification = clarification
+                    logger.info(f"Categorized transaction {tx.id}: category_id={cat_id}, clarification={clarification}")
+        else:
+            logger.info("No transactions to categorize (all already categorized or manual)")
 
         # Clasificación SRI: solo expenses sin sri_category, agrupado en el mismo lote
         category_names = {str(c.id): c.name for c in db.query(Category).all()}
@@ -54,6 +55,7 @@ def categorize_transactions_background(transaction_ids: list[str]):
             tx for tx in transactions
             if (tx.transaction_type.value if hasattr(tx.transaction_type, 'value') else tx.transaction_type) == 'expense'
             and not tx.sri_category
+            and not tx.is_manual
         ]
         if sri_pending:
             sri_batch_data = [
@@ -74,3 +76,20 @@ def categorize_transactions_background(transaction_ids: list[str]):
         db.rollback()
     finally:
         db.close()
+
+
+def categorize_import_log_background(import_log_id: str):
+    """Run categorization/SRI classification for an intelligent import."""
+    db = SessionLocal()
+    try:
+        transaction_ids = [
+            tx.id for tx in db.query(Transaction.id).filter(
+                Transaction.import_log_id == import_log_id,
+                Transaction.is_deleted == False,
+            ).all()
+        ]
+    finally:
+        db.close()
+
+    if transaction_ids:
+        categorize_transactions_background(transaction_ids)
