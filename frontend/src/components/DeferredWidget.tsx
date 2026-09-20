@@ -19,7 +19,7 @@ const DeferredWidget = () => {
   };
 
   useEffect(() => {
-    fetchDeferreds();
+    void Promise.resolve().then(fetchDeferreds);
   }, []);
 
   const handleAdvance = async (id: string) => {
