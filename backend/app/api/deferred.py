@@ -4,7 +4,7 @@ from database import get_db
 from app.api.auth import get_current_device
 from app.models.deferred_payment import DeferredPayment
 from app.models.account import Account
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional, Any, cast
 from datetime import datetime
 import uuid
@@ -38,8 +38,7 @@ class DeferredPaymentResponse(DeferredPaymentBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 @router.get("/", response_model=List[DeferredPaymentResponse])
 def get_deferred_payments(db: Session = Depends(get_db)):
