@@ -20,7 +20,7 @@ La actualización de código es local y no requiere API key. Las etiquetas de co
 
 El repositorio público `Alanjavier22/Tabula-Rasa` usa GitHub como respaldo de código y colaboración, no como almacenamiento de datos financieros. La configuración versionada vive en `.github/`: `ci.yml` valida backend y frontend sin llamar a Gemini, las plantillas ordenan Issues y Pull Requests, y `release.yml` prepara notas agrupadas para futuras releases. Dependabot no forma parte de la estrategia del proyecto.
 
-Las releases deben contener código y documentación, nunca `finance.db`, backups, `.env`, logs ni certificados. La Wiki y GitHub Pages son opciones para documentación pública futura; la fuente normativa de decisiones técnicas sigue siendo este archivo junto con `AGENTS.md`.
+Las releases deben contener código y documentación, nunca `finance.db`, backups, `.env`, logs ni certificados. La Wiki es una opción de documentación pública futura; GitHub Pages queda fuera de alcance. La fuente normativa de decisiones técnicas sigue siendo este archivo junto con `AGENTS.md`.
 
 ## Propósito
 
