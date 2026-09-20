@@ -14,6 +14,7 @@ from app.services.statement_intelligence import StatementIntelligenceService
 from app.services.account_intelligence import AccountIntelligenceService
 from app.services.account_import_finalizer import finalize_account_import
 from app.services.snapshot_service import recalculate_stale_snapshots
+from app.services.ai_background import categorize_import_log_background
 
 router = APIRouter(
     prefix="/intelligence", 
@@ -106,6 +107,7 @@ async def confirm_import(
     try:
         count = service.finalize_import(import_log_id, payload.confirmed_transactions, payload.statement_metadata)
         
+        background_tasks.add_task(categorize_import_log_background, import_log_id)
         # Ejecutamos la sanación de snapshots en segundo plano para no bloquear la UI
         background_tasks.add_task(recalculate_stale_snapshots, db)
         
@@ -175,6 +177,7 @@ async def confirm_account_import(
 ):
     try:
         count = finalize_account_import(db, import_log_id, payload.confirmed_transactions)
+        background_tasks.add_task(categorize_import_log_background, import_log_id)
         background_tasks.add_task(recalculate_stale_snapshots, db)
         return {"status": "success", "imported_count": count, "message": "Movimientos importados correctamente."}
     except Exception as e:
