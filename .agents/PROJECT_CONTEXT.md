@@ -18,9 +18,11 @@ La actualización de código es local y no requiere API key. Las etiquetas de co
 
 ## GitHub
 
-El repositorio público `Alanjavier22/Tabula-Rasa` usa GitHub como respaldo de código y colaboración, no como almacenamiento de datos financieros. La configuración versionada vive en `.github/`: `ci.yml` valida backend y frontend sin llamar a Gemini, las plantillas ordenan Issues y Pull Requests, y `release.yml` prepara notas agrupadas para futuras releases. Dependabot no forma parte de la estrategia del proyecto.
+El repositorio público `Alanjavier22/Tabula-Rasa` usa GitHub como respaldo de código y colaboración, no como almacenamiento de datos financieros. La configuración versionada vive en `.github/`: `ci.yml` valida backend y frontend sin llamar a Gemini, `codeql.yml` analiza Python y JavaScript/TypeScript, las plantillas ordenan Issues y Pull Requests, y `release.yml` agrupa las notas de las releases. Dependabot no forma parte de la estrategia del proyecto.
 
-Las releases deben contener código y documentación, nunca `finance.db`, backups, `.env`, logs ni certificados. La Wiki es una opción de documentación pública futura; GitHub Pages queda fuera de alcance. La fuente normativa de decisiones técnicas sigue siendo este archivo junto con `AGENTS.md`.
+Las releases deben contener código y documentación, nunca `finance.db`, backups, `.env`, logs ni certificados. La Wiki ya tiene las páginas públicas `Inicio` y `Arquitectura`; GitHub Pages queda fuera de alcance. La protección activa de `main` exige Pull Request, los checks de backend y frontend aprobados y bloquea force push. El release vigente es `v0.1.0`. La fuente normativa de decisiones técnicas sigue siendo este archivo junto con `AGENTS.md`.
+
+Flujo GitHub vigente: trabajar en una rama distinta de `main`, ejecutar la validación local, crear commits atómicos y descriptivos en español, solicitar confirmación antes de hacer push, abrir un Pull Request y fusionarlo únicamente cuando CI y CodeQL estén verdes. La configuración del ruleset vive en GitHub y complementa las reglas locales de `AGENTS.md`.
 
 ## Propósito
 
@@ -32,7 +34,7 @@ El proyecto está listo para continuar. No hay fallos bloqueantes conocidos.
 
 Verificaciones vigentes:
 
-- Backend: `42 passed`, sin warnings de pytest.
+- Backend: `43 passed`, sin warnings de pytest.
 - Dependencias backend: `pip check` sin dependencias rotas.
 - Esquema: `alembic check` sin operaciones nuevas.
 - Frontend: TypeScript, lint con `--max-warnings 0` y build de producción correctos.
@@ -73,7 +75,7 @@ Verificaciones vigentes:
 - Migración de 15 esquemas Pydantic a `ConfigDict`.
 - Cliente de pruebas alineado con `httpx2==2.13.0`.
 - El menú de arranque comprueba también `jwt` dentro del entorno virtual.
-- GitHub Actions valida automáticamente pruebas, migraciones, dependencias, lint y build cuando el workflow se publique en `main`.
+- GitHub Actions valida automáticamente pruebas, dependencias, esquema, lint y build en Pull Requests hacia `main`, pushes a `main` y ejecuciones manuales. CodeQL analiza Python y JavaScript/TypeScript en Pull Requests, pushes, agenda semanal y ejecuciones manuales.
 
 ## Cómo arrancar
 
