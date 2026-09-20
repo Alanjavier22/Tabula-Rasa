@@ -79,7 +79,7 @@ const Subscriptions = () => {
   };
 
   useEffect(() => {
-    fetchAll();
+    void Promise.resolve().then(fetchAll);
   }, []);
 
   const handleDelete = async (id: string) => {
