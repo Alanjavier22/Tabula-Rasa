@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta
 import google.genai as genai
 from google.genai import types
-from app.services.ai_models import REASONING_MODEL, with_gemini_retry
+from app.services.ai_models import REASONING_MODEL, with_gemini_retry_async
 from sqlalchemy.orm import Session
 from database import get_db
 from app.models.category import Category
@@ -118,7 +118,7 @@ STRICT RULES:
 
     try:
         client = genai.Client(api_key=api_key)
-        response = with_gemini_retry(lambda: client.models.generate_content(
+        response = await with_gemini_retry_async(lambda: client.models.generate_content(
             model=REASONING_MODEL,
             contents=system_prompt,
             config=types.GenerateContentConfig(
