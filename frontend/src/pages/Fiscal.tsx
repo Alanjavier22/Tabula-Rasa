@@ -37,7 +37,7 @@ const FiscalPage: React.FC = () => {
 
         {/* Year Selector */}
         <div className="flex items-center bg-slate-800/50 p-1 rounded-xl border border-slate-700/50">
-          {availableYears.sort().map(year => (
+          {[...availableYears].sort((a, b) => a - b).map(year => (
             <button
               key={year}
               onClick={() => setSelectedYear(year)}

@@ -31,7 +31,7 @@ class VehicleTelemetryResponse(BaseModel):
     month: int
     year: int
     historical_cost_per_km: int
-    next_maintenance_estimate: Optional[float]
+    next_maintenance_estimate: Optional[float] = None
     maintenance_interval: int = 5000  # Default interval
 
 @router.get("/vehicle-telemetry", response_model=VehicleTelemetryResponse)

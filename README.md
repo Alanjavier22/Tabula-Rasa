@@ -74,7 +74,7 @@ Todo lo que importa —balances, historial y deudas— vive en `DB`. La aplicaci
 2.  **Idempotencia Criptográfica**: El motor de importación (`transaction_importer.py` y `statement_intelligence.py`) verifica duplicados antes de insertar. Genera un *hash SHA-256* a partir de la cuenta, fecha, importe, tipo, descripción, saldo corriente cuando existe y orden de ocurrencia. Si el usuario sube el mismo extracto bancario CSV o PDF varias veces, el sistema puede ignorar las filas ya identificadas.
 3.  **Borrado lógico donde aplica**: La mayoría de las entidades financieras conservan registros con `is_deleted = True`, aunque existen eliminaciones físicas explícitas para algunas operaciones de administración, limpieza o restauración.
 4.  **Soberanía de Datos (Local-First)**: La base financiera reside en tu disco duro y la aplicación funciona localmente por defecto. Los flujos que usan Gemini envían contexto sanitizado por `privacy.py`; los respaldos opcionales pueden enviarse a Google Drive si el usuario los configura.
-5.  **Acceso local controlado**: El flujo de producto está limitado actualmente a la máquina host: CORS y pairing solo contemplan orígenes loopback, y no existe un flujo multidispositivo. El lanzador actual hace que Uvicorn escuche en `0.0.0.0`, por lo que la exposición efectiva también depende del firewall y de la red del equipo.
+5.  **Acceso local controlado**: El flujo de producto está limitado actualmente a la máquina host: CORS y pairing solo contemplan orígenes loopback, y no existe un flujo multidispositivo. Uvicorn escucha en `127.0.0.1` por defecto; un entorno que requiera acceso LAN debe configurar explícitamente `UVICORN_HOST` y aplicar sus propias medidas de red.
 
 ---
 

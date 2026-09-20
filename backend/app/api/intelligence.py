@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
+import anyio
 import os
 import uuid
 import hashlib
@@ -44,8 +45,8 @@ async def upload_statement(
     temp_filename = f"{uuid.uuid4()}{file_ext}"
     temp_path = os.path.join(UPLOAD_DIR, temp_filename)
     
-    with open(temp_path, "wb") as f:
-        f.write(content)
+    async with await anyio.open_file(temp_path, "wb") as f:
+        await f.write(content)
 
     # 3. Crear Log de Importación
     if not existing_log:
