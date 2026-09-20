@@ -117,7 +117,7 @@ class BalanceSheetService:
 
         # Calculate detailed breakdown
         cash_accounts_cents = BalanceSheetService.get_cash_accounts_value(db)
-        snapshot_date = parse_date_robustly(snapshot.date) if isinstance(snapshot.date, str) else snapshot.date
+        snapshot_date = parse_date_robustly(snapshot.snapshot_date) if isinstance(snapshot.snapshot_date, str) else snapshot.snapshot_date
         physical_assets_cents = asset_depreciation_service.get_total_assets_value(db, snapshot_date)
         ious_pending_cents = BalanceSheetService.get_ious_pending_value(db)
         credit_card_balances_cents = BalanceSheetService.get_credit_card_balances(db)
@@ -129,7 +129,7 @@ class BalanceSheetService:
         balance_sheet = BalanceSheet(
             month=month,
             year=year,
-            date=snapshot.date,
+            date=snapshot_date.isoformat() if hasattr(snapshot_date, "isoformat") else str(snapshot_date),
             assets={
                 "cash_accounts_cents": cash_accounts_cents,
                 "physical_assets_cents": physical_assets_cents,
