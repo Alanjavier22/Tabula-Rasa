@@ -66,21 +66,10 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        # DEFERRED IMPORT: Import models AFTER connecting to avoid circular imports
-        # This registers all models in Base.metadata
-        from app.models.transaction import Transaction
-        from app.models.category import Category
-        from app.models.account import Account
-        from app.models.budget import Budget
-        from app.models.goal import Goal
-        from app.models.reminder import Reminder
-        from app.models.credit_card_statement import CreditCardStatement
-        from app.models.debt_share import DebtShare
-        from app.models.config import Config
-        from app.models.subscription import Subscription
-        from app.models.transaction_split import TransactionSplit
-        from app.models.iou import IOU
-        from app.models.net_worth_snapshot import NetWorthSnapshot
+        # Import the package once after connecting so every model is registered
+        # in Base.metadata. Keeping this list manually duplicated caused
+        # alembic check to compare an incomplete schema.
+        import app.models  # noqa: F401
 
         context.configure(
             connection=connection,
