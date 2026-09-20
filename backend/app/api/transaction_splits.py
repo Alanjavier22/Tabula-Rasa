@@ -6,7 +6,7 @@ from app.api.crud_factory import make_crud_router
 from app.models.transaction_split import TransactionSplit
 from app.models.transaction import Transaction
 from app.models.category import Category
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class TransactionSplitBase(BaseModel):
@@ -33,8 +33,7 @@ class TransactionSplitResponse(BaseModel):
     category_id: Optional[str] = None
     description: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 def _validate_category(category_id: Optional[str], db: Session) -> None:
