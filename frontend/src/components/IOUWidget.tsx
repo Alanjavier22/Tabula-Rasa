@@ -32,8 +32,7 @@ const IOUWidget = () => {
   };
 
   useEffect(() => {
-    fetchPendingIous();
-    fetchAccounts();
+    void Promise.resolve().then(() => Promise.all([fetchPendingIous(), fetchAccounts()]));
   }, []);
 
   const handleSettleClick = (iouId: string) => {
