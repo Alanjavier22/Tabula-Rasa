@@ -4,7 +4,7 @@ from typing import List, Optional
 from database import get_db
 from app.api.crud_factory import make_crud_router
 from app.models.category import Category
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from fastapi.responses import JSONResponse
 
 
@@ -37,8 +37,7 @@ class CategoryResponse(BaseModel):
     is_default: Optional[bool] = False
     version: int  # FASE 7: OCC versioning
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 def _register_export(router: APIRouter) -> None:
