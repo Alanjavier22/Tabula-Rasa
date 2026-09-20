@@ -48,8 +48,15 @@ jobs:
       - name: Ejecutar pruebas
         run: python -m pytest -q
 
-      - name: Aplicar migraciones en la base de CI
-        run: python -m alembic upgrade head
+      # El esquema base se crea desde los modelos; la cadena histórica contiene
+      # migraciones que no son arrancables sobre una base vacía (varias asumen
+      # que tablas y columnas ya existen). En CI comprobamos el esquema que la
+      # aplicación realmente genera y lo asociamos a la revisión vigente.
+      - name: Inicializar esquema base de CI
+        run: python -c "from init_db import init_db; init_db()"
+
+      - name: Marcar esquema base con la revisión vigente
+        run: python -m alembic stamp head
 
       - name: Comprobar migraciones
         run: python -m alembic check
