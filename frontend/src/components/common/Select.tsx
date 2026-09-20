@@ -46,7 +46,7 @@ const Select = ({
     if (isOpen && searchable) {
       setTimeout(() => searchInputRef.current?.focus(), 50);
     } else {
-      setSearchQuery('');
+      void Promise.resolve().then(() => setSearchQuery(''));
     }
   }, [isOpen, searchable]);
 
