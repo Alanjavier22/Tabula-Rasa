@@ -1,0 +1,23 @@
+changelog:
+  categories:
+    - title: "Nuevas funcionalidades"
+      labels:
+        - "feature"
+        - "enhancement"
+    - title: "Correcciones"
+      labels:
+        - "bug"
+        - "fix"
+    - title: "Seguridad y datos"
+      labels:
+        - "security"
+        - "database"
+        - "migrations"
+    - title: "Documentación y mantenimiento"
+      labels:
+        - "documentation"
+        - "maintenance"
+        - "refactor"
+    - title: "Otros cambios"
+      labels:
+        - "*"
