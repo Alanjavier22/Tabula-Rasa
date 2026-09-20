@@ -23,7 +23,7 @@ class Account(Base):
     id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     account_type = Column(SQLEnum(AccountType, values_callable=lambda x: [e.value for e in x]), nullable=False, index=True)
-    balance = Column(Integer, default=0)
+    balance = Column(Integer, default=0, nullable=False)
     currency = Column(String, default="USD")
     credit_limit = Column(Integer, nullable=True)  # Credit limit for credit cards (in cents)
     description = Column(String, nullable=True)
