@@ -2,7 +2,7 @@
  * ReportingService - Reglas fiscales de Ecuador compartidas en memoria.
  *
  * Antes tenía un motor de reportes/agregación completo sobre IndexedDB (Dexie),
- * pero esa capa nunca se completó (ver TECH_DEBT.md #11) y ningún componente
+ * pero esa capa nunca se completó (ver `.agents/PROJECT_CONTEXT.md`) y ningún componente
  * real de la UI lo llamaba - se eliminó junto al resto del código huérfano que
  * dependía del stub de Dexie. Lo único que sí usa la UI (Dashboard.tsx) es
  * `setFiscalRules`, que sólo guarda las reglas fiscales en memoria.
