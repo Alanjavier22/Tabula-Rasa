@@ -5,7 +5,7 @@ from database import get_db
 from app.api.auth import get_current_device
 from app.models.goal import Goal, GoalStatus
 from app.models.transaction import Transaction
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime, timezone
 
 
@@ -63,8 +63,7 @@ class GoalResponse(GoalBase):
     updated_at: datetime
     is_deleted: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post("/", response_model=GoalResponse)
