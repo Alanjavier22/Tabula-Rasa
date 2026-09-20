@@ -195,12 +195,22 @@ def _extract_beneficiary_key(beneficiary: str) -> str:
 
 
 
-def get_semantic_category(description: str, amount: int, db_session=None, transaction_type: Optional[str] = None) -> Optional[int]:
+def get_semantic_category(description: str, amount: int, db_session=None, transaction_type: Optional[str] = None) -> Optional[str]:
     """
     Fallback for single-transaction categorization (UI usage).
+
+    ``categorize_batch`` devuelve pares ``(category_id, needs_clarification)``
+    para conservar la señal de revisión humana. Este adaptador se utiliza en
+    flujos que solo necesitan el ID y no debe propagar el par directamente a
+    SQLAlchemy.
     """
     results = categorize_batch([{'description': description, 'amount': amount, 'transaction_type': transaction_type}], db_session, throttle=False)
-    return results.get(0)
+    result = results.get(0)
+    if not result:
+        return None
+
+    category_id, _needs_clarification = result
+    return category_id
 
 
 def get_heuristic_category(description: str, db, transaction_type: str = 'expense') -> Optional[str]:
