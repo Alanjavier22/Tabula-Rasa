@@ -18,11 +18,13 @@ La actualización de código es local y no requiere API key. Las etiquetas de co
 
 ## GitHub
 
-El repositorio público `Alanjavier22/Tabula-Rasa` usa GitHub como respaldo de código y colaboración, no como almacenamiento de datos financieros. La configuración versionada vive en `.github/`: `ci.yml` valida backend y frontend sin llamar a Gemini, `codeql.yml` analiza Python y JavaScript/TypeScript, las plantillas ordenan Issues y Pull Requests, y `release.yml` agrupa las notas de las releases. Dependabot no forma parte de la estrategia del proyecto.
+El repositorio público `Alanjavier22/Tabula-Rasa` usa GitHub como respaldo de código y colaboración, no como almacenamiento de datos financieros. La configuración versionada vive en `.github/`: `ci.yml` valida backend y frontend sin llamar a Gemini, `codeql.yml` analiza Python y JavaScript/TypeScript, `release-please.yml` prepara releases mediante Pull Requests, las plantillas ordenan Issues y Pull Requests, y `release.yml` conserva la agrupación de notas de GitHub. `release-please-config.json`, `.release-please-manifest.json`, `version.txt` y `CHANGELOG.md` sostienen el versionado automático. Dependabot no forma parte de la estrategia del proyecto.
 
 Las releases deben contener código y documentación, nunca `finance.db`, backups, `.env`, logs ni certificados. La Wiki ya tiene las páginas públicas `Inicio` y `Arquitectura`; GitHub Pages queda fuera de alcance. La protección activa de `main` exige Pull Request, los checks de backend y frontend aprobados y bloquea force push. El release vigente es `v0.1.0`. La fuente normativa de decisiones técnicas sigue siendo este archivo junto con `AGENTS.md`.
 
-Flujo GitHub vigente: trabajar en una rama distinta de `main`, ejecutar la validación local, crear commits atómicos y descriptivos en español, publicar automáticamente la rama de trabajo, abrir o actualizar el Pull Request y esperar a que CI y CodeQL terminen en verde. Nunca hacer push directo a `main`, force push ni merge automático; la configuración del ruleset vive en GitHub y complementa las reglas locales de `AGENTS.md`.
+Flujo GitHub vigente: trabajar en una rama distinta de `main`, ejecutar la validación local, crear commits atómicos y descriptivos en español con prefijos Conventional Commits, publicar automáticamente la rama de trabajo, abrir o actualizar el Pull Request y esperar a que CI y CodeQL terminen en verde. Nunca hacer push directo a `main`, force push ni merge automático; la configuración del ruleset vive en GitHub y complementa las reglas locales de `AGENTS.md`.
+
+Después de un merge a `main`, `release-please.yml` analiza los commits desde `v0.1.0`. Cuando detecta una funcionalidad, corrección, mejora de rendimiento o cambio incompatible que amerite versión, abre un Pull Request de release. Al fusionar ese PR, actualiza `version.txt` y `CHANGELOG.md`, crea el tag `vX.Y.Z` y publica la release automáticamente. Los cambios puramente documentales o de mantenimiento no se fuerzan como release.
 
 ## Propósito
 
