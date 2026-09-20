@@ -25,4 +25,5 @@ pytz>=2024.1
 
 # --- Dev / test-only ---
 pytest>=8.0.0
+pytest-cov>=6.0.0
 httpx2==2.13.0

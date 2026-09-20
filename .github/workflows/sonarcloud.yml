@@ -1,0 +1,58 @@
+name: Análisis SonarCloud
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: sonarcloud-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: SonarCloud · calidad y cobertura
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      AI_ENABLED: "false"
+      JWT_SECRET: github-actions-ci-only-secret
+      CONFIG_ENCRYPTION_KEY: github-actions-ci-only-key
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Preparar Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instalar dependencias backend
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: Generar cobertura backend
+        run: >-
+          python -m pytest
+          -c backend/pytest.ini
+          backend/tests
+          --cov=backend/app
+          --cov-report=xml:backend/coverage.xml
+          --cov-report=term-missing
+          -q
+
+      - name: Analizar con SonarCloud
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
