@@ -17,6 +17,7 @@ from app.models.transaction_split import TransactionSplit
 from app.models.category import Category
 from app.models.account import Account
 from app.services.balance import apply_transaction_to_balance
+from app.services.transaction_identity import unique_transaction_fingerprint
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +137,21 @@ def create_transaction_with_splits(
             transaction_data["amount"] = _to_int(transaction_data["amount"])
         validate_positive_amount(transaction_data["amount"])
 
+        if not transaction_data.get("date"):
+            transaction_data["date"] = datetime.now(timezone.utc)
+
+        # UI-created transactions are explicitly human-owned. AI background
+        # jobs use this flag to avoid overwriting user decisions.
+        transaction_data["is_manual"] = True
+        transaction_data["fingerprint"] = unique_transaction_fingerprint(
+            db,
+            description=transaction_data["description"],
+            amount=transaction_data["amount"],
+            date_value=transaction_data["date"],
+            transaction_type=transaction_data["transaction_type"],
+            account_id=transaction_data.get("account_id"),
+        )
+
         # --- validate references -----------------------------------------
         if transaction_data.get("category_id"):
             validate_category_exists(db, transaction_data["category_id"])
@@ -231,6 +247,21 @@ def update_transaction_with_splits(
         # Update transaction fields
         for key, value in transaction_data.items():
             setattr(db_transaction, key, value)
+
+        # Every edit coming from the UI establishes human ownership. Keep an
+        # existing fingerprint stable; only repair legacy rows that lack one.
+        db_transaction.is_manual = True
+        if not db_transaction.fingerprint:
+            db_transaction.fingerprint = unique_transaction_fingerprint(
+                db,
+                description=db_transaction.description,
+                amount=db_transaction.amount,
+                date_value=db_transaction.date,
+                transaction_type=db_transaction.transaction_type,
+                account_id=db_transaction.account_id,
+                running_balance=db_transaction.running_balance,
+                exclude_transaction_id=db_transaction.id,
+            )
 
         db_transaction.updated_at = cast(Any, datetime.now(timezone.utc))
         
