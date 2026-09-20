@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Activity, TrendingDown, AlertCircle, X, RefreshCw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -29,7 +29,7 @@ interface SentinelHealth {
 
 export const SentinelBubble: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [hasNewAlert, setHasNewAlert] = useState(false);
+  const [dismissedAlertTimestamp, setDismissedAlertTimestamp] = useState<string | null>(null);
   // El Sentinel se monta una sola vez en Layout, envolviendo todas las rutas de la app.
   // Sin este flag, useQuery dispararía la llamada a Gemini al abrir la app,
   // antes de que el usuario interactúe con el Sentinel en absoluto.
@@ -46,11 +46,9 @@ export const SentinelBubble: React.FC = () => {
     enabled: hasOpenedOnce,
   });
 
-  useEffect(() => {
-    if (health && health.health_score < 70) {
-      setHasNewAlert(true);
-    }
-  }, [health]);
+  const hasNewAlert = Boolean(
+    health && health.health_score < 70 && health.timestamp !== dismissedAlertTimestamp,
+  );
 
   // Posiciones/duraciones de las partículas flotantes generadas una sola vez al montar,
   // no en cada render: si se recalculan con Math.random() directo en el JSX, cada
@@ -83,7 +81,7 @@ export const SentinelBubble: React.FC = () => {
           onClick={() => {
             if (!hasOpenedOnce) setHasOpenedOnce(true);
             setIsOpen(!isOpen);
-            setHasNewAlert(false);
+            if (health) setDismissedAlertTimestamp(health.timestamp);
           }}
           className={`relative w-14 h-14 rounded-full flex items-center justify-center shadow-2xl backdrop-blur-xl border transition-all ${
             isOpen 
