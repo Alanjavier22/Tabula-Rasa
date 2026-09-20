@@ -48,6 +48,9 @@ jobs:
       - name: Ejecutar pruebas
         run: python -m pytest -q
 
+      - name: Aplicar migraciones en la base de CI
+        run: python -m alembic upgrade head
+
       - name: Comprobar migraciones
         run: python -m alembic check
 
