@@ -17,7 +17,7 @@ ENCRYPTION_KEY = os.getenv("CONFIG_ENCRYPTION_KEY")
 AUTH_COOKIE_NAME = "tabula_session"
 
 
-def get_allowed_origins(lan_ip: str) -> list[str]:
+def get_allowed_origins() -> list[str]:
     """Single source of truth for the frontend origins allowed to talk to this
     API, shared by CORSMiddleware (main.py) and SecurityMiddleware's Origin
     check (middleware/security.py) so the two lists can't drift apart."""
@@ -26,6 +26,4 @@ def get_allowed_origins(lan_ip: str) -> list[str]:
         "http://127.0.0.1:5173",
         "https://localhost:5173",
         "https://127.0.0.1:5173",
-        f"http://{lan_ip}:5173",
-        f"https://{lan_ip}:5173",
     ]
