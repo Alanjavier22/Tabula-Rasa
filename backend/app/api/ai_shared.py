@@ -16,7 +16,7 @@ import json
 import os
 import google.genai as genai
 from google.genai import types
-from app.services.ai_models import LITE_MODEL, with_gemini_retry
+from app.services.ai_models import LITE_MODEL, with_gemini_retry_async
 from app.models.config import Config
 
 
@@ -50,7 +50,7 @@ async def call_gemini_json(prompt: str, api_key: str, response_schema: Optional[
     try:
         client = genai.Client(api_key=api_key)
 
-        response = with_gemini_retry(lambda: client.models.generate_content(
+        response = await with_gemini_retry_async(lambda: client.models.generate_content(
             model=model,
             contents=prompt,
             config=types.GenerateContentConfig(
