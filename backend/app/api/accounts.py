@@ -4,7 +4,7 @@ from typing import Optional, Any, cast
 from database import get_db
 from app.api.crud_factory import make_crud_router
 from app.models.account import Account, AccountType
-from pydantic import BaseModel, StrictInt
+from pydantic import BaseModel, ConfigDict, StrictInt
 
 
 class AccountBase(BaseModel):
@@ -51,8 +51,7 @@ class AccountResponse(BaseModel):
     payment_day: Optional[int] = None
     version: int  # FASE 7: OCC versioning
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 router: APIRouter = make_crud_router(
