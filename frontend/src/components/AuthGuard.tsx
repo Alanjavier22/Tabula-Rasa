@@ -3,11 +3,8 @@ import { authAPI } from '../services/api';
 import api from '../services/api';
 import type { AxiosError } from 'axios';
 
-// Mismo hostname que la página, no 127.0.0.1 fijo - si la página se sirve
-// desde "localhost", la cookie de sesión queda con Domain localhost, y hay
-// que seguir pegándole a localhost en los requests siguientes (api.ts). Si
-// no, son orígenes distintos para SameSite=Lax y el navegador nunca manda
-// la cookie de vuelta, dejando cada request post-pairing en 401.
+// Mismo hostname que la página para conservar el alcance local de la cookie
+// y evitar que una configuración antigua de red desvíe las peticiones.
 const LOCALHOST_BASE_URL = `http://${window.location.hostname}:8001`;
 const LOCALHOST_HOSTS = ['localhost', '127.0.0.1'];
 const MAX_RETRIES = 10;
@@ -17,8 +14,6 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLocalhostConnecting, setIsLocalhostConnecting] = useState<boolean>(false);
   const [localhostError, setLocalhostError] = useState<string | null>(null);
-  const [isDeepLinkPairing, setIsDeepLinkPairing] = useState<boolean>(false);
-  const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
   const attemptedRef = useRef(false);
 
   const isLocalhost = LOCALHOST_HOSTS.includes(window.location.hostname);
@@ -33,33 +28,6 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     }
   }, []);
 
-  const autoLinkViaDeepLink = React.useCallback(async (apiUrl: string, pin: string) => {
-    setIsDeepLinkPairing(true);
-    setDeepLinkError(null);
-
-    try {
-      localStorage.setItem('finance_base_url', apiUrl);
-      api.defaults.baseURL = apiUrl;
-
-      const deviceName = `Mobile-${navigator.platform || 'Unknown'}`;
-      await api.post('/auth/pair/consume', {
-        pin,
-        device_name: deviceName,
-      });
-
-      // La cookie de sesión ya quedó seteada por el backend en esta misma respuesta.
-      window.history.replaceState({}, document.title, window.location.pathname);
-      setIsAuthenticated(true);
-    } catch (err) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      const axiosErr = err as AxiosError<{ detail?: string }>;
-      const detail = axiosErr.response?.data?.detail || axiosErr.message || 'Error al vincular el dispositivo.';
-      setDeepLinkError(detail);
-    } finally {
-      setIsDeepLinkPairing(false);
-    }
-  }, []);
-
   const autoLinkLocalhost = React.useCallback(async () => {
     setIsLocalhostConnecting(true);
     setLocalhostError(null);
@@ -67,8 +35,6 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         await authAPI.pairLocalhost();
-        localStorage.setItem('finance_base_url', LOCALHOST_BASE_URL);
-
         setIsAuthenticated(true);
         setIsLocalhostConnecting(false);
         return;
@@ -94,66 +60,40 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
 
     (async () => {
       try {
-        const baseUrl = localStorage.getItem('finance_base_url');
-        if (baseUrl) {
-          api.defaults.baseURL = baseUrl;
-        }
-
-        const params = new URLSearchParams(window.location.search);
-        const apiUrl = params.get('apiUrl');
-        const pin = params.get('pin');
-
-        if (apiUrl && pin) {
-          await autoLinkViaDeepLink(apiUrl, pin);
+        if (!isLocalhost) {
+          setLocalhostError('El acceso remoto está deshabilitado por ahora. Abre Tabula Rasa en la máquina host.');
           return;
         }
 
-        // Sólo vale la pena consultar /auth/me si ya sabemos a qué backend
-        // preguntarle (baseUrl de una vinculación previa) o si estamos en el
-        // propio host, donde /auth/pair/localhost siempre es una alternativa.
-        if (baseUrl || isLocalhost) {
-          const hasSession = await checkSession();
-          if (hasSession || cancelled) return;
-        }
+        // El backend de esta instalación solo acepta sesiones locales. Limpiar
+        // una URL LAN antigua evita que una configuración de pairing previa
+        // siga desviando las peticiones.
+        localStorage.removeItem('finance_base_url');
+        api.defaults.baseURL = LOCALHOST_BASE_URL;
 
-        if (isLocalhost && !attemptedRef.current) {
+        const hasSession = await checkSession();
+        if (hasSession || cancelled) return;
+
+        if (!attemptedRef.current) {
           attemptedRef.current = true;
           autoLinkLocalhost();
         }
       } catch (err) {
         console.error('Error during authentication initialization:', err);
-        setDeepLinkError('Error al procesar la URL de vinculación.');
+        setLocalhostError('Error al iniciar la sesión local.');
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [isLocalhost, autoLinkViaDeepLink, autoLinkLocalhost, checkSession]);
+  }, [isLocalhost, autoLinkLocalhost, checkSession]);
 
   if (isAuthenticated) {
     return <>{children}</>;
   }
 
-  // Allow pairing page to render even if not authenticated
-  if (window.location.pathname === '/pair') {
-    return <>{children}</>;
-  }
-
   // --- Visual Feedback for Automatic Processes ---
-  
-  if (isDeepLinkPairing) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
-        <div className="max-w-md w-full text-center">
-          <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
-          <h1 className="text-2xl font-bold mb-2">Vinculando dispositivo…</h1>
-          <p className="text-slate-400">Conectando con el servidor local.</p>
-        </div>
-      </div>
-    );
-  }
-
   if (isLocalhost && isLocalhostConnecting) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
@@ -166,7 +106,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     );
   }
 
-  const error = deepLinkError || localhostError;
+  const error = localhostError;
   if (error) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
@@ -200,19 +140,9 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
         
         <h1 className="text-3xl font-black tracking-tight mb-4">Acceso Restringido</h1>
         <p className="text-slate-400 mb-8 leading-relaxed">
-          Este dispositivo no está autorizado para acceder a tus finanzas. 
-          Por seguridad, debes vincularlo usando un código generado desde tu equipo host.
+          Tabula Rasa está configurado para funcionar únicamente en la máquina host.
+          Abre la aplicación desde <span className="text-indigo-300 font-semibold">localhost</span> para continuar.
         </p>
-
-        <button 
-          onClick={() => window.location.href = '/pair'}
-          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-6 rounded-2xl shadow-xl shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 group"
-        >
-          <span>Vincular este dispositivo</span>
-          <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-        </button>
 
         <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest pt-4">
           Protocolo de Seguridad Tabula Rasa
