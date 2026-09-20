@@ -42,7 +42,6 @@ import type {
   ImportBatchResponse,
   Config,
   GoogleDriveCredentials,
-  AuthDevice,
   AccountPayload,
   StatementPayload,
   TransactionPayload,
@@ -74,44 +73,16 @@ const api = axios.create({
   },
 });
 
-// Dynamic Interceptor - reencamina cada request a la baseURL vinculada por el
-// usuario (relevante para el escenario multi-dispositivo, donde el móvil
-// vincula contra la IP LAN del host en vez de localhost).
-api.interceptors.request.use(
-  (config) => {
-    const baseUrl = localStorage.getItem('finance_base_url');
-
-    if (baseUrl) {
-      // Clear old 8000 port from localStorage if present
-      if (baseUrl.includes(':8000')) {
-        localStorage.removeItem('finance_base_url');
-      } else {
-        config.baseURL = baseUrl;
-      }
-    }
-
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
 // 401 Interceptor - Auto-logout on auth failure
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // /auth/me y /auth/pair/* fallan con 401/403 como resultado ESPERADO
-    // (todavía no hay sesión, o se está reintentando el pairing) - AuthGuard
-    // ya maneja esos casos por su cuenta. Si el interceptor también los
-    // tratara como "sesión inválida", el primer chequeo de /auth/me en un
-    // dispositivo sin parear todavía dispara un window.location.href antes
-    // de que el pairing automático llegue a correr, y cada reload vuelve a
-    // fallar el mismo chequeo -> loop infinito de recargas.
+    // /auth/me puede fallar durante el arranque antes de que AuthGuard cree
+    // la sesión local; ese caso lo maneja AuthGuard.
     const url: string = error.config?.url || '';
-    const isAuthCheckEndpoint = url.includes('/auth/me') || url.includes('/auth/pair/');
+    const isAuthCheckEndpoint = url.includes('/auth/me');
 
-    // 401: Invalid or expired token, 403: Forbidden (not paired or revoked)
+    // 401: sesión inválida o expirada; 403: acceso rechazado
     if (!isAuthCheckEndpoint && (error.response?.status === 401 || error.response?.status === 403)) {
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
@@ -120,9 +91,10 @@ api.interceptors.response.use(
       // Best-effort: sólo el backend puede borrar la cookie httpOnly.
       api.post('/auth/logout').catch(() => {});
 
-      // Only redirect if not on localhost AND not already on /pair
-      if (!isLocalhost && window.location.pathname !== '/pair') {
-        window.location.href = '/pair';
+      // El acceso remoto está deshabilitado mientras no exista pairing
+      // multidispositivo. AuthGuard mostrará el mensaje de acceso local.
+      if (!isLocalhost) {
+        window.location.href = '/';
       } else if (isLocalhost && error.response?.status === 401) {
         // Localhost only auto-logs out on 401 (expired), not 403 (bypass usually works)
         window.location.href = '/?msg=Sesión reiniciada';
@@ -297,7 +269,14 @@ export const intelligenceAPI = {
       timeout: 900000,
     });
   },
-  confirmImport: (logId: string, transactions: StatementExtractedTransaction[], statementMetadata?: Partial<StatementParsingResponse>) =>
+  confirmImport: (
+    logId: string,
+    transactions: StatementExtractedTransaction[],
+    statementMetadata?: Partial<StatementParsingResponse> & {
+      user_share_cents?: number;
+      debt_shares?: unknown[];
+    },
+  ) =>
     api.post<ConfirmImportResponse>(`/intelligence/confirm-import/${logId}`, {
       confirmed_transactions: transactions,
       statement_metadata: statementMetadata
@@ -370,19 +349,9 @@ export const driveConfigAPI = {
 };
 
 export const authAPI = {
-  generatePairingCode: () => api.post<{ pin: string; expires_in_seconds: number; qr_url: string }>('/auth/pair/generate'),
-  consumePairingCode: (pin: string, deviceName: string) => api.post<{ paired: boolean; device_name: string }>('/auth/pair/consume', { pin, device_name: deviceName }),
-  getPairingStatus: (pin: string) => api.get<{ status: string; token?: string; device_name?: string }>(`/auth/pair/status?pin=${pin}`),
-  // Usa el mismo hostname que la página (no 127.0.0.1 fijo): si la página se
-  // sirve desde "localhost", la cookie que setea el backend queda con Domain
-  // localhost, y hay que seguir pegándole a localhost en los requests
-  // siguientes - si no, son orígenes distintos para SameSite=Lax y el
-  // navegador nunca manda la cookie de vuelta.
   pairLocalhost: () => axios.post<{ paired: boolean; device_name: string }>(`http://${window.location.hostname}:8001/auth/pair/localhost`, {}, { withCredentials: true }),
   me: () => api.get<{ device_id: string; device_name: string }>('/auth/me'),
   logout: () => api.post<{ message: string }>('/auth/logout'),
-  listDevices: () => api.get<AuthDevice[]>('/auth/devices'),
-  revokeDevice: (id: string) => api.delete<{ message: string }>(`/auth/devices/${id}`),
 };
 
 
