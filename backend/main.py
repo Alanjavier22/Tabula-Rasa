@@ -347,15 +347,17 @@ if __name__ == "__main__":
         generate_self_signed_cert()
     
     # 1. Asegurar CA y certificados para IP local
-    local_ip = ssl_setup.ensure_certs()
+    ssl_setup.ensure_certs()
+    uvicorn_host = os.getenv("UVICORN_HOST", "127.0.0.1")
+    display_host = "localhost" if uvicorn_host == "127.0.0.1" else uvicorn_host
     print(f"\n=======================================================")
-    print(f"Servidor Local-First Iniciado: https://{local_ip}:8001")
+    print(f"Servidor Local-First Iniciado: https://{display_host}:8001")
     print(f"=======================================================\n")
     
     # 2. Iniciar Uvicorn con SSL (FASE 8: Use generated certificates)
     uvicorn.run(
         "main:app", 
-        host="0.0.0.0", 
+        host=uvicorn_host,
         port=8001,
         ssl_keyfile=key_path,
         ssl_certfile=cert_path,
