@@ -1,0 +1,65 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-v-in-tag": true,
+  "include-v-in-release-name": true,
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "pull-request-title-pattern": "chore: prepara release ${version}",
+  "pull-request-header": "Este Pull Request prepara automáticamente la siguiente release del proyecto.",
+  "pull-request-footer": "Generado automáticamente por Release Please.",
+  "changelog-sections": [
+    {
+      "type": "feat",
+      "section": "Nuevas funcionalidades"
+    },
+    {
+      "type": "fix",
+      "section": "Correcciones"
+    },
+    {
+      "type": "perf",
+      "section": "Rendimiento"
+    },
+    {
+      "type": "security",
+      "section": "Seguridad y datos"
+    },
+    {
+      "type": "database",
+      "section": "Seguridad y datos"
+    },
+    {
+      "type": "migrations",
+      "section": "Seguridad y datos"
+    },
+    {
+      "type": "docs",
+      "section": "Documentación y mantenimiento",
+      "hidden": false
+    },
+    {
+      "type": "refactor",
+      "section": "Documentación y mantenimiento"
+    },
+    {
+      "type": "ci",
+      "section": "Documentación y mantenimiento"
+    },
+    {
+      "type": "chore",
+      "section": "Mantenimiento",
+      "hidden": true
+    },
+    {
+      "type": "test",
+      "section": "Mantenimiento",
+      "hidden": true
+    }
+  ],
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "version-file": "version.txt"
+    }
+  }
+}
