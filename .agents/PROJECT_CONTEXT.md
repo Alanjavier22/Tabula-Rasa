@@ -45,7 +45,7 @@ Verificaciones vigentes:
 
 ### Acceso
 
-- El producto está limitado actualmente a la máquina host.
+- El flujo de producto está limitado actualmente a la máquina host: CORS y pairing solo contemplan orígenes loopback, y no existe un flujo multidispositivo. El lanzador actual hace que Uvicorn escuche en `0.0.0.0`, por lo que la exposición efectiva también depende del firewall y de la red del equipo.
 - Se conserva el pairing local `Host-PC` necesario para la sesión local.
 - Se retiraron pantalla QR, scanner QR, pairing remoto, gestión de dispositivos remotos y sus endpoints.
 - Los registros antiguos de `paired_devices` no se borraron.
