@@ -16,7 +16,7 @@ from app.services.transaction_service import (
 )
 from app.services.transaction_importer import import_transactions
 from app.services.ai_background import categorize_transactions_background
-from pydantic import BaseModel, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, StrictInt, field_validator
 import pandas as pd
 import io
 
@@ -42,8 +42,7 @@ class TransactionSplitResponse(BaseModel):
     category_id: Optional[str] = None
     description: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TransactionBase(BaseModel):
@@ -111,8 +110,7 @@ class TransactionResponse(BaseModel):
         if v is None: return v
         return str(v).lower()
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post("/", response_model=TransactionResponse)
