@@ -9,7 +9,7 @@ from app.api.auth import get_current_device
 from app.models.budget import Budget
 from app.services.budget_service import enrich_budget_response
 from app.services.budget_automation import generate_recurring_budgets, update_recurring_budgets
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +71,7 @@ class BudgetResponse(BaseModel):
     remaining: int = 0
     version: int  # FASE 7: OCC versioning
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ---------------------------------------------------------------------------
