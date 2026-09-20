@@ -1,7 +1,6 @@
 import sys
 import os
 import signal
-import asyncio
 from typing import Any, cast
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -164,15 +163,6 @@ async def lifespan(app: FastAPI):
         engine.dispose()
         logger.info("Database connections closed")
         
-        # Cancel all pending asyncio tasks
-        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-        for task in tasks:
-            task.cancel()
-        logger.info(f"Cancelled {len(tasks)} pending tasks")
-        
-        # Wait a moment for tasks to cancel
-        await asyncio.sleep(0.5)
-        
         logger.info("Graceful shutdown complete")
     except Exception as e:
         logger.error(f"Error during graceful shutdown: {e}")
@@ -224,14 +214,12 @@ app = FastAPI(title="Personal Finance API", version="1.0.0", lifespan=lifespan)
 security_middleware = SecurityMiddleware()
 app.middleware("http")(security_middleware)
 
-# CORS middleware
-# LAN IP included so devices paired over the network (QR pairing flow in
-# auth.py) can actually read responses, not just fire the request.
+# CORS middleware. Remote/LAN access is intentionally disabled while the
+# multi-device feature is out of scope.
 from app.security_config import get_allowed_origins
-_lan_ip = auth.get_local_ip()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_allowed_origins(_lan_ip),
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -362,7 +350,6 @@ if __name__ == "__main__":
     local_ip = ssl_setup.ensure_certs()
     print(f"\n=======================================================")
     print(f"Servidor Local-First Iniciado: https://{local_ip}:8001")
-    print(f"Descarga CA en el movil: https://{local_ip}:8001/auth/cert/download")
     print(f"=======================================================\n")
     
     # 2. Iniciar Uvicorn con SSL (FASE 8: Use generated certificates)
