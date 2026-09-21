@@ -20,6 +20,12 @@ router = APIRouter(
     redirect_slashes=False
 )
 
+AI_AUDIO_ERROR_RESPONSES = {
+    400: {"description": "Invalid audio or document request."},
+    404: {"description": "Category resource not found."},
+    500: {"description": "AI audio processing failed."},
+}
+
 
 def sanitize_pii(text: str) -> str:
     """
@@ -86,7 +92,7 @@ def get_gemini_key(db: Session) -> str:
     return cast(str, config.value)
 
 
-@router.post("/document-to-txns", response_model=AudioToTransactionsResponse)
+@router.post("/document-to-txns", response_model=AudioToTransactionsResponse, responses=AI_AUDIO_ERROR_RESPONSES)
 async def document_to_transactions(document_data: dict, db: Session = Depends(get_db)):
     """
     Convert document (image/PDF) input to structured transaction suggestions using Gemini Vision AI.
@@ -212,7 +218,7 @@ Return ONLY the JSON response matching the schema."""
         raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
 
 
-@router.post("/batch-category-mapping", response_model=BatchCategoryMappingResponse)
+@router.post("/batch-category-mapping", response_model=BatchCategoryMappingResponse, responses=AI_AUDIO_ERROR_RESPONSES)
 async def batch_category_mapping(
     request: BatchCategoryMappingRequest,
     db: Session = Depends(get_db)
