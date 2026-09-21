@@ -27,6 +27,12 @@ router = APIRouter(
     redirect_slashes=False
 )
 
+TRANSACTION_ERROR_RESPONSES = {
+    400: {"description": "Invalid transaction request."},
+    404: {"description": "Transaction resource not found."},
+    500: {"description": "Transaction operation failed."},
+}
+
 
 # Pydantic schemas
 class TransactionSplitCreate(BaseModel):
@@ -135,7 +141,7 @@ def get_transactions(
     return transactions
 
 
-@router.get("/{transaction_id}", response_model=TransactionResponse)
+@router.get("/{transaction_id}", response_model=TransactionResponse, responses=TRANSACTION_ERROR_RESPONSES)
 def get_transaction(transaction_id: str, db: Session = Depends(get_db)):
     transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     if not transaction:
@@ -161,7 +167,7 @@ def delete_transaction(transaction_id: str, db: Session = Depends(get_db)):
 
 
 # FASE 6: Import transactions endpoint with background AI categorization
-@router.post("/import-batch")
+@router.post("/import-batch", responses=TRANSACTION_ERROR_RESPONSES)
 def import_transactions_endpoint(
     request: ImportTransactionsRequest,
     background_tasks: BackgroundTasks,
@@ -216,7 +222,7 @@ def check_duplicate_transactions(
     existing = get_existing_hashes(db, request.hashes)
     return DuplicateCheckResponse(existing_hashes=existing)
 
-@router.post("/cleanup-duplicates")
+@router.post("/cleanup-duplicates", responses=TRANSACTION_ERROR_RESPONSES)
 def cleanup_duplicate_transactions(db: Session = Depends(get_db)):
     """
     Delete duplicate transactions based on fingerprint (amount + date + account + type).

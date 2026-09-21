@@ -189,7 +189,7 @@ def add_debt_share(statement_id: str, data: DebtShareBase, db: Session = Depends
     }
 
 
-@router.put("/shares/{share_id}")
+@router.put("/shares/{share_id}", responses=NOT_FOUND_RESPONSE)
 def update_debt_share(share_id: str, data: DebtShareBase, db: Session = Depends(get_db)):
     ds = db.query(DebtShare).filter(DebtShare.id == share_id).first()
     if not ds:
@@ -206,7 +206,7 @@ def update_debt_share(share_id: str, data: DebtShareBase, db: Session = Depends(
     }
 
 
-@router.delete("/shares/{share_id}")
+@router.delete("/shares/{share_id}", responses=NOT_FOUND_RESPONSE)
 def delete_debt_share(share_id: str, db: Session = Depends(get_db)):
     ds = db.query(DebtShare).filter(DebtShare.id == share_id).first()
     if not ds:

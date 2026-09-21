@@ -23,6 +23,8 @@ from sqlalchemy.orm import Session
 from app.api.auth import get_current_device
 from database import get_db
 
+CRUD_NOT_FOUND_RESPONSE = {404: {"description": "Resource not found."}}
+
 
 def make_crud_router(
     *,
@@ -81,14 +83,14 @@ def make_crud_router(
     if before_id_routes:
         before_id_routes(router)
 
-    @router.get("/{item_id}", response_model=response_schema)
+    @router.get("/{item_id}", response_model=response_schema, responses=CRUD_NOT_FOUND_RESPONSE)
     def get_one(item_id: str, db: Session = Depends(get_db)):
         obj = db.query(model).filter(model.id == item_id).first()
         if not obj:
             raise HTTPException(status_code=404, detail=f"{entity_name} not found")
         return obj
 
-    @router.put("/{item_id}", response_model=response_schema)
+    @router.put("/{item_id}", response_model=response_schema, responses=CRUD_NOT_FOUND_RESPONSE)
     def update(item_id: str, payload: update_schema, db: Session = Depends(get_db)):  # type: ignore[valid-type]
         obj = db.query(model).filter(model.id == item_id).first()
         if not obj:
@@ -102,7 +104,7 @@ def make_crud_router(
         return obj
 
     if include_delete:
-        @router.delete("/{item_id}")
+        @router.delete("/{item_id}", responses=CRUD_NOT_FOUND_RESPONSE)
         def delete(item_id: str, db: Session = Depends(get_db)):
             obj = db.query(model).filter(model.id == item_id).first()
             if not obj:

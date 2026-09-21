@@ -13,6 +13,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_device)],
     redirect_slashes=False
 )
+AI_AUDIT_ERROR_RESPONSES = {400: {"description": "Audit request is invalid."}}
 
 class DuplicateGroup(BaseModel):
     ids: List[str]
@@ -24,7 +25,7 @@ class AuditResponse(BaseModel):
     potential_duplicates: List[DuplicateGroup]
     count: int
 
-@router.get("/duplicates", response_model=AuditResponse)
+@router.get("/duplicates", response_model=AuditResponse, responses=AI_AUDIT_ERROR_RESPONSES)
 def get_potential_duplicates(days: int = 7, db: Session = Depends(get_db)):
     """
     Escanea transacciones recientes en busca de duplicados semánticos.

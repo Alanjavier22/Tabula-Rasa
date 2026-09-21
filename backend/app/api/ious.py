@@ -47,6 +47,13 @@ class IOUResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+IOU_ERROR_RESPONSES = {
+    400: {"description": "Invalid IOU settlement request."},
+    404: {"description": "IOU resource not found."},
+    500: {"description": "IOU settlement failed."},
+}
+
+
 def _pre_create(payload: IOUCreate, db: Session) -> None:
     if payload.transaction_id:
         transaction = db.query(Transaction).filter(Transaction.id == payload.transaction_id).first()
@@ -89,7 +96,7 @@ class IOUSettle(BaseModel):
     account_id: str
 
 
-@router.post("/{iou_id}/settle")
+@router.post("/{iou_id}/settle", responses=IOU_ERROR_RESPONSES)
 def settle_iou(iou_id: str, settle_data: IOUSettle, db: Session = Depends(get_db)):
     try:
         db_iou = db.query(IOU).filter(IOU.id == iou_id).first()

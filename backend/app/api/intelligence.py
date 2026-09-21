@@ -23,10 +23,15 @@ router = APIRouter(
     dependencies=[Depends(get_current_device)]
 )
 
+INTELLIGENCE_ERROR_RESPONSES = {
+    400: {"description": "Invalid intelligence request."},
+    500: {"description": "Intelligence processing failed."},
+}
+
 UPLOAD_DIR = "temp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-@router.post("/import-statement/{account_id}")
+@router.post("/import-statement/{account_id}", responses=INTELLIGENCE_ERROR_RESPONSES)
 async def upload_statement(
     account_id: str,
     file: UploadFile = File(...),
@@ -97,7 +102,7 @@ class ConfirmImportPayload(BaseModel):
     confirmed_transactions: List[Dict]
     statement_metadata: Optional[Dict] = None
 
-@router.post("/confirm-import/{import_log_id}")
+@router.post("/confirm-import/{import_log_id}", responses=INTELLIGENCE_ERROR_RESPONSES)
 async def confirm_import(
     import_log_id: str,
     payload: ConfirmImportPayload,
@@ -116,7 +121,7 @@ async def confirm_import(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/parse-account/{account_id}")
+@router.post("/parse-account/{account_id}", responses=INTELLIGENCE_ERROR_RESPONSES)
 async def parse_account_document(
     account_id: str,
     file: UploadFile = File(...),
@@ -169,7 +174,7 @@ async def parse_account_document(
 class ConfirmAccountImportPayload(BaseModel):
     confirmed_transactions: List[Dict]
 
-@router.post("/confirm-account-import/{import_log_id}")
+@router.post("/confirm-account-import/{import_log_id}", responses=INTELLIGENCE_ERROR_RESPONSES)
 async def confirm_account_import(
     import_log_id: str,
     payload: ConfirmAccountImportPayload,

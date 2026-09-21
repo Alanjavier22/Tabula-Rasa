@@ -20,6 +20,7 @@ from app.models.transaction_split import TransactionSplit
 from app.services.anomaly_detector import detect_anomalies
 
 router = APIRouter()
+METRICS_DASHBOARD_ERROR_RESPONSES = {500: {"description": "Dashboard metrics calculation failed."}}
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,7 @@ class DashboardSummaryResponse(BaseModel):
     alerts: list[dict]
 
 
-@router.get("/dashboard-summary", response_model=DashboardSummaryResponse)
+@router.get("/dashboard-summary", response_model=DashboardSummaryResponse, responses=METRICS_DASHBOARD_ERROR_RESPONSES)
 def get_dashboard_summary(db: Session = Depends(get_db)):
     try:
         now = datetime.now()

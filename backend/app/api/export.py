@@ -15,6 +15,7 @@ from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.category import Category
 
 CSV_MEDIA_TYPE = "text/csv; charset=utf-8"
+EXPORT_ERROR_RESPONSES = {500: {"description": "Export operation failed."}}
 
 router = APIRouter(
     prefix="/api/export",
@@ -22,7 +23,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_device)]
 )
 
-@router.get("/transactions")
+@router.get("/transactions", responses=EXPORT_ERROR_RESPONSES)
 def export_transactions(db: Session = Depends(get_db)):
     """Export all non-deleted transactions to CSV."""
     try:
@@ -74,7 +75,7 @@ def export_transactions(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error exporting transactions: {str(e)}")
 
-@router.get("/accounts")
+@router.get("/accounts", responses=EXPORT_ERROR_RESPONSES)
 def export_accounts(db: Session = Depends(get_db)):
     """Export all accounts to CSV."""
     try:
@@ -106,7 +107,7 @@ def export_accounts(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error exporting accounts: {str(e)}")
 
-@router.get("/assets")
+@router.get("/assets", responses=EXPORT_ERROR_RESPONSES)
 def export_assets(db: Session = Depends(get_db)):
     """Export all assets to CSV."""
     try:
@@ -139,7 +140,7 @@ def export_assets(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error exporting assets: {str(e)}")
 
-@router.get("/snapshots")
+@router.get("/snapshots", responses=EXPORT_ERROR_RESPONSES)
 def export_snapshots(db: Session = Depends(get_db)):
     """Export net worth snapshots to CSV."""
     try:

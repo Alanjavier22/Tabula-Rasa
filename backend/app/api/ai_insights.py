@@ -31,6 +31,12 @@ router = APIRouter(
     redirect_slashes=False
 )
 
+AI_INSIGHTS_ERROR_RESPONSES = {
+    400: {"description": "Invalid insights request."},
+    500: {"description": "Insights processing failed."},
+    503: {"description": "Insights service unavailable."},
+}
+
 
 class InsightsResponse(BaseModel):
     insights: List[str]
@@ -38,7 +44,7 @@ class InsightsResponse(BaseModel):
     patterns: List[str]
 
 
-@router.get("/insights")
+@router.get("/insights", responses=AI_INSIGHTS_ERROR_RESPONSES)
 def get_insights(db: Session = Depends(get_db)):
     # 1. Get Gemini API key from config
     config = db.query(Config).filter(Config.key == 'gemini_api_key').first()

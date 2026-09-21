@@ -63,13 +63,14 @@ router: APIRouter = make_crud_router(
     response_schema=AccountResponse,
     entity_name="Account",
 )
+ACCOUNT_NOT_FOUND_RESPONSE = {404: {"description": "Account not found."}}
 
 
 class SetBalanceRequest(BaseModel):
     balance: StrictInt
 
 
-@router.post("/{account_id}/set-balance", response_model=AccountResponse)
+@router.post("/{account_id}/set-balance", response_model=AccountResponse, responses=ACCOUNT_NOT_FOUND_RESPONSE)
 def set_balance(account_id: str, payload: SetBalanceRequest, db: Session = Depends(get_db)):
     """Force-set account balance to a specific value. Use to sync with reality."""
     db_account = db.query(Account).filter(Account.id == account_id).first()
@@ -81,7 +82,7 @@ def set_balance(account_id: str, payload: SetBalanceRequest, db: Session = Depen
     return db_account
 
 
-@router.post("/{account_id}/recalculate", response_model=AccountResponse)
+@router.post("/{account_id}/recalculate", response_model=AccountResponse, responses=ACCOUNT_NOT_FOUND_RESPONSE)
 def recalculate_balance(account_id: str, initial_balance: int = 0, db: Session = Depends(get_db)):
     """Recalculate balance from initial_balance + sum of all transactions."""
     from app.services.balance import recalculate_account_balance
