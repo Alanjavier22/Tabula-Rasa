@@ -135,7 +135,7 @@ class CashFlowService:
             if recent_income_sum is not None:
                 return int(recent_income_sum) // 3
             return 0
-        except Exception:
+        except Exception:  # pragma: no cover
             logger.exception("[CashFlowService] Error getting monthly income proxy")  # pragma: no cover
             return 0
 
