@@ -9,6 +9,18 @@ from app.api import backup, intelligence
 from app.models.account import Account, AccountType
 from app.services import statement_intelligence
 from app.services.statement_intelligence import StatementIntelligenceService
+from app.utils.uuid_mapping import generate_uuid_batch, generate_uuid_from_legacy_id
+
+
+def test_uuid_mapping_accepts_int_and_string_ids():
+    int_uuid = generate_uuid_from_legacy_id(123, "transactions")
+    string_uuid = generate_uuid_from_legacy_id("123", "transactions")
+
+    assert int_uuid == string_uuid
+    assert generate_uuid_batch([123, "456"], "transactions") == [
+        int_uuid,
+        generate_uuid_from_legacy_id("456", "transactions"),
+    ]
 
 
 def test_backup_log_values_are_encoded_and_endpoints_log_safely(monkeypatch):
