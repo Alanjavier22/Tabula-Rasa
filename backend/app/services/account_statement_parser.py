@@ -276,5 +276,5 @@ def local_extract_transactions(file_data: bytes, filename: str) -> Dict[str, Any
     except Exception as e:
         import traceback
         traceback.print_exc()
-        logger.error(f"[LocalParser] Error extrayendo localmente: {e}", exc_info=True)
+        logger.exception("[LocalParser] Error extrayendo localmente")
         return {}
