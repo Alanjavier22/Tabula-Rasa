@@ -1,8 +1,7 @@
 import re
 from datetime import datetime, date
-from typing import Optional, Union
 
-def parse_date_robustly(val: Optional[Union[str, datetime, date]]) -> Optional[datetime]:
+def parse_date_robustly(val: str | datetime | date | None) -> datetime | None:
     """
     Parses a date/datetime from various potential formats robustly.
     Handles SQLite format, ISO format, quirks like '2026-06-01 00:00:00T00:00:00',
