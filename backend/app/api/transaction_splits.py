@@ -9,6 +9,7 @@ from app.models.category import Category
 from pydantic import BaseModel, ConfigDict
 
 TRANSACTION_NOT_FOUND = "Transaction not found"
+NOT_FOUND_RESPONSE = {404: {"description": "Transaction not found"}}
 
 
 class TransactionSplitBase(BaseModel):
@@ -109,7 +110,7 @@ def get_transaction_splits(skip: int = 0, limit: int = 100, transaction_id: Opti
     return query.offset(skip).limit(limit).all()
 
 
-@router.post("/batch/{transaction_id}", response_model=List[TransactionSplitResponse])
+@router.post("/batch/{transaction_id}", response_model=List[TransactionSplitResponse], responses=NOT_FOUND_RESPONSE)
 def create_transaction_splits_batch(
     transaction_id: str,
     splits: List[TransactionSplitCreate],
