@@ -10,7 +10,7 @@ pairing flow (PairedDevice + JWT in app/api/auth.py) but was never wired into
 any endpoint - dead attack surface with a schema drift bug (protocol_version
 was added to the model but never to this table's own creation migration).
 """
-from typing import Sequence, Union
+from typing import Sequence
 
 from alembic import op
 import sqlalchemy as sa
@@ -18,9 +18,9 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '0af83e7f1b6a'
-down_revision: Union[str, None] = '1064c68bfa85'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = '1064c68bfa85'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
