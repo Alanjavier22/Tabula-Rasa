@@ -14,6 +14,10 @@ from pydantic import BaseModel, ConfigDict
 logger = logging.getLogger(__name__)
 BUDGET_NOT_FOUND = "Budget not found"
 NOT_FOUND_RESPONSE = {404: {"description": "Budget not found"}}
+BUDGET_ERROR_RESPONSES = {
+    400: {"description": "Invalid budget request."},
+    500: {"description": "Budget operation failed."},
+}
 
 router = APIRouter(
     prefix="/budgets", 
@@ -89,7 +93,7 @@ def create_budget(budget: BudgetCreate, db: Session = Depends(get_db)):
     return enrich_budget_response(db_budget)
 
 
-@router.get("/", response_model=List[BudgetResponse])
+@router.get("/", response_model=List[BudgetResponse], responses=BUDGET_ERROR_RESPONSES)
 def get_budgets(
     skip: int = 0,
     limit: int = 100,
@@ -128,7 +132,7 @@ def get_budget(budget_id: str, db: Session = Depends(get_db)):
     return enrich_budget_response(budget)
 
 
-@router.put("/update-recurring", response_model=List[BudgetResponse])
+@router.put("/update-recurring", response_model=List[BudgetResponse], responses=BUDGET_ERROR_RESPONSES)
 def update_recurring_budgets_endpoint(
     request: GenerateRecurringBudgetsRequest,
     db: Session = Depends(get_db)
@@ -194,7 +198,7 @@ def delete_budget(budget_id: str, db: Session = Depends(get_db)):
 
 
 # FASE 4: Generate recurring budgets endpoint
-@router.post("/generate-recurring", response_model=List[BudgetResponse])
+@router.post("/generate-recurring", response_model=List[BudgetResponse], responses=BUDGET_ERROR_RESPONSES)
 def generate_recurring_budgets_endpoint(
     request: GenerateRecurringBudgetsRequest,
     db: Session = Depends(get_db)
