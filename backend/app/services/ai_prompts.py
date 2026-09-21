@@ -1,10 +1,10 @@
 
 from datetime import datetime
-import pytz
+from zoneinfo import ZoneInfo
 
 def get_current_time_context() -> str:
     """Returns a string with the current day, date and time in Spanish."""
-    tz = pytz.timezone('America/Guayaquil')
+    tz = ZoneInfo('America/Guayaquil')
     now = datetime.now(tz)
     days = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
     day_name = days[now.weekday()]

@@ -25,7 +25,9 @@ class TableStub<T = unknown> {
     return new CollectionStub<T>(this.name);
   }
 
-  async each(_callback: (item: T) => void): Promise<void> {}
+  async each(_callback: (item: T) => void): Promise<void> {
+    return undefined;
+  }
 
   async count(): Promise<number> {
     return 0;
@@ -39,7 +41,9 @@ class TableStub<T = unknown> {
     return '';
   }
 
-  async bulkPut(_items: T[]): Promise<void> {}
+  async bulkPut(_items: T[]): Promise<void> {
+    return undefined;
+  }
 
   async update(_id: string, _changes: Partial<T>): Promise<number> {
     return 0;
@@ -111,7 +115,9 @@ class CollectionStub<T = unknown> {
     return this;
   }
 
-  async each(_callback: (item: T) => void): Promise<void> {}
+  async each(_callback: (item: T) => void): Promise<void> {
+    return undefined;
+  }
 
   async toArray(): Promise<T[]> {
     return [];
