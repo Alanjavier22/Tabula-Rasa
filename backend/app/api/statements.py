@@ -9,6 +9,8 @@ from app.models.credit_card_statement import CreditCardStatement, StatementStatu
 from app.models.debt_share import DebtShare, DebtShareStatus
 from app.utils.date_parser import parse_date_robustly
 
+STATEMENT_NOT_FOUND = "Statement not found"
+
 router = APIRouter(
     prefix="/statements", 
     tags=["Credit Card Statements"], 
@@ -120,7 +122,7 @@ def get_statement(statement_id: str, db: Session = Depends(get_db)):
     from sqlalchemy.orm import joinedload
     stmt = db.query(CreditCardStatement).options(joinedload(CreditCardStatement.debt_shares), joinedload(CreditCardStatement.account)).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
-        raise HTTPException(status_code=404, detail="Statement not found")
+            raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     return serialize_statement(stmt)
 
 
@@ -146,7 +148,7 @@ def create_statement(data: StatementCreate, db: Session = Depends(get_db)):
 def update_statement(statement_id: str, data: StatementUpdate, db: Session = Depends(get_db)):
     stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
-        raise HTTPException(status_code=404, detail="Statement not found")
+        raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     update_data = data.model_dump(exclude_unset=True)
     if "payment_due_date" in update_data and update_data["payment_due_date"]:
         update_data["payment_due_date"] = parse_date_robustly(update_data["payment_due_date"])
@@ -163,7 +165,7 @@ def update_statement(statement_id: str, data: StatementUpdate, db: Session = Dep
 def delete_statement(statement_id: str, db: Session = Depends(get_db)):
     stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
-        raise HTTPException(status_code=404, detail="Statement not found")
+        raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     db.delete(stmt)
     db.commit()
     return {"message": "Statement deleted"}
@@ -173,7 +175,7 @@ def delete_statement(statement_id: str, db: Session = Depends(get_db)):
 def add_debt_share(statement_id: str, data: DebtShareBase, db: Session = Depends(get_db)):
     stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
-        raise HTTPException(status_code=404, detail="Statement not found")
+        raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     ds = DebtShare(statement_id=statement_id, **data.model_dump())
     db.add(ds)
     db.commit()
