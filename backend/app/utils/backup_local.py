@@ -353,7 +353,7 @@ def restore_from_backup(backup_path: str, create_pre_restore_backup: bool = True
         }
 
     except Exception as e:
-        backup_logger.error(f"[RESTORE] Error during restore: {e}")
+        backup_logger.exception("[RESTORE] Error during restore")
         return {
             "success": False,
             "message": f"Error al restaurar backup: {str(e)}",
@@ -433,7 +433,7 @@ def delete_pre_restore_backup(backup_path: str) -> dict:
             "message": f"Backup pre-restauración eliminado: {filename}"
         }
     except Exception as e:
-        backup_logger.error(f"[PRE_RESTORE] Error deleting backup: {e}")
+        backup_logger.exception("[PRE_RESTORE] Error deleting backup")
         return {
             "success": False,
             "message": f"Error al eliminar backup: {str(e)}"
@@ -495,7 +495,7 @@ def rollback_to_pre_restore(backup_path: str) -> dict:
             }
 
     except Exception as e:
-        backup_logger.error(f"[ROLLBACK] Error during rollback: {e}")
+        backup_logger.exception("[ROLLBACK] Error during rollback")
         return {
             "success": False,
             "message": f"Error durante rollback: {str(e)}",
