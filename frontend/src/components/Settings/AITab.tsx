@@ -50,9 +50,10 @@ const AITab = ({
         </div>
 
         <div className="bg-black/20 rounded-3xl p-6 border border-white/5">
-          <label className="block text-xs font-black text-white/30 uppercase tracking-widest mb-3">Gemini API Key</label>
+          <label htmlFor="gemini-api-key" className="block text-xs font-black text-white/30 uppercase tracking-widest mb-3">Gemini API Key</label>
           <div className="relative">
             <input
+              id="gemini-api-key"
               type="password"
               value={geminiApiKey}
               onChange={e => onGeminiApiKeyChange(e.target.value)}
@@ -85,8 +86,9 @@ const AITab = ({
         <div className="bg-black/20 rounded-3xl p-8 border border-white/5 space-y-5">
           <div className="grid grid-cols-1 gap-5">
             <div>
-              <label className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Client ID</label>
+              <label htmlFor="drive-client-id" className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Client ID</label>
               <input
+                id="drive-client-id"
                 type="text"
                 value={driveCredentials.client_id}
                 onChange={(e) => onDriveCredentialsChange({ ...driveCredentials, client_id: e.target.value })}
@@ -96,8 +98,9 @@ const AITab = ({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Client Secret</label>
+                <label htmlFor="drive-client-secret" className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Client Secret</label>
                 <input
+                  id="drive-client-secret"
                   type="password"
                   value={driveCredentials.client_secret}
                   onChange={(e) => onDriveCredentialsChange({ ...driveCredentials, client_secret: e.target.value })}
@@ -106,8 +109,9 @@ const AITab = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Refresh Token</label>
+                <label htmlFor="drive-refresh-token" className="block text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-2">Refresh Token</label>
                 <input
+                  id="drive-refresh-token"
                   type="password"
                   value={driveCredentials.refresh_token}
                   onChange={(e) => onDriveCredentialsChange({ ...driveCredentials, refresh_token: e.target.value })}
