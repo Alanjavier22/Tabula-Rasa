@@ -83,7 +83,12 @@ const CommandPalette = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] sm:pt-[20vh] px-4">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
+      <button
+        type="button"
+        aria-label="Cerrar paleta de comandos"
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+        onClick={() => setIsOpen(false)}
+      />
       <div className="relative bg-slate-800 border border-purple-500/30 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         {mode === 'navigation' ? (
           <>

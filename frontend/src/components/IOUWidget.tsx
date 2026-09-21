@@ -135,7 +135,12 @@ const IOUWidget = () => {
       {/* Account Selection Modal */}
       {settleModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSettleModal({ isOpen: false, iouId: null })} />
+          <button
+            type="button"
+            aria-label="Cerrar modal de saldar cuenta"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setSettleModal({ isOpen: false, iouId: null })}
+          />
           <div className="relative bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md">
             <button
               onClick={() => setSettleModal({ isOpen: false, iouId: null })}

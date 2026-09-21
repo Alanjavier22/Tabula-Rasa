@@ -220,7 +220,12 @@ const EditAccountModal = ({ isOpen, editForm, setEditForm, editingAccount, accou
                   </motion.div>
                 )}
 
-                <div className="flex items-center gap-4 bg-white/5 p-5 rounded-[2rem] border border-white/10 group cursor-pointer" onClick={() => setEditForm({...editForm, is_active: !editForm.is_active})}>
+                <button
+                  type="button"
+                  aria-pressed={editForm.is_active}
+                  className="w-full flex items-center gap-4 bg-white/5 p-5 rounded-[2rem] border border-white/10 group cursor-pointer text-left"
+                  onClick={() => setEditForm({...editForm, is_active: !editForm.is_active})}
+                >
                   <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${editForm.is_active ? 'bg-blue-500 border-blue-500' : 'bg-transparent border-white/20'}`}>
                     {editForm.is_active && <CheckCircle2 className="w-4 h-4 text-white" />}
                   </div>
@@ -228,7 +233,7 @@ const EditAccountModal = ({ isOpen, editForm, setEditForm, editingAccount, accou
                     <span className="text-sm font-black text-white uppercase tracking-widest block leading-none mb-1">Cuenta Operativa</span>
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Si está desactivada, no se sumará al patrimonio total</span>
                   </div>
-                </div>
+                </button>
               </div>
             </form>
 

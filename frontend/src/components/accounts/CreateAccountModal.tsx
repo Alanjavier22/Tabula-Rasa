@@ -230,7 +230,12 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                   </motion.div>
                 )}
 
-                <div className="flex items-center gap-4 bg-white/5 p-5 rounded-[2rem] border border-white/10 group cursor-pointer" onClick={() => setForm({...form, is_active: !form.is_active})}>
+                <button
+                  type="button"
+                  aria-pressed={form.is_active}
+                  className="w-full flex items-center gap-4 bg-white/5 p-5 rounded-[2rem] border border-white/10 group cursor-pointer text-left"
+                  onClick={() => setForm({...form, is_active: !form.is_active})}
+                >
                   <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${form.is_active ? 'bg-emerald-500 border-emerald-500' : 'bg-transparent border-white/20'}`}>
                     {form.is_active && <CheckCircle2 className="w-4 h-4 text-white" />}
                   </div>
@@ -238,7 +243,7 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                     <span className="text-sm font-black text-white uppercase tracking-widest block leading-none mb-1">Cuenta Operativa</span>
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Si está desactivada, no se sumará al patrimonio total</span>
                   </div>
-                </div>
+                </button>
               </div>
             </form>
 

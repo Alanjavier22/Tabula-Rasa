@@ -349,9 +349,11 @@ const TransactionForm = ({
           </div>
           
           {/* Split Transaction Toggle */}
-          <div 
+          <button
+            type="button"
+            aria-pressed={isSplitEnabled}
             onClick={() => setIsSplitEnabled(!isSplitEnabled)}
-            className={`flex items-center justify-between p-5 rounded-3xl border cursor-pointer transition-all ${
+            className={`w-full flex items-center justify-between p-5 rounded-3xl border cursor-pointer transition-all text-left ${
               isSplitEnabled 
                 ? 'bg-indigo-500/10 border-indigo-500/30' 
                 : 'bg-white/5 border-white/5 hover:border-white/10'
@@ -373,7 +375,7 @@ const TransactionForm = ({
             }`}>
               {isSplitEnabled && <CheckCircle className="w-4 h-4 text-white" />}
             </div>
-          </div>
+          </button>
 
           {/* Split Rows */}
           <AnimatePresence>

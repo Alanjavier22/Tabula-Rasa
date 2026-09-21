@@ -90,7 +90,12 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Mobile Expanded Menu (Slide-up or Fullscreen) */}
       <div className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
+        <button
+          type="button"
+          aria-label="Cerrar menú móvil"
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          onClick={() => setMobileMenuOpen(false)}
+        />
         <div className={`absolute bottom-0 left-0 w-full bg-slate-900 border-t border-slate-700/50 rounded-t-3xl transition-transform duration-300 transform ${mobileMenuOpen ? 'translate-y-0' : 'translate-y-full'}`}>
           <div className="flex justify-between items-center p-6 border-b border-slate-800">
             <h2 className="text-xl font-bold text-white">Más Opciones</h2>
