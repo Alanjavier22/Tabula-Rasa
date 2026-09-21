@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 from datetime import datetime, timezone
 
 GOAL_NOT_FOUND = "Goal not found"
+NOT_FOUND_RESPONSE = {404: {"description": "Goal not found"}}
 
 router = APIRouter(
     prefix="/goals", 
@@ -82,7 +83,7 @@ def get_goals(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return goals
 
 
-@router.get("/{goal_id}", response_model=GoalResponse)
+@router.get("/{goal_id}", response_model=GoalResponse, responses=NOT_FOUND_RESPONSE)
 def get_goal(goal_id: str, db: Session = Depends(get_db)):
     goal = db.query(Goal).filter(Goal.id == goal_id).first()
     if not goal:
@@ -90,7 +91,7 @@ def get_goal(goal_id: str, db: Session = Depends(get_db)):
     return goal
 
 
-@router.put("/{goal_id}", response_model=GoalResponse)
+@router.put("/{goal_id}", response_model=GoalResponse, responses=NOT_FOUND_RESPONSE)
 def update_goal(goal_id: str, goal: GoalUpdate, db: Session = Depends(get_db)):
     db_goal = db.query(Goal).filter(Goal.id == goal_id).first()
     if not db_goal:
@@ -105,7 +106,7 @@ def update_goal(goal_id: str, goal: GoalUpdate, db: Session = Depends(get_db)):
     return db_goal
 
 
-@router.delete("/{goal_id}")
+@router.delete("/{goal_id}", responses=NOT_FOUND_RESPONSE)
 def delete_goal(goal_id: str, db: Session = Depends(get_db)):
     db_goal = db.query(Goal).filter(Goal.id == goal_id).first()
     if not db_goal:
