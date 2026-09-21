@@ -7,6 +7,8 @@ from app.api.auth import get_current_device
 from app.models.config import Config
 from pydantic import BaseModel, ConfigDict
 
+CONFIG_NOT_FOUND = "Config not found"
+
 router = APIRouter(
     prefix="/config", 
     tags=["config"], 
@@ -91,7 +93,7 @@ def get_configs(
 def get_config(config_key: str, db: Session = Depends(get_db)):
     config = db.query(Config).filter(Config.key == config_key).first()
     if not config:
-        raise HTTPException(status_code=404, detail="Config not found")
+        raise HTTPException(status_code=404, detail=CONFIG_NOT_FOUND)
         
     # SECURITY: Mask private values
     c_dict = {
@@ -113,7 +115,7 @@ def update_config(
 ):
     db_config = db.query(Config).filter(Config.key == config_key).first()
     if not db_config:
-        raise HTTPException(status_code=404, detail="Config not found")
+        raise HTTPException(status_code=404, detail=CONFIG_NOT_FOUND)
     
     update_data = config.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -128,7 +130,7 @@ def update_config(
 def delete_config(config_key: str, db: Session = Depends(get_db)):
     db_config = db.query(Config).filter(Config.key == config_key).first()
     if not db_config:
-        raise HTTPException(status_code=404, detail="Config not found")
+        raise HTTPException(status_code=404, detail=CONFIG_NOT_FOUND)
     
     db.delete(db_config)
     db.commit()
