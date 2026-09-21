@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.5...v0.1.6) (2026-09-21)
+
+
+### Documentación y mantenimiento
+
+* **sonar:** reduce complejidad del parser local ([db940dd](https://github.com/Alanjavier22/Tabula-Rasa/commit/db940dd23c4c53f539dda1899df14e2755f32316))
+
 ## [0.1.5](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.4...v0.1.5) (2026-09-21)
 
 
