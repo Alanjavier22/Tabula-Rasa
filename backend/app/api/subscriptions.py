@@ -79,6 +79,12 @@ router: APIRouter = make_crud_router(
     pre_update=_pre_update,
 )
 
+SUBSCRIPTION_ERROR_RESPONSES = {
+    400: {"description": "Subscription payment is invalid."},
+    404: {"description": "Subscription or account not found."},
+    500: {"description": "Subscription payment failed."},
+}
+
 
 @router.get("/", response_model=List[SubscriptionResponse])
 def get_subscriptions(skip: int = 0, limit: int = 100, is_active: Optional[bool] = None, db: Session = Depends(get_db)):
@@ -88,7 +94,7 @@ def get_subscriptions(skip: int = 0, limit: int = 100, is_active: Optional[bool]
     return query.offset(skip).limit(limit).all()
 
 
-@router.post("/{subscription_id}/pay")
+@router.post("/{subscription_id}/pay", responses=SUBSCRIPTION_ERROR_RESPONSES)
 def pay_subscription(subscription_id: str, db: Session = Depends(get_db)):
     """
     Mark a subscription as paid:
