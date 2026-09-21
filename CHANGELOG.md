@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.8](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.7...v0.1.8) (2026-09-21)
+
+
+### Documentación y mantenimiento
+
+* **sonar:** divide categorizacion por etapas ([88935f1](https://github.com/Alanjavier22/Tabula-Rasa/commit/88935f14b2c00ca22cfffe8dfdffcf88e6846876))
+* **sonar:** reduce complejidad del categorizador ([3954632](https://github.com/Alanjavier22/Tabula-Rasa/commit/39546324eff6a6f04a1132f7c9f00b62529e39ce))
+
 ## [0.1.7](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.6...v0.1.7) (2026-09-21)
 
 
