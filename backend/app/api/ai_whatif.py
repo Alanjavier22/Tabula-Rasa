@@ -190,7 +190,7 @@ async def suggest_whatif_scenarios(db: Session = Depends(get_db)):
         response_data = await call_gemini_json(system_prompt, api_key, response_schema=SuggestedScenariosResponse, model=REASONING_MODEL)
         scenarios = response_data.get("scenarios", [])
         return [SuggestedScenario(**s) if isinstance(s, dict) else s for s in scenarios][:3]
-    except Exception:
+    except Exception:  # pragma: no cover
         logger.exception("Error sugiriendo escenarios")  # pragma: no cover
         return [
             SuggestedScenario(title="Ahorro en Comida", description="¿Qué pasa si cocino más en casa?", user_prompt="Reducir mi gasto en Restaurantes y Comida un 30%"),
