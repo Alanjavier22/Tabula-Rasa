@@ -59,7 +59,7 @@ def get_google_drive_credentials() -> Optional[tuple[str, str, str]]:
 
         return (str(client_id), str(client_secret), str(refresh_token))
     except Exception as e:
-        backup_logger.error(f"[GOOGLE_DRIVE] Error retrieving credentials from database: {e}")
+        backup_logger.exception("[GOOGLE_DRIVE] Error retrieving credentials from database")
         return None
     finally:
         if db is not None:
@@ -152,7 +152,7 @@ def get_or_create_drive_folder(drive_service) -> Optional[str]:
         return folder.get('id')
 
     except Exception as e:
-        backup_logger.error(f"[GOOGLE_DRIVE] Error getting/creating backup folder: {e}")
+        backup_logger.exception("[GOOGLE_DRIVE] Error getting/creating backup folder")
         return None
 
 
@@ -214,7 +214,7 @@ def create_external_backup() -> Optional[str]:
                 creds.refresh(Request())
                 backup_logger.info("[GOOGLE_DRIVE] Access token refreshed successfully")
             except Exception as refresh_error:
-                backup_logger.error(f"[GOOGLE_DRIVE] Failed to refresh access token: {refresh_error}")
+                backup_logger.exception("[GOOGLE_DRIVE] Failed to refresh access token")
                 backup_logger.error("[GOOGLE_DRIVE] Token may be expired or invalid. Please re-authenticate.")
                 # Clean up local backup and return None (fail-soft)
                 if local_backup_path and os.path.exists(local_backup_path):
@@ -226,7 +226,7 @@ def create_external_backup() -> Optional[str]:
             backup_logger.info("[GOOGLE_DRIVE] Authenticated with Google Drive API")
 
         except Exception as auth_error:
-            backup_logger.error(f"[GOOGLE_DRIVE] Authentication failed: {auth_error}")
+            backup_logger.exception("[GOOGLE_DRIVE] Authentication failed")
             # Clean up local backup and return None (fail-soft)
             if local_backup_path and os.path.exists(local_backup_path):
                 os.remove(local_backup_path)
@@ -259,7 +259,7 @@ def create_external_backup() -> Optional[str]:
             backup_logger.info(f"[GOOGLE_DRIVE] Backup uploaded to Google Drive: {file.get('id')}")
 
         except Exception as upload_error:
-            backup_logger.error(f"[GOOGLE_DRIVE] Failed to upload backup to Google Drive: {upload_error}")
+            backup_logger.exception("[GOOGLE_DRIVE] Failed to upload backup to Google Drive")
             # Clean up local backup and return None (fail-soft)
             if local_backup_path and os.path.exists(local_backup_path):
                 os.remove(local_backup_path)
@@ -277,7 +277,7 @@ def create_external_backup() -> Optional[str]:
         return local_backup_path
 
     except Exception as e:
-        backup_logger.error(f"[GOOGLE_DRIVE] CRITICAL ERROR during backup process: {e}")
+        backup_logger.exception("[GOOGLE_DRIVE] CRITICAL ERROR during backup process")
         backup_logger.error("[GOOGLE_DRIVE] Backup process failed but scheduler continues (fail-soft)")
         # Clean up local backup if it exists
         if local_backup_path and os.path.exists(local_backup_path):
@@ -397,7 +397,7 @@ def list_external_backups() -> list[dict]:
         return files
 
     except Exception as e:
-        backup_logger.error(f"[GOOGLE_DRIVE] Error listing external backups: {e}")
+        backup_logger.exception("[GOOGLE_DRIVE] Error listing external backups")
         return []
 
 
@@ -466,7 +466,7 @@ def download_backup_from_drive(backup_id: str) -> Optional[str]:
         return download_path
 
     except Exception as e:
-        backup_logger.error(f"[GOOGLE_DRIVE] Error downloading backup: {e}")
+        backup_logger.exception("[GOOGLE_DRIVE] Error downloading backup")
         return None
 
 
