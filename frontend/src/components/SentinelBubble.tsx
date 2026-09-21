@@ -27,6 +27,12 @@ interface SentinelHealth {
   timestamp: string;
 }
 
+const secureRandomUnit = (): number => {
+  const values = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(values);
+  return values[0] / 2 ** 32;
+};
+
 export const SentinelBubble: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [dismissedAlertTimestamp, setDismissedAlertTimestamp] = useState<string | null>(null);
@@ -51,19 +57,17 @@ export const SentinelBubble: React.FC = () => {
   );
 
   // Posiciones/duraciones de las partículas flotantes generadas una sola vez al montar,
-  // no en cada render: si se recalculan con Math.random() directo en el JSX, cada
-  // refetch de React Query (o cualquier otro re-render mientras el panel está abierto)
-  // hace que las partículas salten a posiciones nuevas en vez de animarse continuas.
-  /* eslint-disable react-hooks/purity -- Math.random es intencional (posiciones decorativas); el useMemo ya evita que cambien entre renders */
+  // no en cada render: si se recalculan directamente en el JSX, cada refetch de React
+  // Query (o cualquier otro re-render mientras el panel está abierto) hace que las
+  // partículas salten a posiciones nuevas en vez de animarse continuas.
   const particles = useMemo(() => (
     [...Array(6)].map(() => ({
-      x: Math.random() * 20 - 10,
-      duration: 10 + Math.random() * 10,
-      left: Math.random() * 100,
-      top: Math.random() * 100,
+      x: secureRandomUnit() * 20 - 10,
+      duration: 10 + secureRandomUnit() * 10,
+      left: secureRandomUnit() * 100,
+      top: secureRandomUnit() * 100,
     }))
   ), []);
-  /* eslint-enable react-hooks/purity */
 
   const getHealthColor = (score: number) => {
     if (score >= 80) return 'text-emerald-400';

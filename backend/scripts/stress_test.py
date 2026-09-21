@@ -8,7 +8,7 @@ import sys
 import os
 import uuid
 import hashlib
-import random
+import secrets
 from datetime import datetime, timezone, timedelta
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -70,21 +70,21 @@ def inject_stress_transactions(count: int = 50000):
                 )
                 
                 # Random amount in cents (integers only, no floats)
-                amount_cents = random.randint(100, 1000000)  # $1.00 to $10,000.00
+                amount_cents = secrets.randbelow(999901) + 100  # $1.00 to $10,000.00
                 
                 # Random date within last 365 days
-                days_ago = random.randint(0, 365)
+                days_ago = secrets.randbelow(366)
                 tx_date = (base_date - timedelta(days=days_ago)).isoformat()
                 
                 # Random category and account
-                category = random.choice(categories)
-                account = random.choice(accounts)
+                category = secrets.choice(categories)
+                account = secrets.choice(accounts)
                 
                 # Random transaction type
-                tx_type = random.choice(list(TransactionType))
+                tx_type = secrets.choice(list(TransactionType))
                 
                 # Random payment method
-                payment_method = random.choice(list(PaymentMethod))
+                payment_method = secrets.choice(list(PaymentMethod))
                 
                 # Generate transaction data
                 transaction_data = {
@@ -92,7 +92,7 @@ def inject_stress_transactions(count: int = 50000):
                     'amount': amount_cents,
                     'description': f'Stress Test Transaction {i}',
                     'transaction_type': tx_type,
-                    'expense_type': random.choice(list(ExpenseType)) if tx_type == TransactionType.EXPENSE else None,
+                    'expense_type': secrets.choice(list(ExpenseType)) if tx_type == TransactionType.EXPENSE else None,
                     'payment_method': payment_method,
                     'date': tx_date,
                     'category_id': category.id,
