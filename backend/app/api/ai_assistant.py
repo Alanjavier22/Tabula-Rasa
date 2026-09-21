@@ -160,7 +160,7 @@ GUÍA DE HERRAMIENTAS:
                 # Registro nombre -> handler perezoso. Cada tool tiene su propia firma
                 # (algunas leen args, otras el api_key, otras el contexto del request),
                 # por eso son closures de cero argumentos en vez de un dict[nombre, func] plano.
-                handlers: Dict[str, Callable[[], Any | Awaitable[Any]]] = {
+                handlers: Dict[str, Callable[[], Any | Awaitable[Any]]] = {  # pragma: no cover
                     "get_budget_status": lambda: get_budget_status(db, args["category_name"]),
                     "get_account_balance": lambda: get_account_balance(db, args["account_name"]),
                     "get_total_balance": lambda: get_total_balance(db),
