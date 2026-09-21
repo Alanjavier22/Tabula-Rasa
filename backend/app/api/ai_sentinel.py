@@ -13,6 +13,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_device)],
     redirect_slashes=False
 )
+AI_SENTINEL_ERROR_RESPONSES = {400: {"description": "Sentinel health request is invalid."}}
 
 class SentinelWarning(BaseModel):
     level: str
@@ -26,7 +27,7 @@ class SentinelHealthResponse(BaseModel):
     warnings: List[SentinelWarning]
     timestamp: str
 
-@router.get("/health", response_model=SentinelHealthResponse)
+@router.get("/health", response_model=SentinelHealthResponse, responses=AI_SENTINEL_ERROR_RESPONSES)
 async def get_sentinel_health(db: Session = Depends(get_db)):
     """
     Endpoint principal para la burbuja del Agente Sentinel.
