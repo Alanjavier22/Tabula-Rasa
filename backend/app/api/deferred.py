@@ -14,6 +14,7 @@ router = APIRouter(
     tags=["deferred"],
     dependencies=[Depends(get_current_device)]
 )
+DEFERRED_NOT_FOUND_RESPONSE = {404: {"description": "Deferred payment not found."}}
 
 class DeferredPaymentBase(BaseModel):
     account_id: str
@@ -52,7 +53,7 @@ def create_deferred_payment(payment: DeferredPaymentCreate, db: Session = Depend
     db.refresh(db_payment)
     return db_payment
 
-@router.post("/{payment_id}/advance")
+@router.post("/{payment_id}/advance", responses=DEFERRED_NOT_FOUND_RESPONSE)
 def advance_installment(payment_id: str, db: Session = Depends(get_db)):
     payment = db.query(DeferredPayment).filter(DeferredPayment.id == payment_id, DeferredPayment.is_deleted == False).first()
     if not payment:
@@ -68,7 +69,7 @@ def advance_installment(payment_id: str, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Installment advanced", "current": payment.current_installment, "remaining": payment.remaining_balance}
 
-@router.delete("/{payment_id}")
+@router.delete("/{payment_id}", responses=DEFERRED_NOT_FOUND_RESPONSE)
 def delete_deferred_payment(payment_id: str, db: Session = Depends(get_db)):
     payment = db.query(DeferredPayment).filter(DeferredPayment.id == payment_id).first()
     if not payment:
