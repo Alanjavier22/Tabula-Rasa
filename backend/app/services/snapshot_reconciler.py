@@ -183,7 +183,7 @@ class SnapshotReconciler:
             except Exception as e:
                 failed_count += 1
                 db.rollback()
-                logger.error(f"[SnapshotReconciler] Failed to reconcile snapshot {snapshot.id}: {e}")
+                logger.exception("[SnapshotReconciler] Failed to reconcile snapshot %s", snapshot.id)
         
         return {
             'reconciled_count': reconciled_count,
@@ -223,5 +223,5 @@ class SnapshotReconciler:
             
         except Exception as e:
             db.rollback()
-            logger.error(f"[SnapshotReconciler] Failed to reconcile snapshot {snapshot_id}: {e}")
+            logger.exception("[SnapshotReconciler] Failed to reconcile snapshot %s", snapshot_id)
             return None
