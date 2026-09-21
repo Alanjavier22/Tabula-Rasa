@@ -186,7 +186,12 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
       {/* Add Debt Share Modal */}
       {showAddModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddModal({ isOpen: false, statementId: null })} />
+          <button
+            type="button"
+            aria-label="Cerrar modal de deuda"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowAddModal({ isOpen: false, statementId: null })}
+          />
           <div className="relative bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md">
             <button
               onClick={() => setShowAddModal({ isOpen: false, statementId: null })}
