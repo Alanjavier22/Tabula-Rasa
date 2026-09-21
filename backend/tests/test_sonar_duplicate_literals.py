@@ -28,6 +28,35 @@ def test_account_statement_parser_uses_shared_terms():
     assert parsed_split["transactions"][0]["amount_cents"] == 1000
 
 
+def test_account_statement_parser_handles_summary_deposits_and_invalid_rows():
+    from app.services.account_statement_parser import local_extract_transactions
+
+    statement = (
+        "Periodo,Ingresos,600.00,,,\n"
+        "Egresos,300.00,,,,\n"
+        "Fecha,Detalle,Monto,Tipo,Saldo,Beneficiario\n"
+        "2026-09-01,Ingreso,\"1.234,56\",Ingreso,\"2.000,00\",Ana\n"
+        "2026-09-02,Depósito,\"50,25\",Depósito,\"2.050,25\",\n"
+        "2026-09-03,Sin monto,0,Débito,\"2.050,25\",\n"
+        "fecha inválida,Ignorada,10,Ingreso,0,\n"
+    ).encode("utf-8")
+
+    parsed = local_extract_transactions(statement, "resumen.csv")
+
+    assert [item["transaction_type"] for item in parsed["transactions"]] == [
+        "income",
+        "deposit",
+    ]
+    assert parsed["transactions"][0]["amount_cents"] == 123456
+    assert parsed["transactions"][0]["balance_cents"] == 200000
+    assert parsed["transactions"][0]["beneficiary"] == "Ana"
+    assert parsed["total_income_cents"] == 60000
+    assert parsed["total_expense_cents"] == 30000
+
+    assert local_extract_transactions(b"sin,encabezado\n", "vacio.csv") == {}
+    assert local_extract_transactions(b"Fecha,Detalle\n2026-09-01,Compra\n", "sin-monto.csv") == {}
+
+
 def test_transaction_summary_uses_shared_uncategorized_label(db_session):
     from app.models.transaction import Transaction
     from app.services.insights_builders import (
