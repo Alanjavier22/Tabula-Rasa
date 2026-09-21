@@ -21,6 +21,7 @@ from app.models.category import Category
 from app.models.config import Config
 
 logger = logging.getLogger(__name__)
+FISCAL_ERROR_RESPONSES = {500: {"description": "Fiscal report generation failed."}}
 
 router = APIRouter(
     prefix="/fiscal", 
@@ -126,7 +127,7 @@ class MonthlyTrendItem(BaseModel):
     iva_projected: Decimal
 
 
-@router.get("/report", response_model=FiscalReportResponse)
+@router.get("/report", response_model=FiscalReportResponse, responses=FISCAL_ERROR_RESPONSES)
 def get_fiscal_report(
     start_date: str = Query(...),
     end_date: str = Query(...),
@@ -249,7 +250,7 @@ def get_fiscal_report(
         raise HTTPException(status_code=500, detail=f"Error generating fiscal report: {str(e)}")
 
 
-@router.get("/trend", response_model=List[MonthlyTrendItem])
+@router.get("/trend", response_model=List[MonthlyTrendItem], responses=FISCAL_ERROR_RESPONSES)
 def get_fiscal_trend(
     start_date: str = Query(...),
     end_date: str = Query(...),
@@ -330,7 +331,7 @@ def get_fiscal_trend(
         raise HTTPException(status_code=500, detail=f"Error generating fiscal trend: {str(e)}")
 
 
-@router.get("/export-declaracion-sri")
+@router.get("/export-declaracion-sri", responses=FISCAL_ERROR_RESPONSES)
 def export_declaracion_sri(
     year: int = Query(...),
     format: str = Query("xml", pattern="^(xml|json)$"),
