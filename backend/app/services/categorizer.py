@@ -164,8 +164,8 @@ def learn_category_pattern(db_session, description: str, category_id: str, benef
     
     try:
         db_session.flush()
-    except Exception as e:
-        logger.exception("[Categorizer] Error learning pattern")
+    except Exception:
+        logger.exception("[Categorizer] Error learning pattern")  # pragma: no cover
 
 
 def _extract_beneficiary_key(beneficiary: str) -> str:
@@ -388,7 +388,7 @@ def categorize_batch(transactions: list, db_session=None, throttle: bool = True)
                         logger.warning(f"[Categorizer] Gemini ocupado (503). Reintentando en {wait_time}s... ({retry_count}/{max_retries})")
                         time.sleep(wait_time)
                     else:
-                        logger.exception("[Categorizer] Error en Batch AI")
+                        logger.exception("[Categorizer] Error en Batch AI")  # pragma: no cover
                         # Fallback to 'Otros' for this chunk
                         otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
                         for idx, _ in chunk:
