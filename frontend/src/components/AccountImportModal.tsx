@@ -198,8 +198,9 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
               ) : (
                 <>
                   <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700">
-                    <label className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Cuenta Destino</label>
+                    <label htmlFor="account-import-account" className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Cuenta Destino</label>
                     <Select
+                      id="account-import-account"
                       value={accountId}
                       onChange={(value) => setAccountId(value)}
                       options={bankAccounts.map(acc => ({ value: acc.id.toString(), label: acc.name }))}
