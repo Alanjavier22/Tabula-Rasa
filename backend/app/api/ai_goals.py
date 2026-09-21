@@ -18,6 +18,10 @@ router = APIRouter(
     tags=["AI Goals"],
     dependencies=[Depends(get_current_device)]
 )
+AI_GOALS_ERROR_RESPONSES = {
+    400: {"description": "Goal recommendation request is invalid."},
+    500: {"description": "Goal recommendation failed."},
+}
 
 class GoalRecommendation(BaseModel):
     goal_id: str
@@ -30,7 +34,7 @@ class SmartGoalResponse(BaseModel):
     total_suggested_cents: int
     summary_message: str
 
-@router.get("/smart-recommendations", response_model=SmartGoalResponse)
+@router.get("/smart-recommendations", response_model=SmartGoalResponse, responses=AI_GOALS_ERROR_RESPONSES)
 def get_smart_goal_recommendations(db: Session = Depends(get_db)):
     config_api = db.query(Config).filter(Config.key == 'gemini_api_key').first()
     if not config_api or not config_api.value:
