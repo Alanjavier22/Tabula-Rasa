@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.4](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.3...v0.1.4) (2026-09-21)
+
+
+### Correcciones
+
+* corrige hallazgos de accesibilidad en controles interactivos ([3df9d45](https://github.com/Alanjavier22/Tabula-Rasa/commit/3df9d45b42557ff1b3036350ce062b8ddf151804))
+
+
+### Seguridad y datos
+
+* elimina aleatoriedad del identificador temporal ([a858c37](https://github.com/Alanjavier22/Tabula-Rasa/commit/a858c3780be1dde5475e2dc3b45afe6a34cf5353))
+* genera partículas con crypto del navegador ([4909e4f](https://github.com/Alanjavier22/Tabula-Rasa/commit/4909e4f0c4830415e12673d227abe0747efb3a74))
+* usa aleatoriedad segura en stress test ([fcbda0c](https://github.com/Alanjavier22/Tabula-Rasa/commit/fcbda0cbd43c4eb1ec881c32468bc7c9bc1f646b))
+
+
+### Documentación y mantenimiento
+
+* alinea exclusiones de cobertura con SonarCloud ([744d34f](https://github.com/Alanjavier22/Tabula-Rasa/commit/744d34f15187998b403baa82fe68e4eba70093e6))
+* corrige hallazgos críticos de bajo riesgo ([402e11d](https://github.com/Alanjavier22/Tabula-Rasa/commit/402e11dc321dea7b65edd1b1413e05e79d0af428))
+* elimina imports innecesarios del inicializador ([c7f765d](https://github.com/Alanjavier22/Tabula-Rasa/commit/c7f765dc18cf5e678397343d2b4b9ff022ac1b55))
+* hace explícitos los retornos de stubs async ([6d3eccf](https://github.com/Alanjavier22/Tabula-Rasa/commit/6d3eccfc545db301b44aa1cff7f592b72beb0094))
+* usa zona horaria estándar de Python ([7cb96ce](https://github.com/Alanjavier22/Tabula-Rasa/commit/7cb96cea24e69409416a400f96347d26819a1cbe))
+
 ## [0.1.3](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.2...v0.1.3) (2026-09-20)
 
 
