@@ -25,6 +25,7 @@ from app.models.category import Category
 from app.api.ai_shared import get_gemini_key
 
 router = APIRouter()
+AI_RECEIPTS_ERROR_RESPONSES = {500: {"description": "Receipt processing failed."}}
 
 
 class AudioToTxnRequest(BaseModel):
@@ -45,7 +46,7 @@ class AudioToTxnResponse(BaseModel):
     transactions: List[TransactionExtracted]
 
 
-@router.post("/audio-to-txns", response_model=AudioToTxnResponse)
+@router.post("/audio-to-txns", response_model=AudioToTxnResponse, responses=AI_RECEIPTS_ERROR_RESPONSES)
 async def audio_to_txns(
     request: AudioToTxnRequest,
     db: Session = Depends(get_db)
@@ -78,7 +79,7 @@ async def audio_to_txns(
         raise HTTPException(status_code=500, detail=f"Error procesando audio: {str(e)}")
 
 
-@router.post("/parse-receipt", response_model=AudioToTxnResponse)
+@router.post("/parse-receipt", response_model=AudioToTxnResponse, responses=AI_RECEIPTS_ERROR_RESPONSES)
 async def parse_receipt(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
