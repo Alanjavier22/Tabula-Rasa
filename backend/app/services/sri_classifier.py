@@ -10,6 +10,8 @@ from app.services.ai_models import LITE_MODEL, with_gemini_retry
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_SRI_CATEGORY = "No Deducible"
+
 SRI_CATEGORIES = [
     "Alimentación",
     "Educación, Arte y Cultura",
@@ -17,7 +19,7 @@ SRI_CATEGORIES = [
     "Vivienda",
     "Vestimenta",
     "Turismo",
-    "No Deducible",
+    DEFAULT_SRI_CATEGORY,
 ]
 
 
@@ -165,7 +167,7 @@ class SRIClassifier:
             )
             response_text = (response.text or "{}").strip()
             result = json.loads(response_text)
-            return result.get("sri_category", "No Deducible")
+            return result.get("sri_category", DEFAULT_SRI_CATEGORY)
         except Exception as e:
             logger.warning(f"Error in SRI classification: {e}")
-            return "No Deducible"
+            return DEFAULT_SRI_CATEGORY
