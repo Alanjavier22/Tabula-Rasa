@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Sequence, Union
+from typing import Sequence
 
 from alembic import op
 import sqlalchemy as sa
@@ -16,9 +16,9 @@ from sqlalchemy import inspect, text
 
 
 revision: str = "c1f4a7b8e9d0"
-down_revision: Union[str, None] = "0af83e7f1b6a"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0af83e7f1b6a"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def _fingerprint(description, amount, date_value, transaction_type, account_id, running_balance, occurrence):
