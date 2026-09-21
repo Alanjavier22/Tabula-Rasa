@@ -21,8 +21,9 @@ const ShareTransactionModal = ({ sharingTransaction, transactionDescription, onC
 
         <div className="space-y-4">
           <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Persona</label>
+            <label htmlFor="share-transaction-name" className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Persona</label>
             <input
+              id="share-transaction-name"
               type="text"
               value={sharingTransaction.name}
               onChange={(e) => onChange({...sharingTransaction, name: e.target.value})}
@@ -30,8 +31,9 @@ const ShareTransactionModal = ({ sharingTransaction, transactionDescription, onC
             />
           </div>
           <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Monto de cobro ($)</label>
+            <label htmlFor="share-transaction-amount" className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Monto de cobro ($)</label>
             <input
+              id="share-transaction-amount"
               type="number"
               value={sharingTransaction.amount / 100}
               onChange={(e) => onChange({...sharingTransaction, amount: parseFloat(e.target.value) * 100})}

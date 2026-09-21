@@ -64,8 +64,9 @@ const GeneralTab = ({ categories, config, onBufferChange, exporting, onExportCSV
         <div className="bg-black/20 rounded-3xl p-6 border border-white/5">
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <label className="block text-xs font-black text-white/30 uppercase tracking-widest mb-2">Monto de Buffer ($)</label>
+              <label htmlFor="safe-to-spend-buffer" className="block text-xs font-black text-white/30 uppercase tracking-widest mb-2">Monto de Buffer ($)</label>
               <input
+                id="safe-to-spend-buffer"
                 type="number"
                 step="0.01"
                 value={config.safe_to_spend_buffer}

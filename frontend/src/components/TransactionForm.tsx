@@ -399,10 +399,11 @@ const TransactionForm = ({
                   <div key={index} className="space-y-3 p-4 bg-white/5 rounded-2xl border border-white/5 relative">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-[10px] font-bold text-white/20 uppercase mb-2 block">Monto</label>
+                        <label htmlFor={`split-amount-${index}`} className="text-[10px] font-bold text-white/20 uppercase mb-2 block">Monto</label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
                           <input
+                            id={`split-amount-${index}`}
                             type="text"
                             inputMode="decimal"
                             value={split.amount}
@@ -416,8 +417,9 @@ const TransactionForm = ({
                         </div>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-white/20 uppercase mb-2 block">Categoría</label>
+                        <label htmlFor={`split-category-${index}`} className="text-[10px] font-bold text-white/20 uppercase mb-2 block">Categoría</label>
                         <Select
+                          id={`split-category-${index}`}
                           value={split.category_id}
                           onChange={(value) => updateSplit(index, 'category_id', value)}
                           options={[
@@ -428,8 +430,9 @@ const TransactionForm = ({
                       </div>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-white/20 uppercase mb-2 block">Descripción opcional</label>
+                      <label htmlFor={`split-description-${index}`} className="text-[10px] font-bold text-white/20 uppercase mb-2 block">Descripción opcional</label>
                       <input
+                        id={`split-description-${index}`}
                         type="text"
                         value={split.description}
                         onChange={(e) => updateSplit(index, 'description', e.target.value)}

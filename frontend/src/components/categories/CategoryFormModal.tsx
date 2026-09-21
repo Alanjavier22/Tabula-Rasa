@@ -54,9 +54,9 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
 
               {/* VISTA PREVIA DINÁMICA */}
               <div className="space-y-3">
-                <label className="flex items-center gap-2 text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-1">
+                <span className="flex items-center gap-2 text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-1">
                   Vista Previa
-                </label>
+                </span>
                 <div className="bg-black/20 rounded-3xl p-6 border border-white/5 flex items-center justify-center min-h-[100px]">
                   <div
                     className="px-6 py-3 rounded-2xl border flex items-center gap-3 shadow-xl transition-all duration-300"

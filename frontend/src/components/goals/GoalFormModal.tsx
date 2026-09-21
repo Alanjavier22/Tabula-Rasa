@@ -71,8 +71,9 @@ const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm,
             >
               <div className="space-y-6">
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Nombre de la Meta</label>
+                  <label htmlFor="goal-name" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Nombre de la Meta</label>
                   <input
+                    id="goal-name"
                     type="text"
                     required
                     value={isCreate ? form.name : editForm.name}
@@ -84,8 +85,9 @@ const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm,
 
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Capital Objetivo ($)</label>
+                    <label htmlFor="goal-target-amount" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Capital Objetivo ($)</label>
                     <input
+                      id="goal-target-amount"
                       type="number"
                       step="0.01"
                       min="0.01"
@@ -97,8 +99,9 @@ const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm,
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Fecha Límite</label>
+                    <label htmlFor="goal-target-date" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Fecha Límite</label>
                     <DatePicker
+                      id="goal-target-date"
                       value={isCreate ? form.target_date : editForm.target_date}
                       onChange={(value) => isCreate ? setForm({...form, target_date: value}) : setEditForm({...editForm, target_date: value})}
                       placeholder="Elegir fecha"
@@ -107,8 +110,9 @@ const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm,
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Estado de la Misión</label>
+                  <label htmlFor="goal-status" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Estado de la Misión</label>
                   <Select
+                    id="goal-status"
                     value={isCreate ? form.status : editForm.status}
                     onChange={(value) => isCreate ? setForm({...form, status: value as GoalStatus}) : setEditForm({...editForm, status: value as GoalStatus})}
                     options={[
@@ -120,8 +124,9 @@ const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm,
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Propósito / Descripción</label>
+                  <label htmlFor="goal-description" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Propósito / Descripción</label>
                   <textarea
+                    id="goal-description"
                     value={isCreate ? form.description : editForm.description}
                     onChange={e => isCreate ? setForm({...form, description: e.target.value}) : setEditForm({...editForm, description: e.target.value})}
                     className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-5 text-white font-medium focus:outline-none focus:border-emerald-500/50 transition-all text-sm"

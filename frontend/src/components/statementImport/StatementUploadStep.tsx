@@ -38,8 +38,9 @@ const StatementUploadStep = ({
       ) : (
         <>
           <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700">
-            <label className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Tarjeta Destino</label>
+            <label htmlFor="statement-upload-account" className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Tarjeta Destino</label>
             <Select
+              id="statement-upload-account"
               value={accountId}
               onChange={onAccountIdChange}
               options={creditCardAccounts.map(acc => ({ value: acc.id.toString(), label: acc.name }))}

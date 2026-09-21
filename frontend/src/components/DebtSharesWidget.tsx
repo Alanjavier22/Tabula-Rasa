@@ -203,8 +203,9 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
             <form onSubmit={handleAddShare}>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Persona</label>
+                  <label htmlFor="debt-share-person" className="block text-sm font-medium text-slate-300 mb-2">Persona</label>
                   <input
+                    id="debt-share-person"
                     type="text"
                     value={formData.person_name}
                     onChange={(e) => setFormData({ ...formData, person_name: e.target.value })}
@@ -213,8 +214,9 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Monto</label>
+                  <label htmlFor="debt-share-amount" className="block text-sm font-medium text-slate-300 mb-2">Monto</label>
                   <input
+                    id="debt-share-amount"
                     type="number"
                     step="0.01"
                     value={formData.amount}
@@ -224,8 +226,9 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Descripción (opcional)</label>
+                  <label htmlFor="debt-share-description" className="block text-sm font-medium text-slate-300 mb-2">Descripción (opcional)</label>
                   <input
+                    id="debt-share-description"
                     type="text"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -233,8 +236,9 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Estado</label>
+                  <label htmlFor="debt-share-status" className="block text-sm font-medium text-slate-300 mb-2">Estado</label>
                   <select
+                    id="debt-share-status"
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"

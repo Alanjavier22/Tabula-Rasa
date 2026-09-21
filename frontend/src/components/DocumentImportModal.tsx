@@ -204,8 +204,9 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
         <div className="p-4 md:p-5 space-y-4 md:space-y-5">
           {/* Account Selection */}
           <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700">
-            <label className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Cuenta destino</label>
+            <label htmlFor="document-import-account" className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Cuenta destino</label>
             <Select
+              id="document-import-account"
               value={accountId}
               onChange={(value) => setAccountId(value)}
               options={accounts.map(acc => ({ value: acc.id, label: acc.name }))}

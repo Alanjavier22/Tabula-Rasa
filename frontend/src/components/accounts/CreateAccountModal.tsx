@@ -44,9 +44,9 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
 
               {/* VISTA PREVIA DE TARJETA VIRTUAL */}
               <div className="space-y-3">
-                <label className="flex items-center gap-2 text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-1">
+                <span className="flex items-center gap-2 text-[10px] font-black text-white/30 uppercase tracking-[0.2em] ml-1">
                   Vista Previa de Cuenta
-                </label>
+                </span>
                 <div className="bg-black/20 rounded-3xl p-4 border border-white/5">
                   <div className={`aspect-[1.6/1] w-full rounded-2xl bg-gradient-to-br ${getAccountStyle(form.account_type)} p-6 border border-white/10 relative overflow-hidden flex flex-col justify-between shadow-2xl`}>
                     <div className="flex justify-between items-start">
@@ -80,11 +80,12 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                 {/* Nombre y Tipo */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                    <label htmlFor="account-name" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                       <Building2 className="w-3 h-3" />
                       Alias de la Cuenta
                     </label>
                     <input
+                      id="account-name"
                       type="text"
                       required
                       autoFocus
@@ -95,11 +96,12 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                     />
                   </div>
                   <div>
-                    <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                    <label htmlFor="account-type" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                       <PiggyBank className="w-3 h-3" />
                       Tipo de Recurso
                     </label>
                     <Select
+                      id="account-type"
                       value={form.account_type}
                       onChange={(value) => setForm({...form, account_type: value})}
                       options={[
@@ -116,13 +118,14 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                 {/* Saldo y Banco */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                    <label htmlFor="account-balance" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                       <DollarSign className="w-3 h-3" />
                       Saldo Inicial
                     </label>
                     <div className="relative">
                       <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
                       <input
+                        id="account-balance"
                         type="text"
                         inputMode="decimal"
                         required
@@ -137,11 +140,12 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                     </div>
                   </div>
                   <div>
-                    <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                    <label htmlFor="account-bank-name" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                       <Building2 className="w-3 h-3" />
                       Entidad Financiera
                     </label>
                     <input
+                      id="account-bank-name"
                       type="text"
                       value={form.bank_name}
                       onChange={e => setForm({...form, bank_name: e.target.value})}
@@ -153,11 +157,12 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
 
                 {/* Vinculación */}
                 <div>
-                  <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="account-linked-account" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                     <Link className="w-3 h-3" />
                     Cuenta Vinculada
                   </label>
                   <Select
+                    id="account-linked-account"
                     value={form.linked_account_id}
                     onChange={(value) => setForm({...form, linked_account_id: value})}
                     options={[
@@ -180,10 +185,11 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                   >
                     <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                        <label htmlFor="account-statement-day" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                           Día de Corte
                         </label>
                         <input
+                          id="account-statement-day"
                           type="number"
                           min="1"
                           max="31"
@@ -194,10 +200,11 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                         />
                       </div>
                       <div>
-                        <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                        <label htmlFor="account-payment-day" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                           Límite de Pago
                         </label>
                         <input
+                          id="account-payment-day"
                           type="number"
                           min="1"
                           max="31"
@@ -209,12 +216,13 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                       </div>
                     </div>
                     <div>
-                      <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                      <label htmlFor="account-credit-limit" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                         Cupo de Crédito Otorgado
                       </label>
                       <div className="relative">
                         <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
                         <input
+                          id="account-credit-limit"
                           type="text"
                           inputMode="decimal"
                           value={form.credit_limit}

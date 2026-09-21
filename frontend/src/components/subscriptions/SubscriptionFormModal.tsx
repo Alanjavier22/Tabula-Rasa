@@ -73,8 +73,9 @@ const SubscriptionFormModal = ({ isOpen, editingSubscription, form, setForm, cat
             >
               <div className="space-y-6">
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Nombre del Servicio</label>
+                  <label htmlFor="subscription-name" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Nombre del Servicio</label>
                   <input
+                    id="subscription-name"
                     type="text"
                     required
                     value={form.name}
@@ -86,8 +87,9 @@ const SubscriptionFormModal = ({ isOpen, editingSubscription, form, setForm, cat
 
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Monto por Ciclo ($)</label>
+                    <label htmlFor="subscription-amount" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Monto por Ciclo ($)</label>
                     <input
+                      id="subscription-amount"
                       type="number"
                       step="0.01"
                       required
@@ -98,8 +100,9 @@ const SubscriptionFormModal = ({ isOpen, editingSubscription, form, setForm, cat
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Ciclo de Facturación</label>
+                    <label htmlFor="subscription-frequency" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Ciclo de Facturación</label>
                     <Select
+                      id="subscription-frequency"
                       value={form.frequency}
                       onChange={(value) => setForm({ ...form, frequency: value as SubscriptionFrequency })}
                       options={[
@@ -114,15 +117,17 @@ const SubscriptionFormModal = ({ isOpen, editingSubscription, form, setForm, cat
 
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Próximo Cobro</label>
+                    <label htmlFor="subscription-next-billing" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Próximo Cobro</label>
                     <DatePicker
+                      id="subscription-next-billing"
                       value={form.next_billing_date}
                       onChange={(value) => setForm({ ...form, next_billing_date: value })}
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Cuenta de Cargo</label>
+                    <label htmlFor="subscription-account" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Cuenta de Cargo</label>
                     <Select
+                      id="subscription-account"
                       value={form.account_id}
                       onChange={(value) => setForm({ ...form, account_id: value })}
                       options={[
@@ -134,8 +139,9 @@ const SubscriptionFormModal = ({ isOpen, editingSubscription, form, setForm, cat
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Categoría del Gasto</label>
+                  <label htmlFor="subscription-category" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Categoría del Gasto</label>
                   <Select
+                    id="subscription-category"
                     value={form.category_id}
                     onChange={(value) => setForm({ ...form, category_id: value })}
                     options={[

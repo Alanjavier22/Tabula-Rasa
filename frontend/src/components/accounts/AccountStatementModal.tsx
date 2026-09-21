@@ -56,13 +56,14 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="statement-balance" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                     <DollarSign className="w-3 h-3" />
                     Saldo al Corte
                   </label>
                   <div className="relative">
                     <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
                     <input
+                      id="statement-balance"
                       type="text"
                       inputMode="decimal"
                       required
@@ -77,13 +78,14 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                   </div>
                 </div>
                 <div>
-                  <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="statement-user-share" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                     <ShieldCheck className="w-3 h-3" />
                     Tu Parte (Gasto Real)
                   </label>
                   <div className="relative">
                     <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
                     <input
+                      id="statement-user-share"
                       type="text"
                       inputMode="decimal"
                       required
@@ -100,13 +102,14 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
               </div>
 
               <div>
-                <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                <label htmlFor="statement-amount-paid" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                   <CheckCircle2 className="w-3 h-3" />
                   Monto ya Abonado
                 </label>
                 <div className="relative">
                   <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
                   <input
+                    id="statement-amount-paid"
                     type="text"
                     inputMode="decimal"
                     value={statementForm.amount_paid}
@@ -122,12 +125,14 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <span className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                     <Calendar className="w-3 h-3" />
                     Periodo (Mes/Año)
-                  </label>
+                  </span>
                   <div className="flex gap-2">
                     <input
+                      id="statement-month"
+                      aria-label="Mes del estado de cuenta"
                       type="number"
                       min="1"
                       max="12"
@@ -137,6 +142,8 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                       className="w-1/2 bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-bold"
                     />
                     <input
+                      id="statement-year"
+                      aria-label="Año del estado de cuenta"
                       type="number"
                       min="2020"
                       max="2030"
@@ -148,10 +155,11 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                   </div>
                 </div>
                 <div>
-                  <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="statement-status" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                     Estado de Pago
                   </label>
                   <Select
+                    id="statement-status"
                     value={statementForm.status}
                     onChange={(value) => setStatementForm({...statementForm, status: value})}
                     options={[
@@ -165,10 +173,11 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="statement-cut-off-date" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                     Fecha de Corte
                   </label>
                   <input
+                    id="statement-cut-off-date"
                     type="date"
                     value={statementForm.cut_off_date}
                     onChange={e => setStatementForm({...statementForm, cut_off_date: e.target.value})}
@@ -176,10 +185,11 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                   />
                 </div>
                 <div>
-                  <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="statement-payment-due-date" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                     Límite de Pago
                   </label>
                   <input
+                    id="statement-payment-due-date"
                     type="date"
                     value={statementForm.payment_due_date}
                     onChange={e => setStatementForm({...statementForm, payment_due_date: e.target.value})}
@@ -189,11 +199,12 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
               </div>
 
               <div>
-                <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                <label htmlFor="statement-notes" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
                   <AlignLeft className="w-3 h-3" />
                   Notas Adicionales
                 </label>
                 <textarea
+                  id="statement-notes"
                   value={statementForm.notes}
                   onChange={e => setStatementForm({...statementForm, notes: e.target.value})}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-medium resize-none"
