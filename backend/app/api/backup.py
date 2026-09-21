@@ -118,7 +118,7 @@ def create_manual_backup(db: Session = Depends(get_db)):
                 message="Backup falló. Verifica que las credenciales de Google Drive estén configuradas."
             )
     except Exception as e:
-        logger.error(f"[BACKUP_API] Error creating manual backup: {e}")
+        logger.exception("[BACKUP_API] Error creating manual backup")
         raise HTTPException(status_code=500, detail=f"Error al crear backup: {str(e)}")
 
 
@@ -164,7 +164,7 @@ def list_google_drive_backups(db: Session = Depends(get_db)):
             message=f"{len(backup_files)} backups encontrados"
         )
     except Exception as e:
-        logger.error(f"[BACKUP_API] Error listing backups: {e}")
+        logger.exception("[BACKUP_API] Error listing backups")
         raise HTTPException(status_code=500, detail=f"Error al listar backups: {str(e)}")
 
 
@@ -226,7 +226,7 @@ def restore_from_drive(backup_id: str, request: Optional[RestoreRequest] = None,
             )
 
     except Exception as e:
-        logger.error(f"[BACKUP_API] Error restoring backup: {e}")
+        logger.exception("[BACKUP_API] Error restoring backup")
         raise HTTPException(status_code=500, detail=f"Error al restaurar backup: {str(e)}")
 
 
@@ -257,7 +257,7 @@ def list_pre_restore_backups_endpoint(db: Session = Depends(get_db)):
             message=f"{len(pre_restore_backups)} backups pre-restauración encontrados"
         )
     except Exception as e:
-        logger.error(f"[BACKUP_API] Error listing pre-restore backups: {e}")
+        logger.exception("[BACKUP_API] Error listing pre-restore backups")
         raise HTTPException(status_code=500, detail=f"Error al listar backups pre-restauración: {str(e)}")
 
 
@@ -285,7 +285,7 @@ def delete_pre_restore_backup_endpoint(request: DeletePreRestoreRequest, db: Ses
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[BACKUP_API] Error deleting pre-restore backup: {e}")
+        logger.exception("[BACKUP_API] Error deleting pre-restore backup")
         raise HTTPException(status_code=500, detail=f"Error al eliminar backup pre-restauración: {str(e)}")
 
 
@@ -316,7 +316,7 @@ def rollback_to_pre_restore_endpoint(request: RollbackRequest, db: Session = Dep
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[BACKUP_API] Error during rollback: {e}")
+        logger.exception("[BACKUP_API] Error during rollback")
         raise HTTPException(status_code=500, detail=f"Error durante rollback: {str(e)}")
 
 
@@ -417,5 +417,5 @@ def google_oauth_callback(code: str, db: Session = Depends(get_db)):
             </html>
         """)
     except Exception as e:
-        logger.error(f"[GOOGLE_AUTH] Error: {str(e)}")
+        logger.exception("[GOOGLE_AUTH] Error")
         return HTMLResponse(content=f"Error interno: {str(e)}")
