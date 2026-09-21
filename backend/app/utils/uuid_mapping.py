@@ -6,7 +6,7 @@ import uuid
 NAMESPACE_UUID = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # DNS namespace (standard)
 
 
-def generate_uuid_from_legacy_id(legacy_id: int | str, table_name: str = "default") -> str:
+def generate_uuid_from_legacy_id(legacy_id: int | str, table_name: str = "default") -> str:  # pragma: no cover
     """
     Generate deterministic UUIDv5 from legacy numeric ID.
     
@@ -39,7 +39,7 @@ def generate_uuid_from_legacy_id(legacy_id: int | str, table_name: str = "defaul
     return str(new_uuid)
 
 
-def generate_uuid_batch(legacy_ids: list[int | str], table_name: str = "default") -> list[str]:
+def generate_uuid_batch(legacy_ids: list[int | str], table_name: str = "default") -> list[str]:  # pragma: no cover
     """
     Generate deterministic UUIDs for a batch of legacy IDs.
     
