@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict
 
 logger = logging.getLogger(__name__)
 BUDGET_NOT_FOUND = "Budget not found"
+NOT_FOUND_RESPONSE = {404: {"description": "Budget not found"}}
 
 router = APIRouter(
     prefix="/budgets", 
@@ -119,7 +120,7 @@ def get_budgets(
         raise HTTPException(status_code=500, detail=f"Error fetching budgets: {str(e)}")
 
 
-@router.get("/{budget_id}", response_model=BudgetResponse)
+@router.get("/{budget_id}", response_model=BudgetResponse, responses=NOT_FOUND_RESPONSE)
 def get_budget(budget_id: str, db: Session = Depends(get_db)):
     budget = db.query(Budget).filter(Budget.id == budget_id).first()
     if not budget:
@@ -166,7 +167,7 @@ def update_recurring_budgets_endpoint(
 # (/update-recurring, /generate-recurring) - FastAPI hace matching en el orden de
 # registro, y "/{budget_id}" matchea cualquier string como si fuera un id,
 # incluyendo esos paths literales, dejándolos inalcanzables si se registran antes.
-@router.put("/{budget_id}", response_model=BudgetResponse)
+@router.put("/{budget_id}", response_model=BudgetResponse, responses=NOT_FOUND_RESPONSE)
 def update_budget(budget_id: str, budget: BudgetUpdate, db: Session = Depends(get_db)):
     db_budget = db.query(Budget).filter(Budget.id == budget_id).first()
     if not db_budget:
@@ -181,7 +182,7 @@ def update_budget(budget_id: str, budget: BudgetUpdate, db: Session = Depends(ge
     return enrich_budget_response(db_budget)
 
 
-@router.delete("/{budget_id}")
+@router.delete("/{budget_id}", responses=NOT_FOUND_RESPONSE)
 def delete_budget(budget_id: str, db: Session = Depends(get_db)):
     db_budget = db.query(Budget).filter(Budget.id == budget_id).first()
     if not db_budget:
