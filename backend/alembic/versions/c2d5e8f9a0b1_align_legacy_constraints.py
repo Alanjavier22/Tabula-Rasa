@@ -4,7 +4,7 @@ Revision ID: c2d5e8f9a0b1
 Revises: c1f4a7b8e9d0
 """
 
-from typing import Sequence, Union
+from typing import Sequence
 
 from alembic import op
 import sqlalchemy as sa
@@ -12,9 +12,9 @@ from sqlalchemy import inspect
 
 
 revision: str = "c2d5e8f9a0b1"
-down_revision: Union[str, None] = "c1f4a7b8e9d0"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "c1f4a7b8e9d0"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def _index_names(table_name: str) -> set[str]:
@@ -56,4 +56,3 @@ def downgrade() -> None:
 
     with op.batch_alter_table("accounts") as batch:
         batch.drop_constraint("fk_accounts_linked_account", type_="foreignkey")
-
