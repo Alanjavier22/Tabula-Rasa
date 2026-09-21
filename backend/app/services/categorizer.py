@@ -241,167 +241,196 @@ def get_heuristic_category(description: str, db, transaction_type: str = 'expens
     return None
 
 
+def _categorize_locally(transactions: list, db) -> tuple[dict, list]:
+    results = {}
+    pending_ai = []
+    for index, transaction in enumerate(transactions):
+        description = transaction.get('description', '')
+        beneficiary = transaction.get('beneficiary', '')
+        heuristic_id = get_heuristic_category(
+            description,
+            db,
+            transaction.get('transaction_type'),
+        )
+        if heuristic_id:
+            results[index] = (heuristic_id, False)
+            continue
+
+        pattern_id = get_pattern_based_category(description, db, beneficiary)
+        if pattern_id:
+            results[index] = (pattern_id, False)
+        else:
+            pending_ai.append((index, transaction))
+    return results, pending_ai
+
+
+def _assign_fallback_categories(results: dict, transactions: list, category_id: str) -> None:
+    for index, _ in transactions:
+        results[index] = (category_id, True)
+
+
+def _other_category_id(categories: list) -> str:
+    return str(next((category.id for category in categories if 'Otros' in category.name), categories[0].id))
+
+
+def _build_ai_instruction(category_map: list[dict]) -> str:
+    return (
+        "Eres un categorizador financiero experto para el mercado de ECUADOR. Tu objetivo es clasificar transacciones bancarias con precisión quirúrgica.\n\n"
+        f"CATEGORÍAS DISPONIBLES (ID y Nombre):\n{json.dumps(category_map, ensure_ascii=False)}\n\n"
+        "INSTRUCCIONES TÉCNICAS:\n"
+        "1. Usa el 'id' de la categoría para responder.\n"
+        "2. Prioriza el campo 'Beneficiario' si está presente, ya que contiene el comercio real.\n"
+        "3. Si la descripción es genérica (ej: COMPRA POS INTERNACIONAL), el beneficiario es la clave.\n\n"
+        "GUÍA DE CLASIFICACIÓN PRIORITARIA (ECUADOR):\n"
+        "- 'Pago de tarjeta de crédito' o números de tarjeta (ej: 3766..., 4110...) -> 'Obligaciones Financieras'.\n"
+        "- 'CIRCULOS', 'RELOJ', 'PIKEOS', 'FIBU' (Cobros compartidos) -> 'Ingresos' (si son positivos) o 'Alimentación' (si son negativos).\n"
+        "- 'TRANSFERENCIA INTERNA' o 'Otras cuentas' -> 'Transferencia Interna'.\n"
+        "- 'IVA SERVICIO DIGITAL' siempre va en la misma categoría que la compra original (ej: IVA UBER -> Movilidad).\n"
+        "- 'RECAUD. TIENDEC', 'DE PRATI', 'MEGAMAXI', 'MARATHON' -> 'Compras Personales y Retail'.\n"
+        "- 'SUELDO', 'ROL', 'FIBU' (ingreso) -> 'Ingresos'.\n"
+        "- 'RET. CAJERO', 'ATM' -> 'Retiros en Efectivo'.\n"
+        "- 'Meta acreditada', 'Intereses Meta' -> 'Ahorro e Inversión'.\n"
+        "- 'REVERSO', 'DEVOLUCION' -> 'Devoluciones / Ajustes'.\n"
+        "STRICT RULES:\n"
+        "1. reasoning: Breve (máximo 15 palabras).\n"
+        "2. category_id: Usa ÚNICAMENTE los IDs proporcionada.\n"
+        "3. index: Mantén el índice original para mapear correctamente.\n"
+        "4. Si no estás seguro o la descripción es ambigua (ej: 'COMPRA VARIOS'), usa el ID de la categoría 'Otros' y pon 'needs_clarification' en true.\n"
+        "5. Si el nombre del comercio en el beneficiario no te es familiar, marca 'needs_clarification' en true.\n"
+    )
+
+
+def _apply_batch_results(
+    results: dict,
+    batch_results: dict,
+    category_by_id: dict,
+    other_category_id: str,
+) -> None:
+    for item in batch_results.get('items', []):
+        index = item.get('index')
+        confidence = item.get('confidence', 0)
+        category_id = item.get('category_id')
+        if index is None:
+            continue
+        if confidence >= 0.45 and category_id in category_by_id:
+            clarification = item.get('needs_clarification', False) or confidence < 0.70
+            results[index] = (category_id, clarification)
+        else:
+            results[index] = (other_category_id, True)
+
+
+def _categorize_chunk_with_ai(
+    client,
+    categories: list,
+    chunk: list,
+    system_instruction: str,
+    transaction_text: str,
+    results: dict,
+) -> None:
+    max_retries = 5
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            response = client.models.generate_content(
+                model=LITE_MODEL,
+                contents=system_instruction + "\n\nLISTA A PROCESAR:\n" + transaction_text,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=AICategorizationBatchResponse,
+                    temperature=0.1,
+                ),
+            )
+            batch_results = json.loads((response.text or "{}").strip())
+            category_by_id = {str(category.id): category for category in categories}
+            other_category_id = _other_category_id(categories)
+            _apply_batch_results(results, batch_results, category_by_id, other_category_id)
+            break
+        except Exception as error:
+            is_retryable = ("503" in str(error) or "UNAVAILABLE" in str(error)) and retry_count < max_retries
+            if is_retryable:
+                retry_count += 1
+                wait_time = (retry_count + 1) * 4
+                logger.warning(f"[Categorizer] Gemini ocupado (503). Reintentando en {wait_time}s... ({retry_count}/{max_retries})")
+                time.sleep(wait_time)
+                continue
+
+            logger.exception("[Categorizer] Error en Batch AI")  # pragma: no cover
+            _assign_fallback_categories(results, chunk, _other_category_id(categories))
+            break
+
+    other_category_id = _other_category_id(categories)
+    for index, _ in chunk:
+        if index not in results:
+            results[index] = (other_category_id, True)
+
+
+def _categorize_pending_with_ai(
+    client,
+    categories: list,
+    pending_ai: list,
+    results: dict,
+    throttle: bool,
+) -> dict:
+    category_map = [
+        {'id': str(category.id), 'name': category.name, 'description': category.description or ''}
+        for category in categories
+    ]
+    system_instruction = _build_ai_instruction(category_map)
+    chunks = [pending_ai[index:index + 80] for index in range(0, len(pending_ai), 80)]
+    logger.info(f"[Categorizer] Iniciando procesamiento de {len(pending_ai)} transacciones en {len(chunks)} lotes...")
+
+    for chunk_index, chunk in enumerate(chunks):
+        if throttle:
+            wait_time = 1 if chunk_index > 0 else 0.5
+            logger.info(f"[Categorizer] Throttling: Esperando {wait_time}s...")
+            time.sleep(wait_time)
+
+        transaction_text = "\n".join([
+            f"- ID:{index} | Desc: '{mask_description(transaction.get('description', ''))}' | Beneficiario: '{transaction.get('beneficiary', '')}' | Monto: ${transaction.get('amount', 0) / 100:.2f} | Tipo: {transaction.get('transaction_type')}"
+            for index, transaction in chunk
+        ])
+        _categorize_chunk_with_ai(
+            client,
+            categories,
+            chunk,
+            system_instruction,
+            transaction_text,
+            results,
+        )
+    return results
+
+
 def categorize_batch(transactions: list, db_session=None, throttle: bool = True) -> dict:
     """
     Categorize multiple transactions efficiently using Rule-based logic + Batch AI.
     """
     if not transactions:
         return {}
-    
+
     db = db_session or SessionLocal()
     try:
-        results = {}
-        pending_ai = []
-        
-        # 1. Local Processing (Tiers 0 & 1)
-        for i, tx in enumerate(transactions):
-            desc = tx.get('description', '')
-            benef = tx.get('beneficiary', '')
-            
-            # Tier 0: Heuristics (Instant)
-            heuristic_id = get_heuristic_category(desc, db, tx.get('transaction_type'))
-            if heuristic_id:
-                results[i] = (heuristic_id, False) # Heuristics are 100% certain
-                continue
-
-            # Tier 1: Pattern Memory (DB lookup)
-            pattern_id = get_pattern_based_category(desc, db, benef)
-            if pattern_id:
-                results[i] = (pattern_id, False) # Learned patterns are 100% certain
-            else:
-                pending_ai.append((i, tx))
-        
+        results, pending_ai = _categorize_locally(transactions, db)
         if not pending_ai or not AI_ENABLED:
-            # Handle AI_ENABLED=False fallback
             if not AI_ENABLED and pending_ai:
                 otros_cat = db.query(Category).filter(Category.name == "Otros (🔄)").first()
-                for idx, _ in pending_ai:
-                    cat_id = str(otros_cat.id) if otros_cat else "unknown"
-                    results[idx] = (cat_id, True)
+                fallback_id = str(otros_cat.id) if otros_cat else "unknown"
+                _assign_fallback_categories(results, pending_ai, fallback_id)
             return results
 
-        # 2. Prepare AI context
         categories = db.query(Category).all()
         if not categories:
             return results
-            
-        category_map = [{"id": str(cat.id), "name": cat.name, "description": cat.description or ""} for cat in categories]
-        
+
         from app.models.config import Config
         config_entry = db.query(Config).filter(Config.key == "gemini_api_key").first()
         api_key = config_entry.value if config_entry and config_entry.value else None
-        
+
         if not api_key:
-            # Fallback to 'Otros' if no API key
-            otros_cat = next((c for c in categories if "Otros" in c.name), categories[0])
-            for idx, _ in pending_ai:
-                results[idx] = (str(otros_cat.id), True)
+            _assign_fallback_categories(results, pending_ai, _other_category_id(categories))
             return results
 
         client = genai.Client(api_key=cast(str, api_key))
-        
-        # Tier 4: Batch Processing with Throttling to respect 15 RPM
-        # Usamos un tamaño de lote de 80: Ideal para precisión en modelos Lite y cuotas RPM
-        chunk_size = 80
-        chunks = [pending_ai[i:i + chunk_size] for i in range(0, len(pending_ai), chunk_size)]
-        
-        logger.info(f"[Categorizer] Iniciando procesamiento de {len(pending_ai)} transacciones en {len(chunks)} lotes...")
-
-        for i, chunk in enumerate(chunks):
-            # Throttling: pausa breve entre lotes. LITE_MODEL admite 150 RPM real,
-            # este margen es solo para no saturar en ráfagas de varios lotes seguidos.
-            if throttle:
-                wait_time = 1 if i > 0 else 0.5
-                logger.info(f"[Categorizer] Throttling: Esperando {wait_time}s...")
-                time.sleep(wait_time)
-            
-            # Create a compact prompt for the batch (include beneficiary for context)
-            tx_list_str = "\n".join([
-                f"- ID:{idx} | Desc: '{mask_description(tx.get('description', ''))}' | Beneficiario: '{tx.get('beneficiary', '')}' | Monto: ${tx.get('amount', 0) / 100:.2f} | Tipo: {tx.get('transaction_type')}"
-                for idx, tx in chunk
-            ])
-
-            system_instruction = (
-                "Eres un categorizador financiero experto para el mercado de ECUADOR. Tu objetivo es clasificar transacciones bancarias con precisión quirúrgica.\n\n"
-                f"CATEGORÍAS DISPONIBLES (ID y Nombre):\n{json.dumps(category_map, ensure_ascii=False)}\n\n"
-                "INSTRUCCIONES TÉCNICAS:\n"
-                "1. Usa el 'id' de la categoría para responder.\n"
-                "2. Prioriza el campo 'Beneficiario' si está presente, ya que contiene el comercio real.\n"
-                "3. Si la descripción es genérica (ej: COMPRA POS INTERNACIONAL), el beneficiario es la clave.\n\n"
-                "GUÍA DE CLASIFICACIÓN PRIORITARIA (ECUADOR):\n"
-                "- 'Pago de tarjeta de crédito' o números de tarjeta (ej: 3766..., 4110...) -> 'Obligaciones Financieras'.\n"
-                "- 'CIRCULOS', 'RELOJ', 'PIKEOS', 'FIBU' (Cobros compartidos) -> 'Ingresos' (si son positivos) o 'Alimentación' (si son negativos).\n"
-                "- 'TRANSFERENCIA INTERNA' o 'Otras cuentas' -> 'Transferencia Interna'.\n"
-                "- 'IVA SERVICIO DIGITAL' siempre va en la misma categoría que la compra original (ej: IVA UBER -> Movilidad).\n"
-                "- 'RECAUD. TIENDEC', 'DE PRATI', 'MEGAMAXI', 'MARATHON' -> 'Compras Personales y Retail'.\n"
-                "- 'SUELDO', 'ROL', 'FIBU' (ingreso) -> 'Ingresos'.\n"
-                "- 'RET. CAJERO', 'ATM' -> 'Retiros en Efectivo'.\n"
-                "- 'Meta acreditada', 'Intereses Meta' -> 'Ahorro e Inversión'.\n"
-                "- 'REVERSO', 'DEVOLUCION' -> 'Devoluciones / Ajustes'.\n"
-                "STRICT RULES:\n"
-                "1. reasoning: Breve (máximo 15 palabras).\n"
-                "2. category_id: Usa ÚNICAMENTE los IDs proporcionada.\n"
-                "3. index: Mantén el índice original para mapear correctamente.\n"
-                "4. Si no estás seguro o la descripción es ambigua (ej: 'COMPRA VARIOS'), usa el ID de la categoría 'Otros' y pon 'needs_clarification' en true.\n"
-                "5. Si el nombre del comercio en el beneficiario no te es familiar, marca 'needs_clarification' en true.\n"
-            )
-
-            max_retries = 5
-            retry_count = 0
-            while retry_count < max_retries:
-                try:
-                    response = client.models.generate_content(
-                        model=LITE_MODEL,
-                        contents=system_instruction + "\n\nLISTA A PROCESAR:\n" + tx_list_str,
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            response_schema=AICategorizationBatchResponse,
-                            temperature=0.1
-                        )
-                    )
-                    
-                    response_text = (response.text or "{}").strip()
-                    batch_results = json.loads(response_text)
-                    category_by_id = {str(cat.id): cat for cat in categories}
-                    otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
-
-                    for item in batch_results.get("items", []):
-                        idx = item.get("index")
-                        conf = item.get("confidence", 0)
-                        cat_id = item.get("category_id")
-                        
-                        if idx is not None:
-                            # Estructura del resultado: (category_id, needs_clarification)
-                            if conf >= 0.45 and cat_id in category_by_id:
-                                # Si la confianza es media (0.45 a 0.70), marcamos para aclaración aunque hayamos elegido una
-                                clarification = item.get("needs_clarification", False) or (conf < 0.70)
-                                results[idx] = (cat_id, clarification)
-                            else:
-                                results[idx] = (otros_cat_id, True)
-                    
-                    break # Success! Exit retry loop
-                
-                except Exception as e:
-                    if ("503" in str(e) or "UNAVAILABLE" in str(e)) and retry_count < max_retries:
-                        retry_count += 1
-                        wait_time = (retry_count + 1) * 4 # Backoff: 8s, 12s, 16s...
-                        logger.warning(f"[Categorizer] Gemini ocupado (503). Reintentando en {wait_time}s... ({retry_count}/{max_retries})")
-                        time.sleep(wait_time)
-                    else:
-                        logger.exception("[Categorizer] Error en Batch AI")  # pragma: no cover
-                        # Fallback to 'Otros' for this chunk
-                        otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
-                        for idx, _ in chunk:
-                            results[idx] = (otros_cat_id, True)
-                        break # Other errors don't trigger retry
-
-            # Final check: if we hit max retries or some other exit, ensure chunk is categorized
-            otros_cat_id = str(next((c.id for c in categories if "Otros" in c.name), categories[0].id))
-            for idx, _ in chunk:
-                if idx not in results:
-                    results[idx] = (otros_cat_id, True)
-
-        return results
+        return _categorize_pending_with_ai(client, categories, pending_ai, results, throttle)
     finally:
         if not db_session:
             db.close()
