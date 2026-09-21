@@ -9,6 +9,10 @@ from pydantic import BaseModel, ConfigDict
 
 CONFIG_NOT_FOUND = "Config not found"
 NOT_FOUND_RESPONSE = {404: {"description": "Config not found"}}
+CONFIG_ERROR_RESPONSES = {
+    400: {"description": "Configuration request is invalid."},
+    500: {"description": "Configuration operation failed."},
+}
 
 router = APIRouter(
     prefix="/config", 
@@ -48,7 +52,7 @@ class ConfigResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-@router.post("/", response_model=ConfigResponse)
+@router.post("/", response_model=ConfigResponse, responses=CONFIG_ERROR_RESPONSES)
 def create_config(config: ConfigCreate, db: Session = Depends(get_db)):
     # Check if key already exists
     existing = db.query(Config).filter(Config.key == config.key).first()
@@ -175,7 +179,7 @@ def get_google_drive_status(db: Session = Depends(get_db)):
     )
 
 
-@router.post("/drive/test")
+@router.post("/drive/test", responses=CONFIG_ERROR_RESPONSES)
 def test_drive_connection():
     """Perform a real handshake test with Google Drive API."""
     from app.utils.backup_gdrive import test_google_drive_connection
@@ -238,7 +242,7 @@ def set_google_drive_credentials(credentials: GoogleDriveCredentials, db: Sessio
     db.commit()
     return {"message": "Google Drive credentials saved successfully"}
 
-@router.post("/wipe-database")
+@router.post("/wipe-database", responses=CONFIG_ERROR_RESPONSES)
 def wipe_database(db: Session = Depends(get_db)):
     """
     Vacía TODOS los datos financieros y transaccionales del sistema.
