@@ -14,16 +14,12 @@ FAIL-FAST: Schema mismatches will cause errors instead of auto-healing.
 import os
 import sys
 from typing import Optional
-from sqlalchemy import inspect, text
-from sqlalchemy.engine import Engine
-from sqlalchemy.ext.declarative import DeclarativeMeta
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from database import Base, engine
 # Importing models registers them on the Base metadata
-from app.models import *  # noqa: F401,F403
-from app.models.device import PairedDevice  # noqa: F401
+import app.models  # noqa: F401
 
 
 def _get_sqlite_type(sa_type) -> str:
