@@ -427,5 +427,5 @@ def export_declaracion_sri(
         )
 
     except Exception as e:
-        logger.error(f"Error generando declaración SRI: {str(e)}")
+        logger.exception("Error generando declaración SRI")
         raise HTTPException(status_code=500, detail=str(e))
