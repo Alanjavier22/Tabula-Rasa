@@ -11,6 +11,7 @@ interface SelectProps {
   onChange: (value: string) => void;
   options: SelectOption[];
   placeholder?: string;
+  id?: string;
   className?: string;
   disabled?: boolean;
   searchable?: boolean;
@@ -21,6 +22,7 @@ const Select = ({
   onChange,
   options,
   placeholder = "Seleccionar",
+  id,
   className = "",
   disabled = false,
   searchable = true
@@ -62,6 +64,7 @@ const Select = ({
   return (
     <div ref={selectRef} className={`relative ${className}`}>
       <button
+        id={id}
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
