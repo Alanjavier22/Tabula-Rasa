@@ -14,6 +14,8 @@ from app.models.asset import Asset
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.category import Category
 
+CSV_MEDIA_TYPE = "text/csv; charset=utf-8"
+
 router = APIRouter(
     prefix="/api/export",
     tags=["Export"],
@@ -64,7 +66,7 @@ def export_transactions(db: Session = Depends(get_db)):
 
         return Response(
             content=output.getvalue().encode('utf-8'),
-            media_type="text/csv; charset=utf-8",
+            media_type=CSV_MEDIA_TYPE,
             headers={
                 "Content-Disposition": f"attachment; filename=transacciones_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             }
@@ -96,7 +98,7 @@ def export_accounts(db: Session = Depends(get_db)):
 
         return Response(
             content=output.getvalue().encode('utf-8'),
-            media_type="text/csv; charset=utf-8",
+            media_type=CSV_MEDIA_TYPE,
             headers={
                 "Content-Disposition": f"attachment; filename=cuentas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             }
@@ -129,7 +131,7 @@ def export_assets(db: Session = Depends(get_db)):
 
         return Response(
             content=output.getvalue().encode('utf-8'),
-            media_type="text/csv; charset=utf-8",
+            media_type=CSV_MEDIA_TYPE,
             headers={
                 "Content-Disposition": f"attachment; filename=activos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             }
@@ -162,7 +164,7 @@ def export_snapshots(db: Session = Depends(get_db)):
 
         return Response(
             content=output.getvalue().encode('utf-8'),
-            media_type="text/csv; charset=utf-8",
+            media_type=CSV_MEDIA_TYPE,
             headers={
                 "Content-Disposition": f"attachment; filename=patrimonio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             }

@@ -7,6 +7,9 @@ from app.api.auth import get_current_device
 from app.models.config import Config
 from pydantic import BaseModel, ConfigDict
 
+CONFIG_NOT_FOUND = "Config not found"
+NOT_FOUND_RESPONSE = {404: {"description": "Config not found"}}
+
 router = APIRouter(
     prefix="/config", 
     tags=["config"], 
@@ -87,11 +90,11 @@ def get_configs(
     return result
 
 
-@router.get("/{config_key}", response_model=ConfigResponse)
+@router.get("/{config_key}", response_model=ConfigResponse, responses=NOT_FOUND_RESPONSE)
 def get_config(config_key: str, db: Session = Depends(get_db)):
     config = db.query(Config).filter(Config.key == config_key).first()
     if not config:
-        raise HTTPException(status_code=404, detail="Config not found")
+        raise HTTPException(status_code=404, detail=CONFIG_NOT_FOUND)
         
     # SECURITY: Mask private values
     c_dict = {
@@ -105,7 +108,7 @@ def get_config(config_key: str, db: Session = Depends(get_db)):
     return c_dict
 
 
-@router.put("/{config_key}", response_model=ConfigResponse)
+@router.put("/{config_key}", response_model=ConfigResponse, responses=NOT_FOUND_RESPONSE)
 def update_config(
     config_key: str,
     config: ConfigUpdate,
@@ -113,7 +116,7 @@ def update_config(
 ):
     db_config = db.query(Config).filter(Config.key == config_key).first()
     if not db_config:
-        raise HTTPException(status_code=404, detail="Config not found")
+        raise HTTPException(status_code=404, detail=CONFIG_NOT_FOUND)
     
     update_data = config.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -124,11 +127,11 @@ def update_config(
     return db_config
 
 
-@router.delete("/{config_key}")
+@router.delete("/{config_key}", responses=NOT_FOUND_RESPONSE)
 def delete_config(config_key: str, db: Session = Depends(get_db)):
     db_config = db.query(Config).filter(Config.key == config_key).first()
     if not db_config:
-        raise HTTPException(status_code=404, detail="Config not found")
+        raise HTTPException(status_code=404, detail=CONFIG_NOT_FOUND)
     
     db.delete(db_config)
     db.commit()

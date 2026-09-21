@@ -19,6 +19,8 @@ from typing import Any, cast
 from app.services.categorizer import normalize_description
 from app.services.privacy import mask_description
 
+UNCATEGORIZED_LABEL = "Sin Categoría"
+
 
 def _build_transaction_summary(db: Session, now: datetime) -> dict:
     """Summarize current month transactions by category (anonymous: only categories, amounts, relative dates)."""
@@ -40,7 +42,7 @@ def _build_transaction_summary(db: Session, now: datetime) -> dict:
             continue
         if t.category_id not in category_cache:
             cat = db.query(Category).filter(Category.id == t.category_id).first() if t.category_id else None
-            category_cache[t.category_id] = cat.name if cat else "Sin Categoría"
+            category_cache[t.category_id] = cat.name if cat else UNCATEGORIZED_LABEL
         cat_name = category_cache[t.category_id]
         expense_by_category[cat_name] = expense_by_category.get(cat_name, 0) + t.amount
 
@@ -51,7 +53,7 @@ def _build_transaction_summary(db: Session, now: datetime) -> dict:
     for t in transactions:
         if t.transaction_type == 'expense' and t.amount > avg_expense * 2 and avg_expense > 0:
             days_ago = (now.replace(tzinfo=None) - t.date.replace(tzinfo=None)).days if t.date else 0
-            cat_name = category_cache.get(t.category_id, "Sin Categoría")
+            cat_name = category_cache.get(t.category_id, UNCATEGORIZED_LABEL)
             atypical.append(f"${t.amount / 100:.2f} en {cat_name} (hace {days_ago} días)")
 
     return {
@@ -117,7 +119,7 @@ def _build_budget_summary(db: Session, now: datetime) -> list:
     for b in budgets:
         amount = b.amount
         spent = b.spent
-        cat_name = b.category.name if b.category else "Sin Categoría"
+        cat_name = b.category.name if b.category else UNCATEGORIZED_LABEL
         result.append({
             "category": cat_name,
             "limit": amount,
@@ -473,7 +475,7 @@ def _build_rolling_30d_summary(db: Session, now: datetime) -> dict:
             continue
         if t.category_id not in category_cache:
             cat = db.query(Category).filter(Category.id == t.category_id).first() if t.category_id else None
-            category_cache[t.category_id] = cat.name if cat else "Sin Categoría"
+            category_cache[t.category_id] = cat.name if cat else UNCATEGORIZED_LABEL
         cat_name = category_cache[t.category_id]
         expense_by_category[cat_name] = expense_by_category.get(cat_name, 0) + t.amount
 

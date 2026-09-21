@@ -8,6 +8,9 @@ from app.models.transaction import Transaction
 from app.models.category import Category
 from pydantic import BaseModel, ConfigDict
 
+TRANSACTION_NOT_FOUND = "Transaction not found"
+NOT_FOUND_RESPONSE = {404: {"description": "Transaction not found"}}
+
 
 class TransactionSplitBase(BaseModel):
     transaction_id: str
@@ -55,7 +58,7 @@ def _validate_split_sum(transaction: Transaction, new_amount: int, existing_sum:
 def _pre_create(payload: TransactionSplitCreate, db: Session) -> None:
     transaction = db.query(Transaction).filter(Transaction.id == payload.transaction_id).first()
     if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise HTTPException(status_code=404, detail=TRANSACTION_NOT_FOUND)
     _validate_category(payload.category_id, db)
 
     existing_sum = sum(
@@ -70,7 +73,7 @@ def _pre_create(payload: TransactionSplitCreate, db: Session) -> None:
 def _pre_update(existing: TransactionSplit, payload: TransactionSplitUpdate, db: Session) -> None:
     transaction = db.query(Transaction).filter(Transaction.id == existing.transaction_id).first()
     if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise HTTPException(status_code=404, detail=TRANSACTION_NOT_FOUND)
     _validate_category(payload.category_id, db)
 
     if payload.amount is not None:
@@ -107,7 +110,7 @@ def get_transaction_splits(skip: int = 0, limit: int = 100, transaction_id: Opti
     return query.offset(skip).limit(limit).all()
 
 
-@router.post("/batch/{transaction_id}", response_model=List[TransactionSplitResponse])
+@router.post("/batch/{transaction_id}", response_model=List[TransactionSplitResponse], responses=NOT_FOUND_RESPONSE)
 def create_transaction_splits_batch(
     transaction_id: str,
     splits: List[TransactionSplitCreate],
@@ -116,7 +119,7 @@ def create_transaction_splits_batch(
     """Create multiple splits for a transaction in one batch operation."""
     transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise HTTPException(status_code=404, detail=TRANSACTION_NOT_FOUND)
 
     # Validate each split amount is positive
     for idx, s in enumerate(splits):

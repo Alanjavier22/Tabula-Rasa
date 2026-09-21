@@ -17,6 +17,8 @@ from app.utils.backup_local import checkpoint_db, rotate_local_backups, restore_
 backup_logger = logging.getLogger(__name__)
 
 BACKUP_ROTATION_COUNT = int(os.getenv('BACKUP_ROTATION_COUNT', '30'))
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
+GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
 
 
 def get_google_drive_credentials() -> Optional[tuple[str, str, str]]:
@@ -86,10 +88,10 @@ def test_google_drive_connection() -> dict:
         creds = Credentials(
             token=None,
             refresh_token=refresh_token,
-            token_uri="https://oauth2.googleapis.com/token",
+            token_uri=GOOGLE_TOKEN_URI,
             client_id=client_id,
             client_secret=client_secret,
-            scopes=["https://www.googleapis.com/auth/drive"]
+            scopes=[GOOGLE_DRIVE_SCOPE]
         )
 
         # Real handshake: Refresh the token
@@ -200,10 +202,10 @@ def create_external_backup() -> Optional[str]:
             creds = Credentials(
                 token=None,
                 refresh_token=refresh_token,
-                token_uri="https://oauth2.googleapis.com/token",
+                token_uri=GOOGLE_TOKEN_URI,
                 client_id=client_id,
                 client_secret=client_secret,
-                scopes=["https://www.googleapis.com/auth/drive"]
+                scopes=[GOOGLE_DRIVE_SCOPE]
             )
 
             # Refresh the access token with network error handling
@@ -361,10 +363,10 @@ def list_external_backups() -> list[dict]:
         creds = Credentials(
             token=None,
             refresh_token=refresh_token,
-            token_uri="https://oauth2.googleapis.com/token",
+            token_uri=GOOGLE_TOKEN_URI,
             client_id=client_id,
             client_secret=client_secret,
-            scopes=["https://www.googleapis.com/auth/drive"]
+            scopes=[GOOGLE_DRIVE_SCOPE]
         )
 
         # Refresh the access token
@@ -421,10 +423,10 @@ def download_backup_from_drive(backup_id: str) -> Optional[str]:
         creds = Credentials(
             token=None,
             refresh_token=refresh_token,
-            token_uri="https://oauth2.googleapis.com/token",
+            token_uri=GOOGLE_TOKEN_URI,
             client_id=client_id,
             client_secret=client_secret,
-            scopes=["https://www.googleapis.com/auth/drive"]
+            scopes=[GOOGLE_DRIVE_SCOPE]
         )
 
         # Refresh the access token

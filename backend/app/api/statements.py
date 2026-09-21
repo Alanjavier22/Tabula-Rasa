@@ -9,6 +9,9 @@ from app.models.credit_card_statement import CreditCardStatement, StatementStatu
 from app.models.debt_share import DebtShare, DebtShareStatus
 from app.utils.date_parser import parse_date_robustly
 
+STATEMENT_NOT_FOUND = "Statement not found"
+NOT_FOUND_RESPONSE = {404: {"description": "Statement not found"}}
+
 router = APIRouter(
     prefix="/statements", 
     tags=["Credit Card Statements"], 
@@ -115,12 +118,12 @@ def get_statements(account_id: Optional[str] = None, db: Session = Depends(get_d
     return [serialize_statement(s) for s in statements]
 
 
-@router.get("/{statement_id}")
+@router.get("/{statement_id}", responses=NOT_FOUND_RESPONSE)
 def get_statement(statement_id: str, db: Session = Depends(get_db)):
     from sqlalchemy.orm import joinedload
     stmt = db.query(CreditCardStatement).options(joinedload(CreditCardStatement.debt_shares), joinedload(CreditCardStatement.account)).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
-        raise HTTPException(status_code=404, detail="Statement not found")
+            raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     return serialize_statement(stmt)
 
 
@@ -142,11 +145,11 @@ def create_statement(data: StatementCreate, db: Session = Depends(get_db)):
     return serialize_statement(stmt)
 
 
-@router.put("/{statement_id}")
+@router.put("/{statement_id}", responses=NOT_FOUND_RESPONSE)
 def update_statement(statement_id: str, data: StatementUpdate, db: Session = Depends(get_db)):
     stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
-        raise HTTPException(status_code=404, detail="Statement not found")
+        raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     update_data = data.model_dump(exclude_unset=True)
     if "payment_due_date" in update_data and update_data["payment_due_date"]:
         update_data["payment_due_date"] = parse_date_robustly(update_data["payment_due_date"])
@@ -159,21 +162,21 @@ def update_statement(statement_id: str, data: StatementUpdate, db: Session = Dep
     return serialize_statement(stmt)
 
 
-@router.delete("/{statement_id}")
+@router.delete("/{statement_id}", responses=NOT_FOUND_RESPONSE)
 def delete_statement(statement_id: str, db: Session = Depends(get_db)):
     stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
-        raise HTTPException(status_code=404, detail="Statement not found")
+        raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     db.delete(stmt)
     db.commit()
     return {"message": "Statement deleted"}
 
 
-@router.post("/{statement_id}/shares")
+@router.post("/{statement_id}/shares", responses=NOT_FOUND_RESPONSE)
 def add_debt_share(statement_id: str, data: DebtShareBase, db: Session = Depends(get_db)):
     stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
     if not stmt:
-        raise HTTPException(status_code=404, detail="Statement not found")
+        raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     ds = DebtShare(statement_id=statement_id, **data.model_dump())
     db.add(ds)
     db.commit()
