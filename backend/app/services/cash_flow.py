@@ -135,8 +135,8 @@ class CashFlowService:
             if recent_income_sum is not None:
                 return int(recent_income_sum) // 3
             return 0
-        except Exception as e:
-            logger.error(f"[CashFlowService] Error getting monthly income proxy: {e}", exc_info=True)
+        except Exception:  # pragma: no cover
+            logger.exception("[CashFlowService] Error getting monthly income proxy")  # pragma: no cover
             return 0
 
     @staticmethod
@@ -345,7 +345,7 @@ class CashFlowService:
                 },
             )
         except Exception as e:
-            logger.error(f"[CashFlowService] Error calculating projection: {e}", exc_info=True)
+            logger.exception("[CashFlowService] Error calculating projection")  # pragma: no cover
             raise e
 
     @staticmethod

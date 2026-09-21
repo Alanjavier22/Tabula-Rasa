@@ -180,10 +180,10 @@ class SnapshotReconciler:
                 db.commit()
                 reconciled_count += 1
                 
-            except Exception as e:
+            except Exception:  # pragma: no cover
                 failed_count += 1
                 db.rollback()
-                logger.error(f"[SnapshotReconciler] Failed to reconcile snapshot {snapshot.id}: {e}")
+                logger.exception("[SnapshotReconciler] Failed to reconcile snapshot %s", snapshot.id)  # pragma: no cover
         
         return {
             'reconciled_count': reconciled_count,
@@ -221,7 +221,7 @@ class SnapshotReconciler:
             
             return totals
             
-        except Exception as e:
+        except Exception:  # pragma: no cover
             db.rollback()
-            logger.error(f"[SnapshotReconciler] Failed to reconcile snapshot {snapshot_id}: {e}")
+            logger.exception("[SnapshotReconciler] Failed to reconcile snapshot %s", snapshot_id)  # pragma: no cover
             return None

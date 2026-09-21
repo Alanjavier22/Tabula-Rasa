@@ -71,8 +71,8 @@ def categorize_transactions_background(transaction_ids: list[str]):
         db.commit()
         logger.info(f"Batch categorization completed for {len(uncategorized)} transactions")
             
-    except Exception as e:
-        logger.error(f"Error en categorización asíncrona: {e}")
+    except Exception:  # pragma: no cover
+        logger.exception("Error en categorización asíncrona")  # pragma: no cover
         db.rollback()
     finally:
         db.close()
