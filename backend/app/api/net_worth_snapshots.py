@@ -15,6 +15,8 @@ from app.models.config import Config
 from app.services.snapshot_reconciler import SnapshotReconciler
 from pydantic import BaseModel, ConfigDict
 
+SNAPSHOT_NOT_FOUND = "Snapshot not found"
+
 router = APIRouter(
     prefix="/snapshots", 
     tags=["snapshots"], 
@@ -77,7 +79,7 @@ def get_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
         NetWorthSnapshot.is_deleted == False
     ).first()
     if not snapshot:
-        raise HTTPException(status_code=404, detail="Snapshot not found")
+        raise HTTPException(status_code=404, detail=SNAPSHOT_NOT_FOUND)
     return snapshot
 
 
@@ -94,7 +96,7 @@ def get_snapshot_by_month_year(month: int, year: int, db: Session = Depends(get_
 def delete_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
     snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.id == snapshot_id).first()
     if not snapshot:
-        raise HTTPException(status_code=404, detail="Snapshot not found")
+        raise HTTPException(status_code=404, detail=SNAPSHOT_NOT_FOUND)
     db.delete(snapshot)
     db.commit()
     return {"message": "Snapshot deleted successfully"}
@@ -105,7 +107,7 @@ def analyze_month(snapshot_id: str, db: Session = Depends(get_db)):
     """Analyze a month's snapshot compared to the previous month using Gemini AI."""
     snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.id == snapshot_id).first()
     if not snapshot:
-        raise HTTPException(status_code=404, detail="Snapshot not found")
+        raise HTTPException(status_code=404, detail=SNAPSHOT_NOT_FOUND)
 
     prev_month = snapshot.month - 1 if snapshot.month > 1 else 12
     prev_year = snapshot.year if snapshot.month > 1 else snapshot.year - 1
@@ -208,7 +210,7 @@ def reconcile_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
     try:
         result = SnapshotReconciler.reconcile_snapshot_by_id(db, snapshot_id)
         if not result:
-            raise HTTPException(status_code=404, detail="Snapshot not found")
+            raise HTTPException(status_code=404, detail=SNAPSHOT_NOT_FOUND)
         return {"message": "Snapshot reconciled successfully", "totals": result}
     except HTTPException:
         raise
@@ -221,7 +223,7 @@ def lock_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
     """Manually lock a snapshot to prevent any further changes."""
     snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.id == snapshot_id).first()
     if not snapshot:
-        raise HTTPException(status_code=404, detail="Snapshot not found")
+        raise HTTPException(status_code=404, detail=SNAPSHOT_NOT_FOUND)
     
     snapshot.is_locked = cast(Any, True)
     db.commit()
