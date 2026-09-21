@@ -144,7 +144,7 @@ STRICT RULES:
             key_assumptions=impact_data.get("key_assumptions", [])
         )
     except Exception as e:
-        logger.error(f"Error in Oracle Engine: {e}")
+        logger.exception("Error in Oracle Engine")
         return WhatIfScenarioResponse(
             scenario_title="Error de Simulación",
             summary=f"El Motor Oracle no pudo proyectar el escenario: {str(e)}",
@@ -191,7 +191,7 @@ async def suggest_whatif_scenarios(db: Session = Depends(get_db)):
         scenarios = response_data.get("scenarios", [])
         return [SuggestedScenario(**s) if isinstance(s, dict) else s for s in scenarios][:3]
     except Exception as e:
-        logger.error(f"Error sugiriendo escenarios: {e}")
+        logger.exception("Error sugiriendo escenarios")
         return [
             SuggestedScenario(title="Ahorro en Comida", description="¿Qué pasa si cocino más en casa?", user_prompt="Reducir mi gasto en Restaurantes y Comida un 30%"),
             SuggestedScenario(title="Inversión Mensual", description="Simular inversión recurrente", user_prompt="Invertir $100 adicionales cada mes en un fondo con 8% de retorno"),
