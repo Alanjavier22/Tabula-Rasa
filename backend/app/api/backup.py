@@ -34,6 +34,11 @@ router = APIRouter(
     tags=["Backup"]
 )
 
+BACKUP_ERROR_RESPONSES = {
+    400: {"description": "Invalid backup request."},
+    500: {"description": "Backup operation failed."},
+}
+
 
 def _safe_log_value(value: object) -> str:
     """Encode untrusted values before writing them to logs."""
@@ -96,7 +101,7 @@ class RollbackRequest(BaseModel):
     backup_path: str
 
 
-@router.post("/manual", dependencies=[Depends(get_current_device)], response_model=ManualBackupResponse)
+@router.post("/manual", dependencies=[Depends(get_current_device)], response_model=ManualBackupResponse, responses=BACKUP_ERROR_RESPONSES)
 def create_manual_backup(db: Session = Depends(get_db)):
     """
     Trigger a manual backup to Google Drive.
@@ -122,7 +127,7 @@ def create_manual_backup(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error al crear backup: {str(e)}")
 
 
-@router.get("/list", dependencies=[Depends(get_current_device)], response_model=BackupsListResponse)
+@router.get("/list", dependencies=[Depends(get_current_device)], response_model=BackupsListResponse, responses=BACKUP_ERROR_RESPONSES)
 def list_google_drive_backups(db: Session = Depends(get_db)):
     """
     List all available backups from Google Drive.
@@ -168,7 +173,7 @@ def list_google_drive_backups(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error al listar backups: {str(e)}")
 
 
-@router.post("/restore/{backup_id}", dependencies=[Depends(get_current_device)], response_model=RestoreResponse)
+@router.post("/restore/{backup_id}", dependencies=[Depends(get_current_device)], response_model=RestoreResponse, responses=BACKUP_ERROR_RESPONSES)
 def restore_from_drive(backup_id: str, request: Optional[RestoreRequest] = None, db: Session = Depends(get_db)):
     """
     Restore database from a specific Google Drive backup with safety validations.
@@ -230,7 +235,7 @@ def restore_from_drive(backup_id: str, request: Optional[RestoreRequest] = None,
         raise HTTPException(status_code=500, detail=f"Error al restaurar backup: {str(e)}")
 
 
-@router.get("/pre-restore/list", dependencies=[Depends(get_current_device)], response_model=PreRestoreListResponse)
+@router.get("/pre-restore/list", dependencies=[Depends(get_current_device)], response_model=PreRestoreListResponse, responses=BACKUP_ERROR_RESPONSES)
 def list_pre_restore_backups_endpoint(db: Session = Depends(get_db)):
     """
     List all local pre-restore backup files.
@@ -261,7 +266,7 @@ def list_pre_restore_backups_endpoint(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error al listar backups pre-restauración: {str(e)}")
 
 
-@router.post("/pre-restore/delete", dependencies=[Depends(get_current_device)])
+@router.post("/pre-restore/delete", dependencies=[Depends(get_current_device)], responses=BACKUP_ERROR_RESPONSES)
 def delete_pre_restore_backup_endpoint(request: DeletePreRestoreRequest, db: Session = Depends(get_db)):
     """
     Delete a specific pre-restore backup file.
@@ -289,7 +294,7 @@ def delete_pre_restore_backup_endpoint(request: DeletePreRestoreRequest, db: Ses
         raise HTTPException(status_code=500, detail=f"Error al eliminar backup pre-restauración: {str(e)}")
 
 
-@router.post("/pre-restore/rollback", dependencies=[Depends(get_current_device)], response_model=RestoreResponse)
+@router.post("/pre-restore/rollback", dependencies=[Depends(get_current_device)], response_model=RestoreResponse, responses=BACKUP_ERROR_RESPONSES)
 def rollback_to_pre_restore_endpoint(request: RollbackRequest, db: Session = Depends(get_db)):
     """
     Rollback to a pre-restore backup (reverts a previous restore operation).
@@ -320,7 +325,7 @@ def rollback_to_pre_restore_endpoint(request: RollbackRequest, db: Session = Dep
         raise HTTPException(status_code=500, detail=f"Error durante rollback: {str(e)}")
 
 
-@router.get("/google/auth-url", dependencies=[Depends(get_current_device)])
+@router.get("/google/auth-url", dependencies=[Depends(get_current_device)], responses=BACKUP_ERROR_RESPONSES)
 def get_google_auth_url(db: Session = Depends(get_db)):
     """
     Generates the Google OAuth2 authorization URL manually to avoid PKCE issues.
