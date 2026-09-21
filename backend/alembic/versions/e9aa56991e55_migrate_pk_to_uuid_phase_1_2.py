@@ -5,7 +5,7 @@ Revises: b2f4c8e91a03
 Create Date: 2026-04-29 22:41:40.646032
 
 """
-from typing import Sequence, Union
+from typing import Sequence
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.sql import table, column
@@ -13,9 +13,9 @@ import uuid
 
 # revision identifiers, used by Alembic.
 revision: str = 'e9aa56991e55'
-down_revision: Union[str, None] = 'b2f4c8e91a03'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = 'b2f4c8e91a03'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 tables_with_pk = [
     'accounts', 'categories', 'transactions', 'budgets', 'goals', 
