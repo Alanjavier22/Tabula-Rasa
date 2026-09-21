@@ -64,8 +64,8 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
     setLoadingWhatIf(true);
     try {
       // Deep Context: Send 150 transactions with proper schema mapping to avoid 422
-      const categoryTransactions = transactions.slice(0, 150).map((txn) => ({
-        id: txn.id || `temp-${Math.random()}`,
+      const categoryTransactions = transactions.slice(0, 150).map((txn, index) => ({
+        id: txn.id || `temp-${index}`,
         description: txn.description || 'Unknown',
         amount: Math.round(txn.amount || 0),
         date: txn.date || new Date().toISOString().split('T')[0],
