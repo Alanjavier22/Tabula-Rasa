@@ -440,7 +440,7 @@ class StatementIntelligenceService:
 
             return new_txs_count
         except Exception as e:
-            logger.error(f"❌ ERROR EN CONFIRM-IMPORT: {str(e)}", exc_info=True)
+            logger.exception("❌ ERROR EN CONFIRM-IMPORT")
             self.db.rollback()
             log.status = cast(Any, 'error')
             log.error_message = cast(Any, str(e))
