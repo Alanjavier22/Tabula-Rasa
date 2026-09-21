@@ -8,6 +8,7 @@ from app.models.transaction import Transaction
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime, timezone
 
+GOAL_NOT_FOUND = "Goal not found"
 
 router = APIRouter(
     prefix="/goals", 
@@ -85,7 +86,7 @@ def get_goals(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 def get_goal(goal_id: str, db: Session = Depends(get_db)):
     goal = db.query(Goal).filter(Goal.id == goal_id).first()
     if not goal:
-        raise HTTPException(status_code=404, detail="Goal not found")
+        raise HTTPException(status_code=404, detail=GOAL_NOT_FOUND)
     return goal
 
 
@@ -93,7 +94,7 @@ def get_goal(goal_id: str, db: Session = Depends(get_db)):
 def update_goal(goal_id: str, goal: GoalUpdate, db: Session = Depends(get_db)):
     db_goal = db.query(Goal).filter(Goal.id == goal_id).first()
     if not db_goal:
-        raise HTTPException(status_code=404, detail="Goal not found")
+        raise HTTPException(status_code=404, detail=GOAL_NOT_FOUND)
     
     update_data = goal.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -108,7 +109,7 @@ def update_goal(goal_id: str, goal: GoalUpdate, db: Session = Depends(get_db)):
 def delete_goal(goal_id: str, db: Session = Depends(get_db)):
     db_goal = db.query(Goal).filter(Goal.id == goal_id).first()
     if not db_goal:
-        raise HTTPException(status_code=404, detail="Goal not found")
+        raise HTTPException(status_code=404, detail=GOAL_NOT_FOUND)
     
     # Unlink transactions from this goal
     db.query(Transaction).filter(Transaction.goal_id == goal_id).update({"goal_id": None})
