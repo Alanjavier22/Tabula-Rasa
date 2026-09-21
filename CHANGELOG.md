@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.6...v0.1.7) (2026-09-21)
+
+
+### Documentación y mantenimiento
+
+* **sonar:** reduce complejidad de finalize_import ([f75496f](https://github.com/Alanjavier22/Tabula-Rasa/commit/f75496fcaec832472ebfa081fd1c9a46866b8ed7))
+
 ## [0.1.6](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.5...v0.1.6) (2026-09-21)
 
 
