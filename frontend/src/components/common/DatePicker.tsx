@@ -7,6 +7,7 @@ interface DatePickerProps {
   value: string;
   onChange: (date: string) => void;
   placeholder?: string;
+  id?: string;
   className?: string;
   disabled?: boolean;
 }
@@ -15,6 +16,7 @@ const DatePicker = ({
   value,
   onChange,
   placeholder = "Seleccionar fecha",
+  id,
   className = "",
   disabled = false
 }: DatePickerProps) => {
@@ -111,6 +113,7 @@ const DatePicker = ({
         disabled={disabled}
         customInput={
           <button
+            id={id}
             type="button"
             disabled={disabled}
             onClick={() => !disabled && setIsOpen(!isOpen)}
