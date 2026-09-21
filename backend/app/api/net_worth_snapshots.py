@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict
 
 SNAPSHOT_NOT_FOUND = "Snapshot not found"
 NOT_FOUND_RESPONSE = {404: {"description": "Snapshot not found"}}
+SNAPSHOT_ERROR_RESPONSES = {500: {"description": "Snapshot operation failed."}}
 
 router = APIRouter(
     prefix="/snapshots", 
@@ -49,7 +50,7 @@ class NetWorthSnapshotResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-@router.post("/create", response_model=NetWorthSnapshotResponse)
+@router.post("/create", response_model=NetWorthSnapshotResponse, responses=SNAPSHOT_ERROR_RESPONSES)
 def create_snapshot(
     data: NetWorthSnapshotCreate,
     db: Session = Depends(get_db)
@@ -190,7 +191,7 @@ Responde en español, máximo 100 palabras."""
         raise HTTPException(status_code=500, detail=f"Error analyzing month: {str(e)}")
 
 
-@router.post("/reconcile")
+@router.post("/reconcile", responses=SNAPSHOT_ERROR_RESPONSES)
 def reconcile_stale_snapshots(db: Session = Depends(get_db)):
     """
     FASE 2: Reconcile all stale snapshots using verified transaction history.
