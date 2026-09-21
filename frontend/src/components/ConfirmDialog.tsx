@@ -13,7 +13,12 @@ const ConfirmDialog = ({ isOpen, title, message, onConfirm, onCancel }: ConfirmD
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCancel} />
+      <button
+        type="button"
+        aria-label="Cerrar diálogo"
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+        onClick={onCancel}
+      />
       <div className="relative bg-slate-800 border border-red-500/50 rounded-2xl shadow-2xl w-full max-w-md p-6">
         <div className="flex items-start gap-4">
           <div className="flex-shrink-0">
