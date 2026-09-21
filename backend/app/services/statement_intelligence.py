@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 import google.genai as genai
 from google.genai import types
 from app.services.ai_models import MULTIMODAL_MODEL
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 logger = logging.getLogger(__name__)
 from database import SessionLocal
@@ -232,6 +232,222 @@ class StatementIntelligenceService:
         
         return parsed_data
 
+    def _build_import_transaction(self, log: ImportLog, tx_data: Dict, transaction_date: datetime) -> Transaction:
+        category_id = tx_data.get('category_id')
+        if not category_id and tx_data.get('description'):
+            category_id = get_semantic_category(
+                tx_data['description'],
+                tx_data['amount_cents'],
+                self.db,
+                tx_data['transaction_type'],
+            )
+
+        amount = abs(tx_data['amount_cents'])
+        return Transaction(
+            description=tx_data['description'],
+            amount=amount,
+            transaction_type=tx_data['transaction_type'],
+            date=transaction_date,
+            account_id=log.account_id,
+            category_id=category_id,
+            payment_method='credit_card',
+            fingerprint=tx_data.get('fingerprint') or calculate_transaction_fingerprint(
+                description=tx_data['description'],
+                amount=amount,
+                date_value=transaction_date,
+                transaction_type=tx_data['transaction_type'],
+                account_id=log.account_id,
+            ),
+            import_log_id=log.id,
+            is_manual=False,
+            needs_clarification=tx_data.get('needs_clarification', False),
+            is_internal=tx_data['transaction_type'] == 'income',
+            metadata_json=json.dumps({
+                'is_deferred': tx_data.get('is_deferred'),
+                'deferred_info': tx_data.get('deferred_info'),
+            }),
+        )
+
+    def _add_shared_iou(self, new_tx: Transaction, tx_data: Dict, statement_metadata: Optional[Dict]) -> None:
+        if not tx_data.get('shared_with') or not tx_data.get('shared_amount'):
+            return
+
+        statement_period = statement_metadata.get('statement_period', '') if statement_metadata else ''
+        self.db.add(IOU(
+            person_name=tx_data['shared_with'],
+            amount=int(tx_data['shared_amount']),
+            iou_type=IOUType.THEY_OWE,
+            status=IOUStatus.PENDING,
+            transaction_id=new_tx.id,
+            description=f"Compartido de: {tx_data['description']} ({statement_period})",
+        ))
+
+    @staticmethod
+    def _deferred_installments(deferred_info: str) -> tuple[int, int]:
+        current_installment = 1
+        total_installments = 1
+        if '/' in deferred_info:
+            parts = deferred_info.split('/')
+            try:
+                current_installment = int(parts[0])
+                total_installments = int(parts[1])
+            except ValueError:
+                pass
+        return current_installment, total_installments
+
+    def _sync_deferred_payment(self, log: ImportLog, tx_data: Dict, transaction_date: datetime) -> None:
+        from app.models.deferred_payment import DeferredPayment
+
+        current_installment, total_installments = self._deferred_installments(
+            tx_data.get('deferred_info', '')
+        )
+        amount = abs(tx_data['amount_cents'])
+        existing_deferred = self.db.query(DeferredPayment).filter(
+            DeferredPayment.account_id == log.account_id,
+            DeferredPayment.installment_amount == amount,
+            DeferredPayment.current_installment == current_installment,
+            DeferredPayment.total_installments == total_installments,
+            DeferredPayment.is_active == True
+        ).filter(DeferredPayment.name.ilike(f"%{tx_data['description'][:10]}%")).first()
+
+        shared_with = tx_data.get('shared_with')
+        shared_amount = int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None
+        if existing_deferred:
+            existing_deferred.is_shared = cast(Any, bool(shared_with))
+            existing_deferred.shared_with = cast(Any, shared_with)
+            existing_deferred.shared_amount = cast(Any, shared_amount)
+            return
+
+        self.db.add(DeferredPayment(
+            account_id=log.account_id,
+            name=tx_data['description'],
+            total_amount=amount * total_installments,
+            installment_amount=amount,
+            total_installments=total_installments,
+            current_installment=current_installment,
+            remaining_balance=amount * (total_installments - current_installment + 1),
+            is_shared=cast(Any, bool(shared_with)),
+            shared_with=cast(Any, shared_with),
+            shared_amount=cast(Any, shared_amount),
+            start_date=transaction_date,
+            is_active=cast(Any, True),
+        ))
+
+    def _persist_confirmed_transaction(
+        self,
+        log: ImportLog,
+        tx_data: Dict,
+        statement_metadata: Optional[Dict],
+    ) -> datetime | None:
+        if tx_data.get('is_duplicate', False):
+            return None
+
+        transaction_date = parse_date_robustly(tx_data['date']) or datetime.now()
+        new_tx = self._build_import_transaction(log, tx_data, transaction_date)
+        self.db.add(new_tx)
+        self.db.flush()
+        self._add_shared_iou(new_tx, tx_data, statement_metadata)
+        if tx_data.get('is_deferred'):
+            self._sync_deferred_payment(log, tx_data, transaction_date)
+        return transaction_date
+
+    def _persist_confirmed_transactions(
+        self,
+        log: ImportLog,
+        confirmed_transactions: List[Dict],
+        statement_metadata: Optional[Dict],
+    ) -> tuple[int, date]:
+        new_txs_count = 0
+        earliest_date = datetime.now().date()
+        for tx_data in reversed(confirmed_transactions):
+            transaction_date = self._persist_confirmed_transaction(log, tx_data, statement_metadata)
+            if transaction_date is not None:
+                new_txs_count += 1
+                earliest_date = min(earliest_date, transaction_date.date())
+        return new_txs_count, earliest_date
+
+    def _sync_debt_shares(
+        self,
+        existing_statement: Optional[CreditCardStatement],
+        statement: CreditCardStatement,
+        debt_shares: List[Dict],
+    ) -> None:
+        if not debt_shares:
+            return
+        if existing_statement:
+            self.db.query(DebtShare).filter(
+                DebtShare.statement_id == existing_statement.id
+            ).delete()
+
+        statement_id = existing_statement.id if existing_statement else statement.id
+        for share in debt_shares:
+            self.db.add(DebtShare(
+                statement_id=statement_id,
+                person_name=share['person_name'],
+                amount=int(share['amount_cents']),
+                description=share.get('description', 'Parte proporcional del estado de cuenta'),
+            ))
+
+    def _upsert_credit_card_statement(self, log: ImportLog, statement_metadata: Optional[Dict]) -> None:
+        if not statement_metadata or not statement_metadata.get('statement_month') or not statement_metadata.get('statement_year'):
+            return
+
+        stmt_month = int(statement_metadata['statement_month'])
+        stmt_year = int(statement_metadata['statement_year'])
+        stmt_balance = int(statement_metadata.get('statement_balance_cents', 0))
+        due_date = parse_date_robustly(statement_metadata['payment_due_date']) if statement_metadata.get('payment_due_date') else None
+        cut_date = parse_date_robustly(statement_metadata['cut_off_date']) if statement_metadata.get('cut_off_date') else None
+
+        existing_statement = self.db.query(CreditCardStatement).filter(
+            CreditCardStatement.account_id == log.account_id,
+            CreditCardStatement.month == stmt_month,
+            CreditCardStatement.year == stmt_year,
+            CreditCardStatement.is_deleted == False
+        ).first()
+        if existing_statement:
+            statement = existing_statement
+            statement.statement_balance = cast(Any, stmt_balance)
+            statement.user_share = cast(Any, int(statement_metadata.get('user_share_cents', stmt_balance)))
+            if due_date:
+                statement.payment_due_date = cast(Any, due_date)
+            if cut_date:
+                statement.cut_off_date = cast(Any, cut_date)
+        else:
+            statement = CreditCardStatement(
+                account_id=log.account_id,
+                statement_balance=cast(Any, stmt_balance),
+                user_share=cast(Any, int(statement_metadata.get('user_share_cents', stmt_balance))),
+                payment_due_date=cast(Any, due_date),
+                cut_off_date=cast(Any, cut_date),
+                month=stmt_month,
+                year=stmt_year,
+                status=cast(Any, StatementStatus.PENDING)
+            )
+            self.db.add(statement)
+
+        if statement_metadata.get('credit_limit_cents'):
+            account = self.db.query(Account).filter(Account.id == log.account_id).first()
+            if account:
+                account.credit_limit = cast(Any, int(statement_metadata['credit_limit_cents']))
+            self.db.flush()
+
+        self._sync_debt_shares(
+            existing_statement,
+            statement,
+            statement_metadata.get('debt_shares', []),
+        )
+
+    def _reconcile_statement_balance(self, log: ImportLog, statement_metadata: Optional[Dict]) -> None:
+        if not statement_metadata or not statement_metadata.get('statement_balance_cents'):
+            return
+
+        from app.services.balance import recalculate_account_balance
+
+        account = self.db.query(Account).filter(Account.id == log.account_id).first()
+        if account:
+            account.balance = cast(Any, -int(statement_metadata['statement_balance_cents']))
+            self.db.commit()
+
     def finalize_import(self, import_log_id: str, confirmed_transactions: List[Dict], statement_metadata: Optional[Dict] = None):
         """Guarda las transacciones confirmadas, actualiza el CreditCardStatement y marca snapshots como obsoletos."""
         log = self.db.query(ImportLog).filter(ImportLog.id == import_log_id).first()
@@ -239,203 +455,18 @@ class StatementIntelligenceService:
             return
 
         try:
-            new_txs_count = 0
-            earliest_date = datetime.now().date()
-
-            # We reverse to insert from OLDEST to NEWEST
-            for tx_data in reversed(confirmed_transactions):
-                # Solo insertamos si no es duplicado o si el usuario fuerza la inserción
-                if not tx_data.get('is_duplicate', False):
-                    dt = parse_date_robustly(tx_data['date']) or datetime.now()
-                    if dt.date() < earliest_date:
-                        earliest_date = dt.date()
-
-                    # Buscar ID de la categoría sugerida
-                    # Use the category_id from the confirmed data if available, 
-                    # otherwise fallback to re-calculating (safety)
-                    category_id = tx_data.get('category_id')
-                    if not category_id and tx_data.get('description'):
-                        category_id = get_semantic_category(
-                            tx_data['description'], 
-                            tx_data['amount_cents'], 
-                            self.db, 
-                            tx_data['transaction_type']
-                        )
-
-                    new_tx = Transaction(
-                        description=tx_data['description'],
-                        amount=abs(tx_data['amount_cents']), # Guardamos el valor absoluto
-                        transaction_type=tx_data['transaction_type'],
-                        date=dt,
-                        account_id=log.account_id,
-                        category_id=category_id,
-                        payment_method='credit_card',
-                        fingerprint=tx_data.get('fingerprint') or calculate_transaction_fingerprint(
-                            description=tx_data['description'],
-                            amount=abs(tx_data['amount_cents']),
-                            date_value=dt,
-                            transaction_type=tx_data['transaction_type'],
-                            account_id=log.account_id,
-                        ),
-                        import_log_id=log.id,
-                        is_manual=False,
-                        needs_clarification=tx_data.get('needs_clarification', False),
-                        is_internal=tx_data['transaction_type'] == 'income', # CC income is always an internal payment
-                        metadata_json=json.dumps({
-                            "is_deferred": tx_data.get('is_deferred'),
-                            "deferred_info": tx_data.get('deferred_info')
-                        })
-                    )
-                    self.db.add(new_tx)
-                    self.db.flush() # Para obtener el ID si necesitamos vincular IOU
-                    
-                    # Manejo de Consumo Compartido (IOU) por transacción
-                    if tx_data.get('shared_with') and tx_data.get('shared_amount'):
-                        new_iou = IOU(
-                            person_name=tx_data['shared_with'],
-                            amount=int(tx_data['shared_amount']),
-                            iou_type=IOUType.THEY_OWE,
-                            status=IOUStatus.PENDING,
-                            transaction_id=new_tx.id,
-                            description=f"Compartido de: {tx_data['description']} ({statement_metadata.get('statement_period', '') if statement_metadata else ''})"
-                        )
-                        self.db.add(new_iou)
-
-                    # --- NUEVO: Creación de DeferredPayment si la IA detectó que es diferido ---
-                    if tx_data.get('is_deferred'):
-                        from app.models.deferred_payment import DeferredPayment
-                        
-                        # Extraer info de cuotas (ej: "3/12" -> current=3, total=12)
-                        current_inst = 1
-                        total_inst = 1
-                        def_info = tx_data.get('deferred_info', '')
-                        if '/' in def_info:
-                            parts = def_info.split('/')
-                            try:
-                                current_inst = int(parts[0])
-                                total_inst = int(parts[1])
-                            except ValueError: pass
-                        
-                        # DEDUPLICATION: Check if this deferred installment already exists for this account/month
-                        # We use name, installment_amount, and current_installment to match
-                        existing_def = self.db.query(DeferredPayment).filter(
-                            DeferredPayment.account_id == log.account_id,
-                            DeferredPayment.installment_amount == abs(tx_data['amount_cents']),
-                            DeferredPayment.current_installment == current_inst,
-                            DeferredPayment.total_installments == total_inst,
-                            DeferredPayment.is_active == True
-                        ).filter(DeferredPayment.name.ilike(f"%{tx_data['description'][:10]}%")).first()
-
-                        if not existing_def:
-                            # Crear el registro de diferido para seguimiento futuro
-                            new_deferred = DeferredPayment(
-                                account_id=log.account_id,
-                                name=tx_data['description'],
-                                total_amount=abs(tx_data['amount_cents']) * total_inst, # Estimación
-                                installment_amount=abs(tx_data['amount_cents']),
-                                total_installments=total_inst,
-                                current_installment=current_inst,
-                                remaining_balance=abs(tx_data['amount_cents']) * (total_inst - current_inst + 1),
-                                is_shared=cast(Any, True if tx_data.get('shared_with') else False),
-                                shared_with=cast(Any, tx_data.get('shared_with')),
-                                shared_amount=cast(Any, int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None),
-                                start_date=dt,
-                                is_active=cast(Any, True)
-                            )
-                            self.db.add(new_deferred)
-                        else:
-                            # Opcionalmente actualizar el estado compartido si cambió
-                            existing_def.is_shared = cast(Any, True if tx_data.get('shared_with') else False)
-                            existing_def.shared_with = cast(Any, tx_data.get('shared_with'))
-                            existing_def.shared_amount = cast(Any, int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None)
-
-                    new_txs_count += 1
-
-            # Procesamiento de CreditCardStatement (Deuda Global)
-            if statement_metadata and statement_metadata.get('statement_month') and statement_metadata.get('statement_year'):
-                stmt_month = int(statement_metadata['statement_month'])
-                stmt_year = int(statement_metadata['statement_year'])
-                stmt_balance = int(statement_metadata.get('statement_balance_cents', 0))
-                
-                due_date = None
-                if statement_metadata.get('payment_due_date'):
-                    due_date = parse_date_robustly(statement_metadata['payment_due_date'])
-                        
-                cut_date = None
-                if statement_metadata.get('cut_off_date'):
-                    cut_date = parse_date_robustly(statement_metadata['cut_off_date'])
-
-                # Verificar si ya existe el estado de cuenta
-                existing_stmt = self.db.query(CreditCardStatement).filter(
-                    CreditCardStatement.account_id == log.account_id,
-                    CreditCardStatement.month == stmt_month,
-                    CreditCardStatement.year == stmt_year,
-                    CreditCardStatement.is_deleted == False
-                ).first()
-
-                if existing_stmt:
-                    # Actualizar si existe
-                    existing_stmt.statement_balance = cast(Any, stmt_balance)
-                    existing_stmt.user_share = cast(Any, int(statement_metadata.get('user_share_cents', stmt_balance)))
-                    if due_date: existing_stmt.payment_due_date = cast(Any, due_date)
-                    if cut_date: existing_stmt.cut_off_date = cast(Any, cut_date)
-                else:
-                    # Crear nuevo
-                    new_stmt = CreditCardStatement(
-                        account_id=log.account_id,
-                        statement_balance=cast(Any, stmt_balance),
-                        user_share=cast(Any, int(statement_metadata.get('user_share_cents', stmt_balance))),
-                        payment_due_date=cast(Any, due_date),
-                        cut_off_date=cast(Any, cut_date),
-                        month=stmt_month,
-                        year=stmt_year,
-                        status=cast(Any, StatementStatus.PENDING)
-                    )
-                    self.db.add(new_stmt)
-
-                # --- NUEVO: Sincronizar Cupo de Crédito (Credit Limit) de la cuenta ---
-                if statement_metadata.get('credit_limit_cents'):
-                    account = self.db.query(Account).filter(Account.id == log.account_id).first()
-                    if account:
-                        account.credit_limit = cast(Any, int(statement_metadata['credit_limit_cents']))
-                    self.db.flush()
-
-                # Procesar DebtShares (Gente que debe parte del total del mes)
-                if statement_metadata.get('debt_shares'):
-                    # Limpiamos previos para este statement si estamos re-importando/actualizando
-                    if existing_stmt:
-                        self.db.query(DebtShare).filter(DebtShare.statement_id == existing_stmt.id).delete()
-                    
-                    stmt_id = existing_stmt.id if existing_stmt else new_stmt.id
-                    for share in statement_metadata['debt_shares']:
-                        new_share = DebtShare(
-                            statement_id=stmt_id,
-                            person_name=share['person_name'],
-                            amount=int(share['amount_cents']),
-                            description=share.get('description', 'Parte proporcional del estado de cuenta')
-                        )
-                        self.db.add(new_share)
-
+            new_txs_count, earliest_date = self._persist_confirmed_transactions(
+                log,
+                confirmed_transactions,
+                statement_metadata,
+            )
+            self._upsert_credit_card_statement(log, statement_metadata)
             log.status = cast(Any, 'processed')
-
             self.db.commit()
+            self._reconcile_statement_balance(log, statement_metadata)
 
-            # Force balance reconciliation to the bank's truth
-            if statement_metadata and statement_metadata.get('statement_balance_cents'):
-                from app.services.balance import recalculate_account_balance
-                
-                # First, ensure the account itself is updated with the statement's truth
-                acc = self.db.query(Account).filter(Account.id == log.account_id).first()
-                if acc:
-                    # Account balance in DB is negative for debt, statement_balance is positive debt.
-                    target_balance = -int(statement_metadata['statement_balance_cents'])
-                    acc.balance = cast(Any, target_balance)
-                    self.db.commit()
-                
-            # Disparamos la sanación de snapshots si hubo cambios en el pasado
             if new_txs_count > 0:
                 from app.services.snapshot_service import mark_snapshots_as_stale
-                # earliest_date is already a date object from dt.date()
                 mark_snapshots_as_stale(self.db, earliest_date.month, earliest_date.year)
 
             return new_txs_count
