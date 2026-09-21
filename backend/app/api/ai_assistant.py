@@ -46,6 +46,14 @@ router = APIRouter(
     redirect_slashes=False
 )
 
+AI_ASSISTANT_ERROR_RESPONSES = {
+    400: {"description": "Invalid assistant request."},
+    401: {"description": "Assistant authentication failed."},
+    429: {"description": "Assistant rate limit exceeded."},
+    500: {"description": "Assistant processing failed."},
+    503: {"description": "Assistant service unavailable."},
+}
+
 
 class ChatRequest(BaseModel):
     message: str
@@ -70,7 +78,7 @@ class FunctionCallResponse(BaseModel):
 
 from app.models.config import Config
 
-@router.post("/chat")
+@router.post("/chat", responses=AI_ASSISTANT_ERROR_RESPONSES)
 async def chat_with_assistant(request: ChatRequest, db: Session = Depends(get_db)):
     """
     Chat with AI assistant using function calling.
