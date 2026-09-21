@@ -16,6 +16,7 @@ from app.services.snapshot_reconciler import SnapshotReconciler
 from pydantic import BaseModel, ConfigDict
 
 SNAPSHOT_NOT_FOUND = "Snapshot not found"
+NOT_FOUND_RESPONSE = {404: {"description": "Snapshot not found"}}
 
 router = APIRouter(
     prefix="/snapshots", 
@@ -72,7 +73,7 @@ def get_snapshots(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
     ).offset(skip).limit(limit).all()
 
 
-@router.get("/{snapshot_id}", response_model=NetWorthSnapshotResponse)
+@router.get("/{snapshot_id}", response_model=NetWorthSnapshotResponse, responses=NOT_FOUND_RESPONSE)
 def get_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
     snapshot = db.query(NetWorthSnapshot).filter(
         NetWorthSnapshot.id == snapshot_id,
@@ -92,7 +93,7 @@ def get_snapshot_by_month_year(month: int, year: int, db: Session = Depends(get_
     ).first()
 
 
-@router.delete("/{snapshot_id}")
+@router.delete("/{snapshot_id}", responses=NOT_FOUND_RESPONSE)
 def delete_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
     snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.id == snapshot_id).first()
     if not snapshot:
@@ -102,7 +103,7 @@ def delete_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
     return {"message": "Snapshot deleted successfully"}
 
 
-@router.post("/{snapshot_id}/analyze")
+@router.post("/{snapshot_id}/analyze", responses=NOT_FOUND_RESPONSE)
 def analyze_month(snapshot_id: str, db: Session = Depends(get_db)):
     """Analyze a month's snapshot compared to the previous month using Gemini AI."""
     snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.id == snapshot_id).first()
@@ -202,7 +203,7 @@ def reconcile_stale_snapshots(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error reconciling snapshots: {str(e)}")
 
 
-@router.post("/{snapshot_id}/reconcile")
+@router.post("/{snapshot_id}/reconcile", responses=NOT_FOUND_RESPONSE)
 def reconcile_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
     """
     FASE 2: Reconcile a specific snapshot by ID.
@@ -218,7 +219,7 @@ def reconcile_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error reconciling snapshot: {str(e)}")
         
 
-@router.post("/{snapshot_id}/lock")
+@router.post("/{snapshot_id}/lock", responses=NOT_FOUND_RESPONSE)
 def lock_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
     """Manually lock a snapshot to prevent any further changes."""
     snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.id == snapshot_id).first()
