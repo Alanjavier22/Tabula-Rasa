@@ -8,14 +8,14 @@ Strategy: Pure SQL (CREATE-COPY-DROP-RENAME) to avoid batch_alter_table
 index reflection bugs. Each table definition matches the ACTUAL schema
 inspected from the live database.
 """
-from typing import Sequence, Union
+from typing import Sequence
 from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'de10f91abd65'
-down_revision: Union[str, None] = 'e9aa56991e55'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = 'e9aa56991e55'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # (table_name, create_sql, insert_sql)
 # Columns verified against PRAGMA table_info output.
