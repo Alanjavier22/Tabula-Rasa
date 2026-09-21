@@ -73,8 +73,9 @@ const ReminderFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditF
             >
               <div className="space-y-6">
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Título del Recordatorio</label>
+                  <label htmlFor="reminder-name" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Título del Recordatorio</label>
                   <input
+                    id="reminder-name"
                     type="text"
                     required
                     value={isCreate ? form.name : editForm.name}
@@ -86,8 +87,9 @@ const ReminderFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditF
 
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Monto (Opcional)</label>
+                    <label htmlFor="reminder-amount" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Monto (Opcional)</label>
                     <input
+                      id="reminder-amount"
                       type="number"
                       step="0.01"
                       min="0"
@@ -98,8 +100,9 @@ const ReminderFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditF
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Fecha Límite</label>
+                    <label htmlFor="reminder-due-date" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Fecha Límite</label>
                     <DatePicker
+                      id="reminder-due-date"
                       value={isCreate ? form.due_date : editForm.due_date}
                       onChange={(value) => isCreate ? setForm({...form, due_date: value}) : setEditForm({...editForm, due_date: value})}
                     />
@@ -108,8 +111,9 @@ const ReminderFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditF
 
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Ciclo de Repetición</label>
+                    <label htmlFor="reminder-frequency" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Ciclo de Repetición</label>
                     <Select
+                      id="reminder-frequency"
                       value={isCreate ? form.frequency : editForm.frequency}
                       onChange={(value) => isCreate ? setForm({...form, frequency: value as ReminderFrequency}) : setEditForm({...editForm, frequency: value as ReminderFrequency})}
                       options={[
@@ -122,8 +126,9 @@ const ReminderFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditF
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Estado Inicial</label>
+                    <label htmlFor="reminder-status" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Estado Inicial</label>
                     <Select
+                      id="reminder-status"
                       value={isCreate ? form.status : editForm.status}
                       onChange={(value) => isCreate ? setForm({...form, status: value as ReminderStatus}) : setEditForm({...editForm, status: value as ReminderStatus})}
                       options={[
@@ -136,8 +141,9 @@ const ReminderFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditF
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Notas Adicionales</label>
+                  <label htmlFor="reminder-description" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Notas Adicionales</label>
                   <textarea
+                    id="reminder-description"
                     value={isCreate ? form.description : editForm.description}
                     onChange={e => isCreate ? setForm({...form, description: e.target.value}) : setEditForm({...editForm, description: e.target.value})}
                     className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-5 text-white font-medium focus:outline-none focus:border-orange-500/50 transition-all text-sm"
