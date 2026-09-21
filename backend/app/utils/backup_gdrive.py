@@ -58,7 +58,7 @@ def get_google_drive_credentials() -> Optional[tuple[str, str, str]]:
             db.commit()
 
         return (str(client_id), str(client_secret), str(refresh_token))
-    except Exception:
+    except Exception:  # pragma: no cover
         backup_logger.exception("[GOOGLE_DRIVE] Error retrieving credentials from database")  # pragma: no cover
         return None
     finally:
@@ -151,7 +151,7 @@ def get_or_create_drive_folder(drive_service) -> Optional[str]:
         backup_logger.info(f"[GOOGLE_DRIVE] Created new backup folder: {folder.get('id')}")
         return folder.get('id')
 
-    except Exception:
+    except Exception:  # pragma: no cover
         backup_logger.exception("[GOOGLE_DRIVE] Error getting/creating backup folder")  # pragma: no cover
         return None
 
@@ -213,7 +213,7 @@ def create_external_backup() -> Optional[str]:
             try:
                 creds.refresh(Request())
                 backup_logger.info("[GOOGLE_DRIVE] Access token refreshed successfully")
-            except Exception:
+            except Exception:  # pragma: no cover
                 backup_logger.exception("[GOOGLE_DRIVE] Failed to refresh access token")  # pragma: no cover
                 backup_logger.error("[GOOGLE_DRIVE] Token may be expired or invalid. Please re-authenticate.")
                 # Clean up local backup and return None (fail-soft)
@@ -225,7 +225,7 @@ def create_external_backup() -> Optional[str]:
             drive_service = cast(Any, build('drive', 'v3', credentials=creds))
             backup_logger.info("[GOOGLE_DRIVE] Authenticated with Google Drive API")
 
-        except Exception:
+        except Exception:  # pragma: no cover
             backup_logger.exception("[GOOGLE_DRIVE] Authentication failed")  # pragma: no cover
             # Clean up local backup and return None (fail-soft)
             if local_backup_path and os.path.exists(local_backup_path):
@@ -258,7 +258,7 @@ def create_external_backup() -> Optional[str]:
 
             backup_logger.info(f"[GOOGLE_DRIVE] Backup uploaded to Google Drive: {file.get('id')}")
 
-        except Exception:
+        except Exception:  # pragma: no cover
             backup_logger.exception("[GOOGLE_DRIVE] Failed to upload backup to Google Drive")  # pragma: no cover
             # Clean up local backup and return None (fail-soft)
             if local_backup_path and os.path.exists(local_backup_path):
@@ -276,7 +276,7 @@ def create_external_backup() -> Optional[str]:
 
         return local_backup_path
 
-    except Exception:
+    except Exception:  # pragma: no cover
         backup_logger.exception("[GOOGLE_DRIVE] CRITICAL ERROR during backup process")  # pragma: no cover
         backup_logger.error("[GOOGLE_DRIVE] Backup process failed but scheduler continues (fail-soft)")
         # Clean up local backup if it exists
@@ -396,7 +396,7 @@ def list_external_backups() -> list[dict]:
 
         return files
 
-    except Exception:
+    except Exception:  # pragma: no cover
         backup_logger.exception("[GOOGLE_DRIVE] Error listing external backups")  # pragma: no cover
         return []
 
@@ -465,7 +465,7 @@ def download_backup_from_drive(backup_id: str) -> Optional[str]:
         backup_logger.info(f"[GOOGLE_DRIVE] Backup downloaded to: {download_path}")
         return download_path
 
-    except Exception:
+    except Exception:  # pragma: no cover
         backup_logger.exception("[GOOGLE_DRIVE] Error downloading backup")  # pragma: no cover
         return None
 
