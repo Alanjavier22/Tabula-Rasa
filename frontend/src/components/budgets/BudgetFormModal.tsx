@@ -96,8 +96,9 @@ const BudgetFormModal = ({
               <form onSubmit={onCreateSubmit} className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar overscroll-contain">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Nombre del Presupuesto</label>
+                    <label htmlFor="budget-name" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Nombre del Presupuesto</label>
                     <input
+                      id="budget-name"
                       type="text"
                       required
                       value={form.name}
@@ -107,8 +108,9 @@ const BudgetFormModal = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Monto Máximo ($)</label>
+                    <label htmlFor="budget-max-amount" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Monto Máximo ($)</label>
                     <input
+                      id="budget-max-amount"
                       type="number"
                       step="0.01"
                       min="0.01"
@@ -121,16 +123,18 @@ const BudgetFormModal = ({
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Mes Vigencia</label>
+                      <label htmlFor="budget-month" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Mes Vigencia</label>
                       <Select
+                        id="budget-month"
                         value={form.month.toString()}
                         onChange={(value) => setForm({...form, month: parseInt(value)})}
                         options={Array.from({length: 12}, (_, i) => ({ value: (i + 1).toString(), label: (i + 1).toString() }))}
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Año</label>
+                      <label htmlFor="budget-year" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Año</label>
                       <Select
+                        id="budget-year"
                         value={form.year.toString()}
                         onChange={(value) => setForm({...form, year: parseInt(value)})}
                         options={[new Date().getFullYear(), new Date().getFullYear() + 1].map(year => ({ value: year.toString(), label: year.toString() }))}
@@ -138,8 +142,9 @@ const BudgetFormModal = ({
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Vincular Categoría</label>
+                    <label htmlFor="budget-category" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Vincular Categoría</label>
                     <Select
+                      id="budget-category"
                       value={form.category_id}
                       onChange={(value) => setForm({...form, category_id: value})}
                       options={[
@@ -173,8 +178,9 @@ const BudgetFormModal = ({
               <form onSubmit={onEditSubmit} className="p-6 md:p-8 space-y-6 overflow-y-auto custom-scrollbar overscroll-contain">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Nombre</label>
+                    <label htmlFor="edit-budget-name" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Nombre</label>
                     <input
+                      id="edit-budget-name"
                       type="text"
                       required
                       value={editForm.name}
@@ -183,8 +189,9 @@ const BudgetFormModal = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Monto ($)</label>
+                    <label htmlFor="edit-budget-amount" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Monto ($)</label>
                     <input
+                      id="edit-budget-amount"
                       type="number"
                       step="0.01"
                       min="0.01"
@@ -196,16 +203,18 @@ const BudgetFormModal = ({
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Mes</label>
+                      <label htmlFor="edit-budget-month" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Mes</label>
                       <Select
+                        id="edit-budget-month"
                         value={editForm.month.toString()}
                         onChange={(value) => setEditForm({...editForm, month: parseInt(value)})}
                         options={Array.from({length: 12}, (_, i) => ({ value: (i + 1).toString(), label: (i + 1).toString() }))}
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Año</label>
+                      <label htmlFor="edit-budget-year" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Año</label>
                       <Select
+                        id="edit-budget-year"
                         value={editForm.year.toString()}
                         onChange={(value) => setEditForm({...editForm, year: parseInt(value)})}
                         options={[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map(year => ({ value: year.toString(), label: year.toString() }))}
@@ -213,8 +222,9 @@ const BudgetFormModal = ({
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Categoría</label>
+                    <label htmlFor="edit-budget-category" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Categoría</label>
                     <Select
+                      id="edit-budget-category"
                       value={editForm.category_id}
                       onChange={(value) => setEditForm({...editForm, category_id: value})}
                       options={[
@@ -258,16 +268,18 @@ const BudgetFormModal = ({
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Destino: Mes</label>
+                    <label htmlFor="recurring-budget-month" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Destino: Mes</label>
                     <Select
+                      id="recurring-budget-month"
                       value={recurringForm.month.toString()}
                       onChange={(value) => setRecurringForm({...recurringForm, month: parseInt(value)})}
                       options={Array.from({length: 12}, (_, i) => ({ value: (i + 1).toString(), label: (i + 1).toString() }))}
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Destino: Año</label>
+                    <label htmlFor="recurring-budget-year" className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Destino: Año</label>
                     <Select
+                      id="recurring-budget-year"
                       value={recurringForm.year.toString()}
                       onChange={(value) => setRecurringForm({...recurringForm, year: parseInt(value)})}
                       options={[new Date().getFullYear(), new Date().getFullYear() + 1].map(year => ({ value: year.toString(), label: year.toString() }))}
