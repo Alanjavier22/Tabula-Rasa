@@ -19,6 +19,10 @@ from app.services.asset_depreciation import asset_depreciation_service
 from app.services.balance_sheet import balance_sheet_service
 
 router = APIRouter()
+BALANCE_SHEET_ERROR_RESPONSES = {
+    404: {"description": "Balance sheet resource not found."},
+    500: {"description": "Balance sheet calculation failed."},
+}
 
 
 class NetWorthResponse(BaseModel):
@@ -127,7 +131,7 @@ class AssetValueResponse(BaseModel):
     is_fully_depreciated: bool
 
 
-@router.get("/assets/{asset_id}/value", response_model=AssetValueResponse)
+@router.get("/assets/{asset_id}/value", response_model=AssetValueResponse, responses=BALANCE_SHEET_ERROR_RESPONSES)
 def get_asset_value(asset_id: str, db: Session = Depends(get_db)):
     """Get current value of a specific asset with depreciation calculation"""
     try:
@@ -144,7 +148,7 @@ class AssetsTotalResponse(BaseModel):
     assets: list[dict]
 
 
-@router.get("/assets/total", response_model=AssetsTotalResponse)
+@router.get("/assets/total", response_model=AssetsTotalResponse, responses=BALANCE_SHEET_ERROR_RESPONSES)
 def get_total_assets_value(db: Session = Depends(get_db)):
     """Get total current value of all assets"""
     try:
@@ -168,7 +172,7 @@ class BalanceSheetResponse(BaseModel):
     is_stale: bool
 
 
-@router.get("/balance-sheet", response_model=BalanceSheetResponse)
+@router.get("/balance-sheet", response_model=BalanceSheetResponse, responses=BALANCE_SHEET_ERROR_RESPONSES)
 def get_current_balance_sheet(db: Session = Depends(get_db)):
     """Get balance sheet for current month"""
     try:
@@ -182,7 +186,7 @@ def get_current_balance_sheet(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error getting balance sheet: {str(e)}")
 
 
-@router.get("/balance-sheet/{month}/{year}", response_model=BalanceSheetResponse)
+@router.get("/balance-sheet/{month}/{year}", response_model=BalanceSheetResponse, responses=BALANCE_SHEET_ERROR_RESPONSES)
 def get_balance_sheet_by_month(month: int, year: int, db: Session = Depends(get_db)):
     """Get balance sheet for specific month/year"""
     try:
@@ -196,7 +200,7 @@ def get_balance_sheet_by_month(month: int, year: int, db: Session = Depends(get_
         raise HTTPException(status_code=500, detail=f"Error getting balance sheet: {str(e)}")
 
 
-@router.get("/balance-sheet/history")
+@router.get("/balance-sheet/history", responses=BALANCE_SHEET_ERROR_RESPONSES)
 def get_balance_sheet_history(limit: int = 12, db: Session = Depends(get_db)):
     """Get balance sheet history (last N months)"""
     try:
