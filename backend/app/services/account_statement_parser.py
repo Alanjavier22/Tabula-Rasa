@@ -11,6 +11,8 @@ from typing import Any, Dict
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+DEBIT_TERM = 'débito'
+DEPOSIT_TERM = 'depósito'
 
 
 def convert_to_csv_string(file_data: bytes, filename: str) -> str:
@@ -66,8 +68,8 @@ def local_extract_transactions(file_data: bytes, filename: str) -> Dict[str, Any
                     elif ('detalle' in col_name or 'descrip' in col_name or 'concepto' in col_name) and desc_col_idx == -1: desc_col_idx = j
                     elif ('monto' in col_name or 'valor' in col_name) and amount_col_idx == -1: amount_col_idx = j
                     elif ('saldo' in col_name or 'balance' in col_name) and balance_col_idx == -1: balance_col_idx = j
-                    elif ('cargo' in col_name or 'débito' in col_name or 'retiro' in col_name or 'egreso' in col_name) and cargo_col_idx == -1: cargo_col_idx = j
-                    elif ('abono' in col_name or 'crédito' in col_name or 'depósito' in col_name or 'ingreso' in col_name) and abono_col_idx == -1: abono_col_idx = j
+                    elif ('cargo' in col_name or DEBIT_TERM in col_name or 'retiro' in col_name or 'egreso' in col_name) and cargo_col_idx == -1: cargo_col_idx = j
+                    elif ('abono' in col_name or 'crédito' in col_name or DEPOSIT_TERM in col_name or 'ingreso' in col_name) and abono_col_idx == -1: abono_col_idx = j
                     elif ('beneficiario' in col_name or 'destinatario' in col_name or 'nombre' in col_name) and beneficiary_col_idx == -1: beneficiary_col_idx = j
                     elif ('tipo' in col_name or 'transacción' in col_name or 'clase' in col_name) and type_col_idx == -1: type_col_idx = j
                 break
@@ -139,9 +141,9 @@ def local_extract_transactions(file_data: bytes, filename: str) -> Dict[str, Any
                 tv = str(row.iloc[type_col_idx]).lower()
                 if 'ingreso' in tv or 'abono' in tv:
                     forced_type = 'income'
-                elif 'deposito' in tv or 'depósito' in tv:
+                elif 'deposito' in tv or DEPOSIT_TERM in tv:
                     forced_type = 'income'
-                elif 'egreso' in tv or 'retiro' in tv or 'cargo' in tv or 'débito' in tv or 'debito' in tv:
+                elif 'egreso' in tv or 'retiro' in tv or 'cargo' in tv or DEBIT_TERM in tv or 'debito' in tv:
                     forced_type = 'expense'
 
             if amount_col_idx != -1:
@@ -155,9 +157,9 @@ def local_extract_transactions(file_data: bytes, filename: str) -> Dict[str, Any
                     tv_clean = str(row.iloc[type_col_idx]).lower()
                     desc_clean = desc_val.lower()
 
-                    if 'deposito' in tv_clean or 'depósito' in tv_clean:
+                    if 'deposito' in tv_clean or DEPOSIT_TERM in tv_clean:
                         transaction_type = 'deposit'
-                    elif 'egreso' in tv_clean or 'retiro' in tv_clean or 'cargo' in tv_clean or 'débito' in tv_clean or 'debito' in tv_clean:
+                    elif 'egreso' in tv_clean or 'retiro' in tv_clean or 'cargo' in tv_clean or DEBIT_TERM in tv_clean or 'debito' in tv_clean:
                         transaction_type = 'expense'
                     else:
                         transaction_type = 'income'
@@ -245,7 +247,7 @@ def local_extract_transactions(file_data: bytes, filename: str) -> Dict[str, Any
             if t['transaction_type'] == 'income':
                 # Solo sumamos al "Ingreso del Periodo" si el banco lo llamó Ingreso
                 # Los depósitos en efectivo (ATM) suelen estar fuera de esta bolsa en el resumen oficial
-                if 'deposito' not in raw_type and 'depósito' not in raw_type:
+                if 'deposito' not in raw_type and DEPOSIT_TERM not in raw_type:
                     income_total += amt
                 else:
                     # Si es un depósito pero el banco no lo cuenta como ingreso oficial
