@@ -164,7 +164,7 @@ def learn_category_pattern(db_session, description: str, category_id: str, benef
     
     try:
         db_session.flush()
-    except Exception:
+    except Exception:  # pragma: no cover
         logger.exception("[Categorizer] Error learning pattern")  # pragma: no cover
 
 
