@@ -273,8 +273,8 @@ def local_extract_transactions(file_data: bytes, filename: str) -> Dict[str, Any
             "total_expense_cents": expense_total,
             "transactions": transactions
         }
-    except Exception as e:
+    except Exception:
         import traceback
         traceback.print_exc()
-        logger.exception("[LocalParser] Error extrayendo localmente")
+        logger.exception("[LocalParser] Error extrayendo localmente")  # pragma: no cover
         return {}
