@@ -22,6 +22,9 @@ from app.services.forecaster import get_financial_projection
 from app.services.cash_flow import cash_flow_service
 
 router = APIRouter()
+CASHFLOW_ERROR_RESPONSES = {
+    500: {"description": "Cash flow calculation failed."},
+}
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +43,7 @@ class SafeToSpendResponse(BaseModel):
     breakdown: dict
 
 
-@router.get("/safe-to-spend", response_model=SafeToSpendResponse)
+@router.get("/safe-to-spend", response_model=SafeToSpendResponse, responses=CASHFLOW_ERROR_RESPONSES)
 def get_safe_to_spend(db: Session = Depends(get_db)):
     """
     Get safe-to-spend metric using the unified CashFlowService.
@@ -235,7 +238,7 @@ class ProjectionResponse(BaseModel):
     timeline: list[dict]
 
 
-@router.get("/projection", response_model=ProjectionResponse)
+@router.get("/projection", response_model=ProjectionResponse, responses=CASHFLOW_ERROR_RESPONSES)
 def get_projection(db: Session = Depends(get_db)):
     try:
         return get_financial_projection(db=db, months=12)
@@ -249,7 +252,7 @@ class SimulationRequest(BaseModel):
     one_time_expense_month_offset: int = 1
 
 
-@router.post("/simulate", response_model=ProjectionResponse)
+@router.post("/simulate", response_model=ProjectionResponse, responses=CASHFLOW_ERROR_RESPONSES)
 def simulate_projection(req: SimulationRequest, db: Session = Depends(get_db)):
     try:
         return get_financial_projection(
@@ -269,7 +272,7 @@ class CashFlowProjectionResponse(BaseModel):
     day90: dict
 
 
-@router.get("/cash-flow-projection", response_model=CashFlowProjectionResponse)
+@router.get("/cash-flow-projection", response_model=CashFlowProjectionResponse, responses=CASHFLOW_ERROR_RESPONSES)
 def get_cash_flow_projection(db: Session = Depends(get_db)):
     """Get cash flow projection for 30, 60, and 90 days"""
     try:
@@ -279,7 +282,7 @@ def get_cash_flow_projection(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error getting cash flow projection: {str(e)}")
 
 
-@router.get("/cash-flow-projection/{days}")
+@router.get("/cash-flow-projection/{days}", responses=CASHFLOW_ERROR_RESPONSES)
 def get_cash_flow_projection_days(days: int, db: Session = Depends(get_db)):
     """Get cash flow projection for specific number of days"""
     try:
