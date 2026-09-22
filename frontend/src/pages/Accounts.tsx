@@ -198,8 +198,8 @@ const Accounts = () => {
       cut_off_date: statementForm.cut_off_date ? statementForm.cut_off_date + 'T00:00:00' : null,
       amount_paid: toCents(statementForm.amount_paid || 0),
       status: statementForm.status,
-      month: parseInt(statementForm.month.toString()),
-      year: parseInt(statementForm.year.toString()),
+      month: Number.parseInt(statementForm.month.toString()),
+      year: Number.parseInt(statementForm.year.toString()),
       notes: statementForm.notes || null,
     };
     if (editingStatement) updateStatementMutation.mutate({ id: editingStatement.id, payload });
@@ -238,8 +238,8 @@ const Accounts = () => {
       account_type: form.account_type as Account['account_type'],
       balance: toCents(form.balance || 0),
       credit_limit: form.credit_limit ? toCents(form.credit_limit) : null,
-      statement_day: form.statement_day ? parseInt(form.statement_day) : null,
-      payment_day: form.payment_day ? parseInt(form.payment_day) : null,
+      statement_day: form.statement_day ? Number.parseInt(form.statement_day) : null,
+      payment_day: form.payment_day ? Number.parseInt(form.payment_day) : null,
     });
   };
 
@@ -253,8 +253,8 @@ const Accounts = () => {
         account_type: editForm.account_type as Account['account_type'],
         balance: toCents(editForm.balance || 0),
         credit_limit: editForm.credit_limit ? toCents(editForm.credit_limit) : null,
-        statement_day: editForm.statement_day ? parseInt(editForm.statement_day) : null,
-        payment_day: editForm.payment_day ? parseInt(editForm.payment_day) : null,
+        statement_day: editForm.statement_day ? Number.parseInt(editForm.statement_day) : null,
+        payment_day: editForm.payment_day ? Number.parseInt(editForm.payment_day) : null,
       },
     });
   };
@@ -454,7 +454,7 @@ const Accounts = () => {
                                 <div className="bg-black/40 h-2 rounded-full overflow-hidden p-[1px] border border-white/5">
                                   <div 
                                     className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(52,211,153,0.2)]"
-                                    style={{ width: `${Math.min(100, (parseFloat(toDecimal(stmt.amount_paid).toString()) / parseFloat(toDecimal(stmt.statement_balance).toString())) * 100)}%` }}
+                                    style={{ width: `${Math.min(100, (Number.parseFloat(toDecimal(stmt.amount_paid).toString()) / Number.parseFloat(toDecimal(stmt.statement_balance).toString())) * 100)}%` }}
                                   ></div>
                                 </div>
                                 
