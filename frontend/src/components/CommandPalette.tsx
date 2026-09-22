@@ -199,15 +199,15 @@ const CommandPalette = () => {
                   <p className="text-slate-400 text-sm mb-4">Ejemplos de preguntas:</p>
                   <ul className="text-left text-sm text-slate-500 space-y-2">
                     <li className="flex items-start gap-2">
-                      <span className="text-purple-400">•</span>
+                      <span className="text-purple-400">•</span>{' '}
                       ¿Cuánto presupuesto me queda en Comida?
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-purple-400">•</span>
+                      <span className="text-purple-400">•</span>{' '}
                       ¿Cuál es el saldo de mi cuenta principal?
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-purple-400">•</span>
+                      <span className="text-purple-400">•</span>{' '}
                       ¿Cuánto dinero tengo en total?
                     </li>
                   </ul>
