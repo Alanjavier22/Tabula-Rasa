@@ -5,7 +5,7 @@ reales. Se monta bajo /api/ai vía api/ai.py.
 """
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Annotated, List, Optional
 import json
 import logging
 from datetime import datetime, timedelta
@@ -82,7 +82,7 @@ class ImpactAnalysis(BaseModel):
 @router.post("/simulate-what-if", response_model=WhatIfScenarioResponse)
 async def simulate_what_if(
     request: WhatIfScenarioRequest,
-    db: Session = Depends(get_db)
+    db: Annotated[Session, Depends(get_db)]
 ):
     """
     AI-powered What-If scenario simulation v5.0: The Oracle Engine (Dynamic Projections).
@@ -153,7 +153,7 @@ STRICT RULES:
 
 
 @router.get("/whatif/suggest-scenarios", response_model=List[SuggestedScenario])
-async def suggest_whatif_scenarios(db: Session = Depends(get_db)):
+async def suggest_whatif_scenarios(db: Annotated[Session, Depends(get_db)]):
     """
     Genera 3 sugerencias dinámicas de simulación basadas en los patrones de gasto reales.
     """
