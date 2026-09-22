@@ -87,8 +87,8 @@ const TransactionForm = ({
     
     // Validate splits if enabled
     if (isSplitEnabled) {
-      const splitTotal = splits.reduce((sum, s) => sum + parseFloat(s.amount || '0'), 0);
-      const transactionAmount = parseFloat(form.amount);
+      const splitTotal = splits.reduce((sum, s) => sum + Number.parseFloat(s.amount || '0'), 0);
+      const transactionAmount = Number.parseFloat(form.amount);
       
       if (Math.abs(splitTotal - transactionAmount) > 0.01) {
         alert(`La suma de los splits (${splitTotal.toFixed(2)}) debe ser igual al monto de la transacción (${transactionAmount.toFixed(2)})`);
@@ -118,7 +118,7 @@ const TransactionForm = ({
   };
 
   const getSplitTotal = () => {
-    return splits.reduce((sum, s) => sum + parseFloat(s.amount || '0'), 0);
+    return splits.reduce((sum, s) => sum + Number.parseFloat(s.amount || '0'), 0);
   };
 
   return (
@@ -389,8 +389,8 @@ const TransactionForm = ({
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-xs font-black text-white/40 uppercase tracking-widest">Divisiones</span>
                   <div className="px-3 py-1 bg-white/5 rounded-full border border-white/5">
-                    <span className={`text-[10px] font-bold ${Math.abs(getSplitTotal() - parseFloat(form.amount || '0')) < 0.01 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      ${getSplitTotal().toFixed(2)} / ${parseFloat(form.amount || '0').toFixed(2)}
+                    <span className={`text-[10px] font-bold ${Math.abs(getSplitTotal() - Number.parseFloat(form.amount || '0')) < 0.01 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      ${getSplitTotal().toFixed(2)} / ${Number.parseFloat(form.amount || '0').toFixed(2)}
                     </span>
                   </div>
                 </div>
