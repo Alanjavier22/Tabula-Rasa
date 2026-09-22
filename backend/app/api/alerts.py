@@ -73,7 +73,7 @@ def _build_payment_alert(status: dict, today) -> Optional[PaymentAlert]:
 
 
 @router.get("/payment-reminders", response_model=AlertsResponse)
-def get_payment_reminders(days_ahead: int = 15, db: Annotated[Session, Depends(get_db)]):
+def get_payment_reminders(db: Annotated[Session, Depends(get_db)], days_ahead: int = 15):
     """
     Get upcoming payment due dates using the unified DebtConsolidatorService.
     """
