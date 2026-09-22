@@ -26,6 +26,8 @@ interface GoalFormModalProps {
 }
 
 const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm, saving, onClose, onSubmit }: GoalFormModalProps) => {
+  const submitLabel = isCreate ? 'Establecer Objetivo' : 'Actualizar Misión';
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -149,7 +151,7 @@ const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm,
                   disabled={saving}
                   className="flex-[2] px-8 py-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-blue-600 text-white text-xs font-black uppercase tracking-widest hover:shadow-xl hover:shadow-emerald-500/20 transition-all disabled:opacity-50"
                 >
-                  {saving ? 'Procesando...' : isCreate ? 'Establecer Objetivo' : 'Actualizar Misión'}
+                  {saving ? 'Procesando...' : submitLabel}
                 </button>
               </div>
             </form>
