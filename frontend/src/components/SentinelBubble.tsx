@@ -133,7 +133,7 @@ export const SentinelBubble: React.FC = () => {
 
               {/* 2. Floating Data Particles */}
               <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-20">
-                {particles.map((p) => (
+                {particles.map((p, index) => (
                   <motion.div
                     key={p.id}
                     animate={{
@@ -144,7 +144,7 @@ export const SentinelBubble: React.FC = () => {
                     transition={{
                       duration: p.duration,
                       repeat: Infinity,
-                      delay: i * 2,
+                      delay: index * 2,
                     }}
                     className="absolute w-1 h-1 bg-indigo-500 rounded-full"
                     style={{
