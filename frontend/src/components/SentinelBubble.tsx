@@ -33,6 +33,18 @@ const secureRandomUnit = (): number => {
   return values[0] / 2 ** 32;
 };
 
+const getHealthBadgeColor = (score: number) => {
+  if (score >= 80) return 'bg-emerald-500';
+  if (score >= 50) return 'bg-amber-500';
+  return 'bg-red-500';
+};
+
+const getConcernIcon = (index: number) => {
+  if (index === 0) return <Activity className="w-4 h-4 text-indigo-400" />;
+  if (index === 1) return <Shield className="w-4 h-4 text-indigo-400" />;
+  return <TrendingDown className="w-4 h-4 text-indigo-400" />;
+};
+
 export const SentinelBubble: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [dismissedAlertTimestamp, setDismissedAlertTimestamp] = useState<string | null>(null);
@@ -100,9 +112,7 @@ export const SentinelBubble: React.FC = () => {
           )}
           
           {!isLoading && health && !isOpen && (
-            <div className={`absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full text-[10px] font-black border border-slate-900 ${
-              health.health_score >= 80 ? 'bg-emerald-500' : health.health_score >= 50 ? 'bg-amber-500' : 'bg-red-500'
-            }`}>
+            <div className={`absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full text-[10px] font-black border border-slate-900 ${getHealthBadgeColor(health.health_score)}`}>
               {health.health_score}
             </div>
           )}
@@ -172,7 +182,7 @@ export const SentinelBubble: React.FC = () => {
               </motion.div>
 
               <div className="relative flex-1 overflow-y-auto scrollbar-hide">
-                {isLoading ? (
+                {isLoading && (
                   <div className="h-full flex flex-col items-center justify-center p-12 text-center">
                     <motion.div
                       animate={{ 
@@ -187,12 +197,14 @@ export const SentinelBubble: React.FC = () => {
                     <h4 className="text-xl font-bold text-white mb-2 font-mono uppercase tracking-widest">Sincronizando</h4>
                     <p className="text-[10px] text-slate-500 uppercase tracking-[0.4em] font-black animate-pulse">Consultando Núcleo de Inteligencia</p>
                   </div>
-                ) : error ? (
+                )}
+                {!isLoading && error && (
                   <div className="h-full flex flex-col items-center justify-center p-12 text-center text-red-400/60">
                     <AlertCircle className="w-12 h-12 mb-4 opacity-50" />
                     <p className="text-sm font-bold uppercase tracking-widest font-mono">Enlace Interrumpido</p>
                   </div>
-                ) : health && (
+                )}
+                {!isLoading && !error && health && (
                   <motion.div 
                     variants={{
                       show: { transition: { staggerChildren: 0.15 } }
@@ -204,9 +216,7 @@ export const SentinelBubble: React.FC = () => {
                     {/* Executive Summary Section */}
                     <motion.div variants={{ hidden: { opacity: 0, x: 20 }, show: { opacity: 1, x: 0 } }} className="flex gap-8 items-center">
                       <div className="relative w-20 h-20 flex-shrink-0">
-                        <div className={`absolute inset-0 rounded-full blur-2xl opacity-40 animate-pulse ${
-                          health.health_score >= 80 ? 'bg-emerald-500' : health.health_score >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                        }`} />
+                        <div className={`absolute inset-0 rounded-full blur-2xl opacity-40 animate-pulse ${getHealthBadgeColor(health.health_score)}`} />
                         <svg className="w-full h-full transform -rotate-90 relative z-10">
                           <circle cx="50%" cy="50%" r="45%" stroke="currentColor" strokeWidth="2" fill="transparent" className="text-slate-900" />
                           <motion.circle
@@ -262,7 +272,7 @@ export const SentinelBubble: React.FC = () => {
                             className="flex gap-5 items-start group cursor-default"
                           >
                             <div className="w-8 h-8 rounded-xl bg-white/[0.03] flex items-center justify-center flex-shrink-0 border border-white/5 group-hover:bg-indigo-500/10 group-hover:border-indigo-500/40 transition-all duration-300 shadow-inner">
-                              {idx === 0 ? <Activity className="w-4 h-4 text-indigo-400" /> : idx === 1 ? <Shield className="w-4 h-4 text-indigo-400" /> : <TrendingDown className="w-4 h-4 text-indigo-400" />}
+                              {getConcernIcon(idx)}
                             </div>
                             <p className="text-[13px] text-slate-400 leading-relaxed font-medium group-hover:text-slate-100 transition-colors">
                               {concern}
