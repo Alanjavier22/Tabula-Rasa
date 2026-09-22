@@ -46,7 +46,7 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
     try {
       await statementsAPI.addDebtShare(showAddModal.statementId, {
         person_name: formData.person_name,
-        amount: Math.round(parseFloat(formData.amount) * 100) as Cents, // Convert to cents safely
+        amount: Math.round(Number.parseFloat(formData.amount) * 100) as Cents, // Convert to cents safely
         description: formData.description || undefined,
         status: formData.status,
       });
