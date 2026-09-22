@@ -87,6 +87,70 @@ def _match_card_by_name(description: str, card_name: str) -> bool:
     return False
 
 
+def _find_linked_card(
+    credit_cards: list[Account],
+    source_account: Account,
+    description: str,
+) -> Optional[Account]:
+    """Resolves an explicit account link, including reverse links."""
+    if source_account.linked_account_id:
+        linked = next(
+            (card for card in credit_cards if card.id == source_account.linked_account_id),
+            None,
+        )
+        if linked:
+            return linked
+
+    for card in credit_cards:
+        if card.linked_account_id == source_account.id and _match_card_by_name(
+            description, cast(str, card.name)
+        ):
+            return card
+    return None
+
+
+def _find_named_card(credit_cards: list[Account], description: str) -> Optional[Account]:
+    for card in credit_cards:
+        if _match_card_by_name(description, cast(str, card.name)):
+            return card
+    return None
+
+
+def _find_brand_card(
+    credit_cards: list[Account],
+    source_account: Account,
+    brand: str,
+) -> Optional[Account]:
+    keywords = CARD_BRAND_KEYWORDS.get(brand, [])
+    same_bank_cards = [
+        card for card in credit_cards
+        if card.bank_name
+        and source_account.bank_name
+        and card.bank_name.upper() == source_account.bank_name.upper()
+    ]
+    for card in same_bank_cards:
+        if any(keyword in card.name.upper() for keyword in keywords):
+            return card
+
+    for card in credit_cards:
+        if any(keyword in card.name.upper() for keyword in keywords):
+            return card
+    return None
+
+
+def _find_unique_bank_card(
+    credit_cards: list[Account],
+    source_account: Account,
+) -> Optional[Account]:
+    if not source_account.bank_name:
+        return None
+    same_bank_cards = [
+        card for card in credit_cards
+        if card.bank_name and card.bank_name.upper() == source_account.bank_name.upper()
+    ]
+    return same_bank_cards[0] if len(same_bank_cards) == 1 else None
+
+
 def find_target_credit_card(
     db: Session,
     source_account: Account,
@@ -111,50 +175,21 @@ def find_target_credit_card(
     if not credit_cards:
         return None
 
-    # 1. Direct link: source account has linked_account_id pointing to a credit card
-    if source_account.linked_account_id:
-        linked = next((c for c in credit_cards if c.id == source_account.linked_account_id), None)
-        if linked:
-            return linked
+    linked_card = _find_linked_card(credit_cards, source_account, description)
+    if linked_card:
+        return linked_card
 
-    # Also check reverse: any credit card links back to this source
-    for card in credit_cards:
-        if card.linked_account_id == source_account.id:
-            # Check if description matches this card's name or brand
-            if _match_card_by_name(description, cast(str, card.name)):
-                return card
+    named_card = _find_named_card(credit_cards, description)
+    if named_card:
+        return named_card
 
-    # 2. Card name mentioned in description
-    for card in credit_cards:
-        if _match_card_by_name(description, cast(str, card.name)):
-            return card
-
-    # 3. Brand match + same bank
     brand = _extract_card_brand(description)
     if brand:
-        same_bank_cards = [c for c in credit_cards if c.bank_name and source_account.bank_name 
-                           and c.bank_name.upper() == source_account.bank_name.upper()]
-        for card in same_bank_cards:
-            card_name_upper = card.name.upper()
-            for kw in CARD_BRAND_KEYWORDS.get(brand, []):
-                if kw in card_name_upper:
-                    return card
+        brand_card = _find_brand_card(credit_cards, source_account, brand)
+        if brand_card:
+            return brand_card
 
-        # 4. Brand match, any bank
-        for card in credit_cards:
-            card_name_upper = card.name.upper()
-            for kw in CARD_BRAND_KEYWORDS.get(brand, []):
-                if kw in card_name_upper:
-                    return card
-
-    # 5. Same bank, only one credit card
-    if source_account.bank_name:
-        same_bank_cards = [c for c in credit_cards if c.bank_name and 
-                           c.bank_name.upper() == source_account.bank_name.upper()]
-        if len(same_bank_cards) == 1:
-            return same_bank_cards[0]
-
-    return None
+    return _find_unique_bank_card(credit_cards, source_account)
 
 
 def process_cross_payment(
