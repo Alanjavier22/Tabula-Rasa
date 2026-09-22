@@ -7,7 +7,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 import calendar
 import logging
@@ -96,12 +96,100 @@ class CashFlowForecastResponse(BaseModel):
     has_negative_balance: bool
 
 
+def _normalize_forecast_days(days: int) -> int:
+    return 30 if days < 1 else min(days, 365)
+
+
+def _advance_billing_date(current: date, frequency: str) -> date:
+    if frequency == "weekly":
+        return current + timedelta(days=7)
+    if frequency in {"monthly", "quarterly"}:
+        months = 1 if frequency == "monthly" else 3
+        month_index = current.month - 1 + months
+        year = current.year + month_index // 12
+        month = month_index % 12 + 1
+        day = min(current.day, calendar.monthrange(year, month)[1])
+        return current.replace(year=year, month=month, day=day)
+    if frequency == "yearly":
+        try:
+            return current.replace(year=current.year + 1)
+        except ValueError:
+            return current.replace(year=current.year + 1, day=current.day - 1)
+    return current + timedelta(days=30)
+
+
+def _build_daily_subscriptions(subscriptions: list[Subscription], today, days: int) -> dict:
+    daily_subscriptions = {}
+    start_projection = today + timedelta(days=1)
+    end_projection = today + timedelta(days=days)
+    for subscription in subscriptions:
+        if not subscription.next_billing_date or not subscription.amount:
+            continue
+        billing_date = subscription.next_billing_date.date()
+        frequency = subscription.frequency
+        frequency = frequency.value if hasattr(frequency, "value") else frequency
+        frequency = str(frequency).lower()
+        limit = 0
+        while billing_date <= end_projection and limit < 100:
+            limit += 1
+            if billing_date >= start_projection:
+                daily_subscriptions[billing_date] = (
+                    daily_subscriptions.get(billing_date, Decimal("0"))
+                    + Decimal(str(subscription.amount))
+                )
+            billing_date = _advance_billing_date(billing_date, frequency)
+    return daily_subscriptions
+
+
+def _get_daily_forecast_amounts(reminders, statements, forecast_date, daily_subscriptions):
+    daily_income = Decimal(str(sum(
+        (reminder.amount for reminder in reminders
+         if reminder.due_date.date() == forecast_date and reminder.amount and reminder.amount > 0),
+        0,
+    )))
+    daily_expense = Decimal(str(sum(
+        (abs(cast(int, reminder.amount)) for reminder in reminders
+         if reminder.due_date.date() == forecast_date and reminder.amount and reminder.amount < 0),
+        0,
+    )))
+    daily_subscription = daily_subscriptions.get(forecast_date, Decimal("0"))
+    daily_cc_payment = Decimal(str(sum(
+        (statement.user_share - statement.amount_paid for statement in statements
+         if statement.payment_due_date and statement.payment_due_date.date() == forecast_date),
+        0,
+    )))
+    return daily_income, daily_expense, daily_subscription, daily_cc_payment
+
+
+def _build_forecast(
+    today,
+    days: int,
+    current_balance: Decimal,
+    reminders,
+    statements,
+    daily_subscriptions: dict,
+) -> list[dict]:
+    forecast = [{
+        "date": today.strftime("%Y-%m-%d"),
+        "projected_balance": current_balance,
+    }]
+    projected_balance = current_balance
+    for day_offset in range(1, days + 1):
+        forecast_date = today + timedelta(days=day_offset)
+        daily_income, daily_expense, daily_subscription, daily_cc_payment = _get_daily_forecast_amounts(
+            reminders, statements, forecast_date, daily_subscriptions
+        )
+        projected_balance += daily_income - daily_expense - daily_subscription - daily_cc_payment
+        forecast.append({
+            "date": forecast_date.strftime("%Y-%m-%d"),
+            "projected_balance": projected_balance,
+        })
+    return forecast
+
+
 @router.get("/cash-flow-forecast", response_model=CashFlowForecastResponse)
 def get_cash_flow_forecast(days: int = 30, db: Session = Depends(get_db)):
-    if days < 1:
-        days = 30
-    if days > 365:
-        days = 365
+    days = _normalize_forecast_days(days)
 
     now = datetime.now()
     today = now.date()
@@ -135,91 +223,10 @@ def get_cash_flow_forecast(days: int = 30, db: Session = Depends(get_db)):
         Subscription.is_deleted == False
     ).all()
 
-    # Map active subscription occurrences to dates in the forecast window
-    daily_subscriptions = {}
-    start_proj = today + timedelta(days=1)
-    end_proj = today + timedelta(days=days)
-
-    for sub in subscriptions:
-        if not sub.next_billing_date or not sub.amount:
-            continue
-
-        curr_billing = sub.next_billing_date.date()
-        freq = sub.frequency
-        if hasattr(freq, "value"):
-            freq = freq.value
-        freq = str(freq).lower()
-
-        # Iterate forward to find occurrences in the projection window
-        limit = 0
-        while curr_billing <= end_proj and limit < 100:
-            limit += 1
-            if curr_billing >= start_proj:
-                daily_subscriptions[curr_billing] = daily_subscriptions.get(curr_billing, Decimal("0")) + Decimal(str(sub.amount))
-
-            # Increment based on frequency
-            if freq == "weekly":
-                curr_billing += timedelta(days=7)
-            elif freq == "monthly":
-                m = curr_billing.month - 1 + 1
-                y = curr_billing.year + m // 12
-                m = m % 12 + 1
-                d = min(curr_billing.day, calendar.monthrange(y, m)[1])
-                curr_billing = curr_billing.replace(year=y, month=m, day=d)
-            elif freq == "quarterly":
-                m = curr_billing.month - 1 + 3
-                y = curr_billing.year + m // 12
-                m = m % 12 + 1
-                d = min(curr_billing.day, calendar.monthrange(y, m)[1])
-                curr_billing = curr_billing.replace(year=y, month=m, day=d)
-            elif freq == "yearly":
-                try:
-                    curr_billing = curr_billing.replace(year=curr_billing.year + 1)
-                except ValueError:
-                    curr_billing = curr_billing.replace(year=curr_billing.year + 1, day=curr_billing.day - 1)
-            else:
-                curr_billing += timedelta(days=30)
-
-    forecast = []
-    projected_balance = current_balance
-
-    # Include today as day 0 baseline
-    forecast.append({
-        "date": today.strftime("%Y-%m-%d"),
-        "projected_balance": projected_balance
-    })
-
-    for day_offset in range(1, days + 1):
-        forecast_date = today + timedelta(days=day_offset)
-        forecast_date_str = forecast_date.strftime("%Y-%m-%d")
-
-        daily_income = Decimal(str(sum(
-            (r.amount for r in reminders
-             if r.due_date.date() == forecast_date and r.amount and r.amount > 0),
-            0
-        )))
-
-        # Take absolute value of negative reminders to avoid double negation
-        daily_expense = Decimal(str(sum(
-            (abs(cast(int, r.amount)) for r in reminders
-             if r.due_date.date() == forecast_date and r.amount and r.amount < 0),
-            0
-        )))
-
-        daily_sub = daily_subscriptions.get(forecast_date, Decimal("0"))
-
-        daily_cc_payment = Decimal(str(sum(
-            (s.user_share - s.amount_paid for s in statements
-             if s.payment_due_date and s.payment_due_date.date() == forecast_date),
-            0
-        )))
-
-        projected_balance += daily_income - daily_expense - daily_sub - daily_cc_payment
-
-        forecast.append({
-            "date": forecast_date_str,
-            "projected_balance": projected_balance
-        })
+    daily_subscriptions = _build_daily_subscriptions(subscriptions, today, days)
+    forecast = _build_forecast(
+        today, days, current_balance, reminders, statements, daily_subscriptions
+    )
 
     has_negative_balance = any(float(cast(Any, f["projected_balance"])) < 0 for f in forecast)
 
