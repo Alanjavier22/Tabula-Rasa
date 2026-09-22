@@ -5,12 +5,7 @@ import { Upload, X, CheckCircle, AlertCircle, FileImage, FileText, Trash2 } from
 import type { Category, Account, TransactionType, PaymentMethod, ExpenseType, Cents } from '../types';
 import type { AxiosError } from 'axios';
 import Select from './common/Select';
-import {
-  handleFileDrag,
-  prepareFileDrop,
-  withFirstFile,
-  withFirstDocumentFile,
-} from '../utils/fileSelection';
+import { createFileSelectionHandlers, withFirstDocumentFile } from '../utils/fileSelection';
 
 interface DocumentImportModalProps {
   onClose: () => void;
@@ -54,19 +49,6 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
     });
   }, []);
 
-  const handleDrag = (e: React.DragEvent) => {
-    handleFileDrag(e, setDragActive);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    prepareFileDrop(e, setDragActive);
-    withFirstDocumentFile(e.dataTransfer.files, handleFileSelection);
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    withFirstFile(e.target.files, handleFileSelection);
-  };
-
   const handleFileSelection = (selectedFile: File) => {
     setFile(selectedFile);
     setExtractedTransactions([]);
@@ -83,6 +65,12 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       setPreview(null);
     }
   };
+
+  const { handleDrag, handleDrop, handleFileSelect } = createFileSelectionHandlers({
+    setDragActive,
+    onFileSelect: handleFileSelection,
+    selectDroppedFile: withFirstDocumentFile,
+  });
 
   const handleProcess = async () => {
     if (!file) return;
