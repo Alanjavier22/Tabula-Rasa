@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.1.10](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.9...v0.1.10) (2026-09-22)
+
+
+### Correcciones
+
+* elimina sonda de red fija en SSL ([d64a233](https://github.com/Alanjavier22/Tabula-Rasa/commit/d64a2336c42f0ba2905f76645aab8d4c36ccad72))
+* **security:** avoid hardcoded network probe ([b6788ea](https://github.com/Alanjavier22/Tabula-Rasa/commit/b6788eaba5bb518972920ae650e98df94784a442))
+
+
+### Documentación y mantenimiento
+
+* **coverage:** align backend coverage paths ([5b30661](https://github.com/Alanjavier22/Tabula-Rasa/commit/5b30661ce190666412fd0bef76f04aaa4ffab8e0))
+* **coverage:** include SSL setup module ([1047266](https://github.com/Alanjavier22/Tabula-Rasa/commit/1047266f4b42d9da0bd08be6e677578278f0c10f))
+* resuelve incidencias S7773 de TypeScript ([2356992](https://github.com/Alanjavier22/Tabula-Rasa/commit/23569926123a770a40f8c5d25213ccfdd9bc79a4))
+* **sonar:** aclara cobertura temporal del frontend ([f56e474](https://github.com/Alanjavier22/Tabula-Rasa/commit/f56e4741b19a2feea44c98fd33ea7371a7a23b62))
+* **ts:** moderniza parseo de configuración ([64cf09c](https://github.com/Alanjavier22/Tabula-Rasa/commit/64cf09c0582aa6eb4823ac50549b08e68d668825))
+* **ts:** moderniza parseo de deudas ([08626e3](https://github.com/Alanjavier22/Tabula-Rasa/commit/08626e39ffd1e47051b688d0b4e00f28f7bee393))
+* **ts:** moderniza parseo de ingresos y gastos ([5ab0367](https://github.com/Alanjavier22/Tabula-Rasa/commit/5ab0367e18ffa286d48bf83539d6bb0f311bb9f8))
+* **ts:** moderniza parseo de patrimonio ([51a0eaf](https://github.com/Alanjavier22/Tabula-Rasa/commit/51a0eaf3210fad6c155b64e748bf260d6d525105))
+* **ts:** moderniza parseo de privacidad ([ac53f1b](https://github.com/Alanjavier22/Tabula-Rasa/commit/ac53f1b84c51c4ef67eee1297601a789f47c1fa4))
+* **ts:** moderniza parseo de transacciones compartidas ([7ee703e](https://github.com/Alanjavier22/Tabula-Rasa/commit/7ee703e090930a7da65c0a72146a9f7f47263ca8))
+* **ts:** moderniza parseo del buffer ([5e9916b](https://github.com/Alanjavier22/Tabula-Rasa/commit/5e9916b7040fed808c8a6f55a718fb2d1450223a))
+* **ts:** moderniza parseos de App ([ca163df](https://github.com/Alanjavier22/Tabula-Rasa/commit/ca163dfb47059399597ce63a4055f324559a926d))
+* **ts:** moderniza parseos de cuentas ([3e60595](https://github.com/Alanjavier22/Tabula-Rasa/commit/3e6059595fcd49190d764bca65a313287edd76f2))
+* **ts:** moderniza parseos de estados de cuenta ([446abfe](https://github.com/Alanjavier22/Tabula-Rasa/commit/446abfeefa740854c8ae7025b7dc33715ea2ca95))
+* **ts:** moderniza parseos de flujo de caja ([f9f0ac7](https://github.com/Alanjavier22/Tabula-Rasa/commit/f9f0ac7390d93f9e57ee9f0a6ca900280b3138f6))
+* **ts:** moderniza parseos de gasto diario ([a7e0164](https://github.com/Alanjavier22/Tabula-Rasa/commit/a7e01648689dd7e65dc5151128db375a8da79623))
+* **ts:** moderniza parseos de gastos ([959aafc](https://github.com/Alanjavier22/Tabula-Rasa/commit/959aafc09fda446d204ee50319fbc2a2838921f5))
+* **ts:** moderniza parseos de presupuestos ([9ddb4e5](https://github.com/Alanjavier22/Tabula-Rasa/commit/9ddb4e5a51c79959f92712cb9cff0ff6006de8dc))
+* **ts:** moderniza parseos de transacciones ([cbbc7ad](https://github.com/Alanjavier22/Tabula-Rasa/commit/cbbc7ad3abecb273b9dd7d27105df92bf7148453))
+* **ts:** moderniza parseos del dashboard ([0cddd81](https://github.com/Alanjavier22/Tabula-Rasa/commit/0cddd81a30e421df044bae32f02cdac3533c910f))
+* **ts:** moderniza parseos del formulario ([1c6635d](https://github.com/Alanjavier22/Tabula-Rasa/commit/1c6635d66783b190521afd362204068edfffc027))
+* **ts:** moderniza parseos fiscales ([291bbc0](https://github.com/Alanjavier22/Tabula-Rasa/commit/291bbc07e4dca2c4d13d83e87fa1038ab3f853ef))
+
 ## [0.1.9](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.8...v0.1.9) (2026-09-22)
 
 
