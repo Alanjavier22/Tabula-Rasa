@@ -22,7 +22,7 @@ class TableStub<T = unknown> {
   }
 
   orderBy(_field: string) {
-    return new CollectionStub<T>(this.name);
+    return new CollectionStub<T>();
   }
 
   async each(_callback: (item: T) => void): Promise<void> {
@@ -58,7 +58,7 @@ class TableStub<T = unknown> {
   }
 
   filter(_predicate: (item: T) => boolean) {
-    return new CollectionStub<T>(this.name);
+    return new CollectionStub<T>();
   }
 }
 
@@ -71,30 +71,28 @@ class WhereClauseStub<T = unknown> {
   }
 
   between(_lower: unknown, _upper: unknown, _includeLower?: boolean, _includeUpper?: boolean) {
-    return new CollectionStub<T>(this.tableName);
+    return new CollectionStub<T>();
   }
 
   equals(_value: unknown) {
-    return new CollectionStub<T>(this.tableName);
+    return new CollectionStub<T>();
   }
 
   anyOf(_values: unknown[]) {
-    return new CollectionStub<T>(this.tableName);
+    return new CollectionStub<T>();
   }
 
   and(_predicate: (item: T) => boolean) {
-    return new CollectionStub<T>(this.tableName);
+    return new CollectionStub<T>();
   }
 
   startsWithIgnoreCase(_prefix: string) {
-    return new CollectionStub<T>(this.tableName);
+    return new CollectionStub<T>();
   }
 }
 
 /** Minimal Collection stub */
 class CollectionStub<T = unknown> {
-  constructor(_tableName: string) {}
-
   and(_predicate: (item: T) => boolean) {
     return this;
   }
