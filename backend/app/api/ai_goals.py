@@ -5,7 +5,7 @@ from app.api.auth import get_current_device
 import google.genai as genai
 from google.genai import types
 from pydantic import BaseModel
-from typing import List, Optional, Any, cast
+from typing import Annotated, List, Optional, Any, cast
 from app.services.ai_models import REASONING_MODEL, with_gemini_retry
 import os
 import json
@@ -35,7 +35,7 @@ class SmartGoalResponse(BaseModel):
     summary_message: str
 
 @router.get("/smart-recommendations", response_model=SmartGoalResponse, responses=AI_GOALS_ERROR_RESPONSES)
-def get_smart_goal_recommendations(db: Session = Depends(get_db)):
+def get_smart_goal_recommendations(db: Annotated[Session, Depends(get_db)]):
     config_api = db.query(Config).filter(Config.key == 'gemini_api_key').first()
     if not config_api or not config_api.value:
         raise HTTPException(status_code=400, detail="Gemini API Key not configured")
