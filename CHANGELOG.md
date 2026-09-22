@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.9](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.8...v0.1.9) (2026-09-22)
+
+
+### Documentación y mantenimiento
+
+* reduce cash flow projection complexity ([aad469b](https://github.com/Alanjavier22/Tabula-Rasa/commit/aad469bea75097f84d8705abddb2f0f4a78c6446))
+* reduce complejidad del dashboard de métricas ([052c4ca](https://github.com/Alanjavier22/Tabula-Rasa/commit/052c4caf55f3518d3241047f2c99bd6d1a8beada))
+* reduce complejidad del flujo de caja ([e6015e7](https://github.com/Alanjavier22/Tabula-Rasa/commit/e6015e71881af5a27b04a40ca38485d3b536d9c1))
+* reduce complejidad del importador de transacciones ([f5f0a87](https://github.com/Alanjavier22/Tabula-Rasa/commit/f5f0a871e7ba77349aa86a09965c92b599966c5c))
+* reduce dashboard metrics complexity ([1d52f20](https://github.com/Alanjavier22/Tabula-Rasa/commit/1d52f20efbebccdd76232ec9ab941259d0f926e1))
+* reduce transaction importer complexity ([c66b5c8](https://github.com/Alanjavier22/Tabula-Rasa/commit/c66b5c83683734e07754d01a0487b56ffb2af87e))
+
 ## [0.1.8](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.7...v0.1.8) (2026-09-21)
 
 
