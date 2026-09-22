@@ -5,6 +5,7 @@ import { Upload, X, CheckCircle, AlertCircle, FileImage, FileText, Trash2 } from
 import type { Category, Account, TransactionType, PaymentMethod, ExpenseType, Cents } from '../types';
 import type { AxiosError } from 'axios';
 import Select from './common/Select';
+import { createFileSelectionHandlers, withFirstDocumentFile } from '../utils/fileSelection';
 
 interface DocumentImportModalProps {
   onClose: () => void;
@@ -49,34 +50,6 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
     });
   }, []);
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const dropped = e.dataTransfer.files[0];
-      if (dropped.type.startsWith('image/') || dropped.type === 'application/pdf') {
-        handleFileSelection(dropped);
-      }
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelection(e.target.files[0]);
-    }
-  };
-
   const handleFileSelection = (selectedFile: File) => {
     setFile(selectedFile);
     setExtractedTransactions([]);
@@ -93,6 +66,12 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       setPreview(null);
     }
   };
+
+  const { handleDrag, handleDrop, handleFileSelect } = createFileSelectionHandlers({
+    setDragActive,
+    onFileSelect: handleFileSelection,
+    selectDroppedFile: withFirstDocumentFile,
+  });
 
   const handleProcess = async () => {
     if (!file) return;
