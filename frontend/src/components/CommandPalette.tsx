@@ -95,7 +95,6 @@ const CommandPalette = () => {
             <div className="flex items-center px-4 border-b border-slate-700/50">
               <Search className="w-5 h-5 text-slate-400" />
               <input
-                autoFocus
                 type="text"
                 className="w-full bg-transparent border-0 text-white px-4 py-4 focus:ring-0 placeholder:text-slate-500 outline-none"
                 placeholder="Buscar o saltar a... (Usa las flechas)"
@@ -146,7 +145,6 @@ const CommandPalette = () => {
               <div className="flex items-center gap-2 flex-1">
                 <Sparkles className="w-5 h-5 text-purple-400" />
                 <input
-                  autoFocus
                   type="text"
                   className="w-full bg-transparent border-0 text-white px-4 py-4 focus:ring-0 placeholder:text-slate-500 outline-none"
                   placeholder="Pregunta sobre tus finanzas (ej: ¿Cuánto presupuesto me queda en Comida?)"
