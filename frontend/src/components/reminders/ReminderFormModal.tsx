@@ -28,6 +28,8 @@ interface ReminderFormModalProps {
 }
 
 const ReminderFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm, saving, onClose, onSubmit }: ReminderFormModalProps) => {
+  const submitLabel = isCreate ? 'Crear Alerta' : 'Actualizar Alerta';
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -180,7 +182,7 @@ const ReminderFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditF
                   disabled={saving}
                   className="flex-[2] px-8 py-5 rounded-2xl bg-gradient-to-r from-orange-600 to-rose-600 text-white text-xs font-black uppercase tracking-widest hover:shadow-xl hover:shadow-orange-500/20 transition-all disabled:opacity-50"
                 >
-                  {saving ? 'Procesando...' : isCreate ? 'Crear Alerta' : 'Actualizar Alerta'}
+                  {saving ? 'Procesando...' : submitLabel}
                 </button>
               </div>
             </form>
