@@ -49,6 +49,106 @@ class AccountIntelligenceService:
         raw_str = f"{date}|{description.strip().upper()}|{amount_cents}|{account_id}|{balance_cents or ''}|{suffix}"
         return hashlib.sha256(raw_str.encode()).hexdigest()
 
+    @staticmethod
+    def _build_system_instruction(expected_bank_name: Optional[str]) -> str:
+        return f"""Eres un auditor financiero experto en Ecuador. Tu tarea es EXTRAER transacciones de cuentas de ahorro/corriente a partir de datos en crudo (CSV/Excel convertido a texto).
+
+        El texto provisto puede contener cabeceras basura, resúmenes, y luego una tabla de movimientos.
+        Debes IGNORAR la basura y enfocarte solo en la tabla real de movimientos.
+
+        IMPORTANTE: Se espera que el documento sea del banco: {expected_bank_name or "Desconocido"}.
+        Si ves nombres de otros bancos en las descripciones de las transacciones (ej: "RET. PACIFICO", "BANRED", "PICHINCHA"), NO asumas que el documento es de esos bancos. Estos son solo intermediarios o beneficiarios. El emisor real es {expected_bank_name or "el banco principal"}.
+
+        REGLAS CRÍTICAS:
+        1. MONTO: Extrae el monto exacto en centavos (ej: $15.20 -> 1520). Siempre en valor ABSOLUTO positivo.
+        2. TIPO: Si es ingreso/depósito usa 'income'. Si es egreso/retiro usa 'expense'.
+        3. FECHAS: Convierte cualquier fecha al formato estandarizado YYYY-MM-DD.
+        4. DESCRIPCIÓN: Une columnas de detalle si es necesario para dar contexto, pero mantenlo limpio.
+        5. FILTRADO: NO incluyas filas de saldos iniciales, finales, o cabeceras de tabla como si fueran transacciones.
+        6. CATEGORIZACIÓN: NO categorices las transacciones. Deja los campos de categoría vacíos. Solo extrae la data cruda.
+        7. SALDO: Extrae el saldo efectivo/contable (balance) resultante después de cada movimiento en centavos. Este es CRITICO para diferenciar consumos idénticos.
+        8. BENEFICIARIO: Extrae el campo "Beneficiario" o "Destinatario" de cada movimiento. Puede ser un nombre de persona (ej: "ALARCON MONTERO DANIEL ISAAC"), comercio (ej: "DLC UBER RIDES SA009..."), número de tarjeta (ej: "376653XXXXXX0754"), o número de teléfono/cuenta. Este dato es CRÍTICO para la categorización inteligente.
+        """
+
+    async def _parse_with_ai(
+        self,
+        client,
+        file_data: bytes,
+        filename: str,
+        expected_bank_name: Optional[str],
+    ) -> Dict[str, Any]:
+        raw_csv_text = convert_to_csv_string(file_data, filename)
+        prompt = "Analiza el siguiente extracto bancario en crudo y extrae todas las transacciones financieras reales.\n\n" + raw_csv_text
+        system_instruction = self._build_system_instruction(expected_bank_name)
+        max_retries = 8
+        for attempt in range(max_retries):
+            try:
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=LITE_MODEL,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=AccountParsingResponse,
+                        temperature=0.1,
+                    ),
+                )
+                if not response.text:
+                    raise ValueError("Gemini returned an empty response")
+                return json.loads(response.text)
+            except Exception as error:
+                if attempt == max_retries - 1:
+                    raise ValueError(
+                        f"IA no disponible tras {max_retries} intentos. Google reporta: {str(error)}"
+                    )
+                wait_time = (attempt + 1) * 5
+                logger.warning(
+                    f"[IA] Gemini ocupado ({error}). Reintento {attempt + 1}/{max_retries} en {wait_time}s..."
+                )
+                await asyncio.sleep(wait_time)
+        return {"transactions": []}
+
+    def _enrich_transactions(
+        self,
+        transactions: list[dict],
+        cat_results: dict,
+        categories_dict: dict[str, str],
+        account_id: str,
+    ) -> list[dict]:
+        enriched_transactions = []
+        seen_in_batch = {}
+        for idx, tx in enumerate(transactions):
+            batch_key = f"{tx['date']}_{tx['amount_cents']}_{tx['description'].strip().upper()}_{tx.get('balance_cents')}"
+            occurrence_count = seen_in_batch.get(batch_key, 0)
+            seen_in_batch[batch_key] = occurrence_count + 1
+            suffix = f"_{occurrence_count}" if occurrence_count > 0 else ""
+            fingerprint = self.generate_fingerprint(
+                tx['date'], tx['description'], tx['amount_cents'], account_id,
+                tx.get('balance_cents'), suffix,
+            )
+            tx_dict = tx.copy()
+            tx_dict['fingerprint'] = fingerprint
+            category_result = cat_results.get(idx)
+            if category_result:
+                cat_id, clarification = category_result
+                tx_dict['category_id'] = cat_id
+                tx_dict['needs_clarification'] = clarification
+                if cat_id in categories_dict:
+                    tx_dict['category_name'] = categories_dict[cat_id]
+            enriched_transactions.append(tx_dict)
+        return enriched_transactions
+
+    def _mark_existing_duplicates(self, transactions: list[dict]) -> None:
+        fingerprints = [tx['fingerprint'] for tx in transactions]
+        existing_fingerprints = {
+            row[0] for row in self.db.query(Transaction.fingerprint).filter(
+                Transaction.fingerprint.in_(fingerprints), Transaction.is_deleted == False
+            ).all()
+        }
+        for transaction in transactions:
+            transaction['is_duplicate'] = transaction['fingerprint'] in existing_fingerprints
+
     async def parse_account_document(self, file_data: bytes, filename: str, account_id: str, expected_bank_name: Optional[str] = None) -> Dict[str, Any]:
         api_key = self._get_api_key()
         if not api_key:
@@ -57,8 +157,6 @@ class AccountIntelligenceService:
         client = genai.Client(api_key=api_key)
         
         parsed_data: Dict[str, Any] = {"transactions": []}
-        
-        # --- NUEVO: Extracción Híbrida (Local First) ---
         logger.info("[AccountIntelligence] Intentando extracción heurística local...")
         local_transactions = local_extract_transactions(file_data, filename)
         
@@ -68,69 +166,12 @@ class AccountIntelligenceService:
             parsed_data = local_transactions
         else:
             logger.info("[AccountIntelligence] Extracción local falló o no encontró datos. Pasando a IA (Tier 3)...")
-            # 1. Convertir archivo a texto crudo para la IA
-            raw_csv_text = convert_to_csv_string(file_data, filename)
-            system_instruction = f"""Eres un auditor financiero experto en Ecuador. Tu tarea es EXTRAER transacciones de cuentas de ahorro/corriente a partir de datos en crudo (CSV/Excel convertido a texto).
-            
-            El texto provisto puede contener cabeceras basura, resúmenes, y luego una tabla de movimientos.
-            Debes IGNORAR la basura y enfocarte solo en la tabla real de movimientos.
-            
-            IMPORTANTE: Se espera que el documento sea del banco: {expected_bank_name or "Desconocido"}. 
-            Si ves nombres de otros bancos en las descripciones de las transacciones (ej: "RET. PACIFICO", "BANRED", "PICHINCHA"), NO asumas que el documento es de esos bancos. Estos son solo intermediarios o beneficiarios. El emisor real es {expected_bank_name or "el banco principal"}.
-
-            REGLAS CRÍTICAS:
-            1. MONTO: Extrae el monto exacto en centavos (ej: $15.20 -> 1520). Siempre en valor ABSOLUTO positivo.
-            2. TIPO: Si es ingreso/depósito usa 'income'. Si es egreso/retiro usa 'expense'.
-            3. FECHAS: Convierte cualquier fecha al formato estandarizado YYYY-MM-DD.
-            4. DESCRIPCIÓN: Une columnas de detalle si es necesario para dar contexto, pero mantenlo limpio.
-            5. FILTRADO: NO incluyas filas de saldos iniciales, finales, o cabeceras de tabla como si fueran transacciones.
-            6. CATEGORIZACIÓN: NO categorices las transacciones. Deja los campos de categoría vacíos. Solo extrae la data cruda.
-            7. SALDO: Extrae el saldo efectivo/contable (balance) resultante después de cada movimiento en centavos. Este es CRITICO para diferenciar consumos idénticos.
-            8. BENEFICIARIO: Extrae el campo "Beneficiario" o "Destinatario" de cada movimiento. Puede ser un nombre de persona (ej: "ALARCON MONTERO DANIEL ISAAC"), comercio (ej: "DLC UBER RIDES SA009..."), número de tarjeta (ej: "376653XXXXXX0754"), o número de teléfono/cuenta. Este dato es CRÍTICO para la categorización inteligente.
-            """
-
-            prompt = "Analiza el siguiente extracto bancario en crudo y extrae todas las transacciones financieras reales.\n\n" + raw_csv_text
-
-            # 3. Llamada a Gemini con Reintentos (Exponential Backoff más agresivo)
-            import time
-            max_retries = 8
-            last_error = None
-            
-            for attempt in range(max_retries):
-                try:
-                    response = await asyncio.to_thread(
-                        client.models.generate_content,
-                        model=LITE_MODEL,
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            system_instruction=system_instruction,
-                            response_mime_type="application/json",
-                            response_schema=AccountParsingResponse,
-                            temperature=0.1
-                        )
-                    )
-                    # Si llegamos aquí, la llamada fue exitosa
-                    if not response.text:
-                        raise ValueError("Gemini returned an empty response")
-                        
-                    parsed_data = json.loads(response.text)
-                    break
-                except Exception as e:
-                    last_error = e
-                    # Si es un error de cuota o disponibilidad (503, 429, etc.), esperamos más
-                    if attempt < max_retries - 1:
-                        # Espera incremental: 5s, 10s, 15s, 20s...
-                        wait_time = (attempt + 1) * 5 
-                        logger.warning(f"[IA] Gemini ocupado ({e}). Reintento {attempt + 1}/{max_retries} en {wait_time}s...")
-                        await asyncio.sleep(wait_time)
-                    else:
-                        raise ValueError(f"IA no disponible tras {max_retries} intentos. Google reporta: {str(e)}")
+            parsed_data = await self._parse_with_ai(client, file_data, filename, expected_bank_name)
         
         # ── TIER 4: Batch Categorization ──
         # We process all transactions in one go using the new batch engine
         from app.services.categorizer import categorize_batch
         
-        # Preparar lista para el categorizador
         batch_input = [
             {
                 'description': tx['description'],
@@ -141,49 +182,12 @@ class AccountIntelligenceService:
             for tx in parsed_data['transactions']
         ]
         
-        # Obtener categorías en bloque
         cat_results = categorize_batch(batch_input, self.db)
-        
-        # Enriquecer transacciones con los resultados del lote
         categories_dict = {str(c.id): c.name for c in self.db.query(Category).all()}
-        
-        enriched_transactions = []
-        seen_in_batch = {}
-
-        for idx, tx in enumerate(parsed_data['transactions']):
-            # Identificamos duplicados internos para asignar un sufijo y que tengan fingerprints únicos
-            # Esto es vital para transacciones idénticas (mismo monto y balance) el mismo día.
-            batch_key = f"{tx['date']}_{tx['amount_cents']}_{tx['description'].strip().upper()}_{tx.get('balance_cents')}"
-            occurrence_count = seen_in_batch.get(batch_key, 0)
-            seen_in_batch[batch_key] = occurrence_count + 1
-            
-            suffix = f"_{occurrence_count}" if occurrence_count > 0 else ""
-            fp = self.generate_fingerprint(tx['date'], tx['description'], tx['amount_cents'], account_id, tx.get('balance_cents'), suffix)
-            
-            tx_dict = tx.copy()
-            tx_dict['fingerprint'] = fp
-            
-            # Usar resultado del batch
-            cat_tuple = cat_results.get(idx)
-            if cat_tuple:
-                cat_id, clarification = cat_tuple
-                tx_dict['category_id'] = cat_id
-                tx_dict['needs_clarification'] = clarification
-                if cat_id in categories_dict:
-                    tx_dict['category_name'] = categories_dict[cat_id]
-            
-            enriched_transactions.append(tx_dict)
-
-        # Re-evaluar duplicados con el fingerprint final en una sola query IN (...)
-        # en vez de una query por transacción dentro del loop de arriba.
-        all_fingerprints = [tx_dict['fingerprint'] for tx_dict in enriched_transactions]
-        existing_fingerprints = {
-            row[0] for row in self.db.query(Transaction.fingerprint).filter(
-                Transaction.fingerprint.in_(all_fingerprints), Transaction.is_deleted == False
-            ).all()
-        }
-        for tx_dict in enriched_transactions:
-            tx_dict['is_duplicate'] = tx_dict['fingerprint'] in existing_fingerprints
+        enriched_transactions = self._enrich_transactions(
+            parsed_data['transactions'], cat_results, categories_dict, account_id
+        )
+        self._mark_existing_duplicates(enriched_transactions)
 
         parsed_data['transactions'] = enriched_transactions
         return parsed_data
