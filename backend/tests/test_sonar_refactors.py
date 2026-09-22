@@ -903,3 +903,76 @@ def test_alert_endpoint_and_additional_helper_branches(monkeypatch):
     ).name == "Visa Gold"
     ai_background._classify_sri_pending([SimpleNamespace(transaction_type=TransactionType.INCOME, sri_category="ok", is_manual=False)], MagicMock())
     assert _get_sqlite_type("DATE") == "TEXT"
+
+
+def test_s3358_refactors_keep_health_and_fallback_paths(monkeypatch, client):
+    import database
+    import psutil
+    from app.services.debt_consolidator import DebtConsolidatorService
+    from app.services.sentinel_service import SentinelService
+    from main import health_check
+
+    account = SimpleNamespace(
+        account_type="credit_card",
+        name="Cuenta de prueba",
+        payment_day=None,
+    )
+    statement = SimpleNamespace(
+        id="statement-1",
+        month=3,
+        year=2026,
+        user_share=1000,
+        amount_paid=250,
+        payment_due_date=None,
+    )
+    debt_db = MagicMock()
+    debt_db.query.return_value.filter.return_value.first.return_value = account
+    debt_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [statement]
+    debt_status = DebtConsolidatorService(debt_db).get_account_debt_status("account-1")
+    assert debt_status["latest_statement"] == {
+        "id": "statement-1",
+        "month": 3,
+        "year": 2026,
+        "due_date": None,
+    }
+
+    fallback = SentinelService.__new__(SentinelService)
+
+    def fallback_context(**overrides):
+        return {
+            "liquidez_neta": 100,
+            "deuda_tarjetas": 0,
+            "iva_proyectado_mes": 0,
+            "runway_meses": 6,
+            "anomalias_detectadas": [],
+            **overrides,
+        }
+
+    assert "riesgo bajo" in fallback._generate_heuristic_fallback(fallback_context(), "test", "")["status_summary"]
+    assert "riesgo moderado" in fallback._generate_heuristic_fallback(
+        fallback_context(liquidez_neta=0, deuda_tarjetas=1), "test", ""
+    )["status_summary"]
+    assert "riesgo alto" in fallback._generate_heuristic_fallback(
+        fallback_context(liquidez_neta=0, deuda_tarjetas=1, runway_meses=1), "test", ""
+    )["status_summary"]
+
+    def run_health(memory_percent, disk_percent):
+        health_db = MagicMock()
+        health_db.execute.side_effect = [
+            SimpleNamespace(fetchone=lambda: ("ok",)),
+            SimpleNamespace(fetchone=lambda: ("wal",)),
+        ]
+        monkeypatch.setattr(database, "SessionLocal", lambda: health_db)
+        monkeypatch.setattr(psutil, "virtual_memory", lambda: SimpleNamespace(percent=memory_percent))
+        monkeypatch.setattr(psutil, "disk_usage", lambda _path: SimpleNamespace(percent=disk_percent))
+        return health_check()
+
+    healthy = run_health(10, 10)
+    assert healthy["status"] == "healthy"
+    assert healthy["system"]["memory_status"] == "healthy"
+    degraded = run_health(92, 92)
+    assert degraded["status"] == "degraded"
+    assert degraded["system"]["disk_status"] == "warning"
+    unhealthy = run_health(96, 96)
+    assert unhealthy["status"] == "unhealthy"
+    assert unhealthy["system"]["memory_status"] == "critical"
