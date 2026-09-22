@@ -342,7 +342,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                     </thead>
                     <tbody className="divide-y divide-slate-700/50">
                       {extractedTransactions.map((txn, index) => (
-                        <tr key={index} className={`transition-colors ${txn.selected ? 'bg-emerald-500/5' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-slate-700/30'}`}>
+                        <tr key={txn.fingerprint} className={`transition-colors ${txn.selected ? 'bg-emerald-500/5' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-slate-700/30'}`}>
                           <td className="px-4 py-3">
                             <input
                               type="checkbox"
