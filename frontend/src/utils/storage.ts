@@ -27,7 +27,7 @@ interface StorageStatus {
  */
 export async function checkStorageQuota(): Promise<StorageStatus> {
   try {
-    if (!navigator.storage || !navigator.storage.estimate) {
+    if (!navigator.storage?.estimate) {
       console.warn('[Storage] navigator.storage.estimate() not supported');
       return { usage: 0, quota: 0, usagePercent: 0, status: 'healthy' };
     }
