@@ -249,12 +249,22 @@ def health_check():
             # Check system memory usage
             memory = psutil.virtual_memory()
             memory_percent = memory.percent
-            memory_status = "healthy" if memory_percent < 90 else "warning" if memory_percent < 95 else "critical"
+            if memory_percent < 90:
+                memory_status = "healthy"
+            elif memory_percent < 95:
+                memory_status = "warning"
+            else:
+                memory_status = "critical"
             
             # Check disk usage
             disk = psutil.disk_usage('/')
             disk_percent = disk.percent
-            disk_status = "healthy" if disk_percent < 90 else "warning" if disk_percent < 95 else "critical"
+            if disk_percent < 90:
+                disk_status = "healthy"
+            elif disk_percent < 95:
+                disk_status = "warning"
+            else:
+                disk_status = "critical"
             
             # Overall status
             overall_status = "healthy"
