@@ -5,7 +5,7 @@ import { Upload, X, CheckCircle, AlertCircle, FileImage, FileText, Trash2 } from
 import type { Category, Account, TransactionType, PaymentMethod, ExpenseType, Cents } from '../types';
 import type { AxiosError } from 'axios';
 import Select from './common/Select';
-import { withFirstFile } from '../utils/fileSelection';
+import { withFirstFile, withFirstDocumentFile } from '../utils/fileSelection';
 
 interface DocumentImportModalProps {
   onClose: () => void;
@@ -59,17 +59,11 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
     }
   };
 
-  const handleDroppedFile = (dropped: File) => {
-    if (dropped.type.startsWith('image/') || dropped.type === 'application/pdf') {
-      handleFileSelection(dropped);
-    }
-  };
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    withFirstFile(e.dataTransfer.files, handleDroppedFile);
+    withFirstDocumentFile(e.dataTransfer.files, handleFileSelection);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
