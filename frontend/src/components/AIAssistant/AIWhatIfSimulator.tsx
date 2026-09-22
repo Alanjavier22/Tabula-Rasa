@@ -123,6 +123,26 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
     return 'bg-rose-500';
   };
 
+  let impactLabel = 'de Gasto';
+  if (scenario.impact_type === 'saving') {
+    impactLabel = 'de Ahorro';
+  } else if (scenario.impact_type === 'investment') {
+    impactLabel = 'de Inversión';
+  } else if (scenario.impact_type === 'income') {
+    impactLabel = 'de Ingreso';
+  }
+
+  let financialImpactLabel = 'Impacto Neto';
+  let financialImpactClass = 'text-slate-500';
+  let financialImpactValue = formatFullCurrency(finalDelta * 100);
+  if (scenario.impact_type === 'saving' || scenario.impact_type === 'investment') {
+    financialImpactLabel = 'Plus Patrimonial (12m)';
+    financialImpactClass = 'text-emerald-500/60';
+  } else if (monthsToRecover > 0) {
+    financialImpactLabel = 'Tiempo de recuperación';
+    financialImpactValue = `${monthsToRecover} meses`;
+  }
+
 
   return (
     <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -134,7 +154,7 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
           <div className="relative z-10 space-y-4">
             <div className="flex items-center justify-between">
               <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Impacto {scenario.impact_type === 'saving' ? 'de Ahorro' : scenario.impact_type === 'investment' ? 'de Inversión' : scenario.impact_type === 'income' ? 'de Ingreso' : 'de Gasto'}
+                Impacto {impactLabel}
               </span>
               <div className="flex items-center gap-3 bg-black/20 px-4 py-1.5 rounded-xl border border-white/5">
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Nivel de Riesgo</span>
@@ -181,22 +201,10 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
           <p className="text-slate-400 text-[11px] leading-snug font-semibold px-2 mb-4">{verdict.desc}</p>
           
           <div className="pt-4 border-t border-white/10 w-full space-y-4">
-            {scenario.impact_type === 'saving' || scenario.impact_type === 'investment' ? (
-              <div className="animate-in fade-in zoom-in duration-500">
-                <p className="text-[9px] text-emerald-500/60 uppercase font-black tracking-widest mb-1">Plus Patrimonial (12m)</p>
-                <p className="text-xl font-black text-white tracking-tight">{formatFullCurrency(finalDelta * 100)}</p>
-              </div>
-            ) : monthsToRecover > 0 ? (
-              <div className="animate-in fade-in zoom-in duration-500">
-                <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1">Tiempo de recuperación</p>
-                <p className="text-xl font-black text-white tracking-tight">{monthsToRecover} meses</p>
-              </div>
-            ) : (
-              <div className="animate-in fade-in zoom-in duration-500">
-                <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1">Impacto Neto</p>
-                <p className="text-xl font-black text-white tracking-tight">{formatFullCurrency(finalDelta * 100)}</p>
-              </div>
-            )}
+            <div className="animate-in fade-in zoom-in duration-500">
+              <p className={`text-[9px] ${financialImpactClass} uppercase font-black tracking-widest mb-1`}>{financialImpactLabel}</p>
+              <p className="text-xl font-black text-white tracking-tight">{financialImpactValue}</p>
+            </div>
           </div>
         </div>
       </div>
