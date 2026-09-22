@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.1.13](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.12...v0.1.13) (2026-09-22)
+
+
+### Correcciones
+
+* ordena dependencia de alertas ([ab9e84c](https://github.com/Alanjavier22/Tabula-Rasa/commit/ab9e84c74bb954311936b6cf5aae03fb01eb0d30))
+* ordena dependencia de auditoria IA ([363ca13](https://github.com/Alanjavier22/Tabula-Rasa/commit/363ca1342b8c9f77932f34f0225fffb876a84db8))
+* ordena dependencia del endpoint de saldos ([2475865](https://github.com/Alanjavier22/Tabula-Rasa/commit/24758653463bbf05f1cd93d9479b1428253c5e82))
+
+
+### Documentación y mantenimiento
+
+* moderniza dependencias FastAPI con Annotated ([157cda4](https://github.com/Alanjavier22/Tabula-Rasa/commit/157cda4f0999b33da0c11423150d3c71200b81b2))
+* usa Annotated en agregador IA ([a649265](https://github.com/Alanjavier22/Tabula-Rasa/commit/a64926548351f8f7bd57ca65bceffc3550ebd910))
+* usa Annotated en alertas ([0248fdf](https://github.com/Alanjavier22/Tabula-Rasa/commit/0248fdf60a0a11fb77c4fe03744ab3c82f438916))
+* usa Annotated en analisis de anomalias ([1b65fd4](https://github.com/Alanjavier22/Tabula-Rasa/commit/1b65fd46c894af8f485b7462e68989efc764523f))
+* usa Annotated en asistente IA ([cb3c2ed](https://github.com/Alanjavier22/Tabula-Rasa/commit/cb3c2ed176c94bc6fd5d4b64381bb6d00544af4a))
+* usa Annotated en audio IA ([3a68a57](https://github.com/Alanjavier22/Tabula-Rasa/commit/3a68a57aea7b3090a9b785481717c9ee38e9698a))
+* usa Annotated en auditoria IA ([8e5a888](https://github.com/Alanjavier22/Tabula-Rasa/commit/8e5a888b4bf873a18b6c97c52fd82e2a0bdd4eea))
+* usa Annotated en autenticacion ([7d49c63](https://github.com/Alanjavier22/Tabula-Rasa/commit/7d49c63993576cedc1a41c3f03db3a6ffdaf40d2))
+* usa Annotated en categorias ([c5f1b86](https://github.com/Alanjavier22/Tabula-Rasa/commit/c5f1b8617d6671ef2d3bdf279fe2cd403be61c1d))
+* usa Annotated en categorias IA ([df8fcc1](https://github.com/Alanjavier22/Tabula-Rasa/commit/df8fcc16cd6077319e52b7661e524310f84362ff))
+* usa Annotated en dashboard ([18dbc6e](https://github.com/Alanjavier22/Tabula-Rasa/commit/18dbc6e6f6b7c9b222b008b190bd5ced3f6068cd))
+* usa Annotated en dependencias de cuentas ([7a73e3a](https://github.com/Alanjavier22/Tabula-Rasa/commit/7a73e3af66894e01086746c0163f97aa60937425))
+* usa Annotated en escenarios IA ([7759998](https://github.com/Alanjavier22/Tabula-Rasa/commit/7759998e6fa819ca8e3073a32d1c97a5237720bb))
+* usa Annotated en insights IA ([ef7c28f](https://github.com/Alanjavier22/Tabula-Rasa/commit/ef7c28fe699ae65f4e8a8ad89aa98770526b8250))
+* usa Annotated en mantenimiento ([4d58398](https://github.com/Alanjavier22/Tabula-Rasa/commit/4d5839822cadc440670b051bb09d92f19fb2fff9))
+* usa Annotated en metas IA ([f931ccc](https://github.com/Alanjavier22/Tabula-Rasa/commit/f931ccc5b0edd17346364d653ad49f9455f4d5d8))
+* usa Annotated en sentinel IA ([46255fa](https://github.com/Alanjavier22/Tabula-Rasa/commit/46255fa687753cc5697c5281e4d03f7946daa5f7))
+* usa Annotated en splits ([00b05a7](https://github.com/Alanjavier22/Tabula-Rasa/commit/00b05a7b749f1d2dcea81ebe237a4913b62eba10))
+* usa Annotated en suscripciones ([77d6356](https://github.com/Alanjavier22/Tabula-Rasa/commit/77d6356c722bc987aae6bbd992c77955e4110e4b))
+
 ## [0.1.12](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.11...v0.1.12) (2026-09-22)
 
 
