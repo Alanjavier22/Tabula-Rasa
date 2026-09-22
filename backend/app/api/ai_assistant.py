@@ -192,7 +192,7 @@ async def _run_chat_turns(response, chat, request: ChatRequest, api_key: str) ->
                 response=function_result,
             ))
         response = await with_gemini_retry_async(
-            lambda: chat.send_message(cast(Any, tool_responses))
+            lambda tool_responses=tool_responses: chat.send_message(cast(Any, tool_responses))
         )
     return response, function_calls_made
 
