@@ -47,8 +47,10 @@ def test_fiscal_refactor_helpers_cover_rules_and_serializers():
     assert declaration["3320"] == Decimal("30")
     json_content, json_type, _ = _serialize_sri_declaration(declaration, 2026, "json")
     xml_content, xml_type, _ = _serialize_sri_declaration(declaration, 2026, "xml")
-    assert json_type == "application/json" and '"3320"' in json_content
-    assert xml_type == "application/xml" and b"detallesDeclaracion" in xml_content
+    assert json_type == "application/json"
+    assert '"3320"' in json_content
+    assert xml_type == "application/xml"
+    assert b"detallesDeclaracion" in xml_content
 
 
 def test_anomaly_refactor_helpers_build_subscription_and_burn_alerts():
@@ -164,9 +166,11 @@ def test_alert_snapshot_and_dashboard_helpers_cover_edge_paths():
         SimpleNamespace(amount=1000, metadata_json='{"odometer": 10}', date=datetime(2026, 3, 1)),
         SimpleNamespace(amount=2000, metadata_json="bad", date=datetime(2026, 3, 2)),
     ])
-    assert len(readings) == 1 and total == 3000
+    assert len(readings) == 1
+    assert total == 3000
     start, end = _get_month_bounds(12, 2026)
-    assert start.month == 12 and end.year == 2027
+    assert start.month == 12
+    assert end.year == 2027
     income, expense, count = _calculate_transaction_totals([_transaction("income", 100), _transaction("expense", 50)])
     assert (income, expense, count) == (Decimal("100"), Decimal("50"), 2)
     assets, liabilities = _add_account_balance(SimpleNamespace(account_type=AccountType.CHECKING), Decimal("100"), Decimal("0"), Decimal("0"))
@@ -226,11 +230,13 @@ def test_import_sri_and_debt_helpers_cover_small_service_units(monkeypatch):
     assert _resolve_category(db, {**tx_data, "category_id": "cat"}) == "cat"
     log = SimpleNamespace(account_id="acc", id="log")
     tx = _build_transaction(db, log, {**tx_data, "category_id": "cat"}, datetime(2026, 3, 1))
-    assert tx.amount == 1000 and tx.account_id == "acc"
+    assert tx.amount == 1000
+    assert tx.account_id == "acc"
     service = DebtConsolidatorService(db)
     statement = SimpleNamespace(user_share=2000, amount_paid=500, payment_due_date=None)
     latest, debt = service._get_statement_debt([statement])
-    assert latest is statement and debt == 1500
+    assert latest is statement
+    assert debt == 1500
     assert service._get_projected_deferreds("acc", statement) == 0
     account = SimpleNamespace(payment_day=5)
     assert service._get_due_date(account, None, date(2026, 3, 10)) == "2026-04-05"
@@ -257,8 +263,9 @@ def test_ai_and_account_intelligence_helpers_cover_prompt_and_enrichment(monkeyp
     request = ai_assistant.ChatRequest(message="hola")
     handlers = ai_assistant._build_tool_handlers(db, request, "key", {})
     assert "get_total_balance" in handlers
+    quota_error = Exception("429 quota")
     with pytest.raises(ai_assistant.HTTPException):
-        ai_assistant._raise_assistant_error(Exception("429 quota"))
+        ai_assistant._raise_assistant_error(quota_error)
 
     service = AccountIntelligenceService(db_session=db)
     db.query.return_value.filter.return_value.first.return_value = None
@@ -355,10 +362,18 @@ def test_ai_insights_snapshot_prompt_and_error_branches():
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(value="direct")
     assert "RESUMEN FINANCIERO" in ai_insights._build_insights_prompt(db, snapshot)
-    for message in ("quota exceeded", "model not found", "temporary failure"):
-        with pytest.raises(ai_insights.HTTPException) as error:
-            ai_insights._raise_insights_api_error(Exception(message))
-        assert error.value.status_code == 503
+    quota_error = Exception("quota exceeded")
+    with pytest.raises(ai_insights.HTTPException) as error:
+        ai_insights._raise_insights_api_error(quota_error)
+    assert error.value.status_code == 503
+    model_error = Exception("model not found")
+    with pytest.raises(ai_insights.HTTPException) as error:
+        ai_insights._raise_insights_api_error(model_error)
+    assert error.value.status_code == 503
+    temporary_error = Exception("temporary failure")
+    with pytest.raises(ai_insights.HTTPException) as error:
+        ai_insights._raise_insights_api_error(temporary_error)
+    assert error.value.status_code == 503
 
 
 def test_ai_assistant_message_turns_and_error_branches(monkeypatch):
@@ -380,7 +395,8 @@ def test_ai_assistant_message_turns_and_error_branches(monkeypatch):
     chat = FakeChat()
     request = ai_assistant.ChatRequest(message="hola")
     response = anyio.run(ai_assistant._send_initial_message, chat, request)
-    assert response.text == "respuesta" and chat.messages == ["hola"]
+    assert response.text == "respuesta"
+    assert chat.messages == ["hola"]
 
     request.document_base64 = "aG9sYQ=="
     request.document_mime_type = "text/plain"
@@ -391,12 +407,21 @@ def test_ai_assistant_message_turns_and_error_branches(monkeypatch):
     first = SimpleNamespace(function_calls=[call])
     monkeypatch.setattr(ai_assistant, "_execute_function_call", lambda *_args: _async_value({"total": 1}))
     final, calls = anyio.run(ai_assistant._run_chat_turns, first, chat, request, "key")
-    assert final.text == "respuesta" and calls == [{"name": "get_total_balance", "args": {}}]
+    assert final.text == "respuesta"
+    assert calls == [{"name": "get_total_balance", "args": {}}]
 
-    for message, status in (("503 unavailable", 503), ("bad api key", 401), ("unexpected", 500)):
-        with pytest.raises(ai_assistant.HTTPException) as error:
-            ai_assistant._raise_assistant_error(Exception(message))
-        assert error.value.status_code == status
+    unavailable_error = Exception("503 unavailable")
+    with pytest.raises(ai_assistant.HTTPException) as error:
+        ai_assistant._raise_assistant_error(unavailable_error)
+    assert error.value.status_code == 503
+    api_key_error = Exception("bad api key")
+    with pytest.raises(ai_assistant.HTTPException) as error:
+        ai_assistant._raise_assistant_error(api_key_error)
+    assert error.value.status_code == 401
+    unexpected_error = Exception("unexpected")
+    with pytest.raises(ai_assistant.HTTPException) as error:
+        ai_assistant._raise_assistant_error(unexpected_error)
+    assert error.value.status_code == 500
 
 
 async def _async_value(value):
@@ -416,7 +441,8 @@ def test_ai_background_and_import_persistence_branches(monkeypatch):
     tx.category_id = None
     monkeypatch.setattr(ai_background, "categorize_batch", lambda *_args, **_kwargs: {0: ("cat", True)})
     assert ai_background._categorize_uncategorized([tx], db) == 1
-    assert tx.category_id == "cat" and tx.needs_clarification is True
+    assert tx.category_id == "cat"
+    assert tx.needs_clarification is True
 
     tx.sri_category = None
     db.query.return_value.all.return_value = [SimpleNamespace(id="cat", name="Comida")]
@@ -469,7 +495,9 @@ def test_snapshot_and_transaction_helpers_cover_remaining_branches(monkeypatch):
     }
     monkeypatch.setattr(transaction_service, "unique_transaction_fingerprint", lambda *_args, **_kwargs: "fp")
     transaction_service._prepare_transaction_data(db, data, None)
-    assert data["amount"] == 100 and data["is_manual"] is True and data["fingerprint"] == "fp"
+    assert data["amount"] == 100
+    assert data["is_manual"] is True
+    assert data["fingerprint"] == "fp"
     db.query.return_value.filter.return_value.first.side_effect = None
     account = SimpleNamespace(account_type=AccountType.CREDIT_CARD)
     db.query.return_value.filter.return_value.first.return_value = account
@@ -548,7 +576,8 @@ def test_insight_fiscal_and_integrity_helpers_cover_edge_values():
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(name="Comida")
     cache, categories = _build_expense_categories(db, transactions)
-    assert categories == {"Comida": 100} and cache["cat"] == "Comida"
+    assert categories == {"Comida": 100}
+    assert cache["cat"] == "Comida"
     assert _sum_by_transaction_type(transactions, "income") == 200
     atypical = _build_atypical_transactions(transactions, cache, 40, datetime(2026, 3, 20))
     assert len(atypical) == 1
