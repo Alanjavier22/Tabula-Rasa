@@ -47,8 +47,7 @@ jobs:
           python -m pytest
           -c backend/pytest.ini
           backend/tests
-          --cov=backend/app
-          --cov=ssl_setup
+          --cov=backend
           --cov-report=xml:backend/coverage.xml
           --cov-report=term-missing
           -q
