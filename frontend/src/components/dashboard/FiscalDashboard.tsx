@@ -74,6 +74,13 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, color, icon, 
   </motion.div>
 );
 
+const getTooltipColor = (color: string | undefined) => {
+  if (color === 'url(#colorIncome)') return '#10b981';
+  if (color === 'url(#colorExpenses)') return '#8b5cf6';
+  if (color === 'url(#colorIva15)') return '#ef4444';
+  return '#10b981';
+};
+
 /**
  * Custom tooltip for charts with monetary formatting
  */
@@ -92,7 +99,7 @@ const CustomTooltip = ({ active, payload, label }: TooltipContentProps) => {
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{formattedLabel}</p>
         {payload.map((entry, index) => (
           <div key={index} className="flex items-center gap-2 mt-1">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color === 'url(#colorIncome)' ? '#10b981' : entry.color === 'url(#colorExpenses)' ? '#8b5cf6' : entry.color === 'url(#colorIva15)' ? '#ef4444' : '#10b981' }} />
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getTooltipColor(entry.color) }} />
             <p className="text-sm font-semibold text-white">
               {entry.name}: <span className="font-mono">${formatMoney(entry.value)}</span>
             </p>
