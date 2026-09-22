@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.1.12](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.11...v0.1.12) (2026-09-22)
+
+
+### Correcciones
+
+* congela respuestas de herramientas IA ([e9381ef](https://github.com/Alanjavier22/Tabula-Rasa/commit/e9381efa570e9c10596ee17db164f31b53d50ae0))
+* evita guardar secretos en texto plano ([8ee0f3c](https://github.com/Alanjavier22/Tabula-Rasa/commit/8ee0f3c56fbfd4e2d0d820dc32774fa2ddfaaeec))
+
+
+### Documentación y mantenimiento
+
+* centraliza persistencia de secretos ([a783406](https://github.com/Alanjavier22/Tabula-Rasa/commit/a783406a19a533056878db6efe9541d9fbce75d2))
+* elimina asignacion redundante del parser ([3329675](https://github.com/Alanjavier22/Tabula-Rasa/commit/3329675be8c86cdf143daf03c4a58235e29bffa7))
+* elimina ternario anidado en alertas ([933d93b](https://github.com/Alanjavier22/Tabula-Rasa/commit/933d93b51093abe27f360421065fc5b2d5aeef2c))
+* elimina variable temporal sin uso ([ab76928](https://github.com/Alanjavier22/Tabula-Rasa/commit/ab76928420bef341ac337c9389188f1aca4b6aa2))
+* reduce complejidad cognitiva del backend ([f728457](https://github.com/Alanjavier22/Tabula-Rasa/commit/f728457885a9227d2968e5b0f94120616ef98cb2))
+* separa acumulacion fiscal por transaccion ([c64baa6](https://github.com/Alanjavier22/Tabula-Rasa/commit/c64baa6710d3efc88cf07d59b77961f30e15a9e3))
+* separa auditoria de anomalías ([f5f0dbb](https://github.com/Alanjavier22/Tabula-Rasa/commit/f5f0dbb20e8e8979c85b350e14dc80bdfb78920c))
+* separa calculos fiscales y exportacion SRI ([1ece5ad](https://github.com/Alanjavier22/Tabula-Rasa/commit/1ece5ad826f322f64f61727075864c7cda6d3eba))
+* separa categorizacion en segundo plano ([6627c67](https://github.com/Alanjavier22/Tabula-Rasa/commit/6627c67c42e3001557bb1d5622387018cfe4b76a))
+* separa clasificacion SRI por lotes ([b52d7cf](https://github.com/Alanjavier22/Tabula-Rasa/commit/b52d7cf90140bee05b74f63cd19fa28a06a4a32c))
+* separa consolidacion de deuda ([303c755](https://github.com/Alanjavier22/Tabula-Rasa/commit/303c7553c6694bb54f6fa4d44519a369d28e495a))
+* separa construccion de alertas de pago ([618c22f](https://github.com/Alanjavier22/Tabula-Rasa/commit/618c22f6a93a90209dc82c5726b0d573d88d5183))
+* separa construccion de insights financieros ([db0b8f5](https://github.com/Alanjavier22/Tabula-Rasa/commit/db0b8f52393474ed5c6eb7fc5c37c35b5463b3cc))
+* separa creacion atomica de transacciones ([b6f0d01](https://github.com/Alanjavier22/Tabula-Rasa/commit/b6f0d015449c5a870c4a55c60faf2c41dc291df7))
+* separa deteccion de anomalías ([64a9d72](https://github.com/Alanjavier22/Tabula-Rasa/commit/64a9d72ef49c71587ab327fe0aef210c43e1a674))
+* separa ejecucion del asistente IA ([706d1e8](https://github.com/Alanjavier22/Tabula-Rasa/commit/706d1e83bc3e5c6a3c18f0a320018f50d24bbfe2))
+* separa parseo de estados de cuenta ([c60f232](https://github.com/Alanjavier22/Tabula-Rasa/commit/c60f232350721e87588f8405073f9f6848747ba8))
+* separa parseo inteligente de cuentas ([be58478](https://github.com/Alanjavier22/Tabula-Rasa/commit/be58478e87cc28622ced71fd9642b82484270df0))
+* separa pronostico de flujo de caja ([49616a8](https://github.com/Alanjavier22/Tabula-Rasa/commit/49616a83ad49a14528d77547e7d8a9b66f99eae2))
+* separa reconciliacion temporal de snapshots ([7e58c97](https://github.com/Alanjavier22/Tabula-Rasa/commit/7e58c974ef90995ac171f39103ec84899662dbae))
+* separa registro de rutas CRUD ([9113a34](https://github.com/Alanjavier22/Tabula-Rasa/commit/9113a34869f35efa349288bb380f195894dc8a6e))
+* separa resolucion de pagos de tarjeta ([5f96c38](https://github.com/Alanjavier22/Tabula-Rasa/commit/5f96c38f54bcd8a342cda3b44b42a71cb620b497))
+* separa respaldo externo en Drive ([f63f95f](https://github.com/Alanjavier22/Tabula-Rasa/commit/f63f95f0f3e8694f22bb944050a43189403e79c7))
+* separa resumen de transacciones ([7bfde45](https://github.com/Alanjavier22/Tabula-Rasa/commit/7bfde45d251181db01de9303647729dda63e094a))
+* separa rotacion de respaldos locales ([65e368f](https://github.com/Alanjavier22/Tabula-Rasa/commit/65e368f9c575c1e958abca363a3f0f7c517bbc95))
+* separa telemetria vehicular ([62d4331](https://github.com/Alanjavier22/Tabula-Rasa/commit/62d433195872f9db4909e19b197263bf8e2a4a34))
+* simplifica calculo de snapshots ([9deb386](https://github.com/Alanjavier22/Tabula-Rasa/commit/9deb3866a5ed5e3c87c3c149759f0aeb1940e157))
+* simplifica finalizacion de importaciones ([715ca45](https://github.com/Alanjavier22/Tabula-Rasa/commit/715ca45b9d08de668e2ee7116a184bbfa976f1d7))
+* simplifica mapeo de tipos SQLite ([3d1d28e](https://github.com/Alanjavier22/Tabula-Rasa/commit/3d1d28e8a86615f1dc12fe65a7015cdf421ba52b))
+* simplifica recalculo de saldos ([bee6272](https://github.com/Alanjavier22/Tabula-Rasa/commit/bee62726e49a1a71203fbf3b499550293572a6a4))
+
 ## [0.1.11](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.10...v0.1.11) (2026-09-22)
 
 
