@@ -112,6 +112,58 @@ def create_splits(db: Session, transaction_id: str, splits_data: List[dict]) -> 
 # Main service functions
 # ---------------------------------------------------------------------------
 
+def _prepare_transaction_data(
+    db: Session,
+    transaction_data: dict,
+    splits_data: Optional[List[dict]],
+) -> None:
+    if "amount" in transaction_data:
+        transaction_data["amount"] = _to_int(transaction_data["amount"])
+    validate_positive_amount(transaction_data["amount"])
+    if not transaction_data.get("date"):
+        transaction_data["date"] = datetime.now(timezone.utc)
+    transaction_data["is_manual"] = True
+    transaction_data["fingerprint"] = unique_transaction_fingerprint(
+        db,
+        description=transaction_data["description"],
+        amount=transaction_data["amount"],
+        date_value=transaction_data["date"],
+        transaction_type=transaction_data["transaction_type"],
+        account_id=transaction_data.get("account_id"),
+    )
+    if transaction_data.get("category_id"):
+        validate_category_exists(db, transaction_data["category_id"])
+    if transaction_data.get("account_id"):
+        validate_account_exists(db, transaction_data["account_id"])
+    if splits_data:
+        validate_splits(splits_data, transaction_data["amount"])
+
+
+def _mark_internal_credit_card_payment(db: Session, transaction_data: dict) -> None:
+    if transaction_data.get("transaction_type") != "income" or not transaction_data.get("account_id"):
+        return
+    account = db.query(Account).filter(Account.id == transaction_data["account_id"]).first()
+    from app.models.account import AccountType
+    if account and account.account_type == AccountType.CREDIT_CARD:
+        transaction_data["is_internal"] = True
+
+
+def _process_cross_payment(db: Session, db_transaction: Transaction) -> None:
+    if not db_transaction.account_id:
+        return
+    from app.services.credit_card_payment import process_cross_payment
+    source_account = db.query(Account).filter(Account.id == db_transaction.account_id).first()
+    if source_account:
+        process_cross_payment(db, db_transaction, source_account)
+
+
+def _recalculate_goal_if_needed(db: Session, transaction: Transaction) -> None:
+    if not transaction.goal_id:
+        return
+    from app.api.goals import recalculate_goal_progress
+    recalculate_goal_progress(cast(str, transaction.goal_id), db)
+
+
 def create_transaction_with_splits(
     db: Session,
     transaction_data: dict,
@@ -132,64 +184,20 @@ def create_transaction_with_splits(
         HTTPException: If validation fails
     """
     try:
-        # --- coerce & validate amount ------------------------------------
-        if "amount" in transaction_data:
-            transaction_data["amount"] = _to_int(transaction_data["amount"])
-        validate_positive_amount(transaction_data["amount"])
-
-        if not transaction_data.get("date"):
-            transaction_data["date"] = datetime.now(timezone.utc)
-
-        # UI-created transactions are explicitly human-owned. AI background
-        # jobs use this flag to avoid overwriting user decisions.
-        transaction_data["is_manual"] = True
-        transaction_data["fingerprint"] = unique_transaction_fingerprint(
-            db,
-            description=transaction_data["description"],
-            amount=transaction_data["amount"],
-            date_value=transaction_data["date"],
-            transaction_type=transaction_data["transaction_type"],
-            account_id=transaction_data.get("account_id"),
-        )
-
-        # --- validate references -----------------------------------------
-        if transaction_data.get("category_id"):
-            validate_category_exists(db, transaction_data["category_id"])
-        if transaction_data.get("account_id"):
-            validate_account_exists(db, transaction_data["account_id"])
-
-        # --- validate splits before touching the DB ----------------------
-        if splits_data:
-            validate_splits(splits_data, transaction_data["amount"])
-
-        # persist
-        # GOLDEN RULE: Any income to a credit card is an internal payment, not real income.
-        if transaction_data.get("transaction_type") == "income" and transaction_data.get("account_id"):
-            account = db.query(Account).filter(Account.id == transaction_data["account_id"]).first()
-            from app.models.account import AccountType
-            if account and account.account_type == AccountType.CREDIT_CARD:
-                transaction_data["is_internal"] = True
+        _prepare_transaction_data(db, transaction_data, splits_data)
+        _mark_internal_credit_card_payment(db, transaction_data)
 
         db_transaction = Transaction(**transaction_data)
         db.add(db_transaction)
         db.flush()
 
         apply_transaction_to_balance(db, db_transaction, reverse=False)
-
-        # Cross-payment: detect credit card payments and create mirror transaction
-        if db_transaction.account_id:
-            from app.services.credit_card_payment import process_cross_payment
-            source_account = db.query(Account).filter(Account.id == db_transaction.account_id).first()
-            if source_account:
-                process_cross_payment(db, db_transaction, source_account)
+        _process_cross_payment(db, db_transaction)
 
         if splits_data:
             create_splits(db, cast(str, db_transaction.id), splits_data)
 
-        # Recalculate goal progress if transaction is assigned to a goal
-        if db_transaction.goal_id:
-            from app.api.goals import recalculate_goal_progress
-            recalculate_goal_progress(cast(str, db_transaction.goal_id), db)
+        _recalculate_goal_if_needed(db, db_transaction)
 
         # Disparamos la sanación de snapshots si la transacción es del pasado o afecta el histórico
         from app.services.snapshot_service import mark_snapshots_as_stale
