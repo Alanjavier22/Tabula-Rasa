@@ -48,6 +48,7 @@ jobs:
           -c backend/pytest.ini
           backend/tests
           --cov=backend/app
+          --cov=ssl_setup
           --cov-report=xml:backend/coverage.xml
           --cov-report=term-missing
           -q
