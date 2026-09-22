@@ -4,10 +4,10 @@ import { formatMoney, toDecimal } from '../../utils/money';
 type MoneyValue = string | number | null | undefined | { toFixed: (n: number) => string };
 
 interface SummaryCardsProps {
-  balance: MoneyValue;
-  creditCardDebt: MoneyValue;
-  income: MoneyValue;
-  expenses: MoneyValue;
+  readonly balance: MoneyValue;
+  readonly creditCardDebt: MoneyValue;
+  readonly income: MoneyValue;
+  readonly expenses: MoneyValue;
 }
 
 export default function SummaryCards({ balance, creditCardDebt, income, expenses }: SummaryCardsProps) {
