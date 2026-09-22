@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Optional, Any, cast
+from typing import Annotated, Optional, Any, cast
 from database import get_db
 from app.api.crud_factory import make_crud_router
 from app.models.account import Account, AccountType
@@ -71,7 +71,7 @@ class SetBalanceRequest(BaseModel):
 
 
 @router.post("/{account_id}/set-balance", response_model=AccountResponse, responses=ACCOUNT_NOT_FOUND_RESPONSE)
-def set_balance(account_id: str, payload: SetBalanceRequest, db: Session = Depends(get_db)):
+def set_balance(account_id: str, payload: SetBalanceRequest, db: Annotated[Session, Depends(get_db)]):
     """Force-set account balance to a specific value. Use to sync with reality."""
     db_account = db.query(Account).filter(Account.id == account_id).first()
     if not db_account:
@@ -83,7 +83,7 @@ def set_balance(account_id: str, payload: SetBalanceRequest, db: Session = Depen
 
 
 @router.post("/{account_id}/recalculate", response_model=AccountResponse, responses=ACCOUNT_NOT_FOUND_RESPONSE)
-def recalculate_balance(account_id: str, initial_balance: int = 0, db: Session = Depends(get_db)):
+def recalculate_balance(account_id: str, initial_balance: int = 0, db: Annotated[Session, Depends(get_db)]):
     """Recalculate balance from initial_balance + sum of all transactions."""
     from app.services.balance import recalculate_account_balance
     db_account = db.query(Account).filter(Account.id == account_id).first()
