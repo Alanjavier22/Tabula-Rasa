@@ -74,6 +74,7 @@ export const SentinelBubble: React.FC = () => {
   // partículas salten a posiciones nuevas en vez de animarse continuas.
   const particles = useMemo(() => (
     [...Array(6)].map(() => ({
+      id: globalThis.crypto.randomUUID(),
       x: secureRandomUnit() * 20 - 10,
       duration: 10 + secureRandomUnit() * 10,
       left: secureRandomUnit() * 100,
@@ -132,9 +133,9 @@ export const SentinelBubble: React.FC = () => {
 
               {/* 2. Floating Data Particles */}
               <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-20">
-                {particles.map((p, i) => (
+                {particles.map((p) => (
                   <motion.div
-                    key={i}
+                    key={p.id}
                     animate={{
                       y: [0, -100, 0],
                       x: [0, p.x, 0],
@@ -267,7 +268,7 @@ export const SentinelBubble: React.FC = () => {
                       <div className="space-y-5">
                         {health.top_concerns.map((concern, idx) => (
                           <motion.div 
-                            key={idx} 
+                            key={concern} 
                             whileHover={{ x: 5 }}
                             className="flex gap-5 items-start group cursor-default"
                           >
@@ -290,8 +291,8 @@ export const SentinelBubble: React.FC = () => {
                           <div className="flex-1 h-[1px] bg-gradient-to-r from-rose-500/20 to-transparent" />
                         </h4>
                         <div className="space-y-4">
-                          {health.alarmas_ritmo_gasto.map((alarm, idx) => (
-                            <div key={idx} className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-4">
+                            {health.alarmas_ritmo_gasto.map((alarm) => (
+                            <div key={`${alarm.category}-${alarm.pacing_status}`} className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-4">
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-xs font-black text-rose-400 uppercase tracking-widest">{alarm.category}</span>
                                 <span className="text-[10px] font-mono text-rose-300/50">+{Math.round(((alarm.spent - alarm.expected) / alarm.expected) * 100)}% vs esperado</span>
@@ -315,9 +316,9 @@ export const SentinelBubble: React.FC = () => {
                         <div className="flex-1 h-[1px] bg-gradient-to-r from-white/5 to-transparent" />
                       </h4>
                       <div className="space-y-4">
-                        {health.warnings.map((warning, idx) => (
+                        {health.warnings.map((warning) => (
                           <motion.div 
-                            key={idx} 
+                            key={`${warning.level}-${warning.message}`} 
                             whileHover={{ scale: 1.02, backgroundColor: "rgba(255,255,255,0.03)" }}
                             className={`p-5 rounded-[2rem] border transition-all relative overflow-hidden ${
                               warning.level === 'warning' 
