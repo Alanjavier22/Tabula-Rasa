@@ -69,11 +69,11 @@ def generate_self_signed_cert():
             encryption_algorithm=serialization.NoEncryption()
         ))
     
-    print(f"[FASE-8] TLS certificate generated successfully:")
+    print("[FASE-8] TLS certificate generated successfully:")
     print(f"  Certificate: {cert_path}")
     print(f"  Private Key: {key_path}")
-    print(f"  Valid for: 10 years")
-    print(f"  Common Name: localhost")
+    print("  Valid for: 10 years")
+    print("  Common Name: localhost")
 
 if __name__ == "__main__":
     try:
