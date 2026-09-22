@@ -4,7 +4,7 @@ import type { SafeToSpendResponse } from '../../types';
 import { formatMoney } from '../../utils/money';
 
 interface SafeToSpendCardProps {
-  data: SafeToSpendResponse;
+  readonly data: SafeToSpendResponse;
 }
 
 export default function SafeToSpendCard({ data }: SafeToSpendCardProps) {
