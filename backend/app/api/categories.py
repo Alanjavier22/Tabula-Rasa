@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from database import get_db
 from app.api.crud_factory import make_crud_router
 from app.models.category import Category
@@ -43,7 +43,7 @@ class CategoryResponse(BaseModel):
 def _register_export(router: APIRouter) -> None:
     # Debe registrarse antes de GET /{category_id} - ver nota en crud_factory.py.
     @router.get("/export", response_class=JSONResponse)
-    def export_categories(db: Session = Depends(get_db)):
+    def export_categories(db: Annotated[Session, Depends(get_db)]):
         """Export all categories to JSON"""
         categories = db.query(Category).filter(Category.is_deleted == False).all()  # noqa: E712
         categories_data = [
@@ -74,7 +74,7 @@ router: APIRouter = make_crud_router(
 
 
 @router.post("/import")
-def import_categories(categories_data: List[dict], db: Session = Depends(get_db)):
+def import_categories(categories_data: List[dict], db: Annotated[Session, Depends(get_db)]):
     """Import categories from JSON - rejects duplicates by name"""
     imported_count = 0
     skipped_count = 0
