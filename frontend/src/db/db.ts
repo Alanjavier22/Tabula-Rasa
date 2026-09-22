@@ -11,14 +11,8 @@
 
 /** Minimal Dexie-compatible table stub */
 class TableStub<T = unknown> {
-  private name: string;
-
-  constructor(name: string) {
-    this.name = name;
-  }
-
   where(_field: string) {
-    return new WhereClauseStub<T>(this.name);
+    return new WhereClauseStub<T>();
   }
 
   orderBy(_field: string) {
@@ -64,12 +58,6 @@ class TableStub<T = unknown> {
 
 /** Minimal WhereClause stub */
 class WhereClauseStub<T = unknown> {
-  private tableName: string;
-
-  constructor(tableName: string) {
-    this.tableName = tableName;
-  }
-
   between(_lower: unknown, _upper: unknown, _includeLower?: boolean, _includeUpper?: boolean) {
     return new CollectionStub<T>();
   }
@@ -174,23 +162,23 @@ interface SyncQueueRecord {
 
 /** Database stub with all tables referenced by legacy services */
 class DatabaseStub {
-  transactions = new TableStub('transactions');
-  categories = new TableStub('categories');
-  accounts = new TableStub('accounts');
-  budgets = new TableStub('budgets');
-  subscriptions = new TableStub('subscriptions');
-  reminders = new TableStub('reminders');
-  snapshots = new TableStub('snapshots');
-  sync_queue = new TableStub<SyncQueueRecord>('sync_queue');
-  ious = new TableStub('ious');
-  statements = new TableStub('statements');
-  config = new TableStub('config');
-  exchange_rates = new TableStub('exchange_rates');
-  net_worth_snapshots = new TableStub('net_worth_snapshots');
-  credit_card_statements = new TableStub('credit_card_statements');
-  fuel_logs = new TableStub<FuelLogRecord>('fuel_logs');
-  maintenance_logs = new TableStub<MaintenanceLogRecord>('maintenance_logs');
-  vehicles = new TableStub<VehicleRecord>('vehicles');
+  transactions = new TableStub();
+  categories = new TableStub();
+  accounts = new TableStub();
+  budgets = new TableStub();
+  subscriptions = new TableStub();
+  reminders = new TableStub();
+  snapshots = new TableStub();
+  sync_queue = new TableStub<SyncQueueRecord>();
+  ious = new TableStub();
+  statements = new TableStub();
+  config = new TableStub();
+  exchange_rates = new TableStub();
+  net_worth_snapshots = new TableStub();
+  credit_card_statements = new TableStub();
+  fuel_logs = new TableStub<FuelLogRecord>();
+  maintenance_logs = new TableStub<MaintenanceLogRecord>();
+  vehicles = new TableStub<VehicleRecord>();
 
   async transaction<T>(_mode: string, _tables: string[], callback: () => Promise<T>): Promise<T> {
     return await callback();
