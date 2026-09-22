@@ -30,6 +30,18 @@ const emptyForm: GoalFormData = {
   status: 'active' as GoalStatus,
 };
 
+const getGoalStatusClass = (status: GoalStatus) => {
+  if (status === 'completed') return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400';
+  if (status === 'cancelled') return 'bg-rose-500/10 border-rose-500/20 text-rose-400';
+  return 'bg-blue-500/10 border-blue-500/20 text-blue-400';
+};
+
+const getGoalStatusLabel = (status: GoalStatus) => {
+  if (status === 'completed') return 'Completada';
+  if (status === 'cancelled') return 'Cancelada';
+  return 'En Progreso';
+};
+
 const Goals = () => {
   const queryClient = useQueryClient();
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -401,14 +413,8 @@ const Goals = () => {
                         <div>
                           <h3 className="text-xl font-black text-white tracking-tight leading-tight">{goal.name}</h3>
                           <div className="flex items-center gap-2 mt-1.5">
-                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${
-                              goal.status === 'completed' 
-                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                                : goal.status === 'cancelled'
-                                ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                                : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                            }`}>
-                              {goal.status === 'completed' ? 'Completada' : goal.status === 'cancelled' ? 'Cancelada' : 'En Progreso'}
+                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${getGoalStatusClass(goal.status)}`}>
+                              {getGoalStatusLabel(goal.status)}
                             </span>
                             {goal.target_date && (
                               <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
