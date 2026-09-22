@@ -127,7 +127,7 @@ const BudgetFormModal = ({
                       <Select
                         id="budget-month"
                         value={form.month.toString()}
-                        onChange={(value) => setForm({...form, month: parseInt(value)})}
+                        onChange={(value) => setForm({...form, month: Number.parseInt(value)})}
                         options={Array.from({length: 12}, (_, i) => ({ value: (i + 1).toString(), label: (i + 1).toString() }))}
                       />
                     </div>
@@ -136,7 +136,7 @@ const BudgetFormModal = ({
                       <Select
                         id="budget-year"
                         value={form.year.toString()}
-                        onChange={(value) => setForm({...form, year: parseInt(value)})}
+                        onChange={(value) => setForm({...form, year: Number.parseInt(value)})}
                         options={[new Date().getFullYear(), new Date().getFullYear() + 1].map(year => ({ value: year.toString(), label: year.toString() }))}
                       />
                     </div>
@@ -207,7 +207,7 @@ const BudgetFormModal = ({
                       <Select
                         id="edit-budget-month"
                         value={editForm.month.toString()}
-                        onChange={(value) => setEditForm({...editForm, month: parseInt(value)})}
+                        onChange={(value) => setEditForm({...editForm, month: Number.parseInt(value)})}
                         options={Array.from({length: 12}, (_, i) => ({ value: (i + 1).toString(), label: (i + 1).toString() }))}
                       />
                     </div>
@@ -216,7 +216,7 @@ const BudgetFormModal = ({
                       <Select
                         id="edit-budget-year"
                         value={editForm.year.toString()}
-                        onChange={(value) => setEditForm({...editForm, year: parseInt(value)})}
+                        onChange={(value) => setEditForm({...editForm, year: Number.parseInt(value)})}
                         options={[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map(year => ({ value: year.toString(), label: year.toString() }))}
                       />
                     </div>
@@ -272,7 +272,7 @@ const BudgetFormModal = ({
                     <Select
                       id="recurring-budget-month"
                       value={recurringForm.month.toString()}
-                      onChange={(value) => setRecurringForm({...recurringForm, month: parseInt(value)})}
+                      onChange={(value) => setRecurringForm({...recurringForm, month: Number.parseInt(value)})}
                       options={Array.from({length: 12}, (_, i) => ({ value: (i + 1).toString(), label: (i + 1).toString() }))}
                     />
                   </div>
@@ -281,7 +281,7 @@ const BudgetFormModal = ({
                     <Select
                       id="recurring-budget-year"
                       value={recurringForm.year.toString()}
-                      onChange={(value) => setRecurringForm({...recurringForm, year: parseInt(value)})}
+                      onChange={(value) => setRecurringForm({...recurringForm, year: Number.parseInt(value)})}
                       options={[new Date().getFullYear(), new Date().getFullYear() + 1].map(year => ({ value: year.toString(), label: year.toString() }))}
                     />
                   </div>
