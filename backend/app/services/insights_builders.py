@@ -22,6 +22,49 @@ from app.services.privacy import mask_description
 UNCATEGORIZED_LABEL = "Sin Categoría"
 
 
+def _sum_by_transaction_type(transactions: list[Transaction], transaction_type: str) -> int:
+    return sum((t.amount for t in transactions if t.transaction_type == transaction_type), 0)
+
+
+def _build_expense_categories(db: Session, transactions: list[Transaction]) -> tuple[dict, dict]:
+    category_cache = {}
+    expense_by_category = {}
+    for transaction in transactions:
+        if transaction.transaction_type != 'expense':
+            continue
+        if transaction.category_id not in category_cache:
+            category = (
+                db.query(Category).filter(Category.id == transaction.category_id).first()
+                if transaction.category_id else None
+            )
+            category_cache[transaction.category_id] = category.name if category else UNCATEGORIZED_LABEL
+        category_name = category_cache[transaction.category_id]
+        expense_by_category[category_name] = expense_by_category.get(category_name, 0) + transaction.amount
+    return category_cache, expense_by_category
+
+
+def _build_atypical_transactions(
+    transactions: list[Transaction],
+    category_cache: dict,
+    average_expense: int,
+    now: datetime,
+) -> list[str]:
+    atypical = []
+    for transaction in transactions:
+        if transaction.transaction_type != 'expense' or transaction.amount <= average_expense * 2:
+            continue
+        if average_expense <= 0:
+            continue
+        days_ago = (
+            now.replace(tzinfo=None) - transaction.date.replace(tzinfo=None)
+        ).days if transaction.date else 0
+        category_name = category_cache.get(transaction.category_id, UNCATEGORIZED_LABEL)
+        atypical.append(
+            f"${transaction.amount / 100:.2f} en {category_name} (hace {days_ago} días)"
+        )
+    return atypical[:5]
+
+
 def _build_transaction_summary(db: Session, now: datetime) -> dict:
     """Summarize current month transactions by category (anonymous: only categories, amounts, relative dates)."""
     current_month_str = now.strftime('%Y-%m')
@@ -31,37 +74,19 @@ def _build_transaction_summary(db: Session, now: datetime) -> dict:
         Transaction.is_deleted == False
     ).all()
 
-    total_income = sum((t.amount for t in transactions if t.transaction_type == 'income'), 0)
-    total_expenses = sum((t.amount for t in transactions if t.transaction_type == 'expense'), 0)
-
-    # Group expenses by category name (anonymous)
-    category_cache = {}
-    expense_by_category = {}
-    for t in transactions:
-        if t.transaction_type != 'expense':
-            continue
-        if t.category_id not in category_cache:
-            cat = db.query(Category).filter(Category.id == t.category_id).first() if t.category_id else None
-            category_cache[t.category_id] = cat.name if cat else UNCATEGORIZED_LABEL
-        cat_name = category_cache[t.category_id]
-        expense_by_category[cat_name] = expense_by_category.get(cat_name, 0) + t.amount
-
-    # Detect atypical spending: transactions > 2x the average expense
+    total_income = _sum_by_transaction_type(transactions, 'income')
+    total_expenses = _sum_by_transaction_type(transactions, 'expense')
+    category_cache, expense_by_category = _build_expense_categories(db, transactions)
     expense_amounts = [t.amount for t in transactions if t.transaction_type == 'expense']
     avg_expense = sum(expense_amounts, 0) // max(len(expense_amounts), 1)
-    atypical = []
-    for t in transactions:
-        if t.transaction_type == 'expense' and t.amount > avg_expense * 2 and avg_expense > 0:
-            days_ago = (now.replace(tzinfo=None) - t.date.replace(tzinfo=None)).days if t.date else 0
-            cat_name = category_cache.get(t.category_id, UNCATEGORIZED_LABEL)
-            atypical.append(f"${t.amount / 100:.2f} en {cat_name} (hace {days_ago} días)")
+    atypical = _build_atypical_transactions(transactions, category_cache, avg_expense, now)
 
     return {
         "total_income": total_income,
         "total_expenses": total_expenses,
         "balance": total_income - total_expenses,
         "expense_by_category": {k: v for k, v in expense_by_category.items()},
-        "atypical_transactions": atypical[:5],
+        "atypical_transactions": atypical,
         "transaction_count": len(transactions),
     }
 
