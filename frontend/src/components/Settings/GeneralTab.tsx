@@ -70,7 +70,7 @@ const GeneralTab = ({ categories, config, onBufferChange, exporting, onExportCSV
                 type="number"
                 step="0.01"
                 value={config.safe_to_spend_buffer}
-                onChange={e => onBufferChange(parseFloat(e.target.value) || 0)}
+                onChange={e => onBufferChange(Number.parseFloat(e.target.value) || 0)}
                 className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:border-blue-500/50 transition-all"
               />
             </div>
