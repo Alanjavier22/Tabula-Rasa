@@ -322,7 +322,7 @@ export function hydrateAIResponse(text: string, hydrationMap: Map<string, string
   let hydrated = text;
 
   for (const [token, original] of hydrationMap.entries()) {
-    hydrated = hydrated.replace(new RegExp(token.replace(/[[]/g, '\\['), 'g'), original);
+    hydrated = hydrated.replace(new RegExp(token.replaceAll('[', String.raw`\[`), 'g'), original);
   }
 
   return hydrated;
