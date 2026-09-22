@@ -171,8 +171,8 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
               {/* Suggestions Grid - More Imposing */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 {loadingSuggestions ? (
-                  [1, 2, 3].map((skeletonId) => (
-                    <div key={skeletonId} className="h-32 rounded-[2rem] bg-white/5 animate-pulse" />
+                  Array.from({ length: 3 }, (_, i) => (
+                    <div key={i} className="h-32 rounded-[2rem] bg-white/5 animate-pulse" />
                   ))
                 ) : (
                   suggestionsToUse.map((suggestion, idx) => (
