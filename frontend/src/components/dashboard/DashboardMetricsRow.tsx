@@ -10,6 +10,12 @@ interface DashboardMetricsRowProps {
   vehicleTelemetry: VehicleTelemetryResponse | undefined;
 }
 
+const getMaintenanceClass = (estimate: number) => {
+  if (estimate < 500) return 'bg-red-500/20 text-red-400';
+  if (estimate < 1000) return 'bg-amber-500/20 text-amber-400';
+  return 'bg-emerald-500/20 text-emerald-400';
+};
+
 const DashboardMetricsRow = ({ netBalance, totalStatementDue, totalThirdPartyDebt, vehicleCost, vehicleTelemetry }: DashboardMetricsRowProps) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -32,20 +38,17 @@ const DashboardMetricsRow = ({ netBalance, totalStatementDue, totalThirdPartyDeb
         <p className="text-xl font-bold text-purple-400">${formatMoney(vehicleCost)}</p>
         {vehicleTelemetry && (
           <div className="mt-2 space-y-1">
-            {vehicleTelemetry.total_distance > 0 ? (
+            {vehicleTelemetry.total_distance > 0 && (
               <p className="text-[10px] text-slate-400">
                 ${formatMoney(vehicleTelemetry.cost_per_km)}/km | Hist: ${formatMoney(vehicleTelemetry.historical_cost_per_km)}/km
               </p>
-            ) : vehicleTelemetry.total_vehicle_cost > 0 ? (
+            )}
+            {vehicleTelemetry.total_distance <= 0 && vehicleTelemetry.total_vehicle_cost > 0 && (
               <p className="text-[10px] text-slate-500">Requiere +1 lectura de odómetro</p>
-            ) : null}
+            )}
 
             {vehicleTelemetry.next_maintenance_estimate !== null && (
-              <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
-                vehicleTelemetry.next_maintenance_estimate < 500 ? 'bg-red-500/20 text-red-400' :
-                vehicleTelemetry.next_maintenance_estimate < 1000 ? 'bg-amber-500/20 text-amber-400' :
-                'bg-emerald-500/20 text-emerald-400'
-              }`}>
+              <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${getMaintenanceClass(vehicleTelemetry.next_maintenance_estimate)}`}>
                 Mantenimiento en: {Math.round(vehicleTelemetry.next_maintenance_estimate)} km
               </div>
             )}
