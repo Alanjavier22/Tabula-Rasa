@@ -23,37 +23,37 @@ def checkpoint_db():
         backup_logger.warning(f"[DATABASE] WAL checkpoint failed: {e}. Backup might be slightly inconsistent.")
 
 
+def _get_file_timestamp(filepath: str, filename: str, prefix: str, suffix: str) -> datetime:
+    try:
+        timestamp_str = filename.replace(prefix, "").replace(suffix, "")
+        return datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+    except ValueError:
+        return datetime.fromtimestamp(os.path.getmtime(filepath))
+
+
+def _remove_old_backups(files: list[tuple[str, datetime]], keep_count: int) -> None:
+    for filepath, _ in files[keep_count:]:
+        try:
+            os.remove(filepath)
+            backup_logger.info(f"[LOCAL_BACKUP] Cleaned up old local backup: {filepath}")
+        except Exception as error:
+            backup_logger.warning(f"[LOCAL_BACKUP] Failed to remove old backup {filepath}: {error}")
+
+
 def _rotate_files_with_pattern(directory: str, prefix: str, suffix: str, keep_count: int) -> None:
     """Helper to rotate files matching prefix and suffix, keeping keep_count most recent."""
     files = []
     for filename in os.listdir(directory):
-        if filename.startswith(prefix) and filename.endswith(suffix):
-            filepath = os.path.join(directory, filename)
-            try:
-                # Extract timestamp
-                timestamp_str = filename.replace(prefix, "").replace(suffix, "")
-                timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                files.append((filepath, timestamp))
-            except ValueError:
-                # Fallback to mtime if timestamp format is different
-                try:
-                    mtime = os.path.getmtime(filepath)
-                    timestamp = datetime.fromtimestamp(mtime)
-                    files.append((filepath, timestamp))
-                except Exception:
-                    pass
-
-    # Sort files by timestamp (newest first)
-    files.sort(key=lambda x: x[1], reverse=True)
-
-    # Remove files beyond keep_count
+        if not filename.startswith(prefix) or not filename.endswith(suffix):
+            continue
+        filepath = os.path.join(directory, filename)
+        try:
+            files.append((filepath, _get_file_timestamp(filepath, filename, prefix, suffix)))
+        except Exception:
+            continue
+    files.sort(key=lambda item: item[1], reverse=True)
     if len(files) > keep_count:
-        for filepath, _ in files[keep_count:]:
-            try:
-                os.remove(filepath)
-                backup_logger.info(f"[LOCAL_BACKUP] Cleaned up old local backup: {filepath}")
-            except Exception as e:
-                backup_logger.warning(f"[LOCAL_BACKUP] Failed to remove old backup {filepath}: {e}")
+        _remove_old_backups(files, keep_count)
 
 def rotate_local_backups(keep_count: int = 2) -> None:
     """
