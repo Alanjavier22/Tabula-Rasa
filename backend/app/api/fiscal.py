@@ -160,6 +160,34 @@ def _is_zero_iva_category(category_name: str) -> bool:
     return any(keyword in category_name for group in keywords for keyword in group)
 
 
+def _accumulate_fiscal_transaction(
+    transaction: Transaction,
+    totals: dict,
+    category_totals: dict,
+    iva_rate: Decimal,
+    retention_source_rate: Decimal,
+) -> None:
+    amount = Decimal(str(transaction.amount)) if transaction.amount else Decimal(0)
+    if transaction.transaction_type == "income":
+        totals["total_income"] += amount
+        return
+    if transaction.transaction_type != "expense":
+        return
+    totals["total_expenses"] += amount
+    category_name = transaction.category.name.lower() if transaction.category else ""
+    iva = Decimal(0) if _is_zero_iva_category(category_name) else amount * iva_rate
+    totals["iva_projected"] += iva
+    totals["iva_pagado_15"] += iva
+    totals["retencion_projected"] += amount * retention_source_rate
+    totals["monto_objeto_retencion"] += amount
+    totals["total_deductible"] += amount
+    category_id = str(transaction.category_id) if transaction.category_id else "uncategorized"
+    display_name = transaction.category.name if transaction.category else "Sin Categoría"
+    category_totals.setdefault(
+        category_id, {"name": display_name, "amount": Decimal(0)}
+    )["amount"] += amount
+
+
 def _calculate_fiscal_totals(
     transactions: list[Transaction],
     iva_rate: Decimal,
@@ -176,25 +204,9 @@ def _calculate_fiscal_totals(
     }
     category_totals = {}
     for transaction in transactions:
-        amount = Decimal(str(transaction.amount)) if transaction.amount else Decimal(0)
-        if transaction.transaction_type == "income":
-            totals["total_income"] += amount
-            continue
-        if transaction.transaction_type != "expense":
-            continue
-        totals["total_expenses"] += amount
-        category_name = transaction.category.name.lower() if transaction.category else ""
-        iva = Decimal(0) if _is_zero_iva_category(category_name) else amount * iva_rate
-        totals["iva_projected"] += iva
-        totals["iva_pagado_15"] += iva if iva else Decimal(0)
-        totals["retencion_projected"] += amount * retention_source_rate
-        totals["monto_objeto_retencion"] += amount
-        totals["total_deductible"] += amount
-        category_id = str(transaction.category_id) if transaction.category_id else "uncategorized"
-        display_name = transaction.category.name if transaction.category else "Sin Categoría"
-        if category_id not in category_totals:
-            category_totals[category_id] = {"name": display_name, "amount": Decimal(0)}
-        category_totals[category_id]["amount"] += amount
+        _accumulate_fiscal_transaction(
+            transaction, totals, category_totals, iva_rate, retention_source_rate
+        )
     return totals, category_totals
 
 
