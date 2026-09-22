@@ -34,6 +34,13 @@ const arePropsEqual = (prevProps: TransactionRowProps, nextProps: TransactionRow
   );
 };
 
+const getPaymentMethodLabel = (paymentMethod: string) => {
+  if (paymentMethod === 'cash') return 'Efectivo';
+  if (paymentMethod === 'credit_card') return 'T. Crédito';
+  if (paymentMethod === 'debit_card') return 'T. Débito';
+  return 'Transferencia';
+};
+
 export const TransactionRow = memo<TransactionRowProps>(({ transaction, onEdit, onDelete }) => {
   const isIncome = transaction.transaction_type === 'income';
 
@@ -85,10 +92,7 @@ export const TransactionRow = memo<TransactionRowProps>(({ transaction, onEdit, 
           <p className="text-[11px] font-medium text-slate-500">{transaction.date}</p>
           <span className="w-1 h-1 rounded-full bg-slate-700"></span>
           <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
-            {transaction.payment_method === 'cash' ? 'Efectivo' :
-             transaction.payment_method === 'credit_card' ? 'T. Crédito' :
-             transaction.payment_method === 'debit_card' ? 'T. Débito' :
-             'Transferencia'}
+            {getPaymentMethodLabel(transaction.payment_method)}
           </p>
         </div>
       </div>
