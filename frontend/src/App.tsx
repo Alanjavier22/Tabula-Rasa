@@ -78,7 +78,7 @@ function App() {
       const lastHeartbeat = localStorage.getItem(heartbeatKey);
       const heartbeatInterval = 24 * 60 * 60 * 1000; // 24 hours
       
-      if (!lastHeartbeat || now - parseInt(lastHeartbeat) > heartbeatInterval) {
+      if (!lastHeartbeat || now - Number.parseInt(lastHeartbeat) > heartbeatInterval) {
         // Use requestIdleCallback if available, otherwise run immediately
         if ('requestIdleCallback' in window) {
           window.requestIdleCallback(() => runIntegrityHeartbeat());
