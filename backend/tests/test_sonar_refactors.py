@@ -736,3 +736,115 @@ def test_snapshot_reconciler_balance_and_hash_paths():
     ]
     balance = _get_historical_account_balance(db, SimpleNamespace(id="acc", balance=1000), datetime(2020, 1, 1, tzinfo=timezone.utc))
     assert balance == Decimal("930")
+
+
+def test_debt_alert_and_balance_edge_helpers(monkeypatch):
+    from app.api.alerts import _build_payment_alert
+    from app.models.transaction import TransactionType
+    from app.services.balance import _recalculate_from_transactions
+    from app.services.debt_consolidator import DebtConsolidatorService
+
+    service = DebtConsolidatorService(MagicMock())
+    latest, debt = service._get_statement_debt([])
+    assert latest is None
+    assert debt == 0
+    service.db.query.return_value.filter.return_value.all.return_value = [
+        SimpleNamespace(installment_amount=500, shared_amount=100),
+        SimpleNamespace(installment_amount=200, shared_amount=None),
+    ]
+    assert service._get_projected_deferreds("acc", None) == 600
+    assert service._get_due_date(SimpleNamespace(payment_day=None), None, date(2026, 3, 10)) is None
+    due = SimpleNamespace(payment_due_date=date(2026, 3, 20))
+    assert service._get_due_date(SimpleNamespace(payment_day=5), due, date(2026, 3, 10)) == "2026-03-20"
+    assert service._get_due_date(SimpleNamespace(payment_day=5), None, date(2026, 12, 31)) == "2027-01-05"
+    status = {
+        "total_debt": 1000,
+        "account_id": "acc",
+        "account_name": "Tarjeta",
+        "latest_statement": {"id": "stmt", "due_date": "2026-03-10"},
+    }
+    warning = _build_payment_alert(status, date(2026, 3, 5))
+    assert warning.severity == "warning"
+    no_statement = {**status, "latest_statement": None}
+    info = _build_payment_alert(no_statement, date(2026, 3, 5))
+    assert info.severity == "info"
+    anchor = SimpleNamespace(date=datetime(2026, 3, 1), created_at=datetime(2026, 3, 1, 10))
+    same = SimpleNamespace(date=datetime(2026, 3, 1), created_at=datetime(2026, 3, 1, 9), amount=100, transaction_type=TransactionType.INCOME)
+    later = SimpleNamespace(date=datetime(2026, 3, 2), created_at=datetime(2026, 3, 2), amount=50, transaction_type=TransactionType.EXPENSE)
+    assert _recalculate_from_transactions(1000, [same, later], "checking", anchor) == 950
+
+
+def test_account_and_statement_retry_paths(monkeypatch):
+    import anyio
+    from app.services.account_intelligence import AccountIntelligenceService
+    from app.services.statement_intelligence import StatementIntelligenceService
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr("app.services.account_intelligence.asyncio.sleep", no_sleep)
+    account_calls = {"count": 0}
+
+    class AccountModels:
+        def generate_content(self, **_kwargs):
+            account_calls["count"] += 1
+            if account_calls["count"] == 1:
+                raise RuntimeError("busy")
+            return SimpleNamespace(text='{"transactions": []}')
+
+    account_service = AccountIntelligenceService(db_session=MagicMock())
+    parsed = anyio.run(account_service._parse_with_ai, SimpleNamespace(models=AccountModels()), b"x", "data.csv", None)
+    assert parsed["transactions"] == []
+
+    monkeypatch.setattr("app.services.statement_intelligence.asyncio.sleep", no_sleep)
+    statement_calls = {"count": 0}
+
+    class StatementModels:
+        def generate_content(self, **_kwargs):
+            statement_calls["count"] += 1
+            if statement_calls["count"] == 1:
+                raise RuntimeError("busy")
+            return SimpleNamespace(text='{"transactions": []}')
+
+    statement_service = StatementIntelligenceService(db_session=MagicMock())
+    parsed = anyio.run(
+        statement_service._request_parsed_data,
+        SimpleNamespace(models=StatementModels()),
+        b"x",
+        "image/jpeg",
+        "system",
+        "prompt",
+    )
+    assert parsed["transactions"] == []
+
+
+def test_insights_collection_and_google_backup_cleanup_branches(monkeypatch, tmp_path):
+    from app.api import ai_insights
+    from app.utils import backup_gdrive
+
+    db = MagicMock()
+    summary = {
+        "total_expenses": 100,
+        "atypical_transactions": [],
+    }
+    historical = {"avg_monthly_expense": 1000}
+    monkeypatch.setattr(ai_insights, "_build_transaction_summary", lambda *_args: summary)
+    monkeypatch.setattr(ai_insights, "_build_enhanced_historical_trends", lambda *_args: historical)
+    monkeypatch.setattr(ai_insights, "_build_budget_summary", lambda *_args: [])
+    monkeypatch.setattr(ai_insights, "_build_credit_card_summary", lambda *_args: {})
+    monkeypatch.setattr(ai_insights, "_build_liquidity_summary", lambda *_args: {})
+    monkeypatch.setattr(ai_insights, "_build_debt_share_summary", lambda *_args: {})
+    monkeypatch.setattr(ai_insights, "_build_goals_summary", lambda *_args: {})
+    monkeypatch.setattr(ai_insights, "_build_rolling_30d_summary", lambda *_args: {})
+    monkeypatch.setattr(ai_insights, "_build_recurring_small_expenses", lambda *_args: [])
+    monkeypatch.setattr("app.api.metrics_cashflow.get_safe_to_spend", lambda _db: SimpleNamespace(safe_to_spend=50))
+    data = ai_insights._collect_insight_data(db, datetime(2026, 3, 5))
+    assert data["days_in_month"] == 31
+    assert data["safe_to_spend"] == 50
+
+    temporary = tmp_path / "temporary.db"
+    temporary.write_text("db")
+    monkeypatch.setattr(backup_gdrive.os, "remove", lambda _path: (_ for _ in ()).throw(OSError("locked")))
+    backup_gdrive._cleanup_local_backup(str(temporary))
+    monkeypatch.setattr(backup_gdrive, "get_google_drive_credentials", lambda: None)
+    assert backup_gdrive.create_external_backup() is None
