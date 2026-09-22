@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.11](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.10...v0.1.11) (2026-09-22)
+
+
+### Documentación y mantenimiento
+
+* elimina ternarios anidados del frontend ([5f9ccd0](https://github.com/Alanjavier22/Tabula-Rasa/commit/5f9ccd0f008f8eaff7c6b647c57d604837975c53))
+* **ts:** extrae colores del tooltip fiscal ([751fa3b](https://github.com/Alanjavier22/Tabula-Rasa/commit/751fa3bfdffbfebfb40ec862fdc35c2e029b0d83))
+* **ts:** extrae estado de deudas compartidas ([f7b8e6d](https://github.com/Alanjavier22/Tabula-Rasa/commit/f7b8e6d1799191b859b0bac5d2d3975d3fd48372))
+* **ts:** extrae estado de resumen de tarjetas ([7aa7453](https://github.com/Alanjavier22/Tabula-Rasa/commit/7aa74535ba3267b85d65abc249f2fed1f276b512))
+* **ts:** extrae estados visuales de objetivos ([d07931d](https://github.com/Alanjavier22/Tabula-Rasa/commit/d07931dd5a709485aeee19c6bb91e4a5c2cf2ce4))
+* **ts:** extrae estados visuales de presupuestos ([6df76b6](https://github.com/Alanjavier22/Tabula-Rasa/commit/6df76b669761682ae175fa05fc092ad5b1d5fd8f))
+* **ts:** extrae estados visuales de recordatorios ([8d0ef43](https://github.com/Alanjavier22/Tabula-Rasa/commit/8d0ef432b245fc090ddd152891dadee81fb61620))
+* **ts:** extrae estados visuales del sentinel ([e689a99](https://github.com/Alanjavier22/Tabula-Rasa/commit/e689a99b7f632bd30b8989311682bf32113249a5))
+* **ts:** extrae estilos de alertas de pago ([5e124af](https://github.com/Alanjavier22/Tabula-Rasa/commit/5e124af7c706dc12e5f021ba8bdeefaae87475c1))
+* **ts:** extrae etiqueta de metodo de pago ([ba349cd](https://github.com/Alanjavier22/Tabula-Rasa/commit/ba349cdc8f72362df2de0696d1528461eb5b8134))
+* **ts:** separa estados de la paleta de comandos ([e0d1e73](https://github.com/Alanjavier22/Tabula-Rasa/commit/e0d1e73a247a4c68283f037d5820996c9f12bf89))
+* **ts:** separa estados del desglose de gastos ([a25653e](https://github.com/Alanjavier22/Tabula-Rasa/commit/a25653ebd8a8826dc28ad5e96e9f2b03f9df700e))
+* **ts:** separa estados del grafico diario ([74b9dca](https://github.com/Alanjavier22/Tabula-Rasa/commit/74b9dca9ab467f60a7f01561b755fe489e4ef79b))
+* **ts:** separa estados del historial de backups ([d664794](https://github.com/Alanjavier22/Tabula-Rasa/commit/d664794c165321b127649fb7bceaff47bf617988))
+* **ts:** separa etiquetas del simulador what-if ([841ae7e](https://github.com/Alanjavier22/Tabula-Rasa/commit/841ae7eef4bbf92df725b2e2cd65dd69e6efdc23))
+* **ts:** simplifica clases del analizador de anomalias ([9b68102](https://github.com/Alanjavier22/Tabula-Rasa/commit/9b681020c3789dededded0b82f41a1c7e0b313fb))
+* **ts:** simplifica estados de mantenimiento ([cd62d34](https://github.com/Alanjavier22/Tabula-Rasa/commit/cd62d34767aaf813ad8d280d853f0c3bedaef928))
+* **ts:** simplifica etiqueta de categoria ([9e30458](https://github.com/Alanjavier22/Tabula-Rasa/commit/9e30458f619d5a6780f0dbc698b662567e833cf4))
+* **ts:** simplifica etiqueta de objetivo ([f8fb687](https://github.com/Alanjavier22/Tabula-Rasa/commit/f8fb68745f78df4843be063a6eebe98d612282d0))
+* **ts:** simplifica etiqueta de recordatorio ([13422ac](https://github.com/Alanjavier22/Tabula-Rasa/commit/13422ac4aa2d58a81f5879f9e944a088523d8fac))
+* **ts:** simplifica etiqueta de suscripcion ([86955b5](https://github.com/Alanjavier22/Tabula-Rasa/commit/86955b5a827f3902ffb57cbed8670cfe736d0d47))
+* **ts:** simplifica titulo del modal de presupuesto ([196f5df](https://github.com/Alanjavier22/Tabula-Rasa/commit/196f5df0dff23935701adc818fa638c78d6df9fc))
+
 ## [0.1.10](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.9...v0.1.10) (2026-09-22)
 
 
