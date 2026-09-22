@@ -7,12 +7,7 @@ import { formatMoney } from '../utils/money';
 import { motion } from 'framer-motion';
 import StatementUploadStep from './statementImport/StatementUploadStep';
 import ShareTransactionModal, { type SharingTransactionState } from './statementImport/ShareTransactionModal';
-import {
-  handleFileDrag,
-  prepareFileDrop,
-  withFirstFile,
-  withFirstDocumentFile,
-} from '../utils/fileSelection';
+import { createFileSelectionHandlers, withFirstDocumentFile } from '../utils/fileSelection';
 
 interface StatementImportModalProps {
   onClose: () => void;
@@ -78,19 +73,6 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       )
     : 0;
 
-  const handleDrag = (e: React.DragEvent) => {
-    handleFileDrag(e, setDragActive);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    prepareFileDrop(e, setDragActive);
-    withFirstDocumentFile(e.dataTransfer.files, handleFileSelection);
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    withFirstFile(e.target.files, handleFileSelection);
-  };
-
   const handleFileSelection = (selectedFile: File) => {
     setFile(selectedFile);
     setExtractedTransactions([]);
@@ -98,6 +80,12 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
     setImportLogId(null);
     setResult(null);
   };
+
+  const { handleDrag, handleDrop, handleFileSelect } = createFileSelectionHandlers({
+    setDragActive,
+    onFileSelect: handleFileSelection,
+    selectDroppedFile: withFirstDocumentFile,
+  });
 
   const handleProcess = async () => {
     if (!file || !accountId) return;
