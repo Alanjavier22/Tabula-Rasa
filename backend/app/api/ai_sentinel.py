@@ -5,7 +5,7 @@ from app.api.auth import get_current_device
 from app.models.config import Config
 from app.services.sentinel_service import SentinelService
 from pydantic import BaseModel
-from typing import List, Any, cast
+from typing import Annotated, List, Any, cast
 
 router = APIRouter(
     prefix="/api/ai-sentinel", 
@@ -28,7 +28,7 @@ class SentinelHealthResponse(BaseModel):
     timestamp: str
 
 @router.get("/health", response_model=SentinelHealthResponse, responses=AI_SENTINEL_ERROR_RESPONSES)
-async def get_sentinel_health(db: Session = Depends(get_db)):
+async def get_sentinel_health(db: Annotated[Session, Depends(get_db)]):
     """
     Endpoint principal para la burbuja del Agente Sentinel.
     Consolida toda la inteligencia del sistema en un reporte de salud.
