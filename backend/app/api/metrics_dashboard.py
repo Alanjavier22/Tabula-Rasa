@@ -3,7 +3,7 @@ Vistas agregadas para el dashboard principal: resumen mensual (ingresos,
 gastos, breakdown, sankey) y telemetría de vehículo. Se monta bajo /metrics
 vía api/metrics.py.
 """
-from typing import Any, Optional, cast
+from typing import Annotated, Any, Optional, cast
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, case
@@ -89,7 +89,7 @@ def _get_next_maintenance_estimate(db: Session, readings: list[dict]) -> Optiona
 
 
 @router.get("/vehicle-telemetry", response_model=VehicleTelemetryResponse)
-def get_vehicle_telemetry(db: Session = Depends(get_db)):
+def get_vehicle_telemetry(db: Annotated[Session, Depends(get_db)]):
     now = datetime.now()
     vehicle_category_ids = _get_vehicle_category_ids(db)
 
@@ -399,7 +399,7 @@ def _get_vehicle_cost(db: Session, current_year: int, current_month: int, end_da
 
 
 @router.get("/dashboard-summary", response_model=DashboardSummaryResponse, responses=METRICS_DASHBOARD_ERROR_RESPONSES)
-def get_dashboard_summary(db: Session = Depends(get_db)):
+def get_dashboard_summary(db: Annotated[Session, Depends(get_db)]):
     try:
         current_year, current_month, current_month_str, end_date = _get_dashboard_period(db)
         ignored_ids = _get_ignored_category_ids(db)
