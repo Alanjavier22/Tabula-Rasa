@@ -88,7 +88,6 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                       id="account-name"
                       type="text"
                       required
-                      autoFocus
                       value={form.name}
                       onChange={e => setForm({...form, name: e.target.value})}
                       className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-medium"

@@ -179,7 +179,6 @@ const TransactionForm = ({
                   type="text"
                   inputMode="decimal"
                   required
-                  autoFocus
                   value={form.amount}
                   onChange={e => {
                     // Solo permitir números, puntos y comas
