@@ -7,7 +7,7 @@ import { formatMoney } from '../utils/money';
 import { motion } from 'framer-motion';
 import StatementUploadStep from './statementImport/StatementUploadStep';
 import ShareTransactionModal, { type SharingTransactionState } from './statementImport/ShareTransactionModal';
-import { withFirstFile } from '../utils/fileSelection';
+import { withFirstFile, withFirstDocumentFile } from '../utils/fileSelection';
 
 interface StatementImportModalProps {
   onClose: () => void;
@@ -83,17 +83,11 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
     }
   };
 
-  const handleDroppedFile = (dropped: File) => {
-    if (dropped.type.startsWith('image/') || dropped.type === 'application/pdf') {
-      handleFileSelection(dropped);
-    }
-  };
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    withFirstFile(e.dataTransfer.files, handleDroppedFile);
+    withFirstDocumentFile(e.dataTransfer.files, handleFileSelection);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
