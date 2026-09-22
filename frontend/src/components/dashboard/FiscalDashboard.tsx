@@ -85,7 +85,7 @@ const getTooltipColor = (color: string | undefined) => {
  * Custom tooltip for charts with monetary formatting
  */
 const CustomTooltip = ({ active, payload, label }: TooltipContentProps) => {
-  if (active && payload && payload.length) {
+  if (active && payload?.length) {
     const formattedLabel = (() => {
       if (typeof label !== 'string') return label;
       const [year, month] = label.split('-');
