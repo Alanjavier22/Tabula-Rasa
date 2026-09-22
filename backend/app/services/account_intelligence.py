@@ -156,7 +156,6 @@ class AccountIntelligenceService:
 
         client = genai.Client(api_key=api_key)
         
-        parsed_data: Dict[str, Any] = {"transactions": []}
         logger.info("[AccountIntelligence] Intentando extracción heurística local...")
         local_transactions = local_extract_transactions(file_data, filename)
         
