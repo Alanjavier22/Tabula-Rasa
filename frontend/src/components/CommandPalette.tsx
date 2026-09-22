@@ -95,7 +95,6 @@ const CommandPalette = () => {
             <div className="flex items-center px-4 border-b border-slate-700/50">
               <Search className="w-5 h-5 text-slate-400" />
               <input
-                autoFocus
                 type="text"
                 className="w-full bg-transparent border-0 text-white px-4 py-4 focus:ring-0 placeholder:text-slate-500 outline-none"
                 placeholder="Buscar o saltar a... (Usa las flechas)"
@@ -106,10 +105,10 @@ const CommandPalette = () => {
             </div>
             {filteredRoutes.length > 0 ? (
               <ul className="max-h-72 overflow-y-auto p-2">
-                {filteredRoutes.map((route, i) => {
+                {filteredRoutes.map((route) => {
                   const Icon = route.icon;
                   return (
-                    <li key={i}>
+                    <li key={route.path}>
                       <button
                         className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-300 hover:bg-slate-700/50 hover:text-white rounded-xl transition-colors"
                         onClick={() => {
@@ -146,7 +145,6 @@ const CommandPalette = () => {
               <div className="flex items-center gap-2 flex-1">
                 <Sparkles className="w-5 h-5 text-purple-400" />
                 <input
-                  autoFocus
                   type="text"
                   className="w-full bg-transparent border-0 text-white px-4 py-4 focus:ring-0 placeholder:text-slate-500 outline-none"
                   placeholder="Pregunta sobre tus finanzas (ej: ¿Cuánto presupuesto me queda en Comida?)"
@@ -201,15 +199,15 @@ const CommandPalette = () => {
                   <p className="text-slate-400 text-sm mb-4">Ejemplos de preguntas:</p>
                   <ul className="text-left text-sm text-slate-500 space-y-2">
                     <li className="flex items-start gap-2">
-                      <span className="text-purple-400">•</span>
+                      <span className="text-purple-400">•</span>{' '}
                       ¿Cuánto presupuesto me queda en Comida?
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-purple-400">•</span>
+                      <span className="text-purple-400">•</span>{' '}
                       ¿Cuál es el saldo de mi cuenta principal?
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-purple-400">•</span>
+                      <span className="text-purple-400">•</span>{' '}
                       ¿Cuánto dinero tengo en total?
                     </li>
                   </ul>

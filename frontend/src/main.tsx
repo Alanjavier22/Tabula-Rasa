@@ -6,10 +6,9 @@ import App from './App.tsx'
 
 // Unregister any existing service workers
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    registrations.forEach((registration) => {
-      registration.unregister()
-    })
+  const registrations = await navigator.serviceWorker.getRegistrations()
+  registrations.forEach((registration) => {
+    registration.unregister()
   })
 }
 

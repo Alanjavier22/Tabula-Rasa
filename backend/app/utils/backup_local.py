@@ -474,7 +474,7 @@ def rollback_to_pre_restore(backup_path: str) -> dict:
             # Delete the pre-restore backup after successful rollback
             delete_result = delete_pre_restore_backup(backup_path)
             if delete_result["success"]:
-                backup_logger.info(f"[ROLLBACK] Pre-restore backup deleted after successful rollback")
+                backup_logger.info("[ROLLBACK] Pre-restore backup deleted after successful rollback")
                 return {
                     "success": True,
                     "message": "Rollback exitoso. Base de datos restaurada al estado anterior y backup pre-restauración eliminado.",

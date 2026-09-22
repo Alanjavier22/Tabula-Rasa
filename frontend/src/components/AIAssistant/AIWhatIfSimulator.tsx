@@ -198,12 +198,15 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
               <div className="flex items-center gap-3 bg-black/20 px-4 py-1.5 rounded-xl border border-white/5">
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Nivel de Riesgo</span>
                 <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
-                    <div 
-                      key={level}
-                      className={`w-1.5 h-3 rounded-full transition-all duration-500 ${level <= (scenario.risk_score || 0) ? getRiskColor(scenario.risk_score || 0) : 'bg-white/10'}`}
-                    />
-                  ))}
+                  {Array.from({ length: 10 }, (_, index) => {
+                    const level = index + 1;
+                    return (
+                      <div
+                        key={level}
+                        className={`w-1.5 h-3 rounded-full transition-all duration-500 ${level <= (scenario.risk_score || 0) ? getRiskColor(scenario.risk_score || 0) : 'bg-white/10'}`}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -312,9 +315,9 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
             
             <Tooltip content={WhatIfTooltipContent} />
             
-            <Legend 
-              verticalAlign="top" 
-              align="right" 
+            <Legend
+              verticalAlign="top"
+              align="right"
               iconType="circle"
               content={WhatIfLegendContent}
             />

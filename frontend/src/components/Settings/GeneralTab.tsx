@@ -97,7 +97,7 @@ const GeneralTab = ({ categories, config, onBufferChange, exporting, onExportCSV
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {categories
-            .sort((a, b) => a.name.length - b.name.length)
+            .toSorted((a, b) => a.name.length - b.name.length)
             .map((category) => (
             <button
               key={category.id}

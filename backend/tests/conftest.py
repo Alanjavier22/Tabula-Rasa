@@ -7,7 +7,7 @@ from database import Base
 import app.models  # noqa: F401 - registers every model on Base.metadata
 
 
-@pytest.fixture()
+@pytest.fixture
 def db_session():
     """Isolated in-memory SQLite DB per test - never touches the real finance.db.
 
@@ -31,7 +31,7 @@ def db_session():
         Base.metadata.drop_all(bind=engine)
 
 
-@pytest.fixture()
+@pytest.fixture
 def fake_device(db_session):
     """A paired device standing in for the authenticated caller of `client`."""
     from app.models.device import PairedDevice
@@ -43,7 +43,7 @@ def fake_device(db_session):
     return device
 
 
-@pytest.fixture()
+@pytest.fixture
 def client(db_session, fake_device, monkeypatch):
     """TestClient wired to the isolated db_session, with auth pre-satisfied.
 

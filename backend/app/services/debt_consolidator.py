@@ -74,6 +74,14 @@ class DebtConsolidatorService:
         due_date = self._get_due_date(account, latest_stmt, today)
 
         total_debt = statement_debt + projected_deferreds
+        latest_statement = None
+        if latest_stmt or due_date:
+            latest_statement = {
+                "id": latest_stmt.id if latest_stmt else None,
+                "month": latest_stmt.month if latest_stmt else None,
+                "year": latest_stmt.year if latest_stmt else None,
+                "due_date": due_date,
+            }
         
         return {
             "account_id": account_id,
@@ -81,12 +89,7 @@ class DebtConsolidatorService:
             "total_debt": total_debt,
             "statement_debt": statement_debt,
             "projected_deferreds": projected_deferreds,
-            "latest_statement": {
-                "id": latest_stmt.id if latest_stmt else None,
-                "month": latest_stmt.month if latest_stmt else None,
-                "year": latest_stmt.year if latest_stmt else None,
-                "due_date": due_date
-            } if (latest_stmt or due_date) else None
+            "latest_statement": latest_statement
         }
 
     def get_all_debts(self) -> List[Dict]:

@@ -24,7 +24,7 @@ export function useAudioTransactionCapture(onExtracted: (formData: TransactionFo
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = (error) => reject(error);
+        reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer el audio'));
       });
 
       const audioBase64 = base64Audio.split(',')[1];

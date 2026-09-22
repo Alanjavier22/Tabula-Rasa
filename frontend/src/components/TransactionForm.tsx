@@ -19,10 +19,18 @@ export interface TransactionFormData {
 }
 
 interface TransactionSplit {
+  id: string;
   amount: string;
   category_id: string;
   description: string;
 }
+
+const createEmptySplit = (): TransactionSplit => ({
+  id: globalThis.crypto.randomUUID(),
+  amount: '',
+  category_id: '',
+  description: '',
+});
 
 interface TransactionFormProps {
   initialData: TransactionFormData;
@@ -49,9 +57,7 @@ const TransactionForm = ({
 }: TransactionFormProps) => {
   const [form, setForm] = useState<TransactionFormData>(initialData);
   const [isSplitEnabled, setIsSplitEnabled] = useState(false);
-  const [splits, setSplits] = useState<TransactionSplit[]>([
-    { amount: '', category_id: '', description: '' }
-  ]);
+  const [splits, setSplits] = useState<TransactionSplit[]>(() => [createEmptySplit()]);
 
   // Bloquear scroll del body cuando el modal está activo
   useEffect(() => {
@@ -69,6 +75,7 @@ const TransactionForm = ({
     void Promise.resolve().then(() => {
       if (initialSplits && initialSplits.length > 0) {
         setSplits(initialSplits.map(split => ({
+          id: split.id,
           // Backend returns cents, divide by 100 for display
           amount: (split.amount / 100).toString(),
           category_id: split.category_id?.toString() || '',
@@ -76,7 +83,7 @@ const TransactionForm = ({
         })));
         setIsSplitEnabled(true);
       } else {
-        setSplits([{ amount: '', category_id: '', description: '' }]);
+        setSplits([createEmptySplit()]);
         setIsSplitEnabled(false);
       }
     });
@@ -102,7 +109,7 @@ const TransactionForm = ({
   };
 
   const addSplitRow = () => {
-    setSplits([...splits, { amount: '', category_id: '', description: '' }]);
+    setSplits([...splits, createEmptySplit()]);
   };
 
   const removeSplitRow = (index: number) => {
@@ -172,7 +179,6 @@ const TransactionForm = ({
                   type="text"
                   inputMode="decimal"
                   required
-                  autoFocus
                   value={form.amount}
                   onChange={e => {
                     // Solo permitir números, puntos y comas
@@ -396,7 +402,7 @@ const TransactionForm = ({
                 </div>
 
                 {splits.map((split, index) => (
-                  <div key={index} className="space-y-3 p-4 bg-white/5 rounded-2xl border border-white/5 relative">
+                  <div key={split.id} className="space-y-3 p-4 bg-white/5 rounded-2xl border border-white/5 relative">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label htmlFor={`split-amount-${index}`} className="text-[10px] font-bold text-white/20 uppercase mb-2 block">Monto</label>

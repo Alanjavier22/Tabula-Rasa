@@ -72,7 +72,7 @@ export class StreamedExporter {
     link.download = filename;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 100);
   }
 }
