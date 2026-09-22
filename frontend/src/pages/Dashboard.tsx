@@ -509,7 +509,7 @@ const Dashboard = () => {
       {/* Credit Card Quick Summary */}
       <CreditCardSummary statements={statements} cards={creditCards} />
 
-      {paymentAlerts && paymentAlerts.alerts && paymentAlerts.alerts.length > 0 && (
+      {paymentAlerts?.alerts?.length > 0 && (
         <PaymentAlertsPanel data={paymentAlerts} />
       )}
 
