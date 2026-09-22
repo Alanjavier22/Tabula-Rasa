@@ -424,6 +424,28 @@ def test_ai_assistant_message_turns_and_error_branches(monkeypatch):
     assert error.value.status_code == 500
 
 
+def test_ai_assistant_function_call_helper_handles_sync_and_unknown(monkeypatch):
+    import anyio
+    from app.api import ai_assistant
+
+    class SessionContext:
+        def __enter__(self):
+            return MagicMock()
+
+        def __exit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(ai_assistant, "SessionLocal", lambda: SessionContext())
+    monkeypatch.setattr(ai_assistant, "get_total_balance", lambda _db: {"balance": 10})
+    request = ai_assistant.ChatRequest(message="saldo")
+    call = SimpleNamespace(name="get_total_balance", args={})
+    result = anyio.run(ai_assistant._execute_function_call, call, request, "key")
+    assert result == {"balance": 10}
+    unknown = SimpleNamespace(name="not_a_tool", args={})
+    result = anyio.run(ai_assistant._execute_function_call, unknown, request, "key")
+    assert result["error"] == "Unknown function: not_a_tool"
+
+
 async def _async_value(value):
     return value
 
@@ -556,6 +578,20 @@ def test_backup_helpers_and_sankey_helpers_cover_small_pure_paths(monkeypatch, t
     assert _append_sankey_expenses(nodes, links, expenses) == 2
     assert _build_sankey_data(100, expenses)["nodes"][0]["name"] == "Ingresos"
 
+    class FakeCredentials:
+        def __init__(self, **_kwargs):
+            self.refreshed = False
+
+        def refresh(self, _request):
+            self.refreshed = True
+
+    drive_service = object()
+    monkeypatch.setattr(backup_gdrive, "Credentials", FakeCredentials)
+    monkeypatch.setattr(backup_gdrive, "build", lambda *_args, **_kwargs: drive_service)
+    assert backup_gdrive._authenticate_drive(("id", "secret", "refresh")) is drive_service
+    monkeypatch.setattr(backup_gdrive, "Credentials", lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("invalid")))
+    assert backup_gdrive._authenticate_drive(("id", "secret", "refresh")) is None
+
 
 def test_insight_fiscal_and_integrity_helpers_cover_edge_values():
     from app.api.fiscal import _get_sri_concept_code, _is_zero_iva_category
@@ -588,3 +624,115 @@ def test_insight_fiscal_and_integrity_helpers_cover_edge_values():
     assert StatementIntelligenceService._deferred_installments("3/12") == (3, 12)
     assert StatementIntelligenceService._deferred_installments("x/y") == (1, 1)
     assert _get_sqlite_type("INTEGER") == "INTEGER"
+
+
+def test_statement_intelligence_enrichment_and_retry_helpers(monkeypatch):
+    import anyio
+    from app.services.statement_intelligence import StatementIntelligenceService
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.side_effect = [None, SimpleNamespace(id="existing")]
+    service = StatementIntelligenceService(db_session=db)
+    transactions = [
+        {"date": "2026-03-01", "description": "Seguro", "amount_cents": 100, "transaction_type": "expense"},
+        {"date": "2026-03-01", "description": "Seguro", "amount_cents": 100, "transaction_type": "income"},
+    ]
+    enriched, consumptions, payments = service._enrich_transactions(
+        transactions, {0: ("cat", False)}, {"cat": "Seguros"}, "acc"
+    )
+    assert consumptions == 100
+    assert payments == 100
+    assert enriched[0]["category_name"] == "Seguros"
+    assert enriched[0]["needs_clarification"] is True
+    assert enriched[1]["is_duplicate"] is True
+
+    class FakeModels:
+        def generate_content(self, **_kwargs):
+            return SimpleNamespace(text='{"transactions": [{"description": "ok"}]}')
+
+    parsed = anyio.run(
+        service._request_parsed_data,
+        SimpleNamespace(models=FakeModels()),
+        b"file",
+        "text/plain",
+        "system",
+        "prompt",
+    )
+    assert parsed["transactions"][0]["description"] == "ok"
+
+
+def test_account_intelligence_key_and_enrichment_branches():
+    from app.services.account_intelligence import AccountIntelligenceService
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(value="api-key")
+    service = AccountIntelligenceService(db_session=db)
+    assert service._get_api_key() == "api-key"
+    assert "Banco Pichincha" in service._build_system_instruction("Banco Pichincha")
+    transactions = [
+        {"date": "2026-03-01", "description": "Compra", "amount_cents": 100, "balance_cents": 200},
+        {"date": "2026-03-01", "description": "Compra", "amount_cents": 100, "balance_cents": 200},
+    ]
+    enriched = service._enrich_transactions(transactions, {0: ("cat", True)}, {"cat": "Comida"}, "acc")
+    assert enriched[0]["category_name"] == "Comida"
+    assert enriched[0]["needs_clarification"] is True
+    assert enriched[0]["fingerprint"] != enriched[1]["fingerprint"]
+
+
+def test_sri_classifier_error_and_empty_batch_paths(monkeypatch):
+    from app.services import sri_classifier
+
+    monkeypatch.setattr(sri_classifier, "with_gemini_retry", lambda call: (_ for _ in ()).throw(RuntimeError("offline")))
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=lambda **_kwargs: None))
+    assert sri_classifier._classify_batch_chunk(client, [(0, {})], "prompt") == {}
+    db = MagicMock()
+    assert sri_classifier.sri_classify_batch([], db) == {}
+    db.query.return_value.filter.return_value.first.return_value = None
+    assert sri_classifier.sri_classify_batch([{"description": "x"}], db) == {}
+    assert sri_classifier._resolve_api_key(db, "explicit") == "explicit"
+
+
+def test_dashboard_vehicle_helpers_cover_config_and_maintenance_paths():
+    from app.api.metrics_dashboard import _get_next_maintenance_estimate, _get_vehicle_category_ids
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(value='["fuel"]')
+    assert _get_vehicle_category_ids(db) == ["fuel"]
+    db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(value="bad json")
+    db.query.return_value.filter.return_value.all.return_value = [SimpleNamespace(id="maintenance")]
+    assert _get_vehicle_category_ids(db) == ["maintenance"]
+    assert _get_next_maintenance_estimate(db, []) is None
+    db.query.return_value.filter.return_value.all.return_value = [SimpleNamespace(id="maintenance")]
+    db.query.return_value.filter.return_value.order_by.return_value.first.return_value = SimpleNamespace(
+        metadata_json='{"odometer": 1000}'
+    )
+    assert _get_next_maintenance_estimate(db, [{"val": 1200}]) == 4800
+
+
+def test_snapshot_reconciler_balance_and_hash_paths():
+    from app.services.snapshot_reconciler import (
+        _add_account_balance,
+        _calculate_transaction_totals,
+        _get_historical_account_balance,
+    )
+
+    valid = SimpleNamespace(hash=None, amount=100, transaction_type="income")
+    invalid = SimpleNamespace(hash="bad", account_id="a", date="d", description="x", amount=1)
+    expense = SimpleNamespace(hash=None, amount=40, transaction_type="expense")
+    income, costs, count = _calculate_transaction_totals([valid, invalid, expense])
+    assert income == Decimal("100")
+    assert costs == Decimal("40")
+    assert count == 2
+    assets, liabilities = _add_account_balance(SimpleNamespace(account_type="credit_card"), Decimal("50"), Decimal("0"), Decimal("0"))
+    assert assets == Decimal("0")
+    assert liabilities == Decimal("50")
+    assets, liabilities = _add_account_balance(SimpleNamespace(account_type="other"), Decimal("-20"), Decimal("0"), Decimal("0"))
+    assert assets == Decimal("0")
+    assert liabilities == Decimal("20")
+    db = MagicMock()
+    db.query.return_value.filter.return_value.all.return_value = [
+        SimpleNamespace(amount=100, transaction_type="income"),
+        SimpleNamespace(amount=30, transaction_type="expense"),
+    ]
+    balance = _get_historical_account_balance(db, SimpleNamespace(id="acc", balance=1000), datetime(2020, 1, 1, tzinfo=timezone.utc))
+    assert balance == Decimal("930")
