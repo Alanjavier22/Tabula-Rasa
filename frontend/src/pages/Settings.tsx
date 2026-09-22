@@ -81,7 +81,7 @@ const Settings = () => {
         if (c.key === 'vehicle_categories' && c.value) {
           configs.vehicle_categories = JSON.parse(c.value);
         } else if (c.key === 'safe_to_spend_buffer' && c.value) {
-          configs.safe_to_spend_buffer = parseFloat(c.value);
+          configs.safe_to_spend_buffer = Number.parseFloat(c.value);
         } else if (c.key === 'gemini_api_key' && c.value) {
           configs.gemini_api_key = c.value;
         } else if (c.key === 'ai_persona' && c.value) {

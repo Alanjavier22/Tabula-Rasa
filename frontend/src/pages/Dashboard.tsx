@@ -165,9 +165,9 @@ const Dashboard = () => {
             ]);
 
             const rules: Partial<EcuadorFiscalRules> = {};
-            if (ivaRes.data?.value) rules.iva_rate = parseFloat(ivaRes.data.value);
-            if (retSrcRes.data?.value) rules.retencion_source_rate = parseFloat(retSrcRes.data.value);
-            if (retIvaRes.data?.value) rules.retencion_iva_rate = parseFloat(retIvaRes.data.value);
+            if (ivaRes.data?.value) rules.iva_rate = Number.parseFloat(ivaRes.data.value);
+            if (retSrcRes.data?.value) rules.retencion_source_rate = Number.parseFloat(retSrcRes.data.value);
+            if (retIvaRes.data?.value) rules.retencion_iva_rate = Number.parseFloat(retIvaRes.data.value);
 
             if (Object.keys(rules).length > 0) {
               reportingService.setFiscalRules(rules);
@@ -356,7 +356,7 @@ const Dashboard = () => {
     // Convert from cents (strings) to dollars (numbers) for chart scaling
     return data.map((item) => ({
       ...item,
-      gasto: typeof item.gasto === 'string' ? parseFloat(item.gasto) / 100 : item.gasto / 100
+      gasto: typeof item.gasto === 'string' ? Number.parseFloat(item.gasto) / 100 : item.gasto / 100
     }));
   }, [dashboardSummary]);
 
@@ -366,8 +366,8 @@ const Dashboard = () => {
     // Convert from cents to dollars and strings to numbers
     return dashboardData.map((item) => ({
       ...item,
-      Ingresos: typeof item.Ingresos === 'string' ? parseFloat(item.Ingresos) / 100 : item.Ingresos / 100,
-      Gastos: typeof item.Gastos === 'string' ? parseFloat(item.Gastos) / 100 : item.Gastos / 100
+      Ingresos: typeof item.Ingresos === 'string' ? Number.parseFloat(item.Ingresos) / 100 : item.Ingresos / 100,
+      Gastos: typeof item.Gastos === 'string' ? Number.parseFloat(item.Gastos) / 100 : item.Gastos / 100
     }));
   }, [dashboardSummary]);
 

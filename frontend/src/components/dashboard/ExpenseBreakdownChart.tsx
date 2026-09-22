@@ -34,7 +34,7 @@ const ExpenseBreakdownChart = ({ dashboardSummary, expenseBreakdown }: ExpenseBr
                   <Pie
                     data={expenseBreakdown.map((item, i) => ({
                       ...item,
-                      value: typeof item.value === 'string' ? parseFloat(item.value) : item.value,
+                      value: typeof item.value === 'string' ? Number.parseFloat(item.value) : item.value,
                       fill: COLORS[i % COLORS.length]
                     }))}
                     cx="50%"
@@ -60,8 +60,8 @@ const ExpenseBreakdownChart = ({ dashboardSummary, expenseBreakdown }: ExpenseBr
                       itemStyle={{ color: '#fff' }}
                       formatter={(value, name) => {
                         const total = expenseBreakdown.reduce((sum, item) => {
-                          const val = typeof item.value === 'string' ? parseFloat(item.value) : item.value;
-                          return sum + (isNaN(val) ? 0 : val);
+                          const val = typeof item.value === 'string' ? Number.parseFloat(item.value) : item.value;
+                          return sum + (Number.isNaN(val) ? 0 : val);
                         }, 0);
                         const numValue = typeof value === 'number' ? value : Number(value ?? 0);
                         const percentage = total > 0 ? ((numValue / total) * 100).toFixed(1) : 0;

@@ -36,7 +36,7 @@ const ShareTransactionModal = ({ sharingTransaction, transactionDescription, onC
               id="share-transaction-amount"
               type="number"
               value={sharingTransaction.amount / 100}
-              onChange={(e) => onChange({...sharingTransaction, amount: parseFloat(e.target.value) * 100})}
+              onChange={(e) => onChange({...sharingTransaction, amount: Number.parseFloat(e.target.value) * 100})}
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 outline-none"
             />
           </div>

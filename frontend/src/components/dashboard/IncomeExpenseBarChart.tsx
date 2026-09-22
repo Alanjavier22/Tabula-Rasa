@@ -9,7 +9,7 @@ const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Jul
 
 const formatMonthLabel = (value: string) => {
   const [year, month] = value.split('-');
-  const monthIndex = parseInt(month) - 1;
+  const monthIndex = Number.parseInt(month) - 1;
   return `${MONTH_NAMES[monthIndex]} de ${year}`;
 };
 

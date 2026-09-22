@@ -34,7 +34,7 @@ export function isValidEcuadorianID(id: string): boolean {
   const digits = digitsToValidate.split('').map(Number);
   
   // FASE 4: Province code validation (01-24 or 30)
-  const provinceCode = parseInt(digitsToValidate.substring(0, 2), 10);
+  const provinceCode = Number.parseInt(digitsToValidate.substring(0, 2), 10);
   if ((provinceCode < 1 || provinceCode > 24) && provinceCode !== 30) return false;
   
   // FASE 4: Third digit validation

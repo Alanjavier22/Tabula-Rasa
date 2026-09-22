@@ -83,7 +83,7 @@ const CustomTooltip = ({ active, payload, label }: TooltipContentProps) => {
       if (typeof label !== 'string') return label;
       const [year, month] = label.split('-');
       const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      const monthIndex = parseInt(month) - 1;
+      const monthIndex = Number.parseInt(month) - 1;
       return `${monthNames[monthIndex]} de ${year}`;
     })();
 
@@ -217,7 +217,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
     const percentile = isMobile ? 0.85 : 0.95;
     
     const allValues = trendData.flatMap(d => [toNumber(d.income), toNumber(d.expenses), toNumber(d.iva_projected)]);
-    const sorted = allValues.filter(v => !isNaN(v)).sort((a, b) => a - b);
+      const sorted = allValues.filter(v => !Number.isNaN(v)).sort((a, b) => a - b);
     
     if (sorted.length === 0) return [0, 1000];
     
@@ -386,7 +386,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
                   tickFormatter={(value: string) => {
                     const [_, month] = value.split('-');
                     const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-                    const monthIndex = parseInt(month) - 1;
+                    const monthIndex = Number.parseInt(month) - 1;
                     return monthNames[monthIndex] || value;
                   }}
                 />
