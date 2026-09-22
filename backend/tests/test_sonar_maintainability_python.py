@@ -48,6 +48,12 @@ def test_extract_beneficiary_key_removes_trailing_transaction_code():
     assert result == "DLC UBER RIDES"
 
 
+def test_extract_beneficiary_key_removes_code_with_more_than_three_digits():
+    result = _extract_beneficiary_key("SUPERMARKET AB1234XYZ")
+
+    assert result == "SUPERMARKET"
+
+
 def test_debt_status_builds_latest_statement_summary_without_statement(db_session):
     account = Account(
         name="Tarjeta de prueba",
