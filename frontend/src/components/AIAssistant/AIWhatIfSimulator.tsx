@@ -10,8 +10,55 @@ import {
   ReferenceLine,
   CartesianGrid,
 } from 'recharts';
+import type { DefaultLegendContentProps, TooltipContentProps } from 'recharts';
 import { Sparkles } from 'lucide-react';
 import type { WhatIfScenario } from '../../services/AIAgentService';
+
+const formatFullCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+  }).format(value / 100);
+};
+
+const WhatIfTooltipContent = ({ active, payload, label }: TooltipContentProps) => {
+  if (active && payload?.length) {
+    return (
+      <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 p-4 rounded-xl shadow-2xl ring-1 ring-black/50">
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Mes {label}</p>
+        <div className="space-y-2">
+          {payload.map((entry) => (
+            <div key={String(entry.name ?? entry.color ?? 'series')} className="flex items-center justify-between gap-8">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                <span className="text-sm text-slate-300">{entry.name}</span>
+              </div>
+              <span className="text-sm font-mono font-bold text-white">
+                {formatFullCurrency(typeof entry.value === 'number' ? entry.value : Number(entry.value ?? 0))}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+const WhatIfLegendContent = ({ payload }: DefaultLegendContentProps) => (
+  <div className="flex justify-end gap-6 mb-8">
+    {payload?.map((entry) => (
+      <div key={String(entry.value ?? entry.color ?? 'legend')} className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+        <span className="text-xs font-semibold text-slate-400 uppercase tracking-tighter">
+          {entry.value}
+        </span>
+      </div>
+    ))}
+  </div>
+);
 
 interface AIWhatIfSimulatorProps {
   scenario: WhatIfScenario | null;
@@ -45,14 +92,6 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
     if (Math.abs(val) >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
     if (Math.abs(val) >= 1000) return `$${(val / 1000).toFixed(0)}k`;
     return `$${val.toFixed(0)}`;
-  };
-
-  const formatFullCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(value / 100);
   };
 
   const allValues = scenario.projection.flatMap(p => [p.baseline_net_worth, p.projected_net_worth]);
@@ -274,48 +313,13 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
               width={60}
             />
             
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (active && payload?.length) {
-                  return (
-                    <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 p-4 rounded-xl shadow-2xl ring-1 ring-black/50">
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Mes {label}</p>
-                      <div className="space-y-2">
-                        {payload.map((entry) => (
-                          <div key={String(entry.name ?? entry.color ?? 'series')} className="flex items-center justify-between gap-8">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                              <span className="text-sm text-slate-300">{entry.name}</span>
-                            </div>
-                            <span className="text-sm font-mono font-bold text-white">
-                              {formatFullCurrency(typeof entry.value === 'number' ? entry.value : Number(entry.value ?? 0))}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              }}
-            />
+            <Tooltip content={WhatIfTooltipContent} />
             
-            <Legend 
-              verticalAlign="top" 
-              align="right" 
+            <Legend
+              verticalAlign="top"
+              align="right"
               iconType="circle"
-              content={({ payload }) => (
-                <div className="flex justify-end gap-6 mb-8">
-                  {payload?.map((entry) => (
-                    <div key={String(entry.value ?? entry.color ?? 'legend')} className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-tighter">
-                        {entry.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              content={WhatIfLegendContent}
             />
 
             <ReferenceLine y={0} stroke="#ef444450" strokeWidth={1} strokeDasharray="5 5" />
