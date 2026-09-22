@@ -1,4 +1,4 @@
-import type { DragEvent } from 'react';
+import type { ChangeEvent, DragEvent } from 'react';
 
 export const withFirstFile = (
   files: FileList | null | undefined,
@@ -40,3 +40,29 @@ export const prepareFileDrop = (
   event.stopPropagation();
   setDragActive(false);
 };
+
+type FileSelector = (
+  files: FileList | null | undefined,
+  callback: (file: File) => void,
+) => void;
+
+export const createFileSelectionHandlers = ({
+  setDragActive,
+  onFileSelect,
+  onDropFile = onFileSelect,
+  selectDroppedFile = withFirstFile,
+}: {
+  setDragActive: (active: boolean) => void;
+  onFileSelect: (file: File) => void;
+  onDropFile?: (file: File) => void;
+  selectDroppedFile?: FileSelector;
+}) => ({
+  handleDrag: (event: DragEvent) => handleFileDrag(event, setDragActive),
+  handleDrop: (event: DragEvent) => {
+    prepareFileDrop(event, setDragActive);
+    selectDroppedFile(event.dataTransfer.files, onDropFile);
+  },
+  handleFileSelect: (event: ChangeEvent<HTMLInputElement>) => {
+    withFirstFile(event.target.files, onFileSelect);
+  },
+});
