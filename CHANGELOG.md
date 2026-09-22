@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.15...v0.1.16) (2026-09-22)
+
+
+### Correcciones
+
+* elimina regex vulnerable del categorizador ([d4275b6](https://github.com/Alanjavier22/Tabula-Rasa/commit/d4275b61b7fa33d147c3aea1a0b20a5f48f410fe))
+
 ## [0.1.15](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.14...v0.1.15) (2026-09-22)
 
 
