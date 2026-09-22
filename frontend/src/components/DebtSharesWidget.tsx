@@ -5,6 +5,18 @@ import type { AxiosError } from 'axios';
 import { Users, DollarSign, CheckCircle, X, Plus } from 'lucide-react';
 import Toast from './Toast';
 
+const getDebtShareStatusClass = (status: string) => {
+  if (status === 'paid_to_card') return 'bg-green-500/20 text-green-400';
+  if (status === 'received') return 'bg-blue-500/20 text-blue-400';
+  return 'bg-orange-500/20 text-orange-400';
+};
+
+const getDebtShareStatusLabel = (status: string) => {
+  if (status === 'paid_to_card') return 'A Tarjeta';
+  if (status === 'received') return 'Recibido';
+  return 'Pendiente';
+};
+
 const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] }) => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showAddModal, setShowAddModal] = useState<{ isOpen: boolean; statementId: string | null }>({ isOpen: false, statementId: null });
@@ -135,12 +147,8 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-sm font-black text-purple-400">${(ds.amount / 100).toFixed(2)}</p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  ds.status === 'paid_to_card' ? 'bg-green-500/20 text-green-400' :
-                  ds.status === 'received' ? 'bg-blue-500/20 text-blue-400' :
-                  'bg-orange-500/20 text-orange-400'
-                }`}>
-                  {ds.status === 'paid_to_card' ? 'A Tarjeta' : ds.status === 'received' ? 'Recibido' : 'Pendiente'}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getDebtShareStatusClass(ds.status)}`}>
+                  {getDebtShareStatusLabel(ds.status)}
                 </span>
               </div>
               <div className="flex gap-1">
