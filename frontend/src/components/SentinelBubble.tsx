@@ -73,7 +73,7 @@ export const SentinelBubble: React.FC = () => {
   // Query (o cualquier otro re-render mientras el panel está abierto) hace que las
   // partículas salten a posiciones nuevas en vez de animarse continuas.
   const particles = useMemo(() => (
-    [...new Array(6)].map(() => ({
+    Array.from({ length: 6 }, () => ({
       x: secureRandomUnit() * 20 - 10,
       duration: 10 + secureRandomUnit() * 10,
       left: secureRandomUnit() * 100,
