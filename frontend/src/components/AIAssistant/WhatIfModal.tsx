@@ -80,15 +80,17 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
       const cashFlow = income - expenses - debtPayment - (avgMonthlySpend || 0);
 
       const scenario = await AIAgentService.simulateWhatIfScenario(
-        whatIfPrompt,
-        categoryTransactions,
-        currentNetWorth,
-        income,
-        expenses,
-        debt,
-        debtPayment,
-        cashFlow,
-        goals
+        {
+          userPrompt: whatIfPrompt,
+          categoryTransactions,
+          currentNetWorth,
+          monthlyIncome: income,
+          fixedExpenses: expenses,
+          totalDebt: debt,
+          monthlyDebtPayment: debtPayment,
+          monthlyCashFlow: cashFlow,
+          goals,
+        }
       );
       setWhatIfScenario(scenario);
     } catch (error) {

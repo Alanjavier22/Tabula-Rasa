@@ -18,6 +18,18 @@ export interface WhatIfTransactionInput {
   category_id: string;
 }
 
+export interface SimulateWhatIfScenarioInput {
+  userPrompt: string;
+  categoryTransactions: WhatIfTransactionInput[];
+  currentNetWorth: number;
+  monthlyIncome?: number;
+  fixedExpenses?: number;
+  totalDebt?: number;
+  monthlyDebtPayment?: number;
+  monthlyCashFlow?: number;
+  goals?: Goal[];
+}
+
 export interface WhatIfProjection {
   month: number;
   baseline_net_worth: number;
@@ -88,17 +100,17 @@ export class AIAgentService {
     return hydratedSuggestions;
   }
 
-  static async simulateWhatIfScenario(
-    userPrompt: string,
-    categoryTransactions: WhatIfTransactionInput[],
-    currentNetWorth: number,
-    monthlyIncome: number = 0,
-    fixedExpenses: number = 0,
-    totalDebt: number = 0,
-    monthlyDebtPayment: number = 0,
-    monthlyCashFlow: number = 0,
-    goals: Goal[] = []
-  ): Promise<WhatIfScenario> {
+  static async simulateWhatIfScenario({
+    userPrompt,
+    categoryTransactions,
+    currentNetWorth,
+    monthlyIncome = 0,
+    fixedExpenses = 0,
+    totalDebt = 0,
+    monthlyDebtPayment = 0,
+    monthlyCashFlow = 0,
+    goals = [],
+  }: SimulateWhatIfScenarioInput): Promise<WhatIfScenario> {
     const { sanitized: sanitizedTxns, hydrationMap } = prepareForAI(categoryTransactions);
 
     const avgMonthlySpend = Math.round(categoryTransactions.reduce((sum, t) => sum + t.amount, 0) / 12);

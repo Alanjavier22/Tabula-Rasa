@@ -5,7 +5,7 @@ import type { AxiosError } from 'axios';
 // Mismo hostname que la página para conservar el alcance local de la cookie
 // y evitar que una configuración antigua de red desvíe las peticiones.
 const LOCALHOST_BASE_URL = `http://${window.location.hostname}:8001`;
-const LOCALHOST_HOSTS = ['localhost', '127.0.0.1'];
+const LOCALHOST_HOSTS = new Set(['localhost', '127.0.0.1']);
 const MAX_RETRIES = 10;
 const RETRY_DELAY_MS = 2000;
 
@@ -15,7 +15,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
   const [localhostError, setLocalhostError] = useState<string | null>(null);
   const attemptedRef = useRef(false);
 
-  const isLocalhost = LOCALHOST_HOSTS.includes(window.location.hostname);
+  const isLocalhost = LOCALHOST_HOSTS.has(window.location.hostname);
 
   const checkSession = React.useCallback(async () => {
     try {

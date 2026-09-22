@@ -161,7 +161,8 @@ function maskAccounts(text: string, hydrationMap: Map<string, string>, counters:
   return sanitized;
 }
 const NAME_PATTERNS = [
-  /\b(A la|Al|De|Del|Para|Por|Con|Sin|Sobre|Desde|Hasta|Para|A)\s+[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)?\b/g, // Preposition + name (Title Case)
+  /\b(A la|Al|De|Del|Para|Por|Con|Sin)\s+[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)?\b/g, // Preposition + name (Title Case)
+  /\b(Sobre|Desde|Hasta|A)\s+[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)?\b/g,
   /\b(Transferencia|Pago|Depósito|Retiro|Compra|Venta)\s+(a|de|para|desde)\s+[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)?\b/g, // Transaction + name (Title Case)
   /\b[A-Z][a-záéíóúñ]+\s+[A-Z][a-záéíóúñ]+\b(?=\s+(?:transferencia|pago|depósito|retiro|compra|venta))/gi, // Name before transaction type
   // ALL-CAPS variants: Ecuadorian bank statement exports are typically formatted

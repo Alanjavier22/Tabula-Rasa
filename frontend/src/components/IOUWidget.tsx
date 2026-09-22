@@ -9,7 +9,7 @@ const IOUWidget = () => {
   const [loading, setLoading] = useState(true);
   const [settleModal, setSettleModal] = useState<{ isOpen: boolean; iouId: string | null }>({ isOpen: false, iouId: null });
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-  const [settling, SetSettling] = useState(false);
+  const [settling, setSettling] = useState(false);
 
   const fetchPendingIous = async () => {
     try {
@@ -43,7 +43,7 @@ const IOUWidget = () => {
   const handleSettle = async () => {
     if (!settleModal.iouId || !selectedAccountId) return;
     
-    SetSettling(true);
+    setSettling(true);
     try {
       await iousAPI.settle(settleModal.iouId, { account_id: selectedAccountId });
       setIous(ious.filter(iou => iou.id !== settleModal.iouId));
@@ -52,7 +52,7 @@ const IOUWidget = () => {
     } catch (error) {
       console.error('Error settling IOU:', error);
     } finally {
-      SetSettling(false);
+      setSettling(false);
     }
   };
 
