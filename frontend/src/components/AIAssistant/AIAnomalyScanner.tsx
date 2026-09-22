@@ -216,7 +216,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
               ) : (
                 <div className="space-y-5">
                   {/* Categoría: Suscripciones Zombie */}
-                  {result.zombie_subscriptions.length > 0 && result.zombie_subscriptions.some((_, i) => !syncedZombies.includes(i)) && (
+                  {result.zombie_subscriptions.some((_, i) => !syncedZombies.includes(i)) && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between px-1">
                         <div className="flex items-center gap-2">
@@ -276,7 +276,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
                   )}
 
                   {/* Categoría: Picos de Consumo */}
-                  {result.spending_spikes.length > 0 && result.spending_spikes.some((_, i) => !dismissedSpikes.includes(i)) && (
+                  {result.spending_spikes.some((_, i) => !dismissedSpikes.includes(i)) && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between px-1">
                         <div className="flex items-center gap-2">
