@@ -6,6 +6,7 @@ import type { Account, Category, AccountExtractedTransaction, AccountParsingResp
 import type { AxiosError } from 'axios';
 import Select from './common/Select';
 import { formatMoney } from '../utils/money';
+import { withFirstFile } from '../utils/fileSelection';
 
 interface AccountImportModalProps {
   onClose: () => void;
@@ -57,25 +58,23 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
     }
   };
 
+  const handleDroppedFile = (dropped: File) => {
+    if (dropped.name.endsWith('.csv') || dropped.name.endsWith('.xlsx')) {
+      handleFileSelection(dropped);
+    } else {
+      setResult({ success: false, message: 'Solo se permiten archivos CSV o Excel (.xlsx)' });
+    }
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    const dropped = e.dataTransfer.files?.[0];
-    if (dropped) {
-      if (dropped.name.endsWith('.csv') || dropped.name.endsWith('.xlsx')) {
-        handleFileSelection(dropped);
-      } else {
-        setResult({ success: false, message: 'Solo se permiten archivos CSV o Excel (.xlsx)' });
-      }
-    }
+    withFirstFile(e.dataTransfer.files, handleDroppedFile);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      handleFileSelection(selectedFile);
-    }
+    withFirstFile(e.target.files, handleFileSelection);
   };
 
   const handleFileSelection = (selectedFile: File) => {
