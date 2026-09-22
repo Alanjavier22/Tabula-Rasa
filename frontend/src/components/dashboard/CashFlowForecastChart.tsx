@@ -76,8 +76,8 @@ const CashFlowForecastChart = ({ cashFlowForecast, forecastDays, setForecastDays
               labelFormatter={(label) => {
                 if (typeof label !== 'string') return '';
                 const [year, month, day] = label.split('-');
-                const monthIndex = parseInt(month) - 1;
-                const dayNum = parseInt(day);
+                const monthIndex = Number.parseInt(month) - 1;
+                const dayNum = Number.parseInt(day);
                 return `${dayNum} de ${MONTH_NAMES[monthIndex].toLowerCase()} de ${year}`;
               }}
               formatter={(value) => [`$${formatMoney(value)}`, 'Balance Proyectado']}
