@@ -7,7 +7,12 @@ import { formatMoney } from '../utils/money';
 import { motion } from 'framer-motion';
 import StatementUploadStep from './statementImport/StatementUploadStep';
 import ShareTransactionModal, { type SharingTransactionState } from './statementImport/ShareTransactionModal';
-import { withFirstFile, withFirstDocumentFile } from '../utils/fileSelection';
+import {
+  handleFileDrag,
+  prepareFileDrop,
+  withFirstFile,
+  withFirstDocumentFile,
+} from '../utils/fileSelection';
 
 interface StatementImportModalProps {
   onClose: () => void;
@@ -74,19 +79,11 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
     : 0;
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+    handleFileDrag(e, setDragActive);
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+    prepareFileDrop(e, setDragActive);
     withFirstDocumentFile(e.dataTransfer.files, handleFileSelection);
   };
 
