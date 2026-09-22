@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional, Any, cast
+from typing import Annotated, List, Optional, Any, cast
 from database import get_db
 from app.api.crud_factory import make_crud_router
 from app.models.transaction_split import TransactionSplit
@@ -103,7 +103,7 @@ router: APIRouter = make_crud_router(
 
 
 @router.get("/", response_model=List[TransactionSplitResponse])
-def get_transaction_splits(skip: int = 0, limit: int = 100, transaction_id: Optional[str] = None, db: Session = Depends(get_db)):
+def get_transaction_splits(db: Annotated[Session, Depends(get_db)], skip: int = 0, limit: int = 100, transaction_id: Optional[str] = None):
     query = db.query(TransactionSplit)
     if transaction_id:
         query = query.filter(TransactionSplit.transaction_id == transaction_id)
@@ -114,7 +114,7 @@ def get_transaction_splits(skip: int = 0, limit: int = 100, transaction_id: Opti
 def create_transaction_splits_batch(
     transaction_id: str,
     splits: List[TransactionSplitCreate],
-    db: Session = Depends(get_db)
+    db: Annotated[Session, Depends(get_db)]
 ):
     """Create multiple splits for a transaction in one batch operation."""
     transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
