@@ -83,7 +83,7 @@ def set_balance(account_id: str, payload: SetBalanceRequest, db: Annotated[Sessi
 
 
 @router.post("/{account_id}/recalculate", response_model=AccountResponse, responses=ACCOUNT_NOT_FOUND_RESPONSE)
-def recalculate_balance(account_id: str, initial_balance: int = 0, db: Annotated[Session, Depends(get_db)]):
+def recalculate_balance(account_id: str, db: Annotated[Session, Depends(get_db)], initial_balance: int = 0):
     """Recalculate balance from initial_balance + sum of all transactions."""
     from app.services.balance import recalculate_account_balance
     db_account = db.query(Account).filter(Account.id == account_id).first()
