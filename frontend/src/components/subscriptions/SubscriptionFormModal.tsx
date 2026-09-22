@@ -28,6 +28,8 @@ interface SubscriptionFormModalProps {
 }
 
 const SubscriptionFormModal = ({ isOpen, editingSubscription, form, setForm, categories, accounts, saving, onClose, onSubmit }: SubscriptionFormModalProps) => {
+  const submitLabel = editingSubscription ? 'Actualizar Servicio' : 'Activar Suscripción';
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -179,7 +181,7 @@ const SubscriptionFormModal = ({ isOpen, editingSubscription, form, setForm, cat
                   disabled={saving}
                   className="flex-[2] px-8 py-5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-black uppercase tracking-widest hover:shadow-xl hover:shadow-purple-500/20 transition-all disabled:opacity-50"
                 >
-                  {saving ? 'Procesando...' : editingSubscription ? 'Actualizar Servicio' : 'Activar Suscripción'}
+                  {saving ? 'Procesando...' : submitLabel}
                 </button>
               </div>
             </form>
