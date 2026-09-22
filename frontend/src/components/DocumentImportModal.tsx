@@ -5,7 +5,12 @@ import { Upload, X, CheckCircle, AlertCircle, FileImage, FileText, Trash2 } from
 import type { Category, Account, TransactionType, PaymentMethod, ExpenseType, Cents } from '../types';
 import type { AxiosError } from 'axios';
 import Select from './common/Select';
-import { withFirstFile, withFirstDocumentFile } from '../utils/fileSelection';
+import {
+  handleFileDrag,
+  prepareFileDrop,
+  withFirstFile,
+  withFirstDocumentFile,
+} from '../utils/fileSelection';
 
 interface DocumentImportModalProps {
   onClose: () => void;
@@ -50,19 +55,11 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
   }, []);
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+    handleFileDrag(e, setDragActive);
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+    prepareFileDrop(e, setDragActive);
     withFirstDocumentFile(e.dataTransfer.files, handleFileSelection);
   };
 
