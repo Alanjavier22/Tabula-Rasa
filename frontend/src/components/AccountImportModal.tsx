@@ -61,8 +61,8 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const dropped = e.dataTransfer.files[0];
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) {
       if (dropped.name.endsWith('.csv') || dropped.name.endsWith('.xlsx')) {
         handleFileSelection(dropped);
       } else {
@@ -72,8 +72,9 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelection(e.target.files[0]);
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      handleFileSelection(selectedFile);
     }
   };
 
