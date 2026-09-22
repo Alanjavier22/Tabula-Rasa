@@ -86,8 +86,8 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const dropped = e.dataTransfer.files[0];
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) {
       if (dropped.type.startsWith('image/') || dropped.type === 'application/pdf') {
         handleFileSelection(dropped);
       }
@@ -95,8 +95,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelection(e.target.files[0]);
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      handleFileSelection(selectedFile);
     }
   };
 
