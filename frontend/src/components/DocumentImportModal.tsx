@@ -12,6 +12,7 @@ interface DocumentImportModalProps {
 }
 
 interface ExtractedTransaction {
+  id: string;
   amount: number;
   description: string;
   category_id: string | null;
@@ -105,6 +106,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       const txnsList = response.data.transactions || [];
       if (txnsList.length > 0) {
         const transactions = txnsList.map((tx) => ({
+          id: globalThis.crypto.randomUUID(),
           description: tx.description,
           amount: tx.amount, // Ya está en centavos
           category_id: tx.category_id || null,
@@ -317,7 +319,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                   </thead>
                   <tbody className="divide-y divide-slate-700/50">
                     {extractedTransactions.map((txn, index) => (
-                      <tr key={index} className={`transition-colors ${txn.selected ? 'bg-blue-500/5' : 'hover:bg-slate-700/30'}`}>
+                      <tr key={txn.id} className={`transition-colors ${txn.selected ? 'bg-blue-500/5' : 'hover:bg-slate-700/30'}`}>
                         <td className="px-4 py-3">
                           <input
                             type="checkbox"

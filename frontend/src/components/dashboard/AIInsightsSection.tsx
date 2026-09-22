@@ -42,7 +42,7 @@ const AIInsightsSection = ({ insights, aiAlerts, aiPatterns, isPending, onRefres
           <AnimatePresence>
             {insights.map((insight, index) => (
               <motion.div
-                key={index}
+                key={insight}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
@@ -59,9 +59,9 @@ const AIInsightsSection = ({ insights, aiAlerts, aiPatterns, isPending, onRefres
           </AnimatePresence>
 
           {/* Anomaly & Patterns merged as cards */}
-          {aiAlerts.map((alert, i) => (
+          {aiAlerts.map((alert) => (
             <motion.div
-              key={`alert-${i}`}
+              key={`alert-${alert}`}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               className="bg-red-500/5 backdrop-blur-xl rounded-2xl border border-red-500/20 p-5"
@@ -78,9 +78,9 @@ const AIInsightsSection = ({ insights, aiAlerts, aiPatterns, isPending, onRefres
             </motion.div>
           ))}
 
-          {aiPatterns.map((pattern, i) => (
+          {aiPatterns.map((pattern) => (
             <motion.div
-              key={`pattern-${i}`}
+              key={`pattern-${pattern}`}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               className="bg-amber-500/5 backdrop-blur-xl rounded-2xl border border-amber-500/20 p-5"
