@@ -10,6 +10,71 @@ from database import SessionLocal
 logger = logging.getLogger(__name__)
 
 
+def _transaction_type_value(transaction: Transaction):
+    return (
+        transaction.transaction_type.value
+        if hasattr(transaction.transaction_type, "value")
+        else transaction.transaction_type
+    )
+
+
+def _categorize_uncategorized(transactions: list[Transaction], db: Session) -> int:
+    uncategorized = [
+        tx for tx in transactions
+        if not tx.category_id and not tx.is_manual
+    ]
+    if not uncategorized:
+        logger.info("No transactions to categorize (all already categorized or manual)")
+        return 0
+
+    batch_data = [
+        {
+            "description": tx.description,
+            "amount": tx.amount,
+            "transaction_type": _transaction_type_value(tx),
+        }
+        for tx in uncategorized
+    ]
+    logger.info(f"Sending {len(batch_data)} transactions for batch categorization")
+    results = categorize_batch(batch_data, db_session=db)
+    for index, tx in enumerate(uncategorized):
+        if index not in results:
+            continue
+        cat_id, clarification = results[index]
+        tx.category_id = cat_id
+        tx.needs_clarification = clarification
+        logger.info(
+            f"Categorized transaction {tx.id}: "
+            f"category_id={cat_id}, clarification={clarification}"
+        )
+    return len(uncategorized)
+
+
+def _classify_sri_pending(transactions: list[Transaction], db: Session) -> None:
+    category_names = {str(c.id): c.name for c in db.query(Category).all()}
+    sri_pending = [
+        tx for tx in transactions
+        if _transaction_type_value(tx) == "expense"
+        and not tx.sri_category
+        and not tx.is_manual
+    ]
+    if not sri_pending:
+        return
+
+    sri_batch_data = [
+        {
+            "description": tx.description,
+            "category_name": category_names.get(tx.category_id, ""),
+        }
+        for tx in sri_pending
+    ]
+    logger.info(f"Sending {len(sri_batch_data)} transactions for SRI batch classification")
+    sri_results = sri_classify_batch(sri_batch_data, db_session=db)
+    for index, tx in enumerate(sri_pending):
+        if index in sri_results:
+            tx.sri_category = sri_results[index]
+
+
 def categorize_transactions_background(transaction_ids: list[str]):
     """
     Procesa transacciones en lotes usando batch categorization para respetar los límites de la API.
@@ -21,55 +86,11 @@ def categorize_transactions_background(transaction_ids: list[str]):
     try:
         transactions = db.query(Transaction).filter(Transaction.id.in_(transaction_ids)).all()
         
-        # Filter transactions without category. Manual rows are never sent to
-        # the automatic categorizer, even if they are currently uncategorized.
-        uncategorized = [
-            tx for tx in transactions
-            if not tx.category_id and not tx.is_manual
-        ]
-
-        if uncategorized:
-            batch_data = []
-            for tx in uncategorized:
-                batch_data.append({
-                    "description": tx.description,
-                    "amount": tx.amount,
-                    "transaction_type": tx.transaction_type.value if hasattr(tx.transaction_type, 'value') else tx.transaction_type
-                })
-
-            logger.info(f"Sending {len(batch_data)} transactions for batch categorization")
-            results = categorize_batch(batch_data, db_session=db)
-
-            for i, tx in enumerate(uncategorized):
-                if i in results:
-                    cat_id, clarification = results[i]
-                    tx.category_id = cat_id
-                    tx.needs_clarification = clarification
-                    logger.info(f"Categorized transaction {tx.id}: category_id={cat_id}, clarification={clarification}")
-        else:
-            logger.info("No transactions to categorize (all already categorized or manual)")
-
-        # Clasificación SRI: solo expenses sin sri_category, agrupado en el mismo lote
-        category_names = {str(c.id): c.name for c in db.query(Category).all()}
-        sri_pending = [
-            tx for tx in transactions
-            if (tx.transaction_type.value if hasattr(tx.transaction_type, 'value') else tx.transaction_type) == 'expense'
-            and not tx.sri_category
-            and not tx.is_manual
-        ]
-        if sri_pending:
-            sri_batch_data = [
-                {"description": tx.description, "category_name": category_names.get(tx.category_id, "")}
-                for tx in sri_pending
-            ]
-            logger.info(f"Sending {len(sri_batch_data)} transactions for SRI batch classification")
-            sri_results = sri_classify_batch(sri_batch_data, db_session=db)
-            for i, tx in enumerate(sri_pending):
-                if i in sri_results:
-                    tx.sri_category = sri_results[i]
+        categorized_count = _categorize_uncategorized(transactions, db)
+        _classify_sri_pending(transactions, db)
 
         db.commit()
-        logger.info(f"Batch categorization completed for {len(uncategorized)} transactions")
+        logger.info(f"Batch categorization completed for {categorized_count} transactions")
             
     except Exception:  # pragma: no cover
         logger.exception("Error en categorización asíncrona")  # pragma: no cover
