@@ -75,9 +75,9 @@ const ACCOUNT_PATTERNS = [
 // Ecuador-specific PII patterns
 const ECUADOR_PII_PATTERNS = [
   // Cédula (10 digits): 09xxxxxxx or 17xxxxxxx (province code)
-  /\b(?:0[1-9]|1[0-9]|2[0-9]|3[0-1])\d{8}\b/g,
+  /\b(?:0[1-9]|1\d|2\d|3[01])\d{8}\b/g,
   // RUC (13 digits): same province prefix + 001 suffix
-  /\b(?:0[1-9]|1[0-9]|2[0-9]|3[0-1])\d{8}001\b/g,
+  /\b(?:0[1-9]|1\d|2\d|3[01])\d{8}001\b/g,
   // Long transaction IDs (Pichincha/Guayaquil/Pacífico bank references)
   /\b[A-Z]{2,4}\d{10,20}\b/g, // Bank transaction IDs like PI1234567890123
   /\b\d{15,25}\b/g, // Very long numeric transaction references
