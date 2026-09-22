@@ -217,10 +217,17 @@ class SentinelService:
 
         # Final score clamping
         score = max(0, min(100, score))
+
+        if score < 50:
+            risk_level = "alto"
+        elif score < 80:
+            risk_level = "moderado"
+        else:
+            risk_level = "bajo"
         
         status_summary = (
             f"MODO SEGURO (IA Offline): Tu salud financiera es de {score}/100. "
-            f"Se detecta un nivel de riesgo {'alto' if score < 50 else 'moderado' if score < 80 else 'bajo'}."
+            f"Se detecta un nivel de riesgo {risk_level}."
         )
 
         return {
