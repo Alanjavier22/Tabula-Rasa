@@ -273,7 +273,7 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
             
             <Tooltip
               content={({ active, payload, label }) => {
-                if (active && payload && payload.length) {
+                if (active && payload?.length) {
                   return (
                     <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 p-4 rounded-xl shadow-2xl ring-1 ring-black/50">
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Mes {label}</p>
