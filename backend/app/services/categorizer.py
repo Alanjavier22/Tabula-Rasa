@@ -187,7 +187,7 @@ def _extract_beneficiary_key(beneficiary: str) -> str:
     if parts:
         meaningful = parts[0].strip()
         # Remove trailing transaction codes (alphanumeric with 3+ digits)
-        meaningful = re.sub(r'\s+[A-Z]{0,3}\d{3,}[A-Z0-9]*+$', '', meaningful).strip()
+        meaningful = re.sub(r'\s+[A-Z]{0,3}\d{3}[A-Z0-9]*+$', '', meaningful).strip()
         if meaningful:
             return meaningful
     
