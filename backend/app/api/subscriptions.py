@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional, Any, cast
+from typing import Annotated, List, Optional, Any, cast
 from datetime import datetime, timezone
 from database import get_db
 from app.api.crud_factory import make_crud_router
@@ -87,7 +87,7 @@ SUBSCRIPTION_ERROR_RESPONSES = {
 
 
 @router.get("/", response_model=List[SubscriptionResponse])
-def get_subscriptions(skip: int = 0, limit: int = 100, is_active: Optional[bool] = None, db: Session = Depends(get_db)):
+def get_subscriptions(db: Annotated[Session, Depends(get_db)], skip: int = 0, limit: int = 100, is_active: Optional[bool] = None):
     query = db.query(Subscription).filter(Subscription.is_deleted == False)  # noqa: E712
     if is_active is not None:
         query = query.filter(Subscription.is_active == is_active)
@@ -95,7 +95,7 @@ def get_subscriptions(skip: int = 0, limit: int = 100, is_active: Optional[bool]
 
 
 @router.post("/{subscription_id}/pay", responses=SUBSCRIPTION_ERROR_RESPONSES)
-def pay_subscription(subscription_id: str, db: Session = Depends(get_db)):
+def pay_subscription(subscription_id: str, db: Annotated[Session, Depends(get_db)]):
     """
     Mark a subscription as paid:
     1. Create an expense transaction with the subscription's data

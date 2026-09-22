@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional, Any, Dict, Callable, Awaitable, cast
+from typing import Annotated, List, Optional, Any, Dict, Callable, Awaitable, cast
 import inspect
 import os
 import google.genai as genai
@@ -218,7 +218,7 @@ def _raise_assistant_error(error: Exception) -> None:
 
 
 @router.post("/chat", responses=AI_ASSISTANT_ERROR_RESPONSES)
-async def chat_with_assistant(request: ChatRequest, db: Session = Depends(get_db)):
+async def chat_with_assistant(request: ChatRequest, db: Annotated[Session, Depends(get_db)]):
     """
     Chat with AI assistant using function calling.
     The assistant can call local functions to QUERY data only (READ-ONLY).

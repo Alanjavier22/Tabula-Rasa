@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from typing import Annotated
 from sqlalchemy.orm import Session
 from database import get_db
 from app.api.auth import get_current_device
@@ -12,7 +13,7 @@ router = APIRouter(
 )
 
 @router.post("/heal-balances")
-def heal_balances(db: Session = Depends(get_db)):
+def heal_balances(db: Annotated[Session, Depends(get_db)]):
     """
     Recalculates balances for all accounts to ensure integrity.
     """

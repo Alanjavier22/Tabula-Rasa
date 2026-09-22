@@ -8,7 +8,7 @@ from google.genai import errors, types
 from app.services.ai_models import REASONING_MODEL, with_gemini_retry
 import json
 from pydantic import BaseModel
-from typing import List, Any, cast
+from typing import Annotated, List, Any, cast
 from app.services.ai_prompts import get_current_time_context, CORE_RULES, get_persona_prompt
 from app.services.insights_builders import (
     _build_transaction_summary,
@@ -211,7 +211,7 @@ def _raise_insights_api_error(error: errors.APIError) -> None:
 
 
 @router.get("/insights", responses=AI_INSIGHTS_ERROR_RESPONSES)
-def get_insights(db: Session = Depends(get_db)):
+def get_insights(db: Annotated[Session, Depends(get_db)]):
     # 1. Get Gemini API key from config
     config = db.query(Config).filter(Config.key == 'gemini_api_key').first()
     if not config or not config.value:

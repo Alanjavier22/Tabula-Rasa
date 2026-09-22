@@ -4,7 +4,7 @@ Alerts API: Payment due date reminders and upcoming deadlines for credit cards.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from datetime import datetime, timedelta
 from database import get_db
 from app.api.auth import get_current_device
@@ -73,7 +73,7 @@ def _build_payment_alert(status: dict, today) -> Optional[PaymentAlert]:
 
 
 @router.get("/payment-reminders", response_model=AlertsResponse)
-def get_payment_reminders(days_ahead: int = 15, db: Session = Depends(get_db)):
+def get_payment_reminders(db: Annotated[Session, Depends(get_db)], days_ahead: int = 15):
     """
     Get upcoming payment due dates using the unified DebtConsolidatorService.
     """

@@ -5,6 +5,7 @@ por dominio (antes: 510 líneas en un solo módulo) — ver ai_shared.py,
 ai_categories.py, ai_whatif.py, ai_anomalies.py, ai_receipts.py.
 """
 from fastapi import APIRouter, Depends
+from typing import Annotated
 from sqlalchemy.orm import Session
 import google.genai as genai
 from app.services.ai_models import LITE_MODEL
@@ -29,7 +30,7 @@ router.include_router(receipts_router)
 
 
 @router.get("/test-component")
-async def test_component(component: str, db: Session = Depends(get_db)):
+async def test_component(component: str, db: Annotated[Session, Depends(get_db)]):
     """
     DIAGNOSTIC: Test if an AI component is responding correctly.
     """

@@ -4,7 +4,7 @@ vía api/ai.py.
 """
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import List
+from typing import Annotated, List
 from sqlalchemy.orm import Session
 from database import get_db
 from app.services.ai_prompts import get_current_time_context, CORE_RULES
@@ -28,7 +28,7 @@ class CategorySuggestion(BaseModel):
 @router.post("/suggest-categories", response_model=List[CategorySuggestion])
 async def suggest_categories(
     request: SuggestionRequest,
-    db: Session = Depends(get_db)
+    db: Annotated[Session, Depends(get_db)]
 ):
     """
     AI-powered transaction categorization with Human-in-the-Loop safety.

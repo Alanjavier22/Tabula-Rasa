@@ -5,7 +5,7 @@ from app.api.auth import get_current_device
 from app.models.config import Config
 from app.services.audit_service import AuditService
 from pydantic import BaseModel
-from typing import List, Any, cast
+from typing import Annotated, List, Any, cast
 
 router = APIRouter(
     prefix="/api/ai-audit", 
@@ -26,7 +26,7 @@ class AuditResponse(BaseModel):
     count: int
 
 @router.get("/duplicates", response_model=AuditResponse, responses=AI_AUDIT_ERROR_RESPONSES)
-def get_potential_duplicates(days: int = 7, db: Session = Depends(get_db)):
+def get_potential_duplicates(db: Annotated[Session, Depends(get_db)], days: int = 7):
     """
     Escanea transacciones recientes en busca de duplicados semánticos.
     """

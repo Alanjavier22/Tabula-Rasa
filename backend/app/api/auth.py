@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Annotated, Any, cast
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from pydantic import BaseModel
@@ -77,7 +77,7 @@ def get_current_device(request: Request, db: Session = Depends(get_db)):
 # --- Endpoints ---
 
 @router.post("/pair/localhost", response_model=PairResponse)
-def pair_localhost(request: Request, response: Response, db: Session = Depends(get_db)):
+def pair_localhost(request: Request, response: Response, db: Annotated[Session, Depends(get_db)]):
     """
     Auto-vinculación exclusiva para la máquina host.
     Solo acepta peticiones desde 127.0.0.1 o ::1 (loopback).
@@ -134,7 +134,7 @@ def pair_localhost(request: Request, response: Response, db: Session = Depends(g
 
 
 @router.get("/me")
-def get_current_session(device: PairedDevice = Depends(get_current_device)):
+def get_current_session(device: Annotated[PairedDevice, Depends(get_current_device)]):
     """El frontend usa esto para saber si hay una sesión activa (reemplaza el
     chequeo directo de localStorage que existía antes de la cookie httpOnly)."""
     return {"device_id": device.id, "device_name": device.device_name}

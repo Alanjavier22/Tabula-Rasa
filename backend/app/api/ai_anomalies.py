@@ -4,7 +4,7 @@ sobre 6 meses de historial. Se monta bajo /api/ai vía api/ai.py.
 """
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import List, Optional, Any, cast
+from typing import Annotated, List, Optional, Any, cast
 from datetime import datetime, timedelta
 from collections import defaultdict
 from sqlalchemy.orm import Session
@@ -112,7 +112,7 @@ def _build_zombie_leads(request: AnomalyScanRequest, desc_history: dict) -> list
 @router.post("/scan-anomalies", response_model=AnomalyScanResponse)
 async def scan_anomalies(
     request: AnomalyScanRequest,
-    db: Session = Depends(get_db)
+    db: Annotated[Session, Depends(get_db)]
 ):
     """
     AI-powered Forensic Audit v4.0: Deep SQL History (6 months) + Price Spike Detection.
