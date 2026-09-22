@@ -159,7 +159,7 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
               <div className="flex items-center gap-3 bg-black/20 px-4 py-1.5 rounded-xl border border-white/5">
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Nivel de Riesgo</span>
                 <div className="flex gap-1">
-                  {[...new Array(10)].map((_, i) => (
+                  {Array.from({ length: 10 }, (_, i) => (
                     <div 
                       key={i} 
                       className={`w-1.5 h-3 rounded-full transition-all duration-500 ${i < (scenario.risk_score || 0) ? getRiskColor(scenario.risk_score || 0) : 'bg-white/10'}`}
