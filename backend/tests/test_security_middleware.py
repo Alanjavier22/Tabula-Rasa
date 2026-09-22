@@ -17,7 +17,9 @@ def test_security_middleware_blocks_lan_financial_routes():
     async def call_next(_request):
         raise AssertionError("La petición LAN no debe alcanzar el endpoint")
 
+    middleware = SecurityMiddleware()
+    request_coro = middleware(request, call_next)
     with pytest.raises(HTTPException) as error:
-        asyncio.run(SecurityMiddleware()(request, call_next))
+        asyncio.run(request_coro)
 
     assert error.value.status_code == 403

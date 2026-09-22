@@ -177,7 +177,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
                 ) : (
                   suggestionsToUse.map((suggestion, idx) => (
                     <motion.button
-                      key={idx}
+                      key={suggestion.user_prompt}
                       whileHover={{ y: -4, scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setWhatIfPrompt(suggestion.user_prompt)}

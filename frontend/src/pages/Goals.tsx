@@ -331,7 +331,7 @@ const Goals = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {smartRecommendations.recommendations.map((rec, idx) => (
                     <motion.div 
-                      key={idx} 
+                      key={rec.goal_id} 
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.1 }}

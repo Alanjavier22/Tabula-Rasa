@@ -5,6 +5,7 @@ import { Upload, X, CheckCircle, AlertCircle, FileImage, FileText, Trash2 } from
 import type { Category, Account, TransactionType, PaymentMethod, ExpenseType, Cents } from '../types';
 import type { AxiosError } from 'axios';
 import Select from './common/Select';
+import { createFileSelectionHandlers, withFirstDocumentFile } from '../utils/fileSelection';
 
 interface DocumentImportModalProps {
   onClose: () => void;
@@ -12,6 +13,7 @@ interface DocumentImportModalProps {
 }
 
 interface ExtractedTransaction {
+  id: string;
   amount: number;
   description: string;
   category_id: string | null;
@@ -48,34 +50,6 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
     });
   }, []);
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const dropped = e.dataTransfer.files[0];
-      if (dropped.type.startsWith('image/') || dropped.type === 'application/pdf') {
-        handleFileSelection(dropped);
-      }
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelection(e.target.files[0]);
-    }
-  };
-
   const handleFileSelection = (selectedFile: File) => {
     setFile(selectedFile);
     setExtractedTransactions([]);
@@ -93,6 +67,12 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
     }
   };
 
+  const { handleDrag, handleDrop, handleFileSelect } = createFileSelectionHandlers({
+    setDragActive,
+    onFileSelect: handleFileSelection,
+    selectDroppedFile: withFirstDocumentFile,
+  });
+
   const handleProcess = async () => {
     if (!file) return;
     setProcessing(true);
@@ -105,6 +85,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       const txnsList = response.data.transactions || [];
       if (txnsList.length > 0) {
         const transactions = txnsList.map((tx) => ({
+          id: globalThis.crypto.randomUUID(),
           description: tx.description,
           amount: tx.amount, // Ya está en centavos
           category_id: tx.category_id || null,
@@ -317,7 +298,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                   </thead>
                   <tbody className="divide-y divide-slate-700/50">
                     {extractedTransactions.map((txn, index) => (
-                      <tr key={index} className={`transition-colors ${txn.selected ? 'bg-blue-500/5' : 'hover:bg-slate-700/30'}`}>
+                      <tr key={txn.id} className={`transition-colors ${txn.selected ? 'bg-blue-500/5' : 'hover:bg-slate-700/30'}`}>
                         <td className="px-4 py-3">
                           <input
                             type="checkbox"

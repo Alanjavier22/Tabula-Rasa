@@ -46,10 +46,10 @@ def sanitize_pii(text: str) -> str:
     text = re.sub(r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b', '[REDACTED_CARD]', text)
     
     # Mask potential SSN-like numbers (9 digits)
-    text = re.sub(r'\b\d{3}[-]?\d{2}[-]?\d{4}\b', '[REDACTED_SSN]', text)
+    text = re.sub(r'\b\d{3}-?\d{2}-?\d{4}\b', '[REDACTED_SSN]', text)
     
     # Mask addresses (simple pattern: street + number)
-    text = re.sub(r'\b\d+\s+[A-Za-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr)\b', '[REDACTED_ADDRESS]', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b\d+\s+[A-Z]+\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr)\b', '[REDACTED_ADDRESS]', text, flags=re.IGNORECASE)
     
     # Mask long sequences of words that look like names (2+ capitalized words in a row)
     text = re.sub(r'\b[A-Z][a-z]+\s+[A-Z][a-z]+\b', '[REDACTED_NAME]', text)

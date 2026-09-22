@@ -73,7 +73,7 @@ const ExpenseBreakdownChart = ({ dashboardSummary, expenseBreakdown }: ExpenseBr
             <div className="space-y-2 text-xs max-h-[250px] overflow-y-auto pr-1">
               <div className="grid grid-cols-2 gap-2">
                 {expenseBreakdown.map((item, i) => (
-                  <div key={i} className="flex items-center gap-2">
+                  <div key={item.name} className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
                     <span className="text-slate-300 truncate flex-1" title={item.name}>{item.name}</span>
                     <span className="text-slate-400 font-medium flex-shrink-0">${formatMoney(item.value)}</span>

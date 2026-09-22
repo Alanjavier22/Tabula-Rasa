@@ -15,7 +15,7 @@ export interface PersistenceStatus {
 }
 
 export class PersistenceManager {
-  private status: PersistenceStatus = {
+  private readonly status: PersistenceStatus = {
     isPersistent: false,
     isSupported: false,
     message: 'Deprecated - Thin Client does not use IndexedDB',

@@ -249,12 +249,22 @@ def health_check():
             # Check system memory usage
             memory = psutil.virtual_memory()
             memory_percent = memory.percent
-            memory_status = "healthy" if memory_percent < 90 else "warning" if memory_percent < 95 else "critical"
+            if memory_percent < 90:
+                memory_status = "healthy"
+            elif memory_percent < 95:
+                memory_status = "warning"
+            else:
+                memory_status = "critical"
             
             # Check disk usage
             disk = psutil.disk_usage('/')
             disk_percent = disk.percent
-            disk_status = "healthy" if disk_percent < 90 else "warning" if disk_percent < 95 else "critical"
+            if disk_percent < 90:
+                disk_status = "healthy"
+            elif disk_percent < 95:
+                disk_status = "warning"
+            else:
+                disk_status = "critical"
             
             # Overall status
             overall_status = "healthy"
@@ -306,9 +316,9 @@ if __name__ == "__main__":
     ssl_setup.ensure_certs()
     uvicorn_host = os.getenv("UVICORN_HOST", "127.0.0.1")
     display_host = "localhost" if uvicorn_host == "127.0.0.1" else uvicorn_host
-    print(f"\n=======================================================")
+    print("\n=======================================================")
     print(f"Servidor Local-First Iniciado: https://{display_host}:8001")
-    print(f"=======================================================\n")
+    print("=======================================================\n")
     
     # 2. Iniciar Uvicorn con SSL (FASE 8: Use generated certificates)
     uvicorn.run(

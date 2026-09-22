@@ -88,7 +88,6 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
                   <input
                     type="text"
                     required
-                    autoFocus
                     value={form.name}
                     onChange={e => setForm({...form, name: e.target.value})}
                     className={fieldClass}

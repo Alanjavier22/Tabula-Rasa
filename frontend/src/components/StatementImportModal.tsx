@@ -7,6 +7,7 @@ import { formatMoney } from '../utils/money';
 import { motion } from 'framer-motion';
 import StatementUploadStep from './statementImport/StatementUploadStep';
 import ShareTransactionModal, { type SharingTransactionState } from './statementImport/ShareTransactionModal';
+import { createFileSelectionHandlers, withFirstDocumentFile } from '../utils/fileSelection';
 
 interface StatementImportModalProps {
   onClose: () => void;
@@ -72,34 +73,6 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       )
     : 0;
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const dropped = e.dataTransfer.files[0];
-      if (dropped.type.startsWith('image/') || dropped.type === 'application/pdf') {
-        handleFileSelection(dropped);
-      }
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelection(e.target.files[0]);
-    }
-  };
-
   const handleFileSelection = (selectedFile: File) => {
     setFile(selectedFile);
     setExtractedTransactions([]);
@@ -107,6 +80,12 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
     setImportLogId(null);
     setResult(null);
   };
+
+  const { handleDrag, handleDrop, handleFileSelect } = createFileSelectionHandlers({
+    setDragActive,
+    onFileSelect: handleFileSelection,
+    selectDroppedFile: withFirstDocumentFile,
+  });
 
   const handleProcess = async () => {
     if (!file || !accountId) return;
@@ -402,7 +381,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                       </thead>
                       <tbody className="divide-y divide-slate-700/50">
                         {extractedTransactions.map((txn, index) => (
-                          <tr key={index} className={`transition-colors ${txn.selected ? 'bg-purple-500/5' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-slate-700/30'}`}>
+                          <tr key={txn.fingerprint} className={`transition-colors ${txn.selected ? 'bg-purple-500/5' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-slate-700/30'}`}>
                             <td className="px-4 py-3">
                                <div className="flex items-center gap-2">
                                  <input
