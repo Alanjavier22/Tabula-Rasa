@@ -7,17 +7,21 @@ from cryptography.hazmat.backends import default_backend
 CERTS_DIR = os.path.join(os.path.dirname(__file__), "certs")
 
 def get_local_ip() -> str:
-    """Detect the local IP address."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    """Detect a local IPv4 address without contacting an external host."""
     try:
-        # doesn't even have to be reachable
-        s.connect(('8.8.8.8', 80))
-        ip = s.getsockname()[0]
-    except Exception:
-        ip = '127.0.0.1'
-    finally:
-        s.close()
-    return ip
+        addresses = socket.getaddrinfo(
+            socket.gethostname(),
+            None,
+            socket.AF_INET,
+            socket.SOCK_DGRAM,
+        )
+        for address in addresses:
+            ip = address[4][0]
+            if not ip.startswith("127."):
+                return ip
+    except OSError:
+        pass
+    return "127.0.0.1"
 
 def check_cert_ip(cert_path: str, ip: str) -> bool:
     """Check if the given IP is in the Subject Alternative Names of the cert."""
