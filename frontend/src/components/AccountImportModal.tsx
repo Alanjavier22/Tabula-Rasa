@@ -6,7 +6,7 @@ import type { Account, Category, AccountExtractedTransaction, AccountParsingResp
 import type { AxiosError } from 'axios';
 import Select from './common/Select';
 import { formatMoney } from '../utils/money';
-import { withFirstFile } from '../utils/fileSelection';
+import { handleFileDrag, prepareFileDrop, withFirstFile } from '../utils/fileSelection';
 
 interface AccountImportModalProps {
   onClose: () => void;
@@ -49,13 +49,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
   }, []);
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+    handleFileDrag(e, setDragActive);
   };
 
   const handleDroppedFile = (dropped: File) => {
@@ -67,9 +61,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+    prepareFileDrop(e, setDragActive);
     withFirstFile(e.dataTransfer.files, handleDroppedFile);
   };
 
