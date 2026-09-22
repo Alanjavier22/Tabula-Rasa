@@ -159,10 +159,10 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
               <div className="flex items-center gap-3 bg-black/20 px-4 py-1.5 rounded-xl border border-white/5">
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Nivel de Riesgo</span>
                 <div className="flex gap-1">
-                  {[...Array(10)].map((_, i) => (
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
                     <div 
-                      key={i} 
-                      className={`w-1.5 h-3 rounded-full transition-all duration-500 ${i < (scenario.risk_score || 0) ? getRiskColor(scenario.risk_score || 0) : 'bg-white/10'}`}
+                      key={level} 
+                      className={`w-1.5 h-3 rounded-full transition-all duration-500 ${level <= (scenario.risk_score || 0) ? getRiskColor(scenario.risk_score || 0) : 'bg-white/10'}`}
                     />
                   ))}
                 </div>
@@ -222,7 +222,7 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
             </div>
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {scenario.key_assumptions.map((assumption, i) => (
-                <div key={i} className="flex items-start gap-4 group cursor-default">
+                <div key={assumption} className="flex items-start gap-4 group cursor-default">
                   <span className="text-blue-500/20 text-3xl font-black group-hover:text-blue-500/50 transition-all duration-500 transform group-hover:scale-110">0{i+1}</span>
                   <p className="text-sm text-slate-300 font-bold leading-relaxed group-hover:text-white transition-colors italic pt-1">
                     {assumption}
@@ -273,13 +273,13 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
             
             <Tooltip
               content={({ active, payload, label }) => {
-                if (active && payload && payload.length) {
+                if (active && payload?.length) {
                   return (
                     <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 p-4 rounded-xl shadow-2xl ring-1 ring-black/50">
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Mes {label}</p>
                       <div className="space-y-2">
-                        {payload.map((entry, index) => (
-                          <div key={index} className="flex items-center justify-between gap-8">
+                        {payload.map((entry) => (
+                          <div key={String(entry.name ?? entry.color ?? 'series')} className="flex items-center justify-between gap-8">
                             <div className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
                               <span className="text-sm text-slate-300">{entry.name}</span>
@@ -303,8 +303,8 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
               iconType="circle"
               content={({ payload }) => (
                 <div className="flex justify-end gap-6 mb-8">
-                  {payload?.map((entry, index) => (
-                    <div key={index} className="flex items-center gap-2">
+                  {payload?.map((entry) => (
+                    <div key={String(entry.value ?? entry.color ?? 'legend')} className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
                       <span className="text-xs font-semibold text-slate-400 uppercase tracking-tighter">
                         {entry.value}

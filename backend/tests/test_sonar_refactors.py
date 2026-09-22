@@ -948,12 +948,12 @@ def test_s3358_refactors_keep_health_and_fallback_paths(monkeypatch, client):
             **overrides,
         }
 
-    assert "riesgo bajo" in fallback._generate_heuristic_fallback(fallback_context(), "test", "")["status_summary"]
+    assert "riesgo bajo" in fallback._generate_heuristic_fallback(fallback_context(), "")["status_summary"]
     assert "riesgo moderado" in fallback._generate_heuristic_fallback(
-        fallback_context(liquidez_neta=0, deuda_tarjetas=1), "test", ""
+        fallback_context(liquidez_neta=0, deuda_tarjetas=1), ""
     )["status_summary"]
     assert "riesgo alto" in fallback._generate_heuristic_fallback(
-        fallback_context(liquidez_neta=0, deuda_tarjetas=1, runway_meses=1), "test", ""
+        fallback_context(liquidez_neta=0, deuda_tarjetas=1, runway_meses=1), ""
     )["status_summary"]
 
     def run_health(memory_percent, disk_percent):

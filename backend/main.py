@@ -316,9 +316,9 @@ if __name__ == "__main__":
     ssl_setup.ensure_certs()
     uvicorn_host = os.getenv("UVICORN_HOST", "127.0.0.1")
     display_host = "localhost" if uvicorn_host == "127.0.0.1" else uvicorn_host
-    print(f"\n=======================================================")
+    print("\n=======================================================")
     print(f"Servidor Local-First Iniciado: https://{display_host}:8001")
-    print(f"=======================================================\n")
+    print("=======================================================\n")
     
     # 2. Iniciar Uvicorn con SSL (FASE 8: Use generated certificates)
     uvicorn.run(

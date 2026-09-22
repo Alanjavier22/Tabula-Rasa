@@ -85,7 +85,7 @@ def _build_transaction_summary(db: Session, now: datetime) -> dict:
         "total_income": total_income,
         "total_expenses": total_expenses,
         "balance": total_income - total_expenses,
-        "expense_by_category": {k: v for k, v in expense_by_category.items()},
+        "expense_by_category": dict(expense_by_category),
         "atypical_transactions": atypical,
         "transaction_count": len(transactions),
     }

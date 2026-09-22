@@ -123,7 +123,6 @@ def recalculate_account_balance(db: Session, account_id: str, initial_balance: O
         # We found an anchor! This is the bank's absolute truth at that point in time.
         base_balance = anchor_tx.running_balance
         anchor_date = anchor_tx.date
-        anchor_id = anchor_tx.id
         
         # 2. Get all transactions strictly NEWER than the anchor
         # We use date and creation time/ID to ensure we don't miss anything or double count

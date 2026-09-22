@@ -80,7 +80,7 @@ class DebtConsolidatorService:
                 "id": latest_stmt.id if latest_stmt else None,
                 "month": latest_stmt.month if latest_stmt else None,
                 "year": latest_stmt.year if latest_stmt else None,
-                "due_date": due_date
+                "due_date": due_date,
             }
         
         return {
