@@ -20,6 +20,62 @@ logger = logging.getLogger(__name__)
 getcontext().prec = 28
 
 
+def _get_month_bounds(month: int, year: int) -> tuple[datetime, datetime]:
+    month_start = datetime(year, month, 1, tzinfo=timezone.utc)
+    month_end = datetime(year + (month == 12), 1 if month == 12 else month + 1, 1, tzinfo=timezone.utc)
+    return month_start, month_end
+
+
+def _calculate_transaction_totals(transactions: list[Transaction]) -> tuple[Decimal, Decimal, int]:
+    income_cents = Decimal('0')
+    expense_cents = Decimal('0')
+    valid_transaction_count = 0
+    for transaction in transactions:
+        if not SnapshotReconciler.validate_transaction_hash(transaction):
+            continue
+        amount = Decimal(str(transaction.amount))
+        if transaction.transaction_type == 'income':
+            income_cents += amount
+        else:
+            expense_cents += amount
+        valid_transaction_count += 1
+    return income_cents, expense_cents, valid_transaction_count
+
+
+def _get_historical_account_balance(
+    db: Session,
+    account: Account,
+    month_end: datetime,
+) -> Decimal:
+    balance = Decimal(str(account.balance))
+    if month_end >= datetime.now(timezone.utc):
+        return balance
+    future_transactions = db.query(Transaction).filter(
+        Transaction.account_id == account.id,
+        Transaction.date >= month_end,
+        Transaction.is_deleted == False,
+    ).all()
+    for transaction in future_transactions:
+        amount = Decimal(str(transaction.amount))
+        balance -= amount if transaction.transaction_type == 'income' else -amount
+    return balance
+
+
+def _add_account_balance(
+    account: Account,
+    balance: Decimal,
+    total_assets: Decimal,
+    total_liabilities: Decimal,
+) -> tuple[Decimal, Decimal]:
+    if account.account_type in ['checking', 'savings', 'investment']:
+        return total_assets + balance, total_liabilities
+    if account.account_type == 'credit_card' and balance > 0:
+        return total_assets, total_liabilities + balance
+    if balance < 0:
+        return total_assets, total_liabilities + abs(balance)
+    return total_assets, total_liabilities
+
+
 class SnapshotReconciler:
     """
     Service for reconciling stale net worth snapshots based on verified transaction history.
@@ -53,11 +109,7 @@ class SnapshotReconciler:
         Uses Decimal for IEEE 754-safe arithmetic.
         Only includes transactions with valid SHA-256 hashes.
         """
-        month_start = datetime(year, month, 1, tzinfo=timezone.utc)
-        if month == 12:
-            month_end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
-        else:
-            month_end = datetime(year, month + 1, 1, tzinfo=timezone.utc)
+        month_start, month_end = _get_month_bounds(month, year)
         
         # Get transactions for the month
         transactions = db.query(Transaction).filter(
@@ -66,23 +118,7 @@ class SnapshotReconciler:
             Transaction.is_deleted == False
         ).all()
         
-        # Filter by hash validity and calculate totals
-        income_cents = Decimal('0')
-        expense_cents = Decimal('0')
-        valid_transaction_count = 0
-        
-        for txn in transactions:
-            if not SnapshotReconciler.validate_transaction_hash(txn):
-                continue  # Skip transactions with invalid hashes
-            
-            amount = Decimal(str(txn.amount))
-            
-            if txn.transaction_type == 'income':
-                income_cents += amount
-            else:
-                expense_cents += amount
-            
-            valid_transaction_count += 1
+        income_cents, expense_cents, valid_transaction_count = _calculate_transaction_totals(transactions)
         
         # Calculate assets from accounts (using Decimal)
         accounts = db.query(Account).filter(
@@ -91,35 +127,11 @@ class SnapshotReconciler:
         
         total_assets_cents = Decimal('0')
         total_liabilities_cents = Decimal('0')
-        
         for account in accounts:
-            balance = Decimal(str(account.balance))
-            
-            # TEMPORAL REWIND: Reverse transactions from now back to the end of the target month
-            # This is critical for accurate historical reconciliation
-            now = datetime.now(timezone.utc)
-            if month_end < now:
-                future_txns = db.query(Transaction).filter(
-                    Transaction.account_id == account.id,
-                    Transaction.date >= month_end,
-                    Transaction.is_deleted == False
-                ).all()
-                for f_txn in future_txns:
-                    f_amount = Decimal(str(f_txn.amount))
-                    if f_txn.transaction_type == 'income':
-                        balance -= f_amount
-                    else:
-                        balance += f_amount
-
-            # Classify by account type
-            if account.account_type in ['checking', 'savings', 'investment']:
-                total_assets_cents += balance
-            elif account.account_type == 'credit_card':
-                # In our system, positive CC balance = debt
-                if balance > 0:
-                    total_liabilities_cents += balance
-            elif balance < 0:
-                total_liabilities_cents += abs(balance)
+            balance = _get_historical_account_balance(db, account, month_end)
+            total_assets_cents, total_liabilities_cents = _add_account_balance(
+                account, balance, total_assets_cents, total_liabilities_cents
+            )
         
         # Add physical assets (depreciated value)
         assets = db.query(Asset).filter(
