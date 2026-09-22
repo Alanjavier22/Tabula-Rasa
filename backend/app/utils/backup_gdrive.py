@@ -156,6 +156,57 @@ def get_or_create_drive_folder(drive_service) -> Optional[str]:
         return None
 
 
+def _cleanup_local_backup(local_backup_path: Optional[str]) -> None:
+    if not local_backup_path or not os.path.exists(local_backup_path):
+        return
+    try:
+        os.remove(local_backup_path)
+    except OSError as error:
+        backup_logger.warning(
+            f"[GOOGLE_DRIVE] Failed to remove temporary local backup file: {error}"
+        )
+
+
+def _authenticate_drive(credentials: tuple[str, str, str]):
+    client_id, client_secret, refresh_token = credentials
+    try:
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri=GOOGLE_TOKEN_URI,
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=[GOOGLE_DRIVE_SCOPE],
+        )
+        from google.auth.transport.requests import Request
+        creds.refresh(Request())
+        backup_logger.info("[GOOGLE_DRIVE] Access token refreshed successfully")
+        drive_service = cast(Any, build('drive', 'v3', credentials=creds))
+        backup_logger.info("[GOOGLE_DRIVE] Authenticated with Google Drive API")
+        return drive_service
+    except Exception:
+        backup_logger.exception("[GOOGLE_DRIVE] Authentication failed")
+        backup_logger.error("[GOOGLE_DRIVE] Token may be expired or invalid. Please re-authenticate.")
+        return None
+
+
+def _upload_backup(drive_service, local_backup_path: str, backup_filename: str, folder_id: str) -> bool:
+    try:
+        file_metadata = {'name': backup_filename, 'parents': [folder_id]}
+        media = MediaFileUpload(local_backup_path, resumable=True)
+        ds = cast(Any, drive_service)
+        file = ds.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id',
+        ).execute()
+        backup_logger.info(f"[GOOGLE_DRIVE] Backup uploaded to Google Drive: {file.get('id')}")
+        return True
+    except Exception:
+        backup_logger.exception("[GOOGLE_DRIVE] Failed to upload backup to Google Drive")
+        return False
+
+
 def create_external_backup() -> Optional[str]:
     """
     Create a physical database dump and upload it to Google Drive.
@@ -173,102 +224,35 @@ def create_external_backup() -> Optional[str]:
         backup_logger.warning("[GOOGLE_DRIVE] Google Drive credentials not set. Skipping cloud backup.")
         return None
 
-    client_id, client_secret, refresh_token = credentials
     local_backup_path = None
 
     try:
-        # Step 1: Create physical backup of the database
         backup_logger.info("[GOOGLE_DRIVE] Starting external backup process...")
-
-        # Generate timestamped backup filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_filename = f"tabula_rasa_backup_{timestamp}.sqlite3"
-
-        # Create local backup file in backend/backups directory
         backend_dir = os.path.dirname(_DB_PATH)
         local_backup_dir = os.path.join(backend_dir, "backups")
         os.makedirs(local_backup_dir, exist_ok=True)
         local_backup_path = os.path.join(local_backup_dir, backup_filename)
-
-        # Step 0: Force checkpoint to ensure .db file is up-to-date
         checkpoint_db()
-
-        # Copy database file locally
         shutil.copy2(_DB_PATH, local_backup_path)
         backup_logger.info(f"[GOOGLE_DRIVE] Local backup created: {local_backup_path}")
 
-        # Step 2: Authenticate with Google Drive API with robust error handling
-        try:
-            creds = Credentials(
-                token=None,
-                refresh_token=refresh_token,
-                token_uri=GOOGLE_TOKEN_URI,
-                client_id=client_id,
-                client_secret=client_secret,
-                scopes=[GOOGLE_DRIVE_SCOPE]
-            )
-
-            # Refresh the access token with network error handling
-            from google.auth.transport.requests import Request
-            try:
-                creds.refresh(Request())
-                backup_logger.info("[GOOGLE_DRIVE] Access token refreshed successfully")
-            except Exception:  # pragma: no cover
-                backup_logger.exception("[GOOGLE_DRIVE] Failed to refresh access token")  # pragma: no cover
-                backup_logger.error("[GOOGLE_DRIVE] Token may be expired or invalid. Please re-authenticate.")
-                # Clean up local backup and return None (fail-soft)
-                if local_backup_path and os.path.exists(local_backup_path):
-                    os.remove(local_backup_path)
-                return None
-
-            # Build Drive service
-            drive_service = cast(Any, build('drive', 'v3', credentials=creds))
-            backup_logger.info("[GOOGLE_DRIVE] Authenticated with Google Drive API")
-
-        except Exception:  # pragma: no cover
-            backup_logger.exception("[GOOGLE_DRIVE] Authentication failed")  # pragma: no cover
-            # Clean up local backup and return None (fail-soft)
-            if local_backup_path and os.path.exists(local_backup_path):
-                os.remove(local_backup_path)
+        drive_service = _authenticate_drive(credentials)
+        if not drive_service:
+            _cleanup_local_backup(local_backup_path)
             return None
 
-        # Step 3: Get or create backup folder
         folder_id = get_or_create_drive_folder(drive_service)
         if not folder_id:
             backup_logger.error("[GOOGLE_DRIVE] Failed to get/create backup folder")
-            # Clean up local backup and return None (fail-soft)
-            if local_backup_path and os.path.exists(local_backup_path):
-                os.remove(local_backup_path)
+            _cleanup_local_backup(local_backup_path)
             return None
 
-        # Step 4: Upload file to Google Drive with network error handling
-        try:
-            file_metadata = {
-                'name': backup_filename,
-                'parents': [folder_id]
-            }
-
-            media = MediaFileUpload(local_backup_path, resumable=True)
-            ds = cast(Any, drive_service)
-            file = ds.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields='id'
-            ).execute()
-
-            backup_logger.info(f"[GOOGLE_DRIVE] Backup uploaded to Google Drive: {file.get('id')}")
-
-        except Exception:  # pragma: no cover
-            backup_logger.exception("[GOOGLE_DRIVE] Failed to upload backup to Google Drive")  # pragma: no cover
-            # Clean up local backup and return None (fail-soft)
-            if local_backup_path and os.path.exists(local_backup_path):
-                os.remove(local_backup_path)
+        if not _upload_backup(drive_service, local_backup_path, backup_filename, folder_id):
+            _cleanup_local_backup(local_backup_path)
             return None
 
-        # Step 5: No rotation in Google Drive - keep all backups in cloud
-        # Users can manage/delete backups manually from Google Drive if needed
-
-        # Clean up old local backups (keep only 2 most recent)
         try:
             rotate_local_backups(keep_count=2)
         except Exception as cleanup_error:
@@ -279,12 +263,7 @@ def create_external_backup() -> Optional[str]:
     except Exception:  # pragma: no cover
         backup_logger.exception("[GOOGLE_DRIVE] CRITICAL ERROR during backup process")  # pragma: no cover
         backup_logger.error("[GOOGLE_DRIVE] Backup process failed but scheduler continues (fail-soft)")
-        # Clean up local backup if it exists
-        if local_backup_path and os.path.exists(local_backup_path):
-            try:
-                os.remove(local_backup_path)
-            except OSError as cleanup_err:
-                backup_logger.warning(f"[GOOGLE_DRIVE] Failed to remove temporary local backup file: {cleanup_err}")
+        _cleanup_local_backup(local_backup_path)
         return None
 
 

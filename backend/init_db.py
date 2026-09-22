@@ -25,31 +25,22 @@ import app.models  # noqa: F401
 def _get_sqlite_type(sa_type) -> str:
     """Map SQLAlchemy type to SQLite type string."""
     type_str = str(sa_type)
-    
-    # Common mappings
-    if 'INTEGER' in type_str or 'INT' in type_str:
-        return 'INTEGER'
-    elif 'VARCHAR' in type_str or 'CHAR' in type_str or 'TEXT' in type_str:
-        # Extract length if present, otherwise default
+
+    if any(marker in type_str for marker in ('VARCHAR', 'CHAR', 'TEXT')):
         if '(' in type_str:
             return type_str.upper().replace('VARCHAR', 'TEXT').replace('CHAR', 'TEXT')
         return 'TEXT'
-    elif 'BOOLEAN' in type_str:
-        return 'BOOLEAN'
-    elif 'FLOAT' in type_str or 'REAL' in type_str or 'DOUBLE' in type_str:
-        return 'REAL'
-    elif 'DECIMAL' in type_str or 'NUMERIC' in type_str:
-        return 'REAL'  # SQLite doesn't have DECIMAL, use REAL
-    elif 'DATETIME' in type_str or 'TIMESTAMP' in type_str:
-        return 'TEXT'  # SQLite stores dates as TEXT
-    elif 'DATE' in type_str:
-        return 'TEXT'
-    elif 'JSON' in type_str:
-        return 'TEXT'
-    elif 'UUID' in type_str:
-        return 'TEXT'
-    else:
-        return 'TEXT'  # Safe default
+
+    type_rules = (
+        (('INTEGER', 'INT'), 'INTEGER'),
+        (('BOOLEAN',), 'BOOLEAN'),
+        (('FLOAT', 'REAL', 'DOUBLE', 'DECIMAL', 'NUMERIC'), 'REAL'),
+        (('DATETIME', 'TIMESTAMP', 'DATE', 'JSON', 'UUID'), 'TEXT'),
+    )
+    for markers, sqlite_type in type_rules:
+        if any(marker in type_str for marker in markers):
+            return sqlite_type
+    return 'TEXT'
 
 
 def init_db(force_reset: Optional[bool] = None) -> None:

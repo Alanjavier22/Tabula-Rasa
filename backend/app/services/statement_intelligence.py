@@ -64,6 +64,88 @@ class StatementIntelligenceService:
         raw_str = f"{date}|{description.strip().upper()}|{amount_cents}|{account_id}|{deferred_info}|{index}"
         return hashlib.sha256(raw_str.encode()).hexdigest()
 
+    async def _request_parsed_data(
+        self,
+        client,
+        file_data: bytes,
+        mime_type: str,
+        system_instruction: str,
+        prompt: str,
+    ) -> Dict:
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=MULTIMODAL_MODEL,
+                    contents=cast(Any, [
+                        types.Part.from_bytes(data=file_data, mime_type=mime_type),
+                        types.Part.from_text(text=prompt),
+                    ]),
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=StatementParsingResponse,
+                    ),
+                )
+                return json.loads((response.text or "{}").strip())
+            except Exception as error:
+                if attempt == max_retries - 1:
+                    raise ValueError(
+                        f"IA no disponible tras {max_retries} intentos. Google reporta: {str(error)}"
+                    )
+                wait_time = (attempt + 1) * 3
+                logger.warning(
+                    f"[IA] Gemini ocupado en importación de TC. Reintento {attempt + 1}/{max_retries} en {wait_time}s..."
+                )
+                await asyncio.sleep(wait_time)
+        return {"transactions": []}
+
+    def _enrich_transactions(
+        self,
+        transactions: list[dict],
+        cat_results: dict,
+        categories_dict: dict,
+        account_id: str,
+    ) -> tuple[list[dict], int, int]:
+        enriched_transactions = []
+        seen_in_batch = {}
+        calculated_consumptions = 0
+        calculated_payments = 0
+        audit_keywords = ['seguro', 'comision', 'comisión', 'interes', 'interés', 'mantenimiento', 'mora']
+        for idx, tx in enumerate(transactions):
+            deferred_key = tx.get('deferred_info', '')
+            amount = tx['amount_cents']
+            if tx['transaction_type'] == 'expense':
+                calculated_consumptions += amount
+            else:
+                calculated_payments += abs(amount)
+
+            batch_key = f"{tx['date']}_{amount}_{tx['description'].strip().upper()}_{deferred_key}"
+            occurrence_index = seen_in_batch.get(batch_key, 0)
+            seen_in_batch[batch_key] = occurrence_index + 1
+            fingerprint = self.generate_fingerprint(
+                tx['date'], tx['description'], amount, account_id, deferred_key, occurrence_index
+            )
+            tx_dict = tx.copy()
+            tx_dict['fingerprint'] = fingerprint
+            category_result = cat_results.get(idx)
+            if category_result:
+                category_id, clarification = category_result
+                tx_dict['category_id'] = category_id
+                tx_dict['needs_clarification'] = clarification
+                if category_id in categories_dict:
+                    tx_dict['category_name'] = categories_dict[category_id]
+            if any(keyword in tx['description'].lower() for keyword in audit_keywords):
+                tx_dict['needs_clarification'] = True
+            existing = self.db.query(Transaction).filter(
+                Transaction.fingerprint == fingerprint,
+                Transaction.is_deleted == False,
+            ).first()
+            tx_dict['is_duplicate'] = existing is not None
+            enriched_transactions.append(tx_dict)
+        return enriched_transactions, calculated_consumptions, calculated_payments
+
     async def parse_statement(self, file_path: str, account_id: str, expected_bank_name: Optional[str] = None) -> Dict:
         """Usa Gemini 1.5 Flash para extraer transacciones de un PDF o Imagen."""
         api_key = self._get_api_key()
@@ -115,45 +197,14 @@ class StatementIntelligenceService:
         # Soporte para PDF o Imágenes
         mime_type = "application/pdf" if file_path.lower().endswith(".pdf") else "image/jpeg"
 
-        # Llamada a Gemini con Reintentos (Exponential Backoff más agresivo)
-        import time
-        max_retries = 5
-        last_error = None
-        parsed_data = cast(Any, {'transactions': []})
-        
-        for attempt in range(max_retries):
-            try:
-                response = await asyncio.to_thread(
-                    client.models.generate_content,
-                    model=MULTIMODAL_MODEL,
-                    contents=cast(Any, [
-                        types.Part.from_bytes(data=file_data, mime_type=mime_type),
-                        types.Part.from_text(text=prompt)
-                    ]),
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        response_mime_type="application/json",
-                        response_schema=StatementParsingResponse,
-                    )
-                )
-                # Si llegamos aquí, la llamada fue exitosa
-                response_text = (response.text or "{}").strip()
-                parsed_data = json.loads(response_text)
-                break
-            except Exception as e:
-                last_error = e
-                if attempt < max_retries - 1:
-                    wait_time = (attempt + 1) * 3 # 3s, 6s, 9s, 12s...
-                    logger.warning(f"[IA] Gemini ocupado en importación de TC. Reintento {attempt + 1}/{max_retries} en {wait_time}s...")
-                    await asyncio.sleep(wait_time)
-                else:
-                    raise ValueError(f"IA no disponible tras {max_retries} intentos. Google reporta: {str(e)}")
+        parsed_data = await self._request_parsed_data(
+            client, file_data, mime_type, system_instruction, prompt
+        )
         
         # Motor de Deduplicación Progresiva (Universal) — Adaptado para Tarjetas de Crédito
         # ── TIER 4: Batch Categorization ──
         from app.services.categorizer import categorize_batch
         
-        # Preparar lista para el categorizador
         batch_input = [
             {
                 'description': tx['description'],
@@ -163,61 +214,11 @@ class StatementIntelligenceService:
             for tx in parsed_data['transactions']
         ]
         
-        # Obtener categorías en bloque
         cat_results = categorize_batch(batch_input, self.db)
-        
-        # Enriquecer transacciones con los resultados del lote
         categories_dict = {c.id: c.name for c in self.db.query(Category).all()}
-        
-        enriched_transactions = []
-        seen_in_batch = {}
-        
-        # Auditoría interna de sumas
-        calc_sum_consumos = 0
-        calc_sum_pagos = 0
-
-        for idx, tx in enumerate(parsed_data['transactions']):
-            deferred_key = tx.get('deferred_info', '')
-            amt = tx['amount_cents']
-            
-            # Auditoría
-            if tx['transaction_type'] == 'expense':
-                calc_sum_consumos += amt
-            else:
-                calc_sum_pagos += abs(amt)
-
-            # Detectamos cuántas veces hemos visto esta misma combinación en este lote para desambiguar
-            batch_key = f"{tx['date']}_{amt}_{tx['description'].strip().upper()}_{deferred_key}"
-            occurrence_index = seen_in_batch.get(batch_key, 0)
-            seen_in_batch[batch_key] = occurrence_index + 1
-            
-            # Cada ocurrencia tiene un fingerprint único gracias al index
-            fp = self.generate_fingerprint(tx['date'], tx['description'], amt, account_id, deferred_key, occurrence_index)
-            
-            tx_dict = tx.copy()
-            tx_dict['fingerprint'] = fp
-            
-            # Usar resultado del batch para categorización
-            cat_tuple = cat_results.get(idx)
-            if cat_tuple:
-                cat_id, clarification = cat_tuple
-                tx_dict['category_id'] = cat_id
-                tx_dict['needs_clarification'] = clarification
-                if cat_id in categories_dict:
-                    tx_dict['category_name'] = categories_dict[cat_id]
-            
-            # Identificar si es un cobro auditable (Seguro/Comisión/Interés)
-            desc_lower = tx['description'].lower()
-            if any(k in desc_lower for k in ['seguro', 'comision', 'comisión', 'interes', 'interés', 'mantenimiento', 'mora']):
-                tx_dict['needs_clarification'] = True # Forzamos revisión para que el usuario audite el cobro
-            
-            # Verificar duplicados reales en DB (solo si el fingerprint exacto ya existe)
-            existing = self.db.query(Transaction).filter(Transaction.fingerprint == fp, Transaction.is_deleted == False).first()
-            
-            # Ya no marcamos como duplicado solo por estar en el mismo batch (occurrence_index > 0)
-            # Esto permite transacciones legítimas idénticas.
-            tx_dict['is_duplicate'] = (existing is not None)
-            enriched_transactions.append(tx_dict)
+        enriched_transactions, calc_sum_consumos, calc_sum_pagos = self._enrich_transactions(
+            parsed_data['transactions'], cat_results, categories_dict, account_id
+        )
 
         parsed_data['transactions'] = enriched_transactions
         

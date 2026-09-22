@@ -10,7 +10,6 @@ load_dotenv()
 def ensure_jwt_secret():
     import secrets
     from app.security_config import DEFAULT_JWT_SECRET
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     jwt_secret = os.getenv("JWT_SECRET")
     default_secret = DEFAULT_JWT_SECRET
 
@@ -18,58 +17,15 @@ def ensure_jwt_secret():
         new_secret = secrets.token_hex(32)
         os.environ["JWT_SECRET"] = new_secret
         
-        lines = []
-        if os.path.exists(env_path):
-            with open(env_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-        
-        updated = False
-        new_lines = []
-        for line in lines:
-            if line.strip().startswith("JWT_SECRET="):
-                new_lines.append(f"JWT_SECRET={new_secret}\n")
-                updated = True
-            else:
-                new_lines.append(line)
-        
-        if not updated:
-            if new_lines and not new_lines[-1].endswith("\n"):
-                new_lines.append("\n")
-            new_lines.append(f"JWT_SECRET={new_secret}\n")
-            
-        with open(env_path, "w", encoding="utf-8") as f:
-            f.writelines(new_lines)
 
 def ensure_encryption_key():
     from cryptography.fernet import Fernet
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     encryption_key = os.getenv("CONFIG_ENCRYPTION_KEY")
 
     if not encryption_key:
         new_key = Fernet.generate_key().decode()
         os.environ["CONFIG_ENCRYPTION_KEY"] = new_key
 
-        lines = []
-        if os.path.exists(env_path):
-            with open(env_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-
-        updated = False
-        new_lines = []
-        for line in lines:
-            if line.strip().startswith("CONFIG_ENCRYPTION_KEY="):
-                new_lines.append(f"CONFIG_ENCRYPTION_KEY={new_key}\n")
-                updated = True
-            else:
-                new_lines.append(line)
-
-        if not updated:
-            if new_lines and not new_lines[-1].endswith("\n"):
-                new_lines.append("\n")
-            new_lines.append(f"CONFIG_ENCRYPTION_KEY={new_key}\n")
-
-        with open(env_path, "w", encoding="utf-8") as f:
-            f.writelines(new_lines)
 
 ensure_jwt_secret()
 ensure_encryption_key()

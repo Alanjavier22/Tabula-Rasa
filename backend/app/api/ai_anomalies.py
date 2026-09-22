@@ -45,6 +45,70 @@ class AnomalyScanResponse(BaseModel):
     spending_spikes: List[SpendingSpike]
 
 
+def _build_transaction_histories(all_txns: list[Transaction]) -> tuple[dict, dict]:
+    cat_history = defaultdict(list)
+    desc_history = defaultdict(list)
+    for transaction in all_txns:
+        cat_history[transaction.category_id].append(transaction.amount)
+        desc_history[transaction.description.lower()].append(transaction.amount)
+    cat_baselines = {
+        category_id: sum(amounts) / len(amounts)
+        for category_id, amounts in cat_history.items()
+        if len(amounts) > 1
+    }
+    return cat_baselines, desc_history
+
+
+def _build_price_hikes(desc_history: dict) -> list[str]:
+    price_hikes = []
+    for description, prices in desc_history.items():
+        if len(prices) < 2:
+            continue
+        previous_price, last_price = prices[-2:]
+        if last_price > previous_price * 1.05:
+            price_hikes.append(
+                f"- INCREMENTO DETECTADO: '{description}' subió de "
+                f"${previous_price/100:,.2f} a ${last_price/100:,.2f}."
+            )
+    return price_hikes
+
+
+def _build_audit_evidence(request: AnomalyScanRequest, cat_baselines: dict) -> list[str]:
+    cat_lookup = {cat.id: cat.name for cat in (request.categories or [])}
+    evidence = []
+    for transaction in request.transactions:
+        safe_category_id = transaction.category_id or "Uncategorized"
+        baseline = cat_baselines.get(cast(Any, safe_category_id), 0)
+        if baseline > 0 and transaction.amount > baseline * 1.8:
+            evidence.append(
+                f"- PICO EN {cat_lookup.get(safe_category_id, 'Categoría')}: "
+                f"${transaction.amount/100:,.2f} "
+                f"(Promedio 6 meses: ${baseline/100:,.2f})"
+            )
+        evidence.append(
+            f"CHECK_SEMANTIC: Desc='{transaction.description}' "
+            f"Cat='{cat_lookup.get(safe_category_id, 'Sin Categoría')}'"
+        )
+    return evidence
+
+
+def _build_zombie_leads(request: AnomalyScanRequest, desc_history: dict) -> list[str]:
+    zombie_leads = []
+    for description, amounts in desc_history.items():
+        if len(amounts) < 3:
+            continue
+        is_subscription = any(
+            description in subscription.get('name', '').lower()
+            for subscription in request.subscriptions
+        )
+        if not is_subscription:
+            zombie_leads.append(
+                f"- POSIBLE ZOMBIE: '{description}' detectado por 3 meses consecutivos "
+                f"(${amounts[-1]/100:,.2f})."
+            )
+    return zombie_leads
+
+
 @router.post("/scan-anomalies", response_model=AnomalyScanResponse)
 async def scan_anomalies(
     request: AnomalyScanRequest,
@@ -62,52 +126,10 @@ async def scan_anomalies(
         Transaction.is_deleted == False
     ).order_by(Transaction.date.asc()).all()
 
-    # 1. CATEGORY AUDIT: Calculate real 6-month averages
-    cat_history = defaultdict(list)
-    for t in all_txns:
-        cat_history[t.category_id].append(t.amount)
-
-    cat_baselines = {}
-    for cid, amounts in cat_history.items():
-        if len(amounts) > 1:
-            cat_baselines[cid] = sum(amounts) / len(amounts)
-
-    # 2. PRICE HIKE DETECTION: Look for recurring charges that increased
-    desc_history = defaultdict(list)
-    for t in all_txns:
-        desc_history[t.description.lower()].append(t.amount)
-
-    price_hikes = []
-    for desc, prices in desc_history.items():
-        if len(prices) >= 2:
-            last_price = prices[-1]
-            prev_price = prices[-2]
-            if last_price > prev_price * 1.05: # > 5% increase
-                 price_hikes.append(f"- INCREMENTO DETECTADO: '{desc}' subió de ${prev_price/100:,.2f} a ${last_price/100:,.2f}.")
-
-    # 3. ZOMBIE & MISCATEGORIZATION AUDIT
-    cat_lookup = {cat.id: cat.name for cat in (request.categories or [])}
-    audit_evidence = []
-
-    for txn in request.transactions:
-        # Use a fallback key to ensure dict.get receives a string
-        safe_cid = txn.category_id or "Uncategorized"
-        # Cast safe_cid to Any to bypass Column vs str ambiguity in cat_baselines
-        baseline = cat_baselines.get(cast(Any, safe_cid), 0)
-        if baseline > 0 and txn.amount > baseline * 1.8: # 80% spike over 6-month avg
-            audit_evidence.append(
-                f"- PICO EN {cat_lookup.get(safe_cid, 'Categoría')}: ${txn.amount/100:,.2f} (Promedio 6 meses: ${baseline/100:,.2f})"
-            )
-        audit_evidence.append(f"CHECK_SEMANTIC: Desc='{txn.description}' Cat='{cat_lookup.get(safe_cid, 'Sin Categoría')}'")
-
-    zombie_leads = []
-    for desc, amnts in desc_history.items():
-        if len(amnts) >= 3: # Appears monthly for at least a quarter
-            is_sub = any(desc in s.get('name', '').lower() for s in request.subscriptions)
-            if not is_sub:
-                zombie_leads.append(f"- POSIBLE ZOMBIE: '{desc}' detectado por 3 meses consecutivos (${amnts[-1]/100:,.2f}).")
-
-        subscription_context = "\n".join([f"- {sub.get('name', 'Unknown')}: ${sub.get('amount', 0):.2f}" for sub in request.subscriptions])
+    cat_baselines, desc_history = _build_transaction_histories(all_txns)
+    price_hikes = _build_price_hikes(desc_history)
+    audit_evidence = _build_audit_evidence(request, cat_baselines)
+    zombie_leads = _build_zombie_leads(request, desc_history)
 
     system_prompt = f"""{get_current_time_context()}
 {CORE_RULES}

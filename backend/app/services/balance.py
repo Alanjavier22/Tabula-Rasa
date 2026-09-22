@@ -46,6 +46,32 @@ def apply_transaction_to_balance(db: Session, transaction: Transaction, reverse:
     db.flush()
 
 
+def _apply_recalculation_delta(balance: int, transaction: Transaction, account_type: str) -> int:
+    """Aplica el efecto de una transacción durante una recalculación."""
+    amount = transaction.amount
+    if account_type == "credit_card":
+        return balance - amount if transaction.transaction_type == TransactionType.EXPENSE else balance + amount
+    return balance + amount if transaction.transaction_type == TransactionType.INCOME else balance - amount
+
+
+def _recalculate_from_transactions(
+    base_balance: int,
+    transactions: list[Transaction],
+    account_type: str,
+    anchor_tx: Optional[Transaction] = None,
+) -> int:
+    """Recalcula un saldo aplicando movimientos posteriores a un ancla opcional."""
+    balance = base_balance
+    for transaction in transactions:
+        if anchor_tx and (
+            transaction.date == anchor_tx.date
+            and transaction.created_at <= anchor_tx.created_at
+        ):
+            continue
+        balance = _apply_recalculation_delta(balance, transaction, account_type)
+    return balance
+
+
 def recalculate_account_balance(db: Session, account_id: str, initial_balance: Optional[int] = None, commit: bool = True) -> int:
     """
     Recalculate an account's balance with 'Anchor Logic'.
@@ -73,14 +99,8 @@ def recalculate_account_balance(db: Session, account_id: str, initial_balance: O
         Transaction.is_deleted == False
     ).order_by(Transaction.date.desc(), Transaction.created_at.desc()).first()
 
-    # Determine which anchor is more recent/reliable
-    use_stmt_anchor = False
+    # A statement overrides a transaction anchor for credit cards.
     if account.account_type == "credit_card" and latest_stmt:
-        # If statement exists, we compare it with transaction anchor
-        # For now, if a statement exists, it OVERRIDES anything else as the base.
-        use_stmt_anchor = True
-
-    if use_stmt_anchor and latest_stmt:
         # Base balance is the statement balance (stored as positive debt in CC context, 
         # but account.balance is negative debt)
         base_balance = -latest_stmt.statement_balance
@@ -93,13 +113,11 @@ def recalculate_account_balance(db: Session, account_id: str, initial_balance: O
             Transaction.date > anchor_date
         ).all()
         
-        new_balance = base_balance
-        for txn in newer_transactions:
-            txn_amount = txn.amount
-            if txn.transaction_type == TransactionType.EXPENSE:
-                new_balance -= txn_amount
-            else:
-                new_balance += txn_amount
+        new_balance = _recalculate_from_transactions(
+            base_balance,
+            newer_transactions,
+            account.account_type,
+        )
 
     elif anchor_tx:
         # We found an anchor! This is the bank's absolute truth at that point in time.
@@ -115,24 +133,12 @@ def recalculate_account_balance(db: Session, account_id: str, initial_balance: O
             Transaction.date >= anchor_date
         ).all()
         
-        new_balance = base_balance
-        for txn in newer_transactions:
-            # Skip the anchor itself and any transaction that happened BEFORE it on the same day
-            # (We use created_at to determine the sequence within the same date)
-            if txn.date == anchor_date and txn.created_at <= anchor_tx.created_at:
-                continue
-
-            txn_amount = txn.amount
-            if account.account_type == "credit_card":
-                if txn.transaction_type == TransactionType.EXPENSE:
-                    new_balance -= txn_amount
-                else:
-                    new_balance += txn_amount
-            else:
-                if txn.transaction_type == TransactionType.INCOME:
-                    new_balance += txn_amount
-                else:
-                    new_balance -= txn_amount
+        new_balance = _recalculate_from_transactions(
+            base_balance,
+            newer_transactions,
+            account.account_type,
+            anchor_tx,
+        )
     else:
         # No anchor found. Fallback to starting from 0 or the current base.
         # Note: In a cleared DB, this will be 0.
@@ -143,18 +149,11 @@ def recalculate_account_balance(db: Session, account_id: str, initial_balance: O
             Transaction.is_deleted == False
         ).order_by(Transaction.date.asc()).all()
         
-        for txn in transactions:
-            txn_amount = txn.amount
-            if account.account_type == "credit_card":
-                if txn.transaction_type == TransactionType.EXPENSE:
-                    new_balance -= txn_amount
-                else:
-                    new_balance += txn_amount
-            else:
-                if txn.transaction_type == TransactionType.INCOME:
-                    new_balance += txn_amount
-                else:
-                    new_balance -= txn_amount
+        new_balance = _recalculate_from_transactions(
+            new_balance,
+            transactions,
+            account.account_type,
+        )
     
     account.balance = cast(Any, new_balance)
     if commit:

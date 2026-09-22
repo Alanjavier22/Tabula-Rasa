@@ -26,6 +26,85 @@ from database import get_db
 CRUD_NOT_FOUND_RESPONSE = {404: {"description": "Resource not found."}}
 
 
+def _register_create_route(
+    router: APIRouter,
+    model: Type[Any],
+    create_schema: Type[BaseModel],
+    response_schema: Type[BaseModel],
+    pre_create: Optional[Callable[[BaseModel, Session], None]],
+) -> None:
+    @router.post("/", response_model=response_schema)
+    def create(payload: create_schema, db: Session = Depends(get_db)):  # type: ignore[valid-type]
+        if pre_create:
+            pre_create(payload, db)
+        db_obj = model(**payload.model_dump())
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+
+
+def _register_list_route(
+    router: APIRouter,
+    model: Type[Any],
+    response_schema: Type[BaseModel],
+    filter_deleted: bool,
+) -> None:
+    @router.get("/", response_model=List[response_schema])
+    def list_all(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+        query = db.query(model)
+        if filter_deleted:
+            query = query.filter(model.is_deleted == False)  # noqa: E712
+        return query.offset(skip).limit(limit).all()
+
+
+def _register_get_route(
+    router: APIRouter,
+    model: Type[Any],
+    response_schema: Type[BaseModel],
+    entity_name: str,
+) -> None:
+    @router.get("/{item_id}", response_model=response_schema, responses=CRUD_NOT_FOUND_RESPONSE)
+    def get_one(item_id: str, db: Session = Depends(get_db)):
+        obj = db.query(model).filter(model.id == item_id).first()
+        if not obj:
+            raise HTTPException(status_code=404, detail=f"{entity_name} not found")
+        return obj
+
+
+def _register_update_route(
+    router: APIRouter,
+    model: Type[Any],
+    update_schema: Type[BaseModel],
+    response_schema: Type[BaseModel],
+    entity_name: str,
+    pre_update: Optional[Callable[[Any, BaseModel, Session], None]],
+) -> None:
+    @router.put("/{item_id}", response_model=response_schema, responses=CRUD_NOT_FOUND_RESPONSE)
+    def update(item_id: str, payload: update_schema, db: Session = Depends(get_db)):  # type: ignore[valid-type]
+        obj = db.query(model).filter(model.id == item_id).first()
+        if not obj:
+            raise HTTPException(status_code=404, detail=f"{entity_name} not found")
+        if pre_update:
+            pre_update(obj, payload, db)
+        for key, value in payload.model_dump(exclude_unset=True).items():
+            setattr(obj, key, value)
+        db.commit()
+        db.refresh(obj)
+        return obj
+
+
+def _register_delete_route(router: APIRouter, model: Type[Any], entity_name: str) -> None:
+    @router.delete("/{item_id}", responses=CRUD_NOT_FOUND_RESPONSE)
+    def delete(item_id: str, db: Session = Depends(get_db)):
+        obj = db.query(model).filter(model.id == item_id).first()
+        if not obj:
+            raise HTTPException(status_code=404, detail=f"{entity_name} not found")
+        db.delete(obj)
+        db.commit()
+        return {"message": f"{entity_name} deleted successfully"}
+
+
 def make_crud_router(
     *,
     prefix: str,
@@ -62,55 +141,18 @@ def make_crud_router(
         redirect_slashes=False,
     )
 
-    @router.post("/", response_model=response_schema)
-    def create(payload: create_schema, db: Session = Depends(get_db)):  # type: ignore[valid-type]
-        if pre_create:
-            pre_create(payload, db)
-        db_obj = model(**payload.model_dump())
-        db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
-        return db_obj
+    _register_create_route(router, model, create_schema, response_schema, pre_create)
 
     if include_list:
-        @router.get("/", response_model=List[response_schema])
-        def list_all(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-            query = db.query(model)
-            if filter_deleted:
-                query = query.filter(model.is_deleted == False)  # noqa: E712
-            return query.offset(skip).limit(limit).all()
+        _register_list_route(router, model, response_schema, filter_deleted)
 
     if before_id_routes:
         before_id_routes(router)
 
-    @router.get("/{item_id}", response_model=response_schema, responses=CRUD_NOT_FOUND_RESPONSE)
-    def get_one(item_id: str, db: Session = Depends(get_db)):
-        obj = db.query(model).filter(model.id == item_id).first()
-        if not obj:
-            raise HTTPException(status_code=404, detail=f"{entity_name} not found")
-        return obj
-
-    @router.put("/{item_id}", response_model=response_schema, responses=CRUD_NOT_FOUND_RESPONSE)
-    def update(item_id: str, payload: update_schema, db: Session = Depends(get_db)):  # type: ignore[valid-type]
-        obj = db.query(model).filter(model.id == item_id).first()
-        if not obj:
-            raise HTTPException(status_code=404, detail=f"{entity_name} not found")
-        if pre_update:
-            pre_update(obj, payload, db)
-        for key, value in payload.model_dump(exclude_unset=True).items():
-            setattr(obj, key, value)
-        db.commit()
-        db.refresh(obj)
-        return obj
+    _register_get_route(router, model, response_schema, entity_name)
+    _register_update_route(router, model, update_schema, response_schema, entity_name, pre_update)
 
     if include_delete:
-        @router.delete("/{item_id}", responses=CRUD_NOT_FOUND_RESPONSE)
-        def delete(item_id: str, db: Session = Depends(get_db)):
-            obj = db.query(model).filter(model.id == item_id).first()
-            if not obj:
-                raise HTTPException(status_code=404, detail=f"{entity_name} not found")
-            db.delete(obj)
-            db.commit()
-            return {"message": f"{entity_name} deleted successfully"}
+        _register_delete_route(router, model, entity_name)
 
     return router

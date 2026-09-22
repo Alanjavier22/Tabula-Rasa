@@ -44,55 +44,57 @@ class InsightsResponse(BaseModel):
     patterns: List[str]
 
 
-@router.get("/insights", responses=AI_INSIGHTS_ERROR_RESPONSES)
-def get_insights(db: Session = Depends(get_db)):
-    # 1. Get Gemini API key from config
-    config = db.query(Config).filter(Config.key == 'gemini_api_key').first()
-    if not config or not config.value:
-        raise HTTPException(
-            status_code=400,
-            detail="IA en mantenimiento. Configura tu Gemini API Key en la página de Configuración."
-        )
-
-    api_key = config.value
-
-    # 2. Configure Gemini with new SDK
-    client = genai.Client(api_key=cast(str, api_key))
-
-    # 3. Collect ANONYMOUS financial data (no PII: no names, no account numbers)
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    txn_summary = _build_transaction_summary(db, now)
-    budget_summary = _build_budget_summary(db, now)
-    cc_summary = _build_credit_card_summary(db, now)
-    liquidity = _build_liquidity_summary(db)
-    debt_summary = _build_debt_share_summary(db, now)
-    goals_summary = _build_goals_summary(db)
-    
-    # Unified Payload calculations
-    historical = _build_enhanced_historical_trends(db, now)
-    rolling = _build_rolling_30d_summary(db, now)
-    recurring_small = _build_recurring_small_expenses(db, now)
-    
+def _collect_insight_data(db: Session, now: datetime) -> dict:
     import calendar
+    from app.api.metrics_cashflow import get_safe_to_spend
+
+    txn_summary = _build_transaction_summary(db, now)
+    historical = _build_enhanced_historical_trends(db, now)
     day_of_month = now.day
     days_in_month = calendar.monthrange(now.year, now.month)[1]
-    percentage_elapsed = (day_of_month / days_in_month) * 100
-    
     current_daily_burn = txn_summary['total_expenses'] / day_of_month if day_of_month > 0 else 0
     historical_daily_burn = historical['avg_monthly_expense'] / 30
-    burn_rate_ratio = current_daily_burn / historical_daily_burn if historical_daily_burn > 0 else 1.0
+    return {
+        "txn_summary": txn_summary,
+        "budget_summary": _build_budget_summary(db, now),
+        "cc_summary": _build_credit_card_summary(db, now),
+        "liquidity": _build_liquidity_summary(db),
+        "debt_summary": _build_debt_share_summary(db, now),
+        "goals_summary": _build_goals_summary(db),
+        "historical": historical,
+        "rolling": _build_rolling_30d_summary(db, now),
+        "recurring_small": _build_recurring_small_expenses(db, now),
+        "day_of_month": day_of_month,
+        "days_in_month": days_in_month,
+        "percentage_elapsed": (day_of_month / days_in_month) * 100,
+        "current_daily_burn": current_daily_burn,
+        "historical_daily_burn": historical_daily_burn,
+        "burn_rate_ratio": current_daily_burn / historical_daily_burn if historical_daily_burn > 0 else 1.0,
+        "safe_to_spend": get_safe_to_spend(db).safe_to_spend,
+    }
 
-    # Use the centralized calculation from metrics.py for consistency
-    from app.api.metrics_cashflow import get_safe_to_spend as calc_sts
-    sts_data = calc_sts(db)
-    safe_to_spend = sts_data.safe_to_spend
 
+def _build_financial_snapshot(data: dict, now: datetime) -> str:
+    txn_summary = data["txn_summary"]
+    budget_summary = data["budget_summary"]
+    cc_summary = data["cc_summary"]
+    liquidity = data["liquidity"]
+    debt_summary = data["debt_summary"]
+    goals_summary = data["goals_summary"]
+    historical = data["historical"]
+    rolling = data["rolling"]
+    recurring_small = data["recurring_small"]
+    day_of_month = data["day_of_month"]
+    days_in_month = data["days_in_month"]
+    current_daily_burn = data["current_daily_burn"]
+    historical_daily_burn = data["historical_daily_burn"]
+    burn_rate_ratio = data["burn_rate_ratio"]
+    safe_to_spend = data["safe_to_spend"]
     current_month_str = now.strftime('%Y-%m')
 
-    # 4. Build the financial snapshot
     financial_snapshot = f"""
 CONTEXTO TEMPORAL Y PROPORCIONAL:
-- Día actual del mes: {day_of_month} de {days_in_month} ({percentage_elapsed:.1f}% transcurrido)
+- Día actual del mes: {day_of_month} de {days_in_month} ({data['percentage_elapsed']:.1f}% transcurrido)
 - ¿Es inicio de mes?: {"Sí (los ingresos fijos del mes podrían no estar registrados aún, es normal tener saldo temporal negativo)" if day_of_month <= 7 else "No"}
 - Ritmo de gasto diario actual: ${current_daily_burn / 100:.2f}/día
 - Ritmo de gasto diario histórico: ${historical_daily_burn / 100:.2f}/día
@@ -114,9 +116,9 @@ GASTOS HORMIGA (recurrentes, últimos 30 días):
 
 PRESUPUESTOS DEL MES EN CURSO ({current_month_str}):
 """
-    for b in budget_summary:
-        status_label = "⚠️ EXCEDIDO" if b['exceeded'] else "OK"
-        financial_snapshot += f"- {b['category']}: ${b['spent'] / 100:.2f} / ${b['limit'] / 100:.2f} ({status_label})\n"
+    for budget in budget_summary:
+        status_label = "⚠️ EXCEDIDO" if budget['exceeded'] else "OK"
+        financial_snapshot += f"- {budget['category']}: ${budget['spent'] / 100:.2f} / ${budget['limit'] / 100:.2f} ({status_label})\n"
 
     financial_snapshot += f"""
 TARJETAS DE CRÉDITO:
@@ -129,7 +131,7 @@ DEUDAS DE TERCEROS (Debt Shares):
 - Cantidad de deudas: {debt_summary['pending_debt_count']}
 - Cortes de tarjeta en 7 días: {debt_summary['upcoming_cutoffs_within_7_days']}
 - Deudas por persona:
-{chr(10).join([f"  - {person}: ${data['total_amount']/100:.2f} ({data['count']} deudas)" for person, data in debt_summary['debts_by_person'].items()]) if debt_summary['debts_by_person'] else '  - Ninguna'}
+{chr(10).join([f"  - {person}: ${details['total_amount']/100:.2f} ({details['count']} deudas)" for person, details in debt_summary['debts_by_person'].items()]) if debt_summary['debts_by_person'] else '  - Ninguna'}
 
 METAS FINANCIERAS:
 - Metas activas: {goals_summary['active_count']}
@@ -138,7 +140,7 @@ METAS FINANCIERAS:
 - Restante: ${goals_summary['total_remaining'] / 100:.2f}
 - Progreso general: {goals_summary['overall_progress_pct']:.1f}%
 - Detalle de metas:
-{chr(10).join([f"  - {g['name']}: ${g['current_amount']/100:.2f} / ${g['target_amount']/100:.2f} ({g['progress_pct']:.1f}%)" for g in goals_summary['goals']]) if goals_summary['goals'] else '  - Ninguna meta activa'}
+{chr(10).join([f"  - {goal['name']}: ${goal['current_amount']/100:.2f} / ${goal['target_amount']/100:.2f} ({goal['progress_pct']:.1f}%)" for goal in goals_summary['goals']]) if goals_summary['goals'] else '  - Ninguna meta activa'}
 
 LIQUIDEZ:
 - Saldo líquido (checking+savings+cash): ${liquidity['liquid_balance'] / 100:.2f}
@@ -149,26 +151,25 @@ LIQUIDEZ:
 SAFE-TO-SPEND (Liquidez disponible):
 - Safe-to-Spend: ${safe_to_spend / 100:.2f}
 """
-
     if txn_summary['atypical_transactions']:
         financial_snapshot += "\nTRANSACCIONES ATÍPICAS (montos > 2x el promedio):\n"
-        for at in txn_summary['atypical_transactions']:
-            financial_snapshot += f"- {at}\n"
+        for transaction in txn_summary['atypical_transactions']:
+            financial_snapshot += f"- {transaction}\n"
 
-    exceeded_budgets = [b for b in budget_summary if b['exceeded']]
+    exceeded_budgets = [budget for budget in budget_summary if budget['exceeded']]
     if exceeded_budgets:
         financial_snapshot += "\nPRESUPUESTOS EXCEDIDOS:\n"
-        for b in exceeded_budgets:
-            overage = b['spent'] - b['limit']
-            financial_snapshot += f"- {b['category']}: excedido por ${overage / 100:.2f}\n"
+        for budget in exceeded_budgets:
+            overage = budget['spent'] - budget['limit']
+            financial_snapshot += f"- {budget['category']}: excedido por ${overage / 100:.2f}\n"
+    return financial_snapshot
 
-    # 5. User prompt construction
-    time_context = get_current_time_context()
+
+def _build_insights_prompt(db: Session, financial_snapshot: str) -> str:
     config_persona = db.query(Config).filter(Config.key == 'ai_persona').first()
     persona_value = config_persona.value if config_persona and config_persona.value else "professional"
     persona_instruction = get_persona_prompt(cast(str, persona_value))
-
-    user_prompt = f"""{time_context}
+    return f"""{get_current_time_context()}
 {CORE_RULES}
 
 Analiza el siguiente resumen financiero anónimo y genera insights estratégicos.
@@ -183,6 +184,49 @@ REGLAS DE SALIDA:
 
 RESUMEN FINANCIERO:
 {financial_snapshot}"""
+
+
+def _normalize_insights(result: dict) -> dict:
+    insights = result.get("insights", [])
+    alerts = result.get("alerts", [])
+    patterns = result.get("patterns", [])
+    if not isinstance(insights, list):
+        insights = [str(insights)]
+    if not isinstance(alerts, list):
+        alerts = []
+    if not isinstance(patterns, list):
+        patterns = []
+    return {"insights": insights, "alerts": alerts, "patterns": patterns}
+
+
+def _raise_insights_api_error(error: errors.APIError) -> None:
+    error_msg = str(error)
+    if "quota" in error_msg.lower() or "limit" in error_msg.lower():
+        detail = "Cuota de IA excedida. El servicio se restablecerá automáticamente. Intenta en unos minutos."
+    elif "not found" in error_msg.lower() or "model" in error_msg.lower():
+        detail = "El modelo de IA no está disponible en este momento. Intenta más tarde."
+    else:
+        detail = f"Servicio de IA temporalmente no disponible: {error_msg}"
+    raise HTTPException(status_code=503, detail=detail)
+
+
+@router.get("/insights", responses=AI_INSIGHTS_ERROR_RESPONSES)
+def get_insights(db: Session = Depends(get_db)):
+    # 1. Get Gemini API key from config
+    config = db.query(Config).filter(Config.key == 'gemini_api_key').first()
+    if not config or not config.value:
+        raise HTTPException(
+            status_code=400,
+            detail="IA en mantenimiento. Configura tu Gemini API Key en la página de Configuración."
+        )
+
+    api_key = config.value
+
+    client = genai.Client(api_key=cast(str, api_key))
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    data = _collect_insight_data(db, now)
+    financial_snapshot = _build_financial_snapshot(data, now)
+    user_prompt = _build_insights_prompt(db, financial_snapshot)
 
     try:
         response = with_gemini_retry(lambda: client.models.generate_content(
@@ -204,37 +248,10 @@ RESUMEN FINANCIERO:
 
         result = json.loads((response.text or "{}").strip())
 
-        insights = result.get("insights", [])
-        alerts = result.get("alerts", [])
-        patterns = result.get("patterns", [])
-
-        # Ensure types
-        if not isinstance(insights, list):
-            insights = [str(insights)]
-        if not isinstance(alerts, list):
-            alerts = []
-        if not isinstance(patterns, list):
-            patterns = []
-
-        return {"insights": insights, "alerts": alerts, "patterns": patterns}
+        return _normalize_insights(result)
 
     except errors.APIError as e:
-        error_msg = str(e)
-        if "quota" in error_msg.lower() or "limit" in error_msg.lower():
-            raise HTTPException(
-                status_code=503,
-                detail="Cuota de IA excedida. El servicio se restablecerá automáticamente. Intenta en unos minutos."
-            )
-        elif "not found" in error_msg.lower() or "model" in error_msg.lower():
-            raise HTTPException(
-                status_code=503,
-                detail="El modelo de IA no está disponible en este momento. Intenta más tarde."
-            )
-        else:
-            raise HTTPException(
-                status_code=503,
-                detail=f"Servicio de IA temporalmente no disponible: {error_msg}"
-            )
+        _raise_insights_api_error(e)
     except json.JSONDecodeError:
         raise HTTPException(
             status_code=500,
