@@ -848,3 +848,58 @@ def test_insights_collection_and_google_backup_cleanup_branches(monkeypatch, tmp
     backup_gdrive._cleanup_local_backup(str(temporary))
     monkeypatch.setattr(backup_gdrive, "get_google_drive_credentials", lambda: None)
     assert backup_gdrive.create_external_backup() is None
+
+
+def test_google_backup_fail_soft_paths(monkeypatch, tmp_path):
+    from app.utils import backup_gdrive
+
+    source = tmp_path / "finance.db"
+    source.write_text("db")
+    monkeypatch.setattr(backup_gdrive, "_DB_PATH", str(source))
+    monkeypatch.setattr(backup_gdrive, "get_google_drive_credentials", lambda: ("id", "secret", "refresh"))
+    monkeypatch.setattr(backup_gdrive, "checkpoint_db", lambda: None)
+    monkeypatch.setattr(backup_gdrive, "_authenticate_drive", lambda _credentials: None)
+    assert backup_gdrive.create_external_backup() is None
+    monkeypatch.setattr(backup_gdrive, "_authenticate_drive", lambda _credentials: object())
+    monkeypatch.setattr(backup_gdrive, "get_or_create_drive_folder", lambda _drive: None)
+    assert backup_gdrive.create_external_backup() is None
+    monkeypatch.setattr(backup_gdrive, "get_or_create_drive_folder", lambda _drive: "folder")
+    monkeypatch.setattr(backup_gdrive, "_upload_backup", lambda *_args: False)
+    assert backup_gdrive.create_external_backup() is None
+
+
+def test_alert_endpoint_and_additional_helper_branches(monkeypatch):
+    from app.api import alerts
+    from app.api.metrics_cashflow import _advance_billing_date
+    from app.models.transaction import TransactionType
+    from app.services import ai_background, credit_card_payment, snapshot_service
+    from init_db import _get_sqlite_type
+
+    class FakeConsolidator:
+        def __init__(self, _db):
+            pass
+
+        def get_all_debts(self):
+            return [
+                {"total_debt": 50, "latest_statement": None, "account_id": "a", "account_name": "A"},
+                {"total_debt": 1000, "latest_statement": {"id": "s", "due_date": "2026-03-10"}, "account_id": "b", "account_name": "B"},
+            ]
+
+    monkeypatch.setattr(alerts, "DebtConsolidatorService", FakeConsolidator)
+    reminders = alerts.get_payment_reminders(db=MagicMock())
+    assert reminders.total_pending == 1000
+    assert len(reminders.alerts) == 1
+    assert _advance_billing_date(date(2026, 3, 1), "unknown") == date(2026, 3, 31)
+    assert snapshot_service._rewind_balance(MagicMock(), SimpleNamespace(id="a", balance=1000), datetime(2026, 3, 1), False) == 1000
+    assert credit_card_payment._find_linked_card(
+        [SimpleNamespace(id="card", linked_account_id="source", name="Visa")],
+        SimpleNamespace(id="source", linked_account_id=None, bank_name="Banco"),
+        "Visa",
+    ).id == "card"
+    assert credit_card_payment._find_brand_card(
+        [SimpleNamespace(name="Visa Gold", bank_name="Otro")],
+        SimpleNamespace(bank_name="Banco"),
+        "visa",
+    ).name == "Visa Gold"
+    ai_background._classify_sri_pending([SimpleNamespace(transaction_type=TransactionType.INCOME, sri_category="ok", is_manual=False)], MagicMock())
+    assert _get_sqlite_type("DATE") == "TEXT"
