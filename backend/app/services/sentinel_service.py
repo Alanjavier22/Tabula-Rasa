@@ -174,15 +174,15 @@ class SentinelService:
                         await asyncio.sleep(wait_time)
                     else:
                         # Si ya no hay más reintentos o es un error fatal, disparamos el fallback heurístico
-                        return self._generate_heuristic_fallback(context, persona, str(e))
+                        return self._generate_heuristic_fallback(context, str(e))
             
             # If for finishes without returning (should be covered by else in except)
-            return self._generate_heuristic_fallback(context, persona, str(last_error) if last_error else "Max retries reached")
+            return self._generate_heuristic_fallback(context, str(last_error) if last_error else "Max retries reached")
         except Exception as e:
             # Absolute fallback (No AI Mode)
-            return self._generate_heuristic_fallback(context, persona, str(e))
+            return self._generate_heuristic_fallback(context, str(e))
 
-    def _generate_heuristic_fallback(self, context: dict, persona: str, error_msg: str) -> dict:
+    def _generate_heuristic_fallback(self, context: dict, error_msg: str) -> dict:
         """
         Generates a basic health report based on pure math when AI is unavailable.
         """
@@ -217,10 +217,17 @@ class SentinelService:
 
         # Final score clamping
         score = max(0, min(100, score))
+
+        if score < 50:
+            risk_level = "alto"
+        elif score < 80:
+            risk_level = "moderado"
+        else:
+            risk_level = "bajo"
         
         status_summary = (
             f"MODO SEGURO (IA Offline): Tu salud financiera es de {score}/100. "
-            f"Se detecta un nivel de riesgo {'alto' if score < 50 else 'moderado' if score < 80 else 'bajo'}."
+            f"Se detecta un nivel de riesgo {risk_level}."
         )
 
         return {

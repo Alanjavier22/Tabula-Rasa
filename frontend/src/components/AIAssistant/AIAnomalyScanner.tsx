@@ -216,7 +216,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
               ) : (
                 <div className="space-y-5">
                   {/* Categoría: Suscripciones Zombie */}
-                  {result.zombie_subscriptions.length > 0 && result.zombie_subscriptions.some((_, i) => !syncedZombies.includes(i)) && (
+                  {result.zombie_subscriptions.some((_, i) => !syncedZombies.includes(i)) && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between px-1">
                         <div className="flex items-center gap-2">
@@ -233,7 +233,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
                           if (syncedZombies.includes(idx)) return null;
                           return (
                             <motion.div 
-                              key={`zombie-${idx}`}
+                              key={`${zombie.merchant_name ?? zombie.description}-${zombie.estimated_amount}-${zombie.reasoning}`}
                               exit={{ opacity: 0, scale: 0.95 }}
                               className="relative group bg-[#0a0c10]/60 backdrop-blur-md border border-white/5 rounded-2xl p-4 transition-all duration-300 hover:border-emerald-500/20"
                             >
@@ -276,7 +276,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
                   )}
 
                   {/* Categoría: Picos de Consumo */}
-                  {result.spending_spikes.length > 0 && result.spending_spikes.some((_, i) => !dismissedSpikes.includes(i)) && (
+                  {result.spending_spikes.some((_, i) => !dismissedSpikes.includes(i)) && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between px-1">
                         <div className="flex items-center gap-2">
@@ -293,7 +293,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
                           if (dismissedSpikes.includes(idx)) return null;
                           return (
                             <motion.div 
-                              key={`spike-${idx}`}
+                              key={`${spike.category_id}-${spike.current_spike}-${spike.reasoning}`}
                               exit={{ opacity: 0, x: 50, scale: 0.95 }}
                               transition={{ duration: 0.3 }}
                               className="bg-[#0a0c10]/40 backdrop-blur-md border border-white/5 rounded-2xl p-4 hover:border-blue-500/20 transition-all duration-300 relative group"

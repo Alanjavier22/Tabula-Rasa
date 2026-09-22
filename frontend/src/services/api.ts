@@ -100,7 +100,7 @@ api.interceptors.response.use(
         window.location.href = '/?msg=Sesión reiniciada';
       }
     }
-    return Promise.reject(error);
+    throw error;
   }
 );
 

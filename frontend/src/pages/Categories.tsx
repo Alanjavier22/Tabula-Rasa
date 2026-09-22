@@ -66,7 +66,7 @@ const Categories = () => {
       link.download = `categorias_${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
       URL.revokeObjectURL(url);
       setToast({ message: 'Categorías exportadas correctamente', type: 'success' });
     } catch (error) {

@@ -6,6 +6,7 @@ import type { Account, Category, AccountExtractedTransaction, AccountParsingResp
 import type { AxiosError } from 'axios';
 import Select from './common/Select';
 import { formatMoney } from '../utils/money';
+import { createFileSelectionHandlers } from '../utils/fileSelection';
 
 interface AccountImportModalProps {
   onClose: () => void;
@@ -47,33 +48,11 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
     });
   }, []);
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const dropped = e.dataTransfer.files[0];
-      if (dropped.name.endsWith('.csv') || dropped.name.endsWith('.xlsx')) {
-        handleFileSelection(dropped);
-      } else {
-        setResult({ success: false, message: 'Solo se permiten archivos CSV o Excel (.xlsx)' });
-      }
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelection(e.target.files[0]);
+  const handleDroppedFile = (dropped: File) => {
+    if (dropped.name.endsWith('.csv') || dropped.name.endsWith('.xlsx')) {
+      handleFileSelection(dropped);
+    } else {
+      setResult({ success: false, message: 'Solo se permiten archivos CSV o Excel (.xlsx)' });
     }
   };
 
@@ -84,6 +63,12 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
     setImportLogId(null);
     setResult(null);
   };
+
+  const { handleDrag, handleDrop, handleFileSelect } = createFileSelectionHandlers({
+    setDragActive,
+    onFileSelect: handleFileSelection,
+    onDropFile: handleDroppedFile,
+  });
 
   const handleProcess = async () => {
     if (!file || !accountId) return;
@@ -342,7 +327,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                     </thead>
                     <tbody className="divide-y divide-slate-700/50">
                       {extractedTransactions.map((txn, index) => (
-                        <tr key={index} className={`transition-colors ${txn.selected ? 'bg-emerald-500/5' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-slate-700/30'}`}>
+                        <tr key={txn.fingerprint} className={`transition-colors ${txn.selected ? 'bg-emerald-500/5' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-slate-700/30'}`}>
                           <td className="px-4 py-3">
                             <input
                               type="checkbox"

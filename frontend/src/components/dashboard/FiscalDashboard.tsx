@@ -85,7 +85,7 @@ const getTooltipColor = (color: string | undefined) => {
  * Custom tooltip for charts with monetary formatting
  */
 const CustomTooltip = ({ active, payload, label }: TooltipContentProps) => {
-  if (active && payload && payload.length) {
+  if (active && payload?.length) {
     const formattedLabel = (() => {
       if (typeof label !== 'string') return label;
       const [year, month] = label.split('-');
@@ -97,8 +97,8 @@ const CustomTooltip = ({ active, payload, label }: TooltipContentProps) => {
     return (
       <div className="bg-slate-900/90 backdrop-blur-xl p-4 rounded-2xl shadow-2xl border border-white/10">
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{formattedLabel}</p>
-        {payload.map((entry, index) => (
-          <div key={index} className="flex items-center gap-2 mt-1">
+        {payload.map((entry) => (
+          <div key={String(entry.name ?? entry.color ?? 'series')} className="flex items-center gap-2 mt-1">
             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getTooltipColor(entry.color) }} />
             <p className="text-sm font-semibold text-white">
               {entry.name}: <span className="font-mono">${formatMoney(entry.value)}</span>
@@ -453,8 +453,8 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
           
           {/* Custom Custom Legend Grid for Donut */}
           <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5 text-center">
-            {taxBreakdown.map((item, idx) => (
-              <div key={idx} className="flex flex-col items-center">
+            {taxBreakdown.map((item) => (
+              <div key={item.name} className="flex flex-col items-center">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                   <span className="text-xs font-bold text-slate-400">{item.name}</span>

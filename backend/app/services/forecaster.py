@@ -98,10 +98,7 @@ def get_financial_projection(
         proj_year = now.year + ((now.month + i - 1) // 12)
         label = f"{proj_year}-{proj_month:02d}"
         
-        # Monthly flow
-        monthly_in = avg_income
-        monthly_out = avg_fixed + avg_var + extra_savings_per_month # savings implies cash outflow from checking if invested/saved away from liquidity, OR if extra_savings means extra income to save, let's treat it as reduced expense or extra income. 
-        # Actually, "extra_savings_per_month" in a simulation usually means reducing expenses or boosting income to generate savings. Let's assume it boosts net flow.
+        # Extra savings improve the projected net flow.
         net_flow = avg_income - (avg_fixed + avg_var) + extra_savings_per_month
         
         if i == one_time_expense_month_offset:

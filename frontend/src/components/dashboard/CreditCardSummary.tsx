@@ -4,8 +4,8 @@ import type { Account, CreditCardStatement } from '../../types';
 import { formatMoney, toDecimal, clampZero } from '../../utils/money';
 
 interface CreditCardSummaryProps {
-  statements: CreditCardStatement[];
-  cards: Account[];
+  readonly statements: CreditCardStatement[];
+  readonly cards: Account[];
 }
 
 const getStatementStatusClass = (status: string) => {

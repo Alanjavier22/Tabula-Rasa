@@ -54,8 +54,8 @@ const pichinchaParser: BankParser = {
     
     // Parse amount (debit or credit) - pass raw string to toCents for precision
     // FIX: Eliminated parseFloat/Math.abs to avoid IEEE 754 precision loss
-    const debitStrClean = debitStr ? debitStr.replace(/,/g, '').trim() : '0';
-    const creditStrClean = creditStr ? creditStr.replace(/,/g, '').trim() : '0';
+    const debitStrClean = debitStr ? debitStr.replaceAll(',', '').trim() : '0';
+    const creditStrClean = creditStr ? creditStr.replaceAll(',', '').trim() : '0';
     const amountStr = debitStrClean !== '0' ? debitStrClean : creditStrClean;
     // Determine transaction type from raw string (no float parsing)
     const isIncome = creditStrClean !== '0';
@@ -103,7 +103,7 @@ const guayaquilParser: BankParser = {
     
     // Parse amount (negative = expense, positive = income)
     // FIX: Eliminated parseFloat/Math.abs to avoid IEEE 754 precision loss
-    const amountStrClean = amountStr.replace(/,/g, '').trim();
+    const amountStrClean = amountStr.replaceAll(',', '').trim();
     // Determine transaction type from raw string (check for negative sign)
     const isIncome = !amountStrClean.startsWith('-');
     // Convert to cents using decimal.js-light (handles precision and abs internally)
@@ -152,8 +152,8 @@ const pacificoParser: BankParser = {
     
     // Parse amount
     // FIX: Eliminated parseFloat/Math.abs to avoid IEEE 754 precision loss
-    const creditStrClean = creditStr ? creditStr.replace(/,/g, '').trim() : '0';
-    const debitStrClean = debitStr ? debitStr.replace(/,/g, '').trim() : '0';
+    const creditStrClean = creditStr ? creditStr.replaceAll(',', '').trim() : '0';
+    const debitStrClean = debitStr ? debitStr.replaceAll(',', '').trim() : '0';
     const amountStr = creditStrClean !== '0' ? creditStrClean : debitStrClean;
     // Determine transaction type from raw string (no float parsing)
     const isIncome = creditStrClean !== '0';
@@ -203,7 +203,7 @@ const genericParser: BankParser = {
     
     // Parse amount (assume expense unless explicitly marked as income)
     // FIX: Eliminated parseFloat/Math.abs to avoid IEEE 754 precision loss
-    const amountStrClean = amountStr.replace(/,/g, '').trim();
+    const amountStrClean = amountStr.replaceAll(',', '').trim();
     // Convert to cents using decimal.js-light (handles precision and abs internally)
     const amountInCents = toCents(amountStrClean);
     

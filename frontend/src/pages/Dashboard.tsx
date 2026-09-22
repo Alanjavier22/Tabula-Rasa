@@ -63,6 +63,7 @@ const Dashboard = () => {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
+  const paymentAlertsWithItems = paymentAlerts?.alerts?.length ? paymentAlerts : undefined;
 
   // React Query: Fetch multiple metrics and data in parallel
   const results = useQueries({
@@ -509,8 +510,8 @@ const Dashboard = () => {
       {/* Credit Card Quick Summary */}
       <CreditCardSummary statements={statements} cards={creditCards} />
 
-      {paymentAlerts && paymentAlerts.alerts && paymentAlerts.alerts.length > 0 && (
-        <PaymentAlertsPanel data={paymentAlerts} />
+      {paymentAlertsWithItems && (
+        <PaymentAlertsPanel data={paymentAlertsWithItems} />
       )}
 
       {/* IOU Widget - Dinero Flotante */}

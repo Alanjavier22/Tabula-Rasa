@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { authAPI } from '../services/api';
-import api from '../services/api';
+import api, { authAPI } from '../services/api';
 import type { AxiosError } from 'axios';
 
 // Mismo hostname que la página para conservar el alcance local de la cookie
