@@ -35,23 +35,63 @@ class VehicleTelemetryResponse(BaseModel):
     next_maintenance_estimate: Optional[float] = None
     maintenance_interval: int = 5000  # Default interval
 
+
+def _get_vehicle_category_ids(db: Session) -> list[str]:
+    config_entry = db.query(Config).filter(Config.key == "vehicle_categories").first()
+    category_ids = []
+    if config_entry and config_entry.value:
+        try:
+            category_ids = json.loads(cast(str, config_entry.value))
+        except json.JSONDecodeError:
+            pass
+    if category_ids:
+        return category_ids
+    categories = db.query(Category).filter(
+        Category.name.in_(["Combustible", "Mantenimiento Vehiculo"])
+    ).all()
+    return [category.id for category in categories]
+
+
+def _get_odometer_readings(transactions: list[Transaction]) -> tuple[list[dict], Decimal]:
+    readings = []
+    total_cost = Decimal("0")
+    for transaction in transactions:
+        total_cost += Decimal(str(transaction.amount))
+        if not transaction.metadata_json:
+            continue
+        try:
+            metadata = json.loads(cast(str, transaction.metadata_json))
+            if "odometer" in metadata:
+                readings.append({"date": transaction.date, "val": metadata["odometer"]})
+        except (json.JSONDecodeError, TypeError, KeyError) as error:
+            logger.debug("Failed to decode odometer reading from transaction metadata: %s", error)
+    return readings, total_cost
+
+
+def _get_next_maintenance_estimate(db: Session, readings: list[dict]) -> Optional[float]:
+    if not readings:
+        return None
+    current_odometer = max(reading["val"] for reading in readings)
+    maintenance_categories = db.query(Category).filter(Category.name.ilike("%mantenimiento%")).all()
+    maintenance_ids = [category.id for category in maintenance_categories]
+    last_maintenance = db.query(Transaction).filter(
+        Transaction.category_id.in_(maintenance_ids),
+        Transaction.is_deleted == False,
+    ).order_by(Transaction.date.desc()).first()
+    last_maintenance_odometer = 0
+    if last_maintenance and last_maintenance.metadata_json:
+        try:
+            metadata = json.loads(cast(str, last_maintenance.metadata_json))
+            last_maintenance_odometer = metadata.get("odometer", 0)
+        except (json.JSONDecodeError, TypeError) as error:
+            logger.debug("Failed to parse last maintenance odometer metadata: %s", error)
+    return (last_maintenance_odometer + 5000) - current_odometer
+
+
 @router.get("/vehicle-telemetry", response_model=VehicleTelemetryResponse)
 def get_vehicle_telemetry(db: Session = Depends(get_db)):
     now = datetime.now()
-
-    config_entry = db.query(Config).filter(Config.key == "vehicle_categories").first()
-    vehicle_category_ids = []
-    if config_entry and config_entry.value:
-        try:
-            vehicle_category_ids = json.loads(cast(str, config_entry.value))
-        except json.JSONDecodeError:
-            pass
-
-    if not vehicle_category_ids:
-        vehicle_categories = db.query(Category).filter(
-            Category.name.in_(["Combustible", "Mantenimiento Vehiculo"])
-        ).all()
-        vehicle_category_ids = [c.id for c in vehicle_categories]
+    vehicle_category_ids = _get_vehicle_category_ids(db)
 
     # Current month stats
     current_month_txns = db.query(Transaction).filter(
@@ -70,19 +110,7 @@ def get_vehicle_telemetry(db: Session = Depends(get_db)):
         Transaction.is_deleted == False,
     ).order_by(Transaction.date.asc()).all()
 
-    odometer_readings = []
-    total_historical_cost = Decimal("0")
-
-    for txn in all_vehicle_txns:
-        total_historical_cost += Decimal(str(txn.amount))
-        if txn.metadata_json:
-            try:
-                meta = json.loads(cast(str, txn.metadata_json))
-                if "odometer" in meta:
-                    odometer_readings.append({"date": txn.date, "val": meta["odometer"]})
-            except (json.JSONDecodeError, TypeError, KeyError) as e:
-                logger.debug("Failed to decode odometer reading from transaction metadata: %s", e)
-                continue
+    odometer_readings, total_historical_cost = _get_odometer_readings(all_vehicle_txns)
 
     # Current month distance
     month_odometer = [o["val"] for o in odometer_readings if o["date"].month == now.month and o["date"].year == now.year]
@@ -93,27 +121,7 @@ def get_vehicle_telemetry(db: Session = Depends(get_db)):
     hist_distance = max([o["val"] for o in odometer_readings]) - min([o["val"] for o in odometer_readings]) if len(odometer_readings) >= 2 else 0
     historical_cost_per_km = total_historical_cost / hist_distance if hist_distance > 0 else 0
 
-    # Next maintenance estimate
-    next_maint = None
-    if odometer_readings:
-        current_odo = max([o["val"] for o in odometer_readings])
-        # Find last maintenance
-        maint_categories = db.query(Category).filter(Category.name.ilike("%mantenimiento%")).all()
-        maint_ids = [c.id for c in maint_categories]
-        last_maint_txn = db.query(Transaction).filter(
-            Transaction.category_id.in_(maint_ids),
-            Transaction.is_deleted == False
-        ).order_by(Transaction.date.desc()).first()
-
-        last_maint_odo = 0
-        if last_maint_txn and last_maint_txn.metadata_json:
-            try:
-                m_meta = json.loads(cast(str, last_maint_txn.metadata_json))
-                last_maint_odo = m_meta.get("odometer", 0)
-            except (json.JSONDecodeError, TypeError) as e:
-                logger.debug("Failed to parse last maintenance odometer metadata: %s", e)
-
-        next_maint = (last_maint_odo + 5000) - current_odo
+    next_maint = _get_next_maintenance_estimate(db, odometer_readings)
 
     return VehicleTelemetryResponse(
         total_distance=float(total_distance),
