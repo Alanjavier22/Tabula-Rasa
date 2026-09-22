@@ -26,7 +26,7 @@ class AuditResponse(BaseModel):
     count: int
 
 @router.get("/duplicates", response_model=AuditResponse, responses=AI_AUDIT_ERROR_RESPONSES)
-def get_potential_duplicates(days: int = 7, db: Annotated[Session, Depends(get_db)]):
+def get_potential_duplicates(db: Annotated[Session, Depends(get_db)], days: int = 7):
     """
     Escanea transacciones recientes en busca de duplicados semánticos.
     """
