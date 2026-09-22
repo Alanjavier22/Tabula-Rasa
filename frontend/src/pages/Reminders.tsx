@@ -33,6 +33,13 @@ const emptyForm: ReminderFormData = {
   is_active: true,
 };
 
+const getReminderGlowClass = (isCompleted: boolean, urgency: string) => {
+  if (isCompleted) return 'bg-emerald-600';
+  if (urgency === 'critical') return 'bg-rose-600';
+  if (urgency === 'high') return 'bg-amber-600';
+  return 'bg-blue-600';
+};
+
 const Reminders = () => {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -368,9 +375,7 @@ const Reminders = () => {
                       } ${config.glow}`}
                     >
                       {/* Background Status Indicator */}
-                      <div className={`absolute top-0 right-0 w-32 h-32 blur-[60px] opacity-10 transition-all group-hover:opacity-20 ${
-                        isCompleted ? 'bg-emerald-600' : urgency === 'critical' ? 'bg-rose-600' : urgency === 'high' ? 'bg-amber-600' : 'bg-blue-600'
-                      }`}></div>
+                      <div className={`absolute top-0 right-0 w-32 h-32 blur-[60px] opacity-10 transition-all group-hover:opacity-20 ${getReminderGlowClass(isCompleted, urgency)}`}></div>
 
                       <div className="flex items-start justify-between mb-8 relative z-10">
                         <div className="flex items-center gap-4">
