@@ -126,7 +126,6 @@ def detect_anomalies(db: Session) -> List[Dict]:
 
 def calculate_anomaly_leak_total(db: Session) -> int:
     """Calculates the total monetary value of excessive spending (the leak) to subtract from safe_to_spend."""
-    alerts = detect_anomalies(db)
     # Para simplificar y no duplicar lógica, simplemente extraemos el valor de la alerta si lo necesitamos, 
     # o re-calculamos el exceso total (curr_spent - prev_spent) en categorias con alerta de velocidad.
     now = datetime.now(timezone.utc)

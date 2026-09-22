@@ -256,7 +256,7 @@ def cleanup_duplicate_transactions(db: Session = Depends(get_db)):
         affected_accounts = set()
         
         for dup in duplicates_query:
-            amount, date, account_id, txn_type, count = dup
+            amount, date, account_id, txn_type, _ = dup
             
             # Get all transactions matching this fingerprint
             matching_txs = db.query(Transaction).filter(

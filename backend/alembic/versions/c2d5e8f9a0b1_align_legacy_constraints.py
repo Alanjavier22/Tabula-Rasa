@@ -22,8 +22,6 @@ def _index_names(table_name: str) -> set[str]:
 
 
 def upgrade() -> None:
-    connection = op.get_bind()
-
     # These two relationships were absent from the old runtime schema. Add
     # them without rebuilding the existing relationships that only differ in
     # their historical ON DELETE policy.

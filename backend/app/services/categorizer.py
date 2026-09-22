@@ -187,7 +187,7 @@ def _extract_beneficiary_key(beneficiary: str) -> str:
     if parts:
         meaningful = parts[0].strip()
         # Remove trailing transaction codes (alphanumeric with 3+ digits)
-        meaningful = re.sub(r'\s+[A-Z]{0,3}\d{3,}[A-Z0-9]*$', '', meaningful).strip()
+        meaningful = re.sub(r'\s+[A-Z]{0,3}\d{3,}[A-Z0-9]*+$', '', meaningful).strip()
         if meaningful:
             return meaningful
     
@@ -213,7 +213,7 @@ def get_semantic_category(description: str, amount: int, db_session=None, transa
     return category_id
 
 
-def get_heuristic_category(description: str, db, transaction_type: str = 'expense') -> Optional[str]:
+def get_heuristic_category(description: str, db) -> Optional[str]:
     """
     LAYER 0: Fast Heuristic Rules for the Ecuadorian market.
     """
@@ -250,7 +250,6 @@ def _categorize_locally(transactions: list, db) -> tuple[dict, list]:
         heuristic_id = get_heuristic_category(
             description,
             db,
-            transaction.get('transaction_type'),
         )
         if heuristic_id:
             results[index] = (heuristic_id, False)

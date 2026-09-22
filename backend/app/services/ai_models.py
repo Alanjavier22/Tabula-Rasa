@@ -2,11 +2,10 @@ import os
 import time
 import asyncio
 import logging
-from typing import Callable, TypeVar
+from typing import Callable
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
 
 # CENTRALIZED AI MODEL ROUTER CONFIGURATION
@@ -34,7 +33,7 @@ MULTIMODAL_MODEL = os.getenv("MULTIMODAL_MODEL", DEFAULT_GEMINI_MODEL)
 LITE_MODEL = os.getenv("LITE_MODEL", DEFAULT_GEMINI_MODEL)
 
 
-def with_gemini_retry(fn: Callable[[], T], max_retries: int = 5) -> T:
+def with_gemini_retry[T](fn: Callable[[], T], max_retries: int = 5) -> T:
     """Reintenta con backoff ante 503/UNAVAILABLE transitorios de Gemini."""
     for attempt in range(max_retries):
         try:
@@ -49,7 +48,7 @@ def with_gemini_retry(fn: Callable[[], T], max_retries: int = 5) -> T:
     raise RuntimeError("unreachable")
 
 
-async def with_gemini_retry_async(fn: Callable[[], T], max_retries: int = 5) -> T:
+async def with_gemini_retry_async[T](fn: Callable[[], T], max_retries: int = 5) -> T:
     """Async counterpart that keeps Gemini network calls off the event loop."""
     for attempt in range(max_retries):
         try:
