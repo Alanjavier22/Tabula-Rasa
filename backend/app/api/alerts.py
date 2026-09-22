@@ -41,6 +41,33 @@ class AlertsResponse(BaseModel):
 
 from app.services.debt_consolidator import DebtConsolidatorService
 
+
+def _build_payment_alert(status: dict, today) -> Optional[PaymentAlert]:
+    amount_pending = status["total_debt"]
+    if amount_pending < 100:
+        return None
+
+    latest_statement = status["latest_statement"]
+    due_date_str = latest_statement["due_date"] if latest_statement else None
+    due_date_d = None
+    if due_date_str:
+        due_date_dt = parse_date_robustly(due_date_str)
+        due_date_d = due_date_dt.date() if due_date_dt else None
+    days_remaining = (due_date_d - today).days if due_date_d else 30
+    severity = "critical" if days_remaining <= 3 else "warning" if days_remaining <= 7 else "info"
+    return PaymentAlert(
+        account_id=status["account_id"],
+        account_name=status["account_name"],
+        bank_name=None,
+        alert_type="payment_due",
+        due_date=str(due_date_d) if due_date_d else "Sin fecha",
+        days_remaining=days_remaining,
+        amount_pending=amount_pending,
+        statement_id=latest_statement["id"] if latest_statement else None,
+        severity=severity,
+    )
+
+
 @router.get("/payment-reminders", response_model=AlertsResponse)
 def get_payment_reminders(days_ahead: int = 15, db: Session = Depends(get_db)):
     """
@@ -54,42 +81,11 @@ def get_payment_reminders(days_ahead: int = 15, db: Session = Depends(get_db)):
     total_pending_val = 0
 
     for status in debt_statuses:
-        amount_pending = status["total_debt"]
-        if amount_pending < 100: # Ignore if less than $1
+        alert = _build_payment_alert(status, today)
+        if not alert:
             continue
-
-        # Determine due date and severity
-        due_date_str = status["latest_statement"]["due_date"] if status["latest_statement"] else None
-        
-        if due_date_str:
-            due_date_dt = parse_date_robustly(due_date_str)
-            due_date_d = due_date_dt.date() if due_date_dt else None
-            if due_date_d:
-                days_remaining = (due_date_d - today).days
-            else:
-                days_remaining = 30
-        else:
-            # If no statement, we don't have a specific due date yet, 
-            # but we show it as a general reminder if there's debt.
-            days_remaining = 30 # Default for non-dated debt
-            due_date_d = None
-
-        severity = "info"
-        if days_remaining <= 3: severity = "critical"
-        elif days_remaining <= 7: severity = "warning"
-
-        alerts.append(PaymentAlert(
-            account_id=status["account_id"],
-            account_name=status["account_name"],
-            bank_name=None, # Optional
-            alert_type="payment_due",
-            due_date=str(due_date_d) if due_date_d else "Sin fecha",
-            days_remaining=days_remaining,
-            amount_pending=amount_pending,
-            statement_id=status["latest_statement"]["id"] if status["latest_statement"] else None,
-            severity=severity
-        ))
-        total_pending_val += amount_pending
+        alerts.append(alert)
+        total_pending_val += alert.amount_pending
 
     # Sort alerts: Critical first, then by days remaining
     severity_order = {"critical": 0, "warning": 1, "info": 2}
