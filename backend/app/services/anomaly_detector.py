@@ -97,7 +97,7 @@ def detect_anomalies(db: Session) -> List[Dict]:
     basado puramente en heurística matemática estricta con Decimal.
     """
     now = datetime.now(timezone.utc)
-    curr_start, curr_end, prev_start, prev_end = _get_month_periods(now)
+    curr_start, _, prev_start, prev_end = _get_month_periods(now)
     curr_txns = db.query(Transaction).filter(
         Transaction.transaction_type == "expense",
         Transaction.is_deleted == False,
