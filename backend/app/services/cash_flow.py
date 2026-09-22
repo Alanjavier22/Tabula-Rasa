@@ -7,6 +7,7 @@ Operates on aggregates only (fast, no 50k transaction scans)
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any, cast
 import statistics
+from collections import defaultdict
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 import logging
@@ -21,6 +22,187 @@ from app.models.debt_share import DebtShare
 from app.utils.date_parser import parse_date_robustly
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_INCOME_BLACKLIST = [
+    "DENNIS", "DANIEL", "META", "TRANSFERENCIA", "PAGO EN OFIC",
+    "MUCHAS GRACIAS", "TRANSF. DEUDA", "SU PAGO", "ABONO",
+]
+
+
+def _get_current_liquid_balance(db: Session) -> int:
+    accounts = db.query(Account).filter(
+        Account.is_deleted == False,
+        Account.account_type.in_(["checking", "savings"]),
+    ).all()
+    return sum(account.balance or 0 for account in accounts)
+
+
+def _load_income_history(db: Session, now: datetime) -> tuple[list[Transaction], list[str], int]:
+    from app.models.category import Category
+    from app.models.config import Config
+
+    lookback_days = 180
+    history_start = now - timedelta(days=lookback_days)
+    ignored_categories = db.query(Category.id).filter(
+        (Category.name.ilike("%Transferencia%")) |
+        (Category.name.ilike("%Devolucion%")) |
+        (Category.name.ilike("%Ajuste%")) |
+        (Category.name.ilike("%Meta%"))
+    ).all()
+    ignored_ids = [category[0] for category in ignored_categories]
+
+    income_query = db.query(Transaction).filter(
+        Transaction.is_deleted == False,
+        Transaction.is_internal == False,
+        Transaction.transaction_type == "income",
+        Transaction.date >= history_start,
+    )
+    if ignored_ids:
+        income_query = income_query.filter(Transaction.category_id.not_in(ignored_ids))
+
+    config_entry = db.query(Config).filter(
+        Config.key == "income_blacklist",
+        Config.is_deleted == False,
+    ).first()
+    if config_entry and config_entry.value:
+        try:
+            blacklist = json.loads(config_entry.value)
+        except Exception:
+            blacklist = [item.strip() for item in config_entry.value.split(",") if item.strip()]
+    else:
+        blacklist = DEFAULT_INCOME_BLACKLIST.copy()
+        try:
+            db.add(Config(
+                key="income_blacklist",
+                value=json.dumps(blacklist),
+                value_type="json",
+                description="Lista de palabras clave para ignorar en proyecciones de ingresos",
+                is_public=True,
+            ))
+            db.commit()
+        except Exception:
+            db.rollback()
+
+    return income_query.all(), blacklist, lookback_days
+
+
+def _group_recurring_income(transactions: list[Transaction], blacklist: list[str]) -> dict[str, list[Transaction]]:
+    sources = defaultdict(list)
+    for transaction in transactions:
+        description = (transaction.description or "").upper().strip()
+        if any(keyword in description for keyword in blacklist):
+            continue
+        sources[description].append(transaction)
+    return sources
+
+
+def _get_temporal_consistency_score(transactions: list[Transaction]) -> int:
+    if len(transactions) < 2:
+        return 0
+    try:
+        standard_deviation = statistics.stdev([transaction.date.day for transaction in transactions])
+        if standard_deviation < 5:
+            return 30
+        if standard_deviation < 10:
+            return 15
+    except statistics.StatisticsError:
+        pass
+    return 0
+
+
+def _get_amount_stability_score(transactions: list[Transaction]) -> int:
+    amounts = [float(transaction.amount) for transaction in transactions]
+    if len(amounts) < 2:
+        return 0
+
+    average_amount = sum(amounts) / len(amounts)
+    try:
+        standard_deviation = statistics.stdev(amounts)
+        variation_coefficient = standard_deviation / average_amount if average_amount > 0 else 1
+        if variation_coefficient < 0.2:
+            return 20
+        if variation_coefficient < 0.4:
+            return 10
+    except statistics.StatisticsError:
+        pass
+    return 0
+
+
+def _get_income_source_score(description: str, transactions: list[Transaction], lookback_days: int) -> float:
+    months_present = {transaction.date.strftime("%Y-%m") for transaction in transactions}
+    number_of_months = len(months_present)
+    if number_of_months < 2:
+        return 0
+
+    salary_keywords = [
+        "SUELDO", "NOMINA", "PAYROLL", "SALARY", "HONORARIOS", "VIAMATICA", "PAGO DIRECTO",
+    ]
+    if any(keyword in description for keyword in salary_keywords):
+        return 100
+
+    recurrence_score = min(40, number_of_months / (lookback_days / 30) * 40)
+    return recurrence_score + _get_temporal_consistency_score(transactions) + _get_amount_stability_score(transactions)
+
+
+def _calculate_projected_income(db: Session, now: datetime, days: int) -> int:
+    transactions, blacklist, lookback_days = _load_income_history(db, now)
+    sources = _group_recurring_income(transactions, blacklist)
+    total_recurring_monthly = 0
+    for description, source_transactions in sources.items():
+        score = _get_income_source_score(description, source_transactions, lookback_days)
+        if score < 45:
+            continue
+        total_source_amount = sum(transaction.amount for transaction in source_transactions)
+        expected_monthly = total_source_amount / (lookback_days / 30)
+        safety = 0.6 + ((score - 45) / 55) * 0.35
+        total_recurring_monthly += expected_monthly * safety
+    return round((total_recurring_monthly / 30) * days)
+
+
+def _is_subscription_due(next_billing: Optional[datetime], now: datetime, future_date: datetime) -> bool:
+    if not next_billing:
+        return False
+    normalized_date = next_billing.replace(tzinfo=None)
+    return now.replace(tzinfo=None) <= normalized_date <= future_date.replace(tzinfo=None)
+
+
+def _calculate_subscription_cost(db: Session, now: datetime, future_date: datetime) -> int:
+    subscriptions = db.query(Subscription).filter(
+        Subscription.is_deleted == False,
+        Subscription.next_billing_date.isnot(None),
+    ).all()
+    subscription_cost = 0
+    for subscription in subscriptions:
+        next_billing = parse_date_robustly(subscription.next_billing_date)
+        if _is_subscription_due(next_billing, now, future_date):
+            subscription_cost += subscription.amount or 0
+    return subscription_cost
+
+
+def _get_iou_totals(db: Session) -> tuple[int, int]:
+    from app.models.iou import IOUType
+
+    ious = db.query(IOU).filter(
+        IOU.status == "pending",
+        IOU.is_deleted == False,
+    ).all()
+    iou_expense = sum(iou.amount for iou in ious if iou.iou_type == IOUType.I_OWE)
+    iou_recovery = sum(iou.amount for iou in ious if iou.iou_type == IOUType.THEY_OWE)
+    return iou_expense, iou_recovery
+
+
+def _get_credit_card_debt(db: Session, future_date: datetime) -> int:
+    statements = db.query(CreditCardStatement).filter(
+        CreditCardStatement.is_deleted == False,
+        CreditCardStatement.status.in_(["PENDING", "PARTIAL"]),
+        CreditCardStatement.payment_due_date <= future_date,
+    ).all()
+    return sum(max(0, statement.user_share - statement.amount_paid) for statement in statements)
+
+
+def _get_debt_recovery(db: Session) -> int:
+    debt_shares = db.query(DebtShare).filter(DebtShare.status == "pending").all()
+    return sum(debt_share.amount for debt_share in debt_shares)
 
 
 class ProjectedBalanceResult:
@@ -146,189 +328,24 @@ class CashFlowService:
         future_date = now + timedelta(days=days)
 
         try:
-            # 1. Current balance (Only LIQUID assets: checking + savings)
-            # We exclude credit card 'balances' (debt) and investments (not liquid)
-            accounts = db.query(Account).filter(
-                Account.is_deleted == False,
-                Account.account_type.in_(["checking", "savings"])
-            ).all()
-            current_balance = sum(acc.balance or 0 for acc in accounts)
-
-            # 2. Projected income (Intelligence: Recurrence-based analysis)
-            # We look at 180 days to identify STABLE recurring income sources.
-            from app.models.category import Category
-            from collections import defaultdict
-            
-            lookback_days = 180
-            history_start = now - timedelta(days=lookback_days)
-            
-            # Subquery to get IDs of categories to ignore
-            ignored_categories = db.query(Category.id).filter(
-                (Category.name.ilike("%Transferencia%")) | 
-                (Category.name.ilike("%Devolucion%")) | 
-                (Category.name.ilike("%Ajuste%")) |
-                (Category.name.ilike("%Meta%"))
-            ).all()
-            ignored_ids = [c[0] for c in ignored_categories]
-
-            income_txns_query = (
-                db.query(Transaction)
-                .filter(Transaction.is_deleted == False)
-                .filter(Transaction.is_internal == False)
-                .filter(Transaction.transaction_type == "income")
-                .filter(Transaction.date >= history_start)
-            )
-            
-            if ignored_ids:
-                income_txns_query = income_txns_query.filter(Transaction.category_id.not_in(ignored_ids))
-            
-            # DB-driven blacklist with fallback
-            from app.models.config import Config
-            config_entry = db.query(Config).filter(Config.key == "income_blacklist", Config.is_deleted == False).first()
-            if config_entry and config_entry.value:
-                try:
-                    blacklist = json.loads(config_entry.value)
-                except Exception:
-                    blacklist = [item.strip() for item in config_entry.value.split(",") if item.strip()]
-            else:
-                blacklist = ["DENNIS", "DANIEL", "META", "TRANSFERENCIA", "PAGO EN OFIC", "MUCHAS GRACIAS", "TRANSF. DEUDA", "SU PAGO", "ABONO"]
-                try:
-                    new_config = Config(
-                        key="income_blacklist",
-                        value=json.dumps(blacklist),
-                        value_type="json",
-                        description="Lista de palabras clave para ignorar en proyecciones de ingresos",
-                        is_public=True
-                    )
-                    db.add(new_config)
-                    db.commit()
-                except Exception:
-                    db.rollback()
-
-            all_income = income_txns_query.all()
-            
-            # Group by normalized description to find recurring sources
-            sources = defaultdict(list)
-            
-            for t in all_income:
-                desc = (t.description or "").upper().strip()
-                if any(k in desc for k in blacklist):
-                    continue
-                sources[desc].append(t)
-            
-            total_recurring_monthly = 0
-            for desc, txns in sources.items():
-                # Count distinct months this source appeared in
-                months_present = set(t.date.strftime("%Y-%m") for t in txns)
-                num_months = len(months_present)
-                
-                # RULE 1: Must be present in at least 2 distinct months in lookback window to be a monthly recurring income
-                if num_months < 2:
-                    continue
-                
-                # --- UNIVERSAL SCORING ENGINE ---
-                # We look for the "mathematical signature" of a salary/recurring income
-                score = 0
-                
-                # Semantic Shortcut for verified Salaries and Wages (Ecuador/LATAM-aware)
-                salary_keywords = ["SUELDO", "NOMINA", "PAYROLL", "SALARY", "HONORARIOS", "VIAMATICA", "PAGO DIRECTO"]
-                has_salary_keyword = any(k in desc for k in salary_keywords)
-                
-                if has_salary_keyword and num_months >= 2:
-                    # Verified paycheck: bypass strict volatility checks to allow biweekly/variable amounts
-                    score = 100
-                else:
-                    # 1. Recurrence Score (Max 40 points)
-                    presence_ratio = num_months / (lookback_days / 30)
-                    score += min(40, presence_ratio * 40)
-                    
-                    # 2. Temporal Consistency (Max 30 points)
-                    # Does it happen on the same days each month? Allow slightly wider window for standard transactions
-                    if len(txns) >= 2:
-                        days_of_month = [t.date.day for t in txns]
-                        try:
-                            std_dev_days = statistics.stdev(days_of_month)
-                            if std_dev_days < 5: score += 30     # Highly consistent
-                            elif std_dev_days < 10: score += 15   # Moderately consistent
-                        except statistics.StatisticsError: pass
-                    
-                    # 3. Amount Stability (Max 20 points)
-                    # Allow up to 20% standard deviation variance for standard bills/invoices
-                    amounts = [float(t.amount) for t in txns]
-                    if len(amounts) >= 2:
-                        avg_amt = sum(amounts) / len(amounts)
-                        try:
-                            std_dev_amt = statistics.stdev(amounts)
-                            variation_coeff = std_dev_amt / avg_amt if avg_amt > 0 else 1
-                            if variation_coeff < 0.2: score += 20   # Very stable
-                            elif variation_coeff < 0.4: score += 10 # Stable
-                        except statistics.StatisticsError: pass
-                    
-                    # 4. Semantic Bonus (Max 10 points)
-                    # No keywords matched above, keep as 0
-
-                # --- DECISION ENGINE ---
-                if score >= 45:
-                    total_source_amount = sum(t.amount for t in txns)
-                    expected_monthly = total_source_amount / (lookback_days / 30)
-                    
-                    # Trust factor based on score (Score 45-100 -> 0.6-0.95 safety)
-                    safety = 0.6 + ((score - 45) / 55) * 0.35
-                    total_recurring_monthly += (expected_monthly * safety)
-
-            projected_income = round((total_recurring_monthly / 30) * days)
-
-            # 3. Subscriptions due in period
-            subscriptions = (
-                db.query(Subscription)
-                .filter(Subscription.is_deleted == False)
-                .filter(Subscription.next_billing_date.isnot(None))
-                .all()
-            )
-
-            subscription_cost = 0
-            for sub in subscriptions:
-                    next_billing = parse_date_robustly(sub.next_billing_date)
-                    if next_billing and next_billing.replace(tzinfo=None) >= now.replace(tzinfo=None) and next_billing.replace(tzinfo=None) <= future_date.replace(tzinfo=None):
-                        subscription_cost += sub.amount or 0
-
-            # 4. IOUs due in period (Only what I OWE is an expense, what they OWE is recovery)
-            from app.models.iou import IOUType
-            ious = db.query(IOU).filter(IOU.status == "pending", IOU.is_deleted == False).all()
-            
-            iou_expense = sum(iou.amount for iou in ious if iou.iou_type == IOUType.I_OWE)
-            iou_recovery = sum(iou.amount for iou in ious if iou.iou_type == IOUType.THEY_OWE)
-
-            # 5. Credit Card debt: Only statements due in the projection period
-            # This allows installments due in future months to not block current liquidity
-            statements = (
-                db.query(CreditCardStatement)
-                .filter(CreditCardStatement.is_deleted == False)
-                .filter(CreditCardStatement.status.in_(["PENDING", "PARTIAL"]))
-                .filter(CreditCardStatement.payment_due_date <= future_date)
-                .all()
-            )
-            cc_total_debt = sum(max(0, s.user_share - s.amount_paid) for s in statements)
-
-            # 6. Debt Shares (Money others owe me for CC payments - RECOVERY)
-            debt_shares = (
-                db.query(DebtShare)
-                .filter(DebtShare.status == "pending")
-                .all()
-            )
-            debt_recovery = sum(ds.amount for ds in debt_shares)
-
-            # 7. Seasonal adjustment
+            current_balance = _get_current_liquid_balance(db)
+            projected_income = _calculate_projected_income(db, now, days)
+            subscription_cost = _calculate_subscription_cost(db, now, future_date)
+            iou_expense, iou_recovery = _get_iou_totals(db)
+            cc_total_debt = _get_credit_card_debt(db, future_date)
+            debt_recovery = _get_debt_recovery(db)
             seasonal_adjustment = CashFlowService.calculate_seasonal_adjustment(db, now, future_date)
 
-            # Calculate projected balance
-            # PRUDENCE: Real expenses vs Real recoveries
             projected_expenses = subscription_cost + iou_expense + cc_total_debt
             projected_recoveries = iou_recovery + debt_recovery
-            
-            projected_balance = current_balance + projected_income - projected_expenses + projected_recoveries + seasonal_adjustment
+            projected_balance = (
+                current_balance
+                + projected_income
+                - projected_expenses
+                + projected_recoveries
+                + seasonal_adjustment
+            )
 
-            # FINAL RESULTS IN CENTS (Standard)
             return ProjectedBalanceResult(
                 days=days,
                 current_balance=int(cast(Any, current_balance)),
