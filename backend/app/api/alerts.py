@@ -54,7 +54,11 @@ def _build_payment_alert(status: dict, today) -> Optional[PaymentAlert]:
         due_date_dt = parse_date_robustly(due_date_str)
         due_date_d = due_date_dt.date() if due_date_dt else None
     days_remaining = (due_date_d - today).days if due_date_d else 30
-    severity = "critical" if days_remaining <= 3 else "warning" if days_remaining <= 7 else "info"
+    severity = "info"
+    if days_remaining <= 3:
+        severity = "critical"
+    elif days_remaining <= 7:
+        severity = "warning"
     return PaymentAlert(
         account_id=status["account_id"],
         account_name=status["account_name"],
