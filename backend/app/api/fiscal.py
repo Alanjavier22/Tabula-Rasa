@@ -127,6 +127,170 @@ class MonthlyTrendItem(BaseModel):
     iva_projected: Decimal
 
 
+def _parse_fiscal_dates(start_date: str, end_date: str) -> tuple[date, date]:
+    return (
+        datetime.strptime(start_date, "%Y-%m-%d").date(),
+        datetime.strptime(end_date, "%Y-%m-%d").date(),
+    )
+
+
+def _get_fiscal_transactions(
+    db: Session,
+    start_date: date,
+    end_date: date,
+    category_ids: Optional[str],
+) -> list[Transaction]:
+    query = db.query(Transaction).filter(
+        Transaction.is_deleted == False,
+        Transaction.date >= start_date,
+        Transaction.date <= end_date,
+    )
+    if category_ids:
+        query = query.filter(Transaction.category_id.in_(category_ids.split(',')))
+    return query.all()
+
+
+def _is_zero_iva_category(category_name: str) -> bool:
+    keywords = (
+        ["salud", "medic", "farmac", "hospit"],
+        ["aliment", "restaur", "comida", "supermer"],
+        ["vivien", "arriend", "luz", "agua", "alicuot"],
+        ["educac", "art", "cultur", "cole", "univers", "curs"],
+    )
+    return any(keyword in category_name for group in keywords for keyword in group)
+
+
+def _calculate_fiscal_totals(
+    transactions: list[Transaction],
+    iva_rate: Decimal,
+    retention_source_rate: Decimal,
+) -> tuple[dict, dict]:
+    totals = {
+        "total_income": Decimal(0),
+        "total_expenses": Decimal(0),
+        "iva_projected": Decimal(0),
+        "retencion_projected": Decimal(0),
+        "total_deductible": Decimal(0),
+        "iva_pagado_15": Decimal(0),
+        "monto_objeto_retencion": Decimal(0),
+    }
+    category_totals = {}
+    for transaction in transactions:
+        amount = Decimal(str(transaction.amount)) if transaction.amount else Decimal(0)
+        if transaction.transaction_type == "income":
+            totals["total_income"] += amount
+            continue
+        if transaction.transaction_type != "expense":
+            continue
+        totals["total_expenses"] += amount
+        category_name = transaction.category.name.lower() if transaction.category else ""
+        iva = Decimal(0) if _is_zero_iva_category(category_name) else amount * iva_rate
+        totals["iva_projected"] += iva
+        totals["iva_pagado_15"] += iva if iva else Decimal(0)
+        totals["retencion_projected"] += amount * retention_source_rate
+        totals["monto_objeto_retencion"] += amount
+        totals["total_deductible"] += amount
+        category_id = str(transaction.category_id) if transaction.category_id else "uncategorized"
+        display_name = transaction.category.name if transaction.category else "Sin Categoría"
+        if category_id not in category_totals:
+            category_totals[category_id] = {"name": display_name, "amount": Decimal(0)}
+        category_totals[category_id]["amount"] += amount
+    return totals, category_totals
+
+
+def _build_category_breakdown(category_totals: dict) -> list[CategoryBreakdownItem]:
+    return [
+        CategoryBreakdownItem(
+            category_id=category_id,
+            category_name=data["name"],
+            amount=data["amount"],
+            formatted=f"${data['amount']:.2f}",
+        )
+        for category_id, data in sorted(
+            category_totals.items(), key=lambda item: item[1]["amount"], reverse=True
+        )
+    ]
+
+
+def _build_monthly_fiscal_data(transactions: list[Transaction], iva_rate: Decimal) -> dict:
+    monthly_data = {}
+    for transaction in transactions:
+        month = transaction.date.strftime("%Y-%m")
+        monthly_data.setdefault(month, {
+            "income": Decimal(0), "expenses": Decimal(0), "iva_projected": Decimal(0)
+        })
+        amount = Decimal(str(transaction.amount)) if transaction.amount else Decimal(0)
+        if transaction.transaction_type == "income":
+            monthly_data[month]["income"] += amount
+        elif transaction.transaction_type == "expense":
+            monthly_data[month]["expenses"] += amount
+            if not _is_zero_iva_category(transaction.category.name.lower() if transaction.category else ""):
+                monthly_data[month]["iva_projected"] += amount * iva_rate
+    return monthly_data
+
+
+SRI_CONCEPTS = {
+    "Salud": "3290",
+    "Alimentación": "3300",
+    "Vivienda": "3310",
+    "Educación, Arte y Cultura": "5040",
+    "Vestimenta": "3320",
+    "Turismo": "3325",
+    "Total Deducciones": "3330",
+}
+
+
+def _get_sri_concept_code(category_name: str) -> Optional[str]:
+    groups = {
+        "Salud": ["salud", "medic", "farmac", "hospit"],
+        "Alimentación": ["aliment", "restaur", "comida", "supermer"],
+        "Vivienda": ["vivien", "arriend", "luz", "agua", "alicuot"],
+        "Educación, Arte y Cultura": ["educac", "art", "cultur", "cole", "univers", "curs"],
+        "Vestimenta": ["vestim", "ropa", "zapat"],
+        "Turismo": ["turism", "viaje", "hotel", "vuel"],
+    }
+    for concept, keywords in groups.items():
+        if any(keyword in category_name for keyword in keywords):
+            return SRI_CONCEPTS[concept]
+    return None
+
+
+def _serialize_sri_declaration(final_data: dict, year: int, output_format: str) -> tuple[bytes | str, str, str]:
+    if output_format == "json":
+        content = json.dumps({
+            "detallesDeclaracion": {
+                key: f"{value:.2f}" if isinstance(value, Decimal) else value
+                for key, value in final_data.items()
+            }
+        }, indent=2)
+        return content, "application/json", f"declaracion_sri_{year}.json"
+
+    import xml.etree.ElementTree as ET
+    root = ET.Element("detallesDeclaracion")
+    for key, value in final_data.items():
+        child = ET.SubElement(root, "detalle", concepto=key)
+        child.text = f"{value:.2f}" if isinstance(value, Decimal) else str(value)
+    xml_str = ET.tostring(root, encoding='utf-8', method='xml')
+    content = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + xml_str
+    return content, "application/xml", f"declaracion_sri_{year}.xml"
+
+
+def _build_sri_declaration_data(transactions: list[Transaction]) -> dict:
+    totals = {code: Decimal("0.00") for code in SRI_CONCEPTS.values()}
+    for transaction in transactions:
+        category_name = transaction.category.name.lower() if transaction.category else ""
+        sri_code = _get_sri_concept_code(category_name)
+        if not sri_code:
+            continue
+        amount = Decimal(str(transaction.amount)) / Decimal("100")
+        totals[sri_code] += amount
+        totals[SRI_CONCEPTS["Total Deducciones"]] += amount
+    return {
+        key: value for key, value in totals.items()
+        if (isinstance(value, Decimal) and value > 0) or key == "100"
+    }
+
+
 @router.get("/report", response_model=FiscalReportResponse, responses=FISCAL_ERROR_RESPONSES)
 def get_fiscal_report(
     start_date: str = Query(...),
@@ -139,112 +303,25 @@ def get_fiscal_report(
     Returns totals and category breakdown for SRI reporting with actual VAT rules.
     """
     try:
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-        
-        # Parse category IDs if provided
-        cat_ids = None
-        if category_ids and isinstance(category_ids, str):
-            cat_ids = category_ids.split(',')
-        
-        # Base query for transactions in date range
-        query = db.query(Transaction).filter(
-            Transaction.is_deleted == False,
-            Transaction.date >= start_dt,
-            Transaction.date <= end_dt
+        start_dt, end_dt = _parse_fiscal_dates(start_date, end_date)
+        transactions = _get_fiscal_transactions(db, start_dt, end_dt, category_ids)
+        totals, category_totals = _calculate_fiscal_totals(
+            transactions,
+            get_iva_rate(db),
+            get_retention_source_rate(db),
         )
-        
-        if cat_ids:
-            query = query.filter(Transaction.category_id.in_(cat_ids))
-        
-        transactions = query.all()
-        
-        # Calculate totals
-        total_income = Decimal(0)
-        total_expenses = Decimal(0)
-        iva_projected = Decimal(0)
-        retencion_projected = Decimal(0)
-        total_deductible = Decimal(0)
-        iva_pagado_15 = Decimal(0)
-        monto_objeto_retencion = Decimal(0)
-        
-        category_totals = {}
-        
-        # Ecuador fiscal rules
-        IVA_RATE = get_iva_rate(db)
-        RETENCION_SOURCE_RATE = get_retention_source_rate(db)
-        RETENCION_IVA_RATE = get_retention_iva_rate(db)
-        
-        for txn in transactions:
-            amount = Decimal(str(txn.amount)) if txn.amount else Decimal(0)
-            
-            if txn.transaction_type == "income":
-                total_income += amount
-            elif txn.transaction_type == "expense":
-                total_expenses += amount
-                
-                # Ecuador VAT Rules: Basic goods (Food, Health, Housing, Education) have 0% VAT.
-                # Clothing, tourism, and other general expenses are standard 15%.
-                cat_name = txn.category.name.lower() if txn.category else ""
-                
-                is_iva_0 = False
-                if any(k in cat_name for k in ["salud", "medic", "farmac", "hospit"]):
-                    is_iva_0 = True
-                elif any(k in cat_name for k in ["aliment", "restaur", "comida", "supermer"]):
-                    is_iva_0 = True
-                elif any(k in cat_name for k in ["vivien", "arriend", "luz", "agua", "alicuot"]):
-                    is_iva_0 = True
-                elif any(k in cat_name for k in ["educac", "art", "cultur", "cole", "univers", "curs"]):
-                    is_iva_0 = True
-                
-                if is_iva_0:
-                    iva = Decimal(0)
-                else:
-                    iva = amount * IVA_RATE
-                    iva_pagado_15 += iva
-                
-                iva_projected += iva
-                
-                # Calculate retención (1% of expense)
-                retencion = amount * RETENCION_SOURCE_RATE
-                retencion_projected += retencion
-                
-                # Base for withholding calculations
-                monto_objeto_retencion += amount
-                
-                # All expenses are deductible
-                total_deductible += amount
-                
-                # Category breakdown
-                cat_id = str(txn.category_id) if txn.category_id else "uncategorized"
-                cat_name = txn.category.name if txn.category else "Sin Categoría"
-                if cat_id not in category_totals:
-                    category_totals[cat_id] = {"name": cat_name, "amount": Decimal(0)}
-                category_totals[cat_id]["amount"] += amount
-        
-        # Build category breakdown
-        category_breakdown = [
-            CategoryBreakdownItem(
-                category_id=cat_id,
-                category_name=data["name"],
-                amount=data["amount"],
-                formatted=f"${data['amount']:.2f}"
-            )
-            for cat_id, data in sorted(category_totals.items(), key=lambda x: x[1]["amount"], reverse=True)
-        ]
-        
         return FiscalReportResponse(
             totals=FiscalTotals(
-                total_income=total_income,
-                total_expenses=total_expenses,
-                iva_projected=iva_projected,
-                retencion_projected=retencion_projected,
-                total_deductible=total_deductible,
-                iva_pagado_15=iva_pagado_15,
-                monto_objeto_retencion=monto_objeto_retencion,
+                total_income=totals["total_income"],
+                total_expenses=totals["total_expenses"],
+                iva_projected=totals["iva_projected"],
+                retencion_projected=totals["retencion_projected"],
+                total_deductible=totals["total_deductible"],
+                iva_pagado_15=totals["iva_pagado_15"],
+                monto_objeto_retencion=totals["monto_objeto_retencion"],
                 transaction_count=len(transactions)
             ),
-            category_breakdown=category_breakdown
+            category_breakdown=_build_category_breakdown(category_totals)
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating fiscal report: {str(e)}")
@@ -262,71 +339,18 @@ def get_fiscal_trend(
     Returns income, expenses, and actual category-based IVA per month.
     """
     try:
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-        
-        # Parse category IDs if provided
-        cat_ids = None
-        if category_ids:
-            cat_ids = category_ids.split(',')
-        
-        # Base query for all transactions
-        query = db.query(Transaction).filter(
-            Transaction.is_deleted == False,
-            Transaction.date >= start_dt,
-            Transaction.date <= end_dt
-        )
-        
-        if cat_ids:
-            query = query.filter(Transaction.category_id.in_(cat_ids))
-            
-        transactions = query.all()
-        
-        IVA_RATE = get_iva_rate(db)
-        
-        monthly_data = {}
-        for txn in transactions:
-            # Format month label (e.g. "2026-04")
-            month_str = txn.date.strftime("%Y-%m")
-            if month_str not in monthly_data:
-                monthly_data[month_str] = {
-                    "income": Decimal(0),
-                    "expenses": Decimal(0),
-                    "iva_projected": Decimal(0)
-                }
-            
-            amount = Decimal(str(txn.amount)) if txn.amount else Decimal(0)
-            if txn.transaction_type == "income":
-                monthly_data[month_str]["income"] += amount
-            elif txn.transaction_type == "expense":
-                monthly_data[month_str]["expenses"] += amount
-                
-                # Check for SRI 0% IVA categories
-                cat_name = txn.category.name.lower() if txn.category else ""
-                is_iva_0 = False
-                if any(k in cat_name for k in ["salud", "medic", "farmac", "hospit"]):
-                    is_iva_0 = True
-                elif any(k in cat_name for k in ["aliment", "restaur", "comida", "supermer"]):
-                    is_iva_0 = True
-                elif any(k in cat_name for k in ["vivien", "arriend", "luz", "agua", "alicuot"]):
-                    is_iva_0 = True
-                elif any(k in cat_name for k in ["educac", "art", "cultur", "cole", "univers", "curs"]):
-                    is_iva_0 = True
-                
-                if not is_iva_0:
-                    monthly_data[month_str]["iva_projected"] += amount * IVA_RATE
-        
-        trend = [
+        start_dt, end_dt = _parse_fiscal_dates(start_date, end_date)
+        transactions = _get_fiscal_transactions(db, start_dt, end_dt, category_ids)
+        monthly_data = _build_monthly_fiscal_data(transactions, get_iva_rate(db))
+        return [
             MonthlyTrendItem(
-                month=m,
+                month=month,
                 income=data["income"],
                 expenses=data["expenses"],
-                iva_projected=data["iva_projected"]
+                iva_projected=data["iva_projected"],
             )
-            for m, data in sorted(monthly_data.items())
+            for month, data in sorted(monthly_data.items())
         ]
-        
-        return trend
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating fiscal trend: {str(e)}")
 
@@ -342,83 +366,16 @@ def export_declaracion_sri(
     Mapea las categorías internas a los códigos de Concepto oficiales.
     """
     try:
-        from app.services.sri_classifier import SRIClassifier
-        
-        # 1. Obtener transacciones de gasto del año
         start_date = datetime(year, 1, 1)
         end_date = datetime(year, 12, 31)
-        
         transactions = db.query(Transaction).filter(
             Transaction.transaction_type == "expense",
             Transaction.is_deleted == False,
             Transaction.date >= start_date,
-            Transaction.date <= end_date
+            Transaction.date <= end_date,
         ).all()
-
-        # 2. Mapeo de categorías a conceptos SRI
-        # Estos son los códigos oficiales según el requerimiento
-        CONCEPTS = {
-            "Salud": "3290",
-            "Alimentación": "3300",
-            "Vivienda": "3310",
-            "Educación, Arte y Cultura": "5040",
-            "Vestimenta": "3320",
-            "Turismo": "3325",
-            "Total Deducciones": "3330"
-        }
-
-        # Inicializar acumuladores
-        totals = {code: Decimal("0.00") for code in CONCEPTS.values()}
-
-        # 3. Clasificar y Sumar
-        # Nota: Usamos una lógica de palabras clave simple para el mapeo si no hay campo SRI
-        for txn in transactions:
-            cat_name = txn.category.name.lower() if txn.category else ""
-            # Convertir de centavos a dólares (dividido por 100)
-            amount = Decimal(str(txn.amount)) / Decimal("100")
-            
-            sri_code = None
-            if any(k in cat_name for k in ["salud", "medic", "farmac", "hospit"]):
-                sri_code = CONCEPTS["Salud"]
-            elif any(k in cat_name for k in ["aliment", "restaur", "comida", "supermer"]):
-                sri_code = CONCEPTS["Alimentación"]
-            elif any(k in cat_name for k in ["vivien", "arriend", "luz", "agua", "alicuot"]):
-                sri_code = CONCEPTS["Vivienda"]
-            elif any(k in cat_name for k in ["educac", "art", "cultur", "cole", "univers", "curs"]):
-                sri_code = CONCEPTS["Educación, Arte y Cultura"]
-            elif any(k in cat_name for k in ["vestim", "ropa", "zapat"]):
-                sri_code = CONCEPTS["Vestimenta"]
-            elif any(k in cat_name for k in ["turism", "viaje", "hotel", "vuel"]):
-                sri_code = CONCEPTS["Turismo"]
-            
-            if sri_code:
-                totals[sri_code] += amount
-                totals[CONCEPTS["Total Deducciones"]] += amount
-
-        # Limpiar conceptos con valor 0 (excepto el RUC Contador si se requiere)
-        # El SRI dice que si no hay info, no se envía el tag.
-        final_data = {k: v for k, v in totals.items() if (isinstance(v, Decimal) and v > 0) or k == "100"}
-
-        # 4. Generar Archivo
-        if format == "json":
-            content = json.dumps({"detallesDeclaracion": {k: f"{v:.2f}" if isinstance(v, Decimal) else v for k, v in final_data.items()}}, indent=2)
-            media_type = "application/json"
-            filename = f"declaracion_sri_{year}.json"
-        else:
-            # XML Generation
-            import xml.etree.ElementTree as ET
-            root = ET.Element("detallesDeclaracion")
-            for k, v in final_data.items():
-                val_str = f"{v:.2f}" if isinstance(v, Decimal) else str(v)
-                child = ET.SubElement(root, "detalle", concepto=k)
-                child.text = val_str
-            
-            # Formatear XML con declaración
-            xml_str = ET.tostring(root, encoding='utf-8', method='xml')
-            content = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + xml_str
-            media_type = "application/xml"
-            filename = f"declaracion_sri_{year}.xml"
-
+        final_data = _build_sri_declaration_data(transactions)
+        content, media_type, filename = _serialize_sri_declaration(final_data, year, format)
         return Response(
             content=content if isinstance(content, bytes) else content.encode('utf-8'),
             media_type=media_type,
