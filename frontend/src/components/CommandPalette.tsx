@@ -168,7 +168,7 @@ const CommandPalette = () => {
               </button>
             </div>
             <div className="max-h-72 overflow-y-auto p-4">
-              {chatMutation.isPending ? (
+              {chatMutation.isPending && (
                 <div className="flex flex-col items-center justify-center py-8 space-y-4">
                   <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
                   <div className="space-y-2 text-center flex flex-col items-center">
@@ -179,7 +179,8 @@ const CommandPalette = () => {
                     <span className="text-xs text-slate-500">Esto puede tomar unos segundos...</span>
                   </div>
                 </div>
-              ) : aiResponse ? (
+              )}
+              {!chatMutation.isPending && aiResponse && (
                 <div className="space-y-4">
                   <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 backdrop-blur-xl rounded-xl border border-purple-500/50 p-4 prose prose-invert prose-sm max-w-none prose-p:leading-relaxed">
                     <ReactMarkdown>{aiResponse}</ReactMarkdown>
@@ -194,7 +195,8 @@ const CommandPalette = () => {
                     Hacer otra pregunta
                   </button>
                 </div>
-              ) : (
+              )}
+              {!chatMutation.isPending && !aiResponse && (
                 <div className="text-center py-8">
                   <p className="text-slate-400 text-sm mb-4">Ejemplos de preguntas:</p>
                   <ul className="text-left text-sm text-slate-500 space-y-2">

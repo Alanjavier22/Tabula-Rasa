@@ -30,6 +30,18 @@ const emptyForm: BudgetFormData = {
   category_id: '',
 };
 
+const getBudgetGlowClass = (isOverBudget: boolean, percentage: number) => {
+  if (isOverBudget) return 'bg-rose-600';
+  if (percentage > 80) return 'bg-yellow-600';
+  return 'bg-blue-600';
+};
+
+const getBudgetProgressClass = (isOverBudget: boolean, percentage: number) => {
+  if (isOverBudget) return 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.4)]';
+  if (percentage > 85) return 'bg-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]';
+  return 'bg-gradient-to-r from-blue-500 to-indigo-500 shadow-[0_0_15px_rgba(59,130,246,0.4)]';
+};
+
 const Budgets = () => {
   const queryClient = useQueryClient();
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -391,9 +403,7 @@ const Budgets = () => {
                     className="group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden"
                   >
                     {/* Background Visual Decor */}
-                    <div className={`absolute top-0 right-0 w-32 h-32 blur-[60px] opacity-10 transition-all group-hover:opacity-20 ${
-                      isOverBudget ? 'bg-rose-600' : percentage > 80 ? 'bg-yellow-600' : 'bg-blue-600'
-                    }`}></div>
+                    <div className={`absolute top-0 right-0 w-32 h-32 blur-[60px] opacity-10 transition-all group-hover:opacity-20 ${getBudgetGlowClass(isOverBudget, percentage)}`}></div>
 
                     <div className="flex items-start justify-between mb-8 relative z-10">
                       <div className="flex items-center gap-4">
@@ -453,13 +463,7 @@ const Budgets = () => {
                           <motion.div 
                             initial={{ width: 0 }}
                             animate={{ width: `${Math.min(percentage, 100)}%` }}
-                            className={`h-full rounded-full transition-all duration-700 ${
-                              isOverBudget 
-                                ? 'bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.4)]' 
-                                : percentage > 85
-                                ? 'bg-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]'
-                                : 'bg-gradient-to-r from-blue-500 to-indigo-500 shadow-[0_0_15px_rgba(59,130,246,0.4)]'
-                            }`}
+                            className={`h-full rounded-full transition-all duration-700 ${getBudgetProgressClass(isOverBudget, percentage)}`}
                           />
                         </div>
                       </div>

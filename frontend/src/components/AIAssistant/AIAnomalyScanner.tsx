@@ -92,11 +92,12 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
   const score = getHealthScore();
   
   // UX/UI Overhaul: Paletas de neón de alto contraste y fondos oscuros súper premium
-  const scoreClasses = score > 80 
-    ? 'bg-emerald-950/80 border-emerald-500/30 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.15)]' 
-    : score > 50 
-      ? 'bg-amber-950/80 border-amber-500/30 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.15)]' 
-      : 'bg-rose-950/80 border-rose-500/30 text-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.15)]';
+  let scoreClasses = 'bg-rose-950/80 border-rose-500/30 text-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.15)]';
+  if (score > 80) {
+    scoreClasses = 'bg-emerald-950/80 border-emerald-500/30 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.15)]';
+  } else if (score > 50) {
+    scoreClasses = 'bg-amber-950/80 border-amber-500/30 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.15)]';
+  }
 
   return (
     <motion.div 

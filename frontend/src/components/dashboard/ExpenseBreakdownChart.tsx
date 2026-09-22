@@ -25,8 +25,7 @@ const ExpenseBreakdownChart = ({ dashboardSummary, expenseBreakdown }: ExpenseBr
   return (
     <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6">
       <h3 className="text-lg font-semibold text-white mb-4">Distribución de Gastos</h3>
-      {dashboardSummary ? (
-        expenseBreakdown.length > 0 ? (
+      {dashboardSummary && expenseBreakdown.length > 0 && (
           <div className="flex flex-col gap-4">
             <div className="flex-1 min-w-0">
               <ResponsiveContainer width="100%" height={220}>
@@ -83,10 +82,11 @@ const ExpenseBreakdownChart = ({ dashboardSummary, expenseBreakdown }: ExpenseBr
               </div>
             </div>
           </div>
-        ) : (
-          <p className="text-slate-500 text-center py-8">Sin datos</p>
-        )
-      ) : (
+      )}
+      {dashboardSummary && expenseBreakdown.length === 0 && (
+        <p className="text-slate-500 text-center py-8">Sin datos</p>
+      )}
+      {!dashboardSummary && (
         <SkeletonChart height="h-56" />
       )}
     </div>

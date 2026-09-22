@@ -37,10 +37,10 @@ const CloudTab = ({ backups, loadingBackups, creatingBackup, onCreateBackup, onR
         </div>
 
         <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-          {loadingBackups ? (
+          {loadingBackups && (
             <div className="p-10 text-center text-slate-500 text-sm animate-pulse">Consultando historial...</div>
-          ) : backups.length > 0 ? (
-            backups.map((backup: BackupFile) => (
+          )}
+          {!loadingBackups && backups.length > 0 && backups.map((backup: BackupFile) => (
               <div key={backup.id} className="group flex items-center justify-between p-4 bg-black/20 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/10 transition-all">
@@ -60,8 +60,8 @@ const CloudTab = ({ backups, loadingBackups, creatingBackup, onCreateBackup, onR
                   Restaurar
                 </button>
               </div>
-            ))
-          ) : (
+            ))}
+          {!loadingBackups && backups.length === 0 && (
             <div className="p-10 text-center text-slate-500 text-sm bg-black/10 rounded-3xl border border-dashed border-white/5">
               No se han encontrado backups.
             </div>

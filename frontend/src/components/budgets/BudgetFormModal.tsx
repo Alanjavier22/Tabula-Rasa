@@ -53,6 +53,13 @@ const BudgetFormModal = ({
   onEditSubmit,
   onGenerateRecurring,
 }: BudgetFormModalProps) => {
+  let modalTitle = 'Generar Recurrente';
+  if (showCreateModal) {
+    modalTitle = 'Nuevo Límite';
+  } else if (showEditModal) {
+    modalTitle = 'Ajustar Límite';
+  }
+
   return (
     <AnimatePresence>
       {(showCreateModal || showEditModal || showRecurringModal) && (
@@ -79,7 +86,7 @@ const BudgetFormModal = ({
                 </div>
                 <div>
                   <h2 className="text-lg md:text-xl font-black text-white tracking-tight">
-                    {showCreateModal ? 'Nuevo Límite' : showEditModal ? 'Ajustar Límite' : 'Generar Recurrente'}
+                    {modalTitle}
                   </h2>
                   <p className="text-[10px] text-slate-500 font-medium tracking-wide uppercase">Configuración de Presupuesto</p>
                 </div>

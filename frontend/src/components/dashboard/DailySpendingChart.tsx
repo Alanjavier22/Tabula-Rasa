@@ -20,7 +20,7 @@ const DailySpendingChart = ({ dashboardSummary, dailySpending }: DailySpendingCh
   return (
     <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6 mb-6">
       <h3 className="text-lg font-semibold text-white mb-4">Gasto Diario</h3>
-      {dashboardSummary && dailySpending.length > 0 ? (
+      {dashboardSummary && dailySpending.length > 0 && (
         <ResponsiveContainer width="100%" height={220}>
           <AreaChart data={dailySpending}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" vertical={false} />
@@ -51,9 +51,11 @@ const DailySpendingChart = ({ dashboardSummary, dailySpending }: DailySpendingCh
             <Area type="monotone" dataKey="gasto" stroke="#a855f7" fill="url(#gradGastoDiario)" strokeWidth={3} />
           </AreaChart>
         </ResponsiveContainer>
-      ) : dashboardSummary ? (
+      )}
+      {dashboardSummary && dailySpending.length === 0 && (
         <p className="text-slate-500 text-center py-8">Sin datos</p>
-      ) : (
+      )}
+      {!dashboardSummary && (
         <SkeletonChart height="h-56" />
       )}
     </div>

@@ -8,6 +8,18 @@ interface CreditCardSummaryProps {
   cards: Account[];
 }
 
+const getStatementStatusClass = (status: string) => {
+  if (status === 'paid') return 'bg-green-500/20 text-green-400';
+  if (status === 'partial') return 'bg-yellow-500/20 text-yellow-400';
+  return 'bg-red-500/20 text-red-400';
+};
+
+const getStatementStatusLabel = (status: string) => {
+  if (status === 'paid') return 'Pagado';
+  if (status === 'partial') return 'Parcial';
+  return 'Pendiente';
+};
+
 export default function CreditCardSummary({ statements, cards }: CreditCardSummaryProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6">
@@ -47,12 +59,8 @@ export default function CreditCardSummary({ statements, cards }: CreditCardSumma
                   </div>
                   <div>
                     <p className="text-slate-500 text-xs">Estado</p>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      stmt.status === 'paid' ? 'bg-green-500/20 text-green-400' :
-                      stmt.status === 'partial' ? 'bg-yellow-500/20 text-yellow-400' :
-                      'bg-red-500/20 text-red-400'
-                    }`}>
-                      {stmt.status === 'paid' ? 'Pagado' : stmt.status === 'partial' ? 'Parcial' : 'Pendiente'}
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getStatementStatusClass(stmt.status)}`}>
+                      {getStatementStatusLabel(stmt.status)}
                     </span>
                   </div>
                 </>
