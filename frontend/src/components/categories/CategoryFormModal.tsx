@@ -25,6 +25,7 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
   const fieldClass = isCreate
     ? 'w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all font-medium'
     : 'w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all font-medium';
+  const submitLabel = isCreate ? 'Crear Categoría' : 'Actualizar Categoría';
 
   return (
     <AnimatePresence>
@@ -162,7 +163,7 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
                     Guardando...
                   </div>
                 ) : (
-                  isCreate ? 'Crear Categoría' : 'Actualizar Categoría'
+                  submitLabel
                 )}
               </button>
             </div>
