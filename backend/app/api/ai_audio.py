@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, cast
+from typing import Annotated, List, Optional, Dict, Any, cast
 import google.genai as genai
 from app.services.ai_models import MULTIMODAL_MODEL, LITE_MODEL, with_gemini_retry_async
 from google.genai import errors, types
@@ -93,7 +93,7 @@ def get_gemini_key(db: Session) -> str:
 
 
 @router.post("/document-to-txns", response_model=AudioToTransactionsResponse, responses=AI_AUDIO_ERROR_RESPONSES)
-async def document_to_transactions(document_data: dict, db: Session = Depends(get_db)):
+async def document_to_transactions(document_data: dict, db: Annotated[Session, Depends(get_db)]):
     """
     Convert document (image/PDF) input to structured transaction suggestions using Gemini Vision AI.
     
@@ -221,7 +221,7 @@ Return ONLY the JSON response matching the schema."""
 @router.post("/batch-category-mapping", response_model=BatchCategoryMappingResponse, responses=AI_AUDIO_ERROR_RESPONSES)
 async def batch_category_mapping(
     request: BatchCategoryMappingRequest,
-    db: Session = Depends(get_db)
+    db: Annotated[Session, Depends(get_db)]
 ):
     """
     Batch categorize transaction descriptions using Gemini AI.
