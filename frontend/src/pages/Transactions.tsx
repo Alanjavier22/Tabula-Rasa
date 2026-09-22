@@ -134,7 +134,7 @@ const Transactions = () => {
   const handleSubmit = async (formData: TransactionFormData) => {
     try {
       if (editingTransaction) {
-        const amountCents = toCents(parseFloat(formData.amount.replace(/[^0-9.-]/g, '')));
+        const amountCents = toCents(Number.parseFloat(formData.amount.replace(/[^0-9.-]/g, '')));
         await transactionsAPI.update(editingTransaction.id, {
           description: formData.description,
           amount: amountCents,
@@ -148,7 +148,7 @@ const Transactions = () => {
         });
         setToast({ message: 'Transacción actualizada', type: 'success' });
       } else {
-        const amountCents = toCents(parseFloat(formData.amount.replace(/[^0-9.-]/g, '')));
+        const amountCents = toCents(Number.parseFloat(formData.amount.replace(/[^0-9.-]/g, '')));
         await transactionsAPI.create({
           description: formData.description,
           amount: amountCents,
