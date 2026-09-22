@@ -11,7 +11,7 @@
 
 /** Minimal Dexie-compatible table stub */
 class TableStub<T = unknown> {
-  private name: string;
+  private readonly name: string;
 
   constructor(name: string) {
     this.name = name;
@@ -64,7 +64,7 @@ class TableStub<T = unknown> {
 
 /** Minimal WhereClause stub */
 class WhereClauseStub<T = unknown> {
-  private tableName: string;
+  private readonly tableName: string;
 
   constructor(tableName: string) {
     this.tableName = tableName;
