@@ -187,7 +187,19 @@ def _extract_beneficiary_key(beneficiary: str) -> str:
     if parts:
         meaningful = parts[0].strip()
         # Remove trailing transaction codes (alphanumeric with 3+ digits)
-        meaningful = re.sub(r'\s+[A-Z]{0,3}\d{3}[A-Z0-9]*+$', '', meaningful).strip()
+        candidate_parts = meaningful.rsplit(' ', 1)
+        if len(candidate_parts) == 2:
+            prefix, candidate = candidate_parts
+            leading_letters = len(candidate) - len(candidate.lstrip('ABCDEFGHIJKLMNOPQRSTUVWXYZ'))
+            digits_and_suffix = candidate[leading_letters:]
+            leading_digits = len(digits_and_suffix) - len(digits_and_suffix.lstrip('0123456789'))
+            is_transaction_code = (
+                leading_letters <= 3
+                and leading_digits >= 3
+                and all(char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' for char in digits_and_suffix)
+            )
+            if is_transaction_code:
+                meaningful = prefix.strip()
         if meaningful:
             return meaningful
     
