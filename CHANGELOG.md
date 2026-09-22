@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.15](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.14...v0.1.15) (2026-09-22)
+
+
+### Correcciones
+
+* evita backtracking en regex del categorizador ([7b8c313](https://github.com/Alanjavier22/Tabula-Rasa/commit/7b8c313a55f7e470e03466bcd32fcbf4a0d2223c))
+* evita backtracking en regex del categorizador ([c584e58](https://github.com/Alanjavier22/Tabula-Rasa/commit/c584e584f2bb2377fc163027d9716afd023abc3c))
+
 ## [0.1.14](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.13...v0.1.14) (2026-09-22)
 
 
