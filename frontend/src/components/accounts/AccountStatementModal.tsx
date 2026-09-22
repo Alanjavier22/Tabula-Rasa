@@ -138,7 +138,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                       max="12"
                       required
                       value={statementForm.month}
-                      onChange={e => setStatementForm({...statementForm, month: parseInt(e.target.value)})}
+                      onChange={e => setStatementForm({...statementForm, month: Number.parseInt(e.target.value)})}
                       className="w-1/2 bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-bold"
                     />
                     <input
@@ -149,7 +149,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                       max="2030"
                       required
                       value={statementForm.year}
-                      onChange={e => setStatementForm({...statementForm, year: parseInt(e.target.value)})}
+                      onChange={e => setStatementForm({...statementForm, year: Number.parseInt(e.target.value)})}
                       className="w-1/2 bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-bold"
                     />
                   </div>
