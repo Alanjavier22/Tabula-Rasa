@@ -9,22 +9,30 @@ load_dotenv()
 
 def ensure_jwt_secret():
     import secrets
-    from app.security_config import DEFAULT_JWT_SECRET
+    from app import security_config
+    default_secret = security_config.DEFAULT_JWT_SECRET
     jwt_secret = os.getenv("JWT_SECRET")
-    default_secret = DEFAULT_JWT_SECRET
 
     if not jwt_secret or jwt_secret == default_secret:
         new_secret = secrets.token_hex(32)
         os.environ["JWT_SECRET"] = new_secret
+        security_config.JWT_SECRET = new_secret
         
 
 def ensure_encryption_key():
     from cryptography.fernet import Fernet
+    from app import security_config
     encryption_key = os.getenv("CONFIG_ENCRYPTION_KEY")
 
     if not encryption_key:
         new_key = Fernet.generate_key().decode()
         os.environ["CONFIG_ENCRYPTION_KEY"] = new_key
+        encryption_key = new_key
+
+    # security_config may have been imported by ensure_jwt_secret before the
+    # environment variable was generated. Keep the runtime configuration in
+    # sync so newly encrypted Gemini/Drive secrets use the active key.
+    security_config.ENCRYPTION_KEY = encryption_key
 
 
 ensure_jwt_secret()
