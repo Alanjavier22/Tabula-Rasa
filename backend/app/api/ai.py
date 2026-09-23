@@ -7,8 +7,9 @@ ai_categories.py, ai_whatif.py, ai_anomalies.py, ai_receipts.py.
 from fastapi import APIRouter, Depends
 from typing import Annotated
 from sqlalchemy.orm import Session
-import google.genai as genai
-from app.services.ai_models import LITE_MODEL
+import logging
+from app.services.ai_models import LITE_MODEL, with_gemini_retry_async
+from app.services.gemini_gateway import create_gemini_client
 from database import get_db
 from app.api.auth import get_current_device
 from app.api.ai_shared import get_gemini_key
@@ -27,6 +28,7 @@ router.include_router(categories_router)
 router.include_router(whatif_router)
 router.include_router(anomalies_router)
 router.include_router(receipts_router)
+logger = logging.getLogger(__name__)
 
 
 @router.get("/test-component")
@@ -35,11 +37,14 @@ async def test_component(component: str, db: Annotated[Session, Depends(get_db)]
     DIAGNOSTIC: Test if an AI component is responding correctly.
     """
     api_key = get_gemini_key(db)
-    client = genai.Client(api_key=api_key)
     try:
+        client = create_gemini_client(api_key)
         prompt = f"Test {component} component. Respond OK."
-        response = client.models.generate_content(model=LITE_MODEL, contents=prompt)
+        response = await with_gemini_retry_async(
+            lambda: client.models.generate_content(model=LITE_MODEL, contents=prompt)
+        )
         text = response.text or "OK"
         return {"status": "success", "message": text.strip()}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.exception("Gemini component test failed")
+        return {"status": "error", "message": "No se pudo verificar la conexión con Gemini."}
