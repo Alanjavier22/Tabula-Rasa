@@ -30,7 +30,7 @@ const PageLoader = () => (
 );
 
 function App() {
-  const [theme] = useState<'light' | 'dark'>(() => {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = localStorage.getItem('ui_theme') as 'light' | 'dark' | null;
     return savedTheme ?? 'light';
   });
@@ -93,19 +93,26 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Apply theme to body
+    // Light is the default product theme. A user-selected preference is
+    // preserved, while both html and body expose the theme to CSS tokens.
+    document.documentElement.dataset.theme = theme;
+    document.body.dataset.theme = theme;
     if (theme === 'dark') {
       document.body.classList.add('dark');
     } else {
       document.body.classList.remove('dark');
     }
+    localStorage.setItem('ui_theme', theme);
   }, [theme]);
 
   return (
     <GlobalErrorBoundary>
       <Router>
         <AuthGuard>
-          <Layout>
+          <Layout
+            theme={theme}
+            onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+          >
             <AnimatePresence mode="wait">
               <Suspense fallback={<PageLoader />}>
                 <Routes>
