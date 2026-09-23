@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Any, cast, Literal
 import json
 import base64
-import binascii
 import logging
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -76,7 +75,7 @@ async def audio_to_txns(
         )
         try:
             audio_bytes = base64.b64decode(request.audio_base64, validate=True)
-        except (binascii.Error, ValueError) as error:
+        except ValueError as error:
             raise HTTPException(status_code=400, detail="audio_base64 no es válido") from error
         if len(audio_bytes) > MAX_AUDIO_BYTES:
             raise HTTPException(status_code=413, detail="El audio supera el tamaño máximo permitido")
