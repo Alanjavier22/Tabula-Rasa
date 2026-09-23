@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, Home, DollarSign, PieChart, Target, Calendar, List, Sparkles, Send, Loader2, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
@@ -11,8 +11,15 @@ const CommandPalette = () => {
   const [mode, setMode] = useState<'navigation' | 'ai'>('navigation');
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [aiResponse, setAiResponse] = useState('');
+  const navigationInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (isOpen && mode === 'navigation') {
+      navigationInputRef.current?.focus();
+    }
+  }, [isOpen, mode]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -117,7 +124,7 @@ const CommandPalette = () => {
                 className="w-full bg-transparent border-0 text-white px-4 py-4 focus:ring-0 placeholder:text-slate-500 outline-none"
                 placeholder="Buscar o saltar a... (Usa las flechas)"
                 value={query}
-                autoFocus
+                ref={navigationInputRef}
                 onChange={(e) => {
                   setQuery(e.target.value);
                   setSelectedRouteIndex(0);
@@ -138,13 +145,18 @@ const CommandPalette = () => {
               <kbd className="hidden sm:inline-block bg-slate-700 text-slate-300 text-xs px-2 py-1 rounded-md">ESC</kbd>
             </div>
             {filteredRoutes.length > 0 ? (
-              <ul className="max-h-72 overflow-y-auto p-2">
+              <ul
+                role="listbox"
+                aria-label="Rutas disponibles"
+                className="max-h-72 overflow-y-auto p-2"
+              >
                 {filteredRoutes.map((route) => {
                   const Icon = route.icon;
                   return (
                     <li key={route.path}>
                       <button
                         type="button"
+                        role="option"
                         aria-selected={selectedRouteIndex === filteredRoutes.indexOf(route)}
                         className={`w-full flex items-center gap-3 px-4 py-3 text-left text-slate-300 hover:bg-slate-700/50 hover:text-white rounded-xl transition-colors ${selectedRouteIndex === filteredRoutes.indexOf(route) ? 'bg-purple-500/10' : ''}`}
                         onMouseEnter={() => setSelectedRouteIndex(filteredRoutes.indexOf(route))}
