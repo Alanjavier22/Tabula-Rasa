@@ -4,33 +4,42 @@ usando el modelo multimodal de Gemini. Se monta bajo /api/ai vía api/ai.py.
 
 Nota: no vive en ai_audio.py a propósito. Ambos routers comparten el mismo
 prefijo /api/ai (ai.router se registra antes que ai_audio.router en
-main.py, así que en caso de choque de ruta gana este módulo), pero
-ai_audio.py define su propio get_gemini_key sin fallback a la variable de
-entorno GEMINI_API_KEY, mientras que estos dos endpoints sí la usan
-(vía app.api.ai_shared.get_gemini_key). Fusionarlos habría cambiado ese
-fallback silenciosamente.
+main.py, así que en caso de choque de ruta gana este módulo). Ambos usan ahora
+la misma resolución de key y configuración de cliente.
 """
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from pydantic import BaseModel
-from typing import List, Optional, Any, cast
+from pydantic import BaseModel, Field
+from typing import List, Optional, Any, cast, Literal
 import json
 import base64
+import binascii
+import logging
 from datetime import datetime
 from sqlalchemy.orm import Session
 from google.genai import types
-import google.genai as genai
 from app.services.ai_models import MULTIMODAL_MODEL, with_gemini_retry_async
+from app.services.gemini_gateway import create_gemini_client
 from database import get_db
 from app.models.category import Category
 from app.api.ai_shared import get_gemini_key
 
 router = APIRouter()
-AI_RECEIPTS_ERROR_RESPONSES = {500: {"description": "Receipt processing failed."}}
+AI_RECEIPTS_ERROR_RESPONSES = {
+    400: {"description": "Invalid receipt request."},
+    413: {"description": "Receipt payload is too large."},
+    500: {"description": "Receipt processing failed."},
+}
+logger = logging.getLogger(__name__)
+MAX_AUDIO_BYTES = 12 * 1024 * 1024
+MAX_AUDIO_BASE64_CHARS = 16_777_216
+MAX_RECEIPT_BYTES = 12 * 1024 * 1024
 
 
 class AudioToTxnRequest(BaseModel):
-    audio_base64: str
-    audio_format: str = "webm"
+    audio_base64: str = Field(
+        ..., min_length=1, max_length=MAX_AUDIO_BASE64_CHARS
+    )
+    audio_format: Literal["webm", "wav", "mp3", "m4a", "ogg"] = "webm"
 
 
 class TransactionExtracted(BaseModel):
@@ -53,7 +62,7 @@ async def audio_to_txns(
 ):
     api_key = get_gemini_key(db)
     try:
-        client = genai.Client(api_key=api_key)
+        client = create_gemini_client(api_key)
         today_str = datetime.now().strftime("%Y-%m-%d")
         from app.models.account import Account
         categories = db.query(Category).filter(Category.is_deleted == False).all()
@@ -65,7 +74,12 @@ async def audio_to_txns(
             f"Eres un asistente financiero experto. Extrae de este audio las transacciones financieras. Hoy es {today_str}. "
             f"\nCATEGORÍAS:\n{cat_ctx}\nCUENTAS:\n{acc_ctx}\n"
         )
-        audio_bytes = base64.b64decode(request.audio_base64)
+        try:
+            audio_bytes = base64.b64decode(request.audio_base64, validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise HTTPException(status_code=400, detail="audio_base64 no es válido") from error
+        if len(audio_bytes) > MAX_AUDIO_BYTES:
+            raise HTTPException(status_code=413, detail="El audio supera el tamaño máximo permitido")
         response = await with_gemini_retry_async(lambda: client.models.generate_content(
             model=MULTIMODAL_MODEL,
             contents=cast(Any, [system_instruction, types.Part.from_bytes(data=audio_bytes, mime_type=f"audio/{request.audio_format}")]),
@@ -75,8 +89,14 @@ async def audio_to_txns(
             raise ValueError("Empty audio response")
 
         return json.loads(response.text)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error procesando audio: {str(e)}")
+    except HTTPException:
+        raise
+    except json.JSONDecodeError as error:
+        logger.exception("Gemini returned invalid audio JSON")
+        raise HTTPException(status_code=500, detail="La IA no devolvió un formato válido.") from error
+    except Exception as error:
+        logger.exception("Gemini audio processing failed")
+        raise HTTPException(status_code=500, detail="No se pudo procesar el audio.") from error
 
 
 @router.post("/parse-receipt", response_model=AudioToTxnResponse, responses=AI_RECEIPTS_ERROR_RESPONSES)
@@ -86,10 +106,12 @@ async def parse_receipt(
 ):
     api_key = get_gemini_key(db)
     try:
-        client = genai.Client(api_key=api_key)
+        client = create_gemini_client(api_key)
         today_str = datetime.now().strftime("%Y-%m-%d")
         system_instruction = f"Eres un auditor experto extrayendo datos de recibos. Hoy es {today_str}. Reglas: Montos en CENTAVOS, fecha YYYY-MM-DD."
-        image_bytes = await file.read()
+        image_bytes = await file.read(MAX_RECEIPT_BYTES + 1)
+        if len(image_bytes) > MAX_RECEIPT_BYTES:
+            raise HTTPException(status_code=413, detail="El recibo supera el tamaño máximo permitido")
         response = await with_gemini_retry_async(lambda: client.models.generate_content(
             model=MULTIMODAL_MODEL,
             contents=cast(Any, [system_instruction, types.Part.from_bytes(data=image_bytes, mime_type=file.content_type or "image/jpeg")]),
@@ -99,5 +121,11 @@ async def parse_receipt(
             raise ValueError("Empty receipt response")
 
         return json.loads(response.text)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error analizando recibo: {str(e)}")
+    except HTTPException:
+        raise
+    except json.JSONDecodeError as error:
+        logger.exception("Gemini returned invalid receipt JSON")
+        raise HTTPException(status_code=500, detail="La IA no devolvió un formato válido.") from error
+    except Exception as error:
+        logger.exception("Gemini receipt processing failed")
+        raise HTTPException(status_code=500, detail="No se pudo analizar el recibo.") from error
