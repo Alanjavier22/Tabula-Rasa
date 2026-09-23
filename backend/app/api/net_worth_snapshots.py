@@ -3,21 +3,22 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Any, cast
 from datetime import datetime, timezone
 import json
-import os
-import google.genai as genai
+import logging
 from database import get_db
 from app.services.ai_models import REASONING_MODEL, with_gemini_retry
 from app.api.auth import get_current_device
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.account import Account
 from app.models.iou import IOU, IOUType, IOUStatus
-from app.models.config import Config
+from app.api.ai_shared import get_gemini_key
+from app.services.gemini_gateway import create_gemini_client
 from app.services.snapshot_reconciler import SnapshotReconciler
 from pydantic import BaseModel, ConfigDict
 
 SNAPSHOT_NOT_FOUND = "Snapshot not found"
 NOT_FOUND_RESPONSE = {404: {"description": "Snapshot not found"}}
 SNAPSHOT_ERROR_RESPONSES = {500: {"description": "Snapshot operation failed."}}
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/snapshots", 
@@ -121,13 +122,10 @@ def analyze_month(snapshot_id: str, db: Session = Depends(get_db)):
     if not previous_snapshot:
         raise HTTPException(status_code=400, detail="No se encontró el snapshot del mes anterior para comparar.")
 
-    config_api_key = db.query(Config).filter(Config.key == "gemini_api_key").first()
-    api_key = config_api_key.value if config_api_key and config_api_key.value else os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=400, detail="Gemini API Key not configured")
+    api_key = get_gemini_key(db)
 
     try:
-        client = genai.Client(api_key=cast(str, api_key))
+        client = create_gemini_client(api_key)
 
         # Values are int centavos; convert to display dollars for prompt
         s_assets = snapshot.total_assets / 100
@@ -187,8 +185,12 @@ Responde en español, máximo 100 palabras."""
         ))
         return {"analysis": response.text, "comparison_data": comparison_data}
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error analyzing month: {str(e)}")
+    except Exception as error:
+        logger.exception("Gemini net-worth analysis failed")
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudo analizar el patrimonio de este mes.",
+        ) from error
 
 
 @router.post("/reconcile", responses=SNAPSHOT_ERROR_RESPONSES)
