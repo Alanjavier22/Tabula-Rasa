@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from typing import Annotated, List, Optional, Any, Dict, Callable, Awaitable, cast
 import inspect
 import base64
-import binascii
 import logging
 import os
 from app.services.ai_models import AGENT_MODEL, with_gemini_retry_async
@@ -190,7 +189,7 @@ async def _send_initial_message(chat, request: ChatRequest):
     if request.document_base64:
         try:
             doc_bytes = base64.b64decode(request.document_base64, validate=True)
-        except (ValueError, binascii.Error) as error:
+        except ValueError as error:
             raise HTTPException(status_code=400, detail="El documento base64 no es válido") from error
         if len(doc_bytes) > MAX_DOCUMENT_BYTES:
             raise HTTPException(status_code=413, detail="El documento supera el tamaño máximo permitido")
