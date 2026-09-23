@@ -5,6 +5,7 @@ import os
 import uuid
 import hashlib
 import json
+import logging
 from typing import List, Dict, Optional, Any, cast
 from pydantic import BaseModel
 from database import get_db
@@ -25,8 +26,11 @@ router = APIRouter(
 
 INTELLIGENCE_ERROR_RESPONSES = {
     400: {"description": "Invalid intelligence request."},
+    413: {"description": "Uploaded file is too large."},
     500: {"description": "Intelligence processing failed."},
 }
+logger = logging.getLogger(__name__)
+MAX_IMPORT_FILE_BYTES = 12 * 1024 * 1024
 
 UPLOAD_DIR = "temp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -38,7 +42,9 @@ async def upload_statement(
     db: Session = Depends(get_db)
 ):
     # 1. Calcular Hash para evitar duplicados
-    content = await file.read()
+    content = await file.read(MAX_IMPORT_FILE_BYTES + 1)
+    if len(content) > MAX_IMPORT_FILE_BYTES:
+        raise HTTPException(status_code=413, detail="El archivo supera el tamaño máximo permitido")
     file_hash = hashlib.sha256(content).hexdigest()
     
     existing_log = db.query(ImportLog).filter(ImportLog.file_hash == file_hash).first()
@@ -86,13 +92,16 @@ async def upload_statement(
             "import_log_id": log_id,
             "parsed_data": parsed_data
         }
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception as error:
         log = db.query(ImportLog).filter(ImportLog.id == log_id).first()
         if log:
             log.status = cast(Any, 'error')
-            log.error_message = cast(Any, str(e))
+            log.error_message = cast(Any, str(error))
         db.commit()
-        raise HTTPException(status_code=500, detail=f"Error al procesar con IA: {str(e)}")
+        logger.exception("AI statement import failed")
+        raise HTTPException(status_code=500, detail="No se pudo procesar el estado de cuenta con IA.") from error
     finally:
         # Limpieza: Eliminamos el archivo temporal tras el procesamiento inicial
         if os.path.exists(temp_path):
@@ -118,8 +127,9 @@ async def confirm_import(
         background_tasks.add_task(recalculate_stale_snapshots, db)
         
         return {"status": "success", "imported_count": count, "message": "Snapshots marcados para sanación automática."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as error:
+        logger.exception("Statement import confirmation failed")
+        raise HTTPException(status_code=500, detail="No se pudo confirmar la importación.") from error
 
 @router.post("/parse-account/{account_id}", responses=INTELLIGENCE_ERROR_RESPONSES)
 async def parse_account_document(
@@ -127,7 +137,9 @@ async def parse_account_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    content = await file.read()
+    content = await file.read(MAX_IMPORT_FILE_BYTES + 1)
+    if len(content) > MAX_IMPORT_FILE_BYTES:
+        raise HTTPException(status_code=413, detail="El archivo supera el tamaño máximo permitido")
     file_hash = hashlib.sha256(content).hexdigest()
     
     existing_log = db.query(ImportLog).filter(ImportLog.file_hash == file_hash).first()
@@ -163,13 +175,16 @@ async def parse_account_document(
             "import_log_id": log_id,
             "parsed_data": parsed_data
         }
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception as error:
         log = db.query(ImportLog).filter(ImportLog.id == log_id).first()
         if log:
             log.status = cast(Any, 'error')
-            log.error_message = cast(Any, str(e))
+            log.error_message = cast(Any, str(error))
         db.commit()
-        raise HTTPException(status_code=500, detail=f"Error al procesar con IA: {str(e)}")
+        logger.exception("AI account import failed")
+        raise HTTPException(status_code=500, detail="No se pudo procesar el documento de cuenta con IA.") from error
 
 class ConfirmAccountImportPayload(BaseModel):
     confirmed_transactions: List[Dict]
@@ -186,8 +201,9 @@ async def confirm_account_import(
         background_tasks.add_task(categorize_import_log_background, import_log_id)
         background_tasks.add_task(recalculate_stale_snapshots, db)
         return {"status": "success", "imported_count": count, "message": "Movimientos importados correctamente."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as error:
+        logger.exception("Account import confirmation failed")
+        raise HTTPException(status_code=500, detail="No se pudo confirmar la importación de cuenta.") from error
 
 @router.get("/snapshot-health")
 async def check_snapshot_health(db: Session = Depends(get_db)):
