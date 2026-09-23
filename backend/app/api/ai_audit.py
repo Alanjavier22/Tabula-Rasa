@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from database import get_db
 from app.api.auth import get_current_device
-from app.models.config import Config
+from app.api.ai_shared import get_gemini_key
 from app.services.audit_service import AuditService
 from pydantic import BaseModel
-from typing import Annotated, List, Any, cast
+from typing import Annotated, List
 
 router = APIRouter(
     prefix="/api/ai-audit", 
@@ -30,11 +30,7 @@ def get_potential_duplicates(db: Annotated[Session, Depends(get_db)], days: int 
     """
     Escanea transacciones recientes en busca de duplicados semánticos.
     """
-    config = db.query(Config).filter(Config.key == "gemini_api_key").first()
-    if not config or not config.value:
-        raise HTTPException(status_code=400, detail="Gemini API Key not configured")
-    
-    audit = AuditService(db, cast(str, config.value))
+    audit = AuditService(db, get_gemini_key(db))
     duplicates = audit.scan_for_duplicates(days=days)
     
     return {

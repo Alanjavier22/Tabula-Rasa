@@ -2,9 +2,9 @@ from sqlalchemy.orm import Session
 from typing import cast, Any
 from datetime import datetime, timedelta, timezone
 from app.models.transaction import Transaction
-import google.genai as genai
 from google.genai import types
 from app.services.ai_models import REASONING_MODEL, with_gemini_retry
+from app.services.gemini_gateway import create_gemini_client
 import json
 import logging
 
@@ -19,7 +19,7 @@ class AuditService:
     def __init__(self, db: Session, api_key: str):
         self.db = db
         self.api_key = api_key
-        self.client = genai.Client(api_key=api_key)
+        self.client = create_gemini_client(api_key)
 
     def scan_for_duplicates(self, days: int = 7) -> list:
         """

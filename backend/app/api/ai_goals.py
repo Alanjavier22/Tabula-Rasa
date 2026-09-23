@@ -2,16 +2,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from app.api.auth import get_current_device
-import google.genai as genai
 from google.genai import types
 from pydantic import BaseModel
-from typing import Annotated, List, Optional, Any, cast
+from typing import Annotated, List
 from app.services.ai_models import REASONING_MODEL, with_gemini_retry
-import os
 import json
+import logging
+from app.api.ai_shared import get_gemini_key
+from app.services.gemini_gateway import create_gemini_client
+from app.services.ai_prompts import CORE_RULES, get_persona_prompt
 from app.models.config import Config
 from app.models.goal import Goal, GoalStatus
 from app.api.metrics_cashflow import get_safe_to_spend
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/ai/goals", 
@@ -36,11 +40,8 @@ class SmartGoalResponse(BaseModel):
 
 @router.get("/smart-recommendations", response_model=SmartGoalResponse, responses=AI_GOALS_ERROR_RESPONSES)
 def get_smart_goal_recommendations(db: Annotated[Session, Depends(get_db)]):
-    config_api = db.query(Config).filter(Config.key == 'gemini_api_key').first()
-    if not config_api or not config_api.value:
-        raise HTTPException(status_code=400, detail="Gemini API Key not configured")
-
-    client = genai.Client(api_key=cast(str, config_api.value))
+    api_key = get_gemini_key(db)
+    client = create_gemini_client(api_key)
 
     # Get Safe-to-Spend
     safe_to_spend_response = get_safe_to_spend(db)
@@ -73,7 +74,11 @@ def get_smart_goal_recommendations(db: Annotated[Session, Depends(get_db)]):
         } for g in goals
     ]
 
+    config_persona = db.query(Config).filter(Config.key == "ai_persona").first()
+    persona_value = config_persona.value if config_persona and config_persona.value else "professional"
+    persona_instruction = get_persona_prompt(str(persona_value))
     system_instruction = (
+        CORE_RULES + "\n\n"
         "Eres un Optimizador de Metas Financieras. El usuario tiene un monto 'Safe-to-Spend' (dinero 100% libre de riesgo). "
         "Tu tarea es decidir si sugerir mover parte (o todo) de ese dinero a sus metas financieras activas para acelerarlas. "
         "IMPORTANTE: "
@@ -81,7 +86,8 @@ def get_smart_goal_recommendations(db: Annotated[Session, Depends(get_db)]):
         "2. Para cada meta, calcula el monto restante: target_amount - current_amount. "
         "3. Nunca recomiendes más del monto restante para completar una meta. "
         "4. No excedas el monto 'Safe-to-Spend' total. Es mejor sugerir un % conservador (ej. 50% del sobrante). "
-        "5. Sé profesional, conciso y orientado a datos en tus recomendaciones."
+        "5. Sé conciso y orientado a datos en tus recomendaciones. "
+        "6. Aplica este estilo sin cambiar ninguna regla financiera: " + persona_instruction
     )
 
     user_prompt = f"""
@@ -130,5 +136,9 @@ def get_smart_goal_recommendations(db: Annotated[Session, Depends(get_db)]):
         result = json.loads(response_text)
         return SmartGoalResponse(**result)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error optimizando metas: {str(e)}")
+    except Exception as error:
+        logger.exception("Gemini goal recommendation failed")
+        raise HTTPException(
+            status_code=500,
+            detail="No se pudieron generar recomendaciones para tus metas.",
+        ) from error

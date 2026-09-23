@@ -69,3 +69,35 @@ def test_get_google_drive_credentials_self_heals_legacy_plaintext_token(monkeypa
     stored = db_session.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
     _, was_encrypted = decrypt_value_with_status(stored.value)
     assert was_encrypted is True  # self-healed: ahora queda cifrado en la DB
+
+
+def test_gemini_config_is_encrypted_masked_and_resolved(db_session):
+    from app.api import config as config_api
+    from app.models.config import Config
+    from app.services.gemini_gateway import get_configured_gemini_key
+
+    response = config_api.create_config(
+        config_api.ConfigCreate(key="gemini_api_key", value="  gemini-test-key  "),
+        db_session,
+    )
+
+    stored = db_session.query(Config).filter(Config.key == "gemini_api_key").first()
+    assert stored.value != "gemini-test-key"
+    assert stored.is_public is False
+    assert response["value"] == "********"
+    assert get_configured_gemini_key(db_session) == "gemini-test-key"
+
+    updated = config_api.update_config(
+        "gemini_api_key",
+        config_api.ConfigUpdate(value="new-gemini-key"),
+        db_session,
+    )
+    assert updated["value"] == "********"
+    assert get_configured_gemini_key(db_session) == "new-gemini-key"
+
+    config_api.update_config(
+        "gemini_api_key",
+        config_api.ConfigUpdate(value="********"),
+        db_session,
+    )
+    assert get_configured_gemini_key(db_session) == "new-gemini-key"

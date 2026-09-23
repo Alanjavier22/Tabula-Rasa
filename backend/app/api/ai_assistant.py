@@ -2,14 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Annotated, List, Optional, Any, Dict, Callable, Awaitable, cast
 import inspect
+import base64
+import logging
 import os
-import google.genai as genai
 from app.services.ai_models import AGENT_MODEL, with_gemini_retry_async
 from google.genai import types
 from database import get_db, SessionLocal
 from app.api.auth import get_current_device
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from app.services.ai_prompts import get_current_time_context, CORE_RULES, get_persona_prompt
+from app.api.ai_shared import get_gemini_key
+from app.services.gemini_gateway import create_gemini_client
 from app.services.ai_assistant_tools import (
     AI_ASSISTANT_TOOL_DECLARATIONS,
     get_budget_status,
@@ -45,9 +48,19 @@ router = APIRouter(
     dependencies=[Depends(get_current_device)],
     redirect_slashes=False
 )
+logger = logging.getLogger(__name__)
+MAX_DOCUMENT_BYTES = 12 * 1024 * 1024
+SUPPORTED_DOCUMENT_MIME_TYPES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "text/plain",
+}
 
 AI_ASSISTANT_ERROR_RESPONSES = {
     400: {"description": "Invalid assistant request."},
+    413: {"description": "Uploaded document is too large."},
     401: {"description": "Assistant authentication failed."},
     429: {"description": "Assistant rate limit exceeded."},
     500: {"description": "Assistant processing failed."},
@@ -56,11 +69,18 @@ AI_ASSISTANT_ERROR_RESPONSES = {
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=12_000)
     cash_flow_context: Optional[dict] = None  # Safe-to-Spend context from frontend (cents)
     assets_context: Optional[dict] = None  # Assets context from frontend (cents)
-    document_base64: Optional[str] = None
+    document_base64: Optional[str] = Field(None, max_length=16_777_216)
     document_mime_type: Optional[str] = None
+
+    @field_validator("document_mime_type")
+    @classmethod
+    def validate_document_mime_type(cls, value: Optional[str]) -> Optional[str]:
+        if value and value not in SUPPORTED_DOCUMENT_MIME_TYPES:
+            raise ValueError("Tipo de documento no soportado")
+        return value
 
 
 class FunctionCallResponse(BaseModel):
@@ -167,8 +187,12 @@ async def _execute_function_call(function_call: Any, request: ChatRequest, api_k
 
 async def _send_initial_message(chat, request: ChatRequest):
     if request.document_base64:
-        import base64
-        doc_bytes = base64.b64decode(request.document_base64)
+        try:
+            doc_bytes = base64.b64decode(request.document_base64, validate=True)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="El documento base64 no es válido") from error
+        if len(doc_bytes) > MAX_DOCUMENT_BYTES:
+            raise HTTPException(status_code=413, detail="El documento supera el tamaño máximo permitido")
         mime_type = request.document_mime_type or "application/pdf"
         doc_part = types.Part.from_bytes(data=doc_bytes, mime_type=mime_type)
         return await with_gemini_retry_async(lambda: chat.send_message([doc_part, request.message]))
@@ -199,12 +223,18 @@ async def _run_chat_turns(response, chat, request: ChatRequest, api_key: str) ->
 
 def _raise_assistant_error(error: Exception) -> None:
     error_str = str(error).lower()
-    if "503" in error_str or "service unavailable" in error_str:
+    code = getattr(error, "code", None)
+    logger.exception("Gemini assistant request failed", exc_info=error)
+    if (
+        code in {408, 500, 502, 503, 504}
+        or any(f"{status}" in error_str for status in (408, 500, 502, 503, 504))
+        or "service unavailable" in error_str
+    ):
         raise HTTPException(
             status_code=503,
             detail="El servicio de Google Gemini está temporalmente no disponible. Por favor intenta nuevamente en unos segundos."
         )
-    if "429" in error_str or "quota" in error_str or "rate limit" in error_str:
+    if code == 429 or "429" in error_str or "quota" in error_str or "rate limit" in error_str:
         raise HTTPException(
             status_code=429,
             detail="Has excedido el límite de la API de Gemini. Por favor espera un momento antes de continuar."
@@ -214,7 +244,7 @@ def _raise_assistant_error(error: Exception) -> None:
             status_code=401,
             detail="Error de autenticación con la API de Gemini. Verifica tu API Key en configuración."
         )
-    raise HTTPException(status_code=500, detail=f"Error en el asistente IA: {str(error)}")
+    raise HTTPException(status_code=500, detail="No se pudo completar la respuesta del asistente IA.") from error
 
 
 @router.post("/chat", responses=AI_ASSISTANT_ERROR_RESPONSES)
@@ -231,14 +261,10 @@ async def chat_with_assistant(request: ChatRequest, db: Annotated[Session, Depen
             status_code=503,
             detail="AI assistant disabled during cold load migration. Set AI_ENABLED=true to enable."
         )
-    config_api_key = db.query(Config).filter(Config.key == "gemini_api_key").first()
-    raw_api_key = config_api_key.value if config_api_key and config_api_key.value else os.getenv("GEMINI_API_KEY")
-    api_key = cast(str, raw_api_key) if raw_api_key else None
-    if not api_key:
-        raise HTTPException(status_code=400, detail="Gemini API Key not configured")
+    api_key = get_gemini_key(db)
 
     try:
-        client = genai.Client(api_key=api_key)
+        client = create_gemini_client(api_key)
         chat = client.chats.create(
             model=AGENT_MODEL,
             config=types.GenerateContentConfig(

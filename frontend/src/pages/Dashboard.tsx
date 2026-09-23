@@ -379,7 +379,7 @@ const Dashboard = () => {
   const vehicleCost = useMemo(() => toDecimal(dashboardSummary?.vehicle_cost), [dashboardSummary]);
 
   return (
-    <div className="w-full relative">
+    <div className="app-page dashboard-page">
       {/* SVG Gradients Definitions for Recharts */}
       <svg style={{ width: 0, height: 0, position: 'absolute' }}>
         <defs>
@@ -401,68 +401,60 @@ const Dashboard = () => {
           </linearGradient>
         </defs>
       </svg>
-      {/* Dynamic Background Glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] animate-pulse"></div>
-        <div className="absolute top-[20%] -right-[10%] w-[35%] h-[35%] bg-blue-600/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute -bottom-[10%] left-[20%] w-[30%] h-[30%] bg-emerald-600/5 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
-      </div>
-
-      <div className="relative z-10">
-        <div className="mb-8 lg:mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <motion.div 
+      <div>
+        <div className="app-page-heading">
+          <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-1"
+            className="dashboard-heading-copy"
           >
-            <div className="flex items-center gap-2 text-purple-400 text-xs font-bold tracking-widest uppercase">
-              <div className="w-8 h-[1px] bg-purple-500/50"></div>
-              <span>Tabula Rasa</span>
-            </div>
-            <h1 className="text-3xl lg:text-5xl font-black text-white tracking-tight">
-              Centro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">Control</span>
-            </h1>
-            <p className="text-slate-400 text-sm lg:text-base font-medium">Tus finanzas personales, simplificadas</p>
-            <div className="mt-2">
+            <p className="app-kicker">Mi panorama financiero</p>
+            <h1>Resumen financiero</h1>
+            <p>Esto es lo importante para tomar decisiones hoy.</p>
+            <div className="dashboard-integrity">
               <IntegrityStatus accounts={accounts} statements={statements} isLoading={results[1].isLoading || results[2].isLoading} />
             </div>
           </motion.div>
-          
-          <div className="flex flex-wrap gap-2">
+
+          <div className="dashboard-heading-actions">
             <button
+              type="button"
               onClick={() => healBalancesMutation.mutate()}
               disabled={healBalancesMutation.isPending}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border transition-all group ${
+              className={`app-btn ${healBalancesMutation.isPending ? 'app-btn-pending' : ''} ${
                 healBalancesMutation.isPending
-                  ? 'bg-emerald-500/10 border-emerald-500/50 cursor-wait'
-                  : 'bg-slate-800/50 border-slate-700/50 text-white hover:border-emerald-500/50 hover:bg-emerald-500/10'
+                  ? 'cursor-wait'
+                  : ''
               }`}
               title="Sincronizar y Sanar Balances"
             >
-              <RefreshCw className={`w-4 h-4 text-emerald-500 ${healBalancesMutation.isPending ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-              <span className="text-sm font-semibold">{healBalancesMutation.isPending ? 'Sanando...' : 'Integridad'}</span>
+              <RefreshCw className={healBalancesMutation.isPending ? 'animate-spin' : ''} aria-hidden="true" />
+              <span>{healBalancesMutation.isPending ? 'Sincronizando...' : 'Sincronizar'}</span>
             </button>
             <button
+              type="button"
               onClick={() => setShowAnomalyScanner(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50 text-white hover:border-yellow-500/50 hover:bg-yellow-500/10 transition-all group"
+              className="app-btn"
             >
-              <AlertTriangle className="w-4 h-4 text-yellow-500 group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-semibold">Anomalías</span>
+              <AlertTriangle aria-hidden="true" />
+              <span>Revisar alertas</span>
             </button>
             <button
+              type="button"
               onClick={() => setShowWhatIfModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700/50 text-white hover:border-purple-500/50 hover:bg-purple-500/10 transition-all group"
+              className="app-btn"
             >
-              <Sparkles className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-semibold">Simulador</span>
+              <Sparkles aria-hidden="true" />
+              <span>Simular escenario</span>
             </button>
             <button
+              type="button"
               onClick={handleCreateSnapshot}
               disabled={creatingSnapshot}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:shadow-lg hover:shadow-indigo-500/20 disabled:opacity-50 transition-all group"
+              className="app-btn app-btn-primary"
             >
-              <Calendar className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-              <span className="text-sm font-bold">{creatingSnapshot ? 'Cerrando...' : 'Cerrar Mes'}</span>
+              <Calendar aria-hidden="true" />
+              <span>{creatingSnapshot ? 'Cerrando...' : 'Cerrar mes'}</span>
             </button>
           </div>
         </div>
@@ -582,8 +574,8 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      <footer className="fixed bottom-4 right-6 opacity-30 hover:opacity-100 transition-opacity duration-700">
-        <p className="text-slate-500 text-[9px] uppercase tracking-[0.2em] font-medium">
+      <footer className="dashboard-footer">
+        <p>
           Desarrollado con ☕ por <span className="text-slate-300">Alan Javier Mejia Alvarez</span>
         </p>
       </footer>

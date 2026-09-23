@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from database import get_db
 from app.models.transaction import Transaction
 from app.services.ai_models import REASONING_MODEL
-from app.services.ai_prompts import get_current_time_context, CORE_RULES
+from app.services.ai_prompts import get_current_time_context, CORE_RULES, get_persona_prompt
+from app.models.config import Config
 from app.api.ai_shared import get_gemini_key, call_gemini_json, CategoryInput, TransactionInput
 
 router = APIRouter()
@@ -130,9 +131,14 @@ async def scan_anomalies(
     price_hikes = _build_price_hikes(desc_history)
     audit_evidence = _build_audit_evidence(request, cat_baselines)
     zombie_leads = _build_zombie_leads(request, desc_history)
+    config_persona = db.query(Config).filter(Config.key == "ai_persona").first()
+    persona_value = config_persona.value if config_persona and config_persona.value else "professional"
+    persona_instruction = get_persona_prompt(str(persona_value))
 
     system_prompt = f"""{get_current_time_context()}
 {CORE_RULES}
+
+{persona_instruction}
 
 You are the 'Sovereign Financial Auditor'. Your mission is to perform a HIGH-INTEGRITY forensic analysis.
 

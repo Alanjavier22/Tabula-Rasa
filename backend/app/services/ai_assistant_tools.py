@@ -446,9 +446,12 @@ async def get_financial_executive_summary(db: Session, api_key: str) -> dict:
     from app.services.sentinel_service import SentinelService
     from app.services.forecaster import get_financial_projection
     from app.services.insights_builders import _build_liquidity_summary
+    from app.models.config import Config
 
     sentinel = SentinelService(db, api_key)
-    health_report = await sentinel.generate_health_report()
+    persona_config = db.query(Config).filter(Config.key == "ai_persona").first()
+    persona = persona_config.value if persona_config and persona_config.value else "professional"
+    health_report = await sentinel.generate_health_report(persona=str(persona))
     projection = get_financial_projection(db, months=3)
     liquidity = _build_liquidity_summary(db)
 
@@ -459,15 +462,21 @@ async def get_financial_executive_summary(db: Session, api_key: str) -> dict:
         "net_liquid_cents": liquidity.get("net_liquid"),
         "top_concerns": health_report.get("top_concerns"),
         "recommended_action": health_report.get("recommended_action"),
-        "projected_balance_3_months": cast(int, projection["timeline"][-1]["projected_balance"]) if projection.get("timeline") else 0
+        "projected_balance_3_months": cast(int, projection["timeline"][-1]["projected_balance"]) if projection.get("timeline") else 0,
+        "analysis_source": health_report.get("analysis_source", "heuristic"),
+        "alarmas_ritmo_gasto": health_report.get("alarmas_ritmo_gasto", []),
     }
 
 
 async def get_sentinel_health(db: Session, api_key: str) -> dict:
     """Get the latest health report and warnings from the Sentinel Agent"""
     from app.services.sentinel_service import SentinelService
+    from app.models.config import Config
+
     sentinel = SentinelService(db, api_key)
-    return await sentinel.generate_health_report()
+    persona_config = db.query(Config).filter(Config.key == "ai_persona").first()
+    persona = persona_config.value if persona_config and persona_config.value else "professional"
+    return await sentinel.generate_health_report(persona=str(persona))
 
 
 # Schema de function-calling que se le pasa a Gemini (client.chats.create).

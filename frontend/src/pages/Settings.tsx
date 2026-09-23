@@ -314,15 +314,9 @@ const Settings = () => {
   }
 
   return (
-    <div className="w-full relative min-h-screen pb-20">
-      {/* Background Glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[10%] -left-[10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px]"></div>
-      </div>
-
-      <div className="relative z-10 max-w-6xl mx-auto">
-        <div className="mb-10">
+    <div className="app-page settings-page">
+      <div>
+        <div className="settings-page-heading">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
             <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold tracking-widest uppercase mb-1">
               <div className="w-8 h-[1px] bg-indigo-500/50"></div>
@@ -335,19 +329,17 @@ const Settings = () => {
           </motion.div>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-8">
+        <div className="settings-layout">
           {/* Sidebar Navigation */}
-          <div className="lg:w-64 flex-shrink-0">
-            <div className="sticky top-8 space-y-2">
+          <div>
+            <div className="settings-tabs">
               {tabs.map((tab) => (
                 <button
+                  type="button"
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as SettingsTab)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm ${
-                    activeTab === tab.id
-                      ? 'bg-white/10 text-white shadow-[0_0_20px_rgba(255,255,255,0.05)] border border-white/10'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
+                  aria-pressed={activeTab === tab.id}
+                  className={`settings-tab-button ${activeTab === tab.id ? 'is-active' : ''}`}
                 >
                   <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? tab.color : ''}`} />
                   <span>{tab.label}</span>
@@ -359,11 +351,13 @@ const Settings = () => {
                 </button>
               ))}
 
-              <div className="pt-6">
+              <div>
                 <button
+                  type="button"
                   onClick={handleSave}
                   disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4 rounded-2xl hover:shadow-lg hover:shadow-blue-500/20 transition-all font-black uppercase tracking-widest text-xs disabled:opacity-50"
+                  aria-busy={saving}
+                  className="settings-save-button"
                 >
                   {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   <span>{saving ? 'Guardando...' : 'Aplicar Cambios'}</span>
@@ -373,7 +367,7 @@ const Settings = () => {
           </div>
 
           {/* Main Content Area */}
-          <div className="flex-1">
+          <div className="settings-content">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
@@ -381,7 +375,7 @@ const Settings = () => {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }}
-                className="bg-slate-800/40 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 p-8 lg:p-10"
+                className="settings-panel app-surface"
               >
                 {activeTab === 'general' && (
                   <GeneralTab

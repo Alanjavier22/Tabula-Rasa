@@ -3,13 +3,15 @@ from sqlalchemy.orm import Session
 from database import get_db
 from app.models.config import Config
 from datetime import datetime, timezone
-import google.genai as genai
 from google.genai import errors, types
 from app.services.ai_models import REASONING_MODEL, with_gemini_retry
 import json
 from pydantic import BaseModel
 from typing import Annotated, List, Any, cast
+import logging
 from app.services.ai_prompts import get_current_time_context, CORE_RULES, get_persona_prompt
+from app.api.ai_shared import get_gemini_key
+from app.services.gemini_gateway import create_gemini_client
 from app.services.insights_builders import (
     _build_transaction_summary,
     _build_budget_summary,
@@ -21,6 +23,8 @@ from app.services.insights_builders import (
     _build_rolling_30d_summary,
     _build_recurring_small_expenses,
 )
+
+logger = logging.getLogger(__name__)
 
 from app.api.auth import get_current_device
 
@@ -201,28 +205,25 @@ def _normalize_insights(result: dict) -> dict:
 
 def _raise_insights_api_error(error: errors.APIError) -> None:
     error_msg = str(error)
+    logger.error(
+        "Gemini insights request failed: code=%s type=%s",
+        getattr(error, "code", None),
+        type(error).__name__,
+        exc_info=error,
+    )
     if "quota" in error_msg.lower() or "limit" in error_msg.lower():
         detail = "Cuota de IA excedida. El servicio se restablecerá automáticamente. Intenta en unos minutos."
     elif "not found" in error_msg.lower() or "model" in error_msg.lower():
         detail = "El modelo de IA no está disponible en este momento. Intenta más tarde."
     else:
-        detail = f"Servicio de IA temporalmente no disponible: {error_msg}"
+        detail = "Servicio de IA temporalmente no disponible. Intenta nuevamente en unos segundos."
     raise HTTPException(status_code=503, detail=detail)
 
 
 @router.get("/insights", responses=AI_INSIGHTS_ERROR_RESPONSES)
 def get_insights(db: Annotated[Session, Depends(get_db)]):
-    # 1. Get Gemini API key from config
-    config = db.query(Config).filter(Config.key == 'gemini_api_key').first()
-    if not config or not config.value:
-        raise HTTPException(
-            status_code=400,
-            detail="IA en mantenimiento. Configura tu Gemini API Key en la página de Configuración."
-        )
-
-    api_key = config.value
-
-    client = genai.Client(api_key=cast(str, api_key))
+    api_key = get_gemini_key(db)
+    client = create_gemini_client(api_key)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     data = _collect_insight_data(db, now)
     financial_snapshot = _build_financial_snapshot(data, now)
@@ -260,5 +261,5 @@ def get_insights(db: Annotated[Session, Depends(get_db)]):
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error inesperado al generar insights: {str(e)}"
-        )
+            detail="Error inesperado al generar insights. Intenta nuevamente."
+        ) from e

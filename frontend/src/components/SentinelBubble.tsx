@@ -23,8 +23,10 @@ interface SentinelHealth {
   top_concerns: string[];
   recommended_action: string;
   warnings: SentinelWarning[];
-  alarmas_ritmo_gasto?: SentinelBurnAlarm[];
+  alarmas_ritmo_gasto: SentinelBurnAlarm[];
   timestamp: string;
+  analysis_source: 'gemini' | 'heuristic';
+  ai_error?: string | null;
 }
 
 const secureRandomUnit = (): number => {
@@ -91,7 +93,7 @@ export const SentinelBubble: React.FC = () => {
   return (
     <>
       {/* Floating Bubble */}
-      <div className="fixed bottom-20 right-6 lg:bottom-8 lg:right-8 z-50">
+      <div className="app-sentinel-anchor">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -100,7 +102,8 @@ export const SentinelBubble: React.FC = () => {
             setIsOpen(!isOpen);
             if (health) setDismissedAlertTimestamp(health.timestamp);
           }}
-          className={`relative w-14 h-14 rounded-full flex items-center justify-center shadow-2xl backdrop-blur-xl border transition-all ${
+          aria-label={isOpen ? 'Cerrar Centinela financiero' : 'Abrir Centinela financiero'}
+          className={`app-sentinel-button relative w-14 h-14 rounded-full flex items-center justify-center shadow-2xl backdrop-blur-xl border transition-all ${
             isOpen 
               ? 'bg-slate-800 border-slate-700 text-white' 
               : 'bg-indigo-600/90 border-indigo-500/50 text-white'
@@ -122,12 +125,17 @@ export const SentinelBubble: React.FC = () => {
         {/* Expanded Panel */}
         <AnimatePresence>
           {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.9, transformOrigin: 'bottom right' }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.9 }}
-              className="fixed top-4 bottom-4 right-4 w-full sm:w-[420px] z-[60] bg-[#0c101b]/85 backdrop-blur-3xl rounded-[3rem] border border-white/10 shadow-[-20px_0_100px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden"
-            >
+            <>
+              <button type="button" className="app-sentinel-backdrop" aria-label="Cerrar panel del Centinela" onClick={() => setIsOpen(false)} />
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.9, transformOrigin: 'bottom right' }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="sentinel-panel-title"
+                className="app-sentinel-panel fixed top-4 bottom-4 right-4 w-full sm:w-[420px] z-[60] bg-[#0c101b]/85 backdrop-blur-3xl rounded-[3rem] border border-white/10 shadow-[-20px_0_100px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden"
+              >
               {/* 1. Noise Texture Overlay */}
               <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3C%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} />
 
@@ -172,9 +180,11 @@ export const SentinelBubble: React.FC = () => {
                   >
                     <Shield className="w-4 h-4 text-indigo-400" />
                   </motion.div>
-                  <h3 className="text-[10px] font-black text-white uppercase tracking-[0.4em]">Centinela: Núcleo de Inteligencia</h3>
+                  <h3 id="sentinel-panel-title" className="text-[10px] font-black text-white uppercase tracking-[0.4em]">Centinela: Núcleo de Inteligencia</h3>
                 </div>
                 <button 
+                  type="button"
+                  aria-label="Cerrar Centinela financiero"
                   onClick={() => setIsOpen(false)}
                   className="p-2 hover:bg-white/10 rounded-xl transition-all text-slate-500 hover:text-white"
                 >
@@ -291,11 +301,17 @@ export const SentinelBubble: React.FC = () => {
                           <div className="flex-1 h-[1px] bg-gradient-to-r from-rose-500/20 to-transparent" />
                         </h4>
                         <div className="space-y-4">
-                            {health.alarmas_ritmo_gasto.map((alarm) => (
+                        {health.alarmas_ritmo_gasto.map((alarm) => {
+                          const overExpectedPercent = alarm.expected > 0
+                            ? Math.round(((alarm.spent - alarm.expected) / alarm.expected) * 100)
+                            : null;
+                          return (
                             <div key={`${alarm.category}-${alarm.pacing_status}`} className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-4">
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-xs font-black text-rose-400 uppercase tracking-widest">{alarm.category}</span>
-                                <span className="text-[10px] font-mono text-rose-300/50">+{Math.round(((alarm.spent - alarm.expected) / alarm.expected) * 100)}% vs esperado</span>
+                                <span className="text-[10px] font-mono text-rose-300/50">
+                                  {overExpectedPercent === null ? 'Por encima del límite' : `+${overExpectedPercent}% vs esperado`}
+                                </span>
                               </div>
                               <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden mb-2">
                                 <div className="h-full bg-rose-500 w-full animate-pulse" />
@@ -304,7 +320,8 @@ export const SentinelBubble: React.FC = () => {
                                 Has gastado <span className="text-rose-300">${alarm.spent.toFixed(2)}</span>. El sistema esperaba <span className="text-slate-300">${alarm.expected.toFixed(2)}</span> para hoy.
                               </p>
                             </div>
-                          ))}
+                          );
+                        })}
                         </div>
                       </motion.div>
                     )}
@@ -375,8 +392,10 @@ export const SentinelBubble: React.FC = () => {
                 className="p-8 bg-black/20 border-t border-white/5 flex justify-between items-center"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)] animate-pulse" />
-                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em] font-mono">Oracle Active</p>
+                  <div className={`w-2 h-2 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.8)] animate-pulse ${health?.analysis_source === 'heuristic' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em] font-mono">
+                    {health?.analysis_source === 'heuristic' ? 'Modo Seguro // Heurístico' : 'Oracle Active'}
+                  </p>
                 </div>
                 <div className="flex gap-4 items-center">
                   <span className="text-[9px] text-slate-700 font-bold uppercase tracking-widest px-3 py-1 bg-white/5 rounded-full border border-white/5">V.3.2-∞</span>
@@ -384,6 +403,7 @@ export const SentinelBubble: React.FC = () => {
                 </div>
               </motion.div>
             </motion.div>
+            </>
           )}
         </AnimatePresence>
       </div>
