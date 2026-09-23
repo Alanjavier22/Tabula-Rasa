@@ -4,11 +4,10 @@ import logging
 import asyncio
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
-import google.genai as genai
 from google.genai import types
-from app.services.ai_models import LITE_MODEL
+from app.services.ai_models import LITE_MODEL, with_gemini_retry_async
+from app.services.gemini_gateway import create_gemini_client, get_configured_gemini_key
 from database import SessionLocal
-from app.models.config import Config
 from app.models.transaction import Transaction
 from app.models.category import Category
 from app.services.account_statement_parser import convert_to_csv_string, local_extract_transactions
@@ -39,10 +38,7 @@ class AccountIntelligenceService:
         self.db = db_session or SessionLocal()
 
     def _get_api_key(self) -> Optional[str]:
-        config = self.db.query(Config).filter(Config.key == "gemini_api_key").first()
-        if config and config.value:
-            return str(config.value)
-        return None
+        return get_configured_gemini_key(self.db)
 
     def generate_fingerprint(self, date: str, description: str, amount_cents: int, account_id: str, balance_cents: Optional[int] = None, suffix: str = "") -> str:
         """Generates a unique hash to prevent duplicates, including balance to disambiguate identical transactions."""
@@ -80,34 +76,29 @@ class AccountIntelligenceService:
         raw_csv_text = convert_to_csv_string(file_data, filename)
         prompt = "Analiza el siguiente extracto bancario en crudo y extrae todas las transacciones financieras reales.\n\n" + raw_csv_text
         system_instruction = self._build_system_instruction(expected_bank_name)
-        max_retries = 8
-        for attempt in range(max_retries):
-            try:
-                response = await asyncio.to_thread(
-                    client.models.generate_content,
-                    model=LITE_MODEL,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        response_mime_type="application/json",
-                        response_schema=AccountParsingResponse,
-                        temperature=0.1,
-                    ),
-                )
-                if not response.text:
-                    raise ValueError("Gemini returned an empty response")
-                return json.loads(response.text)
-            except Exception as error:
-                if attempt == max_retries - 1:
-                    raise ValueError(
-                        f"IA no disponible tras {max_retries} intentos. Google reporta: {str(error)}"
-                    )
-                wait_time = (attempt + 1) * 5
-                logger.warning(
-                    f"[IA] Gemini ocupado ({error}). Reintento {attempt + 1}/{max_retries} en {wait_time}s..."
-                )
-                await asyncio.sleep(wait_time)
-        return {"transactions": []}
+        def request_and_parse() -> Dict[str, Any]:
+            response = client.models.generate_content(
+                model=LITE_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    response_mime_type="application/json",
+                    response_schema=AccountParsingResponse,
+                    temperature=0.1,
+                ),
+            )
+            if not response.text:
+                raise ValueError("Gemini returned an empty response")
+            return json.loads(response.text)
+
+        try:
+            return await with_gemini_retry_async(request_and_parse, max_retries=8)
+        except Exception as error:
+            logger.exception(
+                "[AccountIntelligence] Gemini parsing failed after retries: %s",
+                type(error).__name__,
+            )
+            raise ValueError("IA no disponible después de varios intentos.") from error
 
     def _enrich_transactions(
         self,
@@ -154,7 +145,7 @@ class AccountIntelligenceService:
         if not api_key:
             raise ValueError("GEMINI_API_KEY no configurada en el sistema.")
 
-        client = genai.Client(api_key=api_key)
+        client = create_gemini_client(api_key)
         
         logger.info("[AccountIntelligence] Intentando extracción heurística local...")
         local_transactions = local_extract_transactions(file_data, filename)
