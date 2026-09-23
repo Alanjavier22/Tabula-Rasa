@@ -9,6 +9,7 @@ const CommandPalette = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<'navigation' | 'ai'>('navigation');
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [aiResponse, setAiResponse] = useState('');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -26,8 +27,19 @@ const CommandPalette = () => {
         setAiResponse('');
       }
     };
+    const handleOpenRequest = () => {
+      setIsOpen(true);
+      setMode('navigation');
+      setQuery('');
+      setAiResponse('');
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('tabula:open-command-palette', handleOpenRequest);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('tabula:open-command-palette', handleOpenRequest);
+    };
   }, []);
 
   const routes = [
@@ -79,6 +91,12 @@ const CommandPalette = () => {
     setAiResponse('');
   };
 
+  const navigateToRoute = (path: string) => {
+    navigate(path);
+    setIsOpen(false);
+    setQuery('');
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -99,7 +117,23 @@ const CommandPalette = () => {
                 className="w-full bg-transparent border-0 text-white px-4 py-4 focus:ring-0 placeholder:text-slate-500 outline-none"
                 placeholder="Buscar o saltar a... (Usa las flechas)"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                autoFocus
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setSelectedRouteIndex(0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedRouteIndex((current) => filteredRoutes.length ? (current + 1) % filteredRoutes.length : 0);
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedRouteIndex((current) => filteredRoutes.length ? (current - 1 + filteredRoutes.length) % filteredRoutes.length : 0);
+                  } else if (e.key === 'Enter' && filteredRoutes[selectedRouteIndex]) {
+                    e.preventDefault();
+                    navigateToRoute(filteredRoutes[selectedRouteIndex].path);
+                  }
+                }}
               />
               <kbd className="hidden sm:inline-block bg-slate-700 text-slate-300 text-xs px-2 py-1 rounded-md">ESC</kbd>
             </div>
@@ -110,12 +144,11 @@ const CommandPalette = () => {
                   return (
                     <li key={route.path}>
                       <button
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left text-slate-300 hover:bg-slate-700/50 hover:text-white rounded-xl transition-colors"
-                        onClick={() => {
-                          navigate(route.path);
-                          setIsOpen(false);
-                          setQuery('');
-                        }}
+                        type="button"
+                        aria-selected={selectedRouteIndex === filteredRoutes.indexOf(route)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-left text-slate-300 hover:bg-slate-700/50 hover:text-white rounded-xl transition-colors ${selectedRouteIndex === filteredRoutes.indexOf(route) ? 'bg-purple-500/10' : ''}`}
+                        onMouseEnter={() => setSelectedRouteIndex(filteredRoutes.indexOf(route))}
+                        onClick={() => navigateToRoute(route.path)}
                       >
                         <Icon className="w-4 h-4 text-purple-400" />
                         {route.name}
