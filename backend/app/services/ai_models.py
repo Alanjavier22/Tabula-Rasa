@@ -4,6 +4,8 @@ import asyncio
 import logging
 from typing import Callable
 
+from google.genai import errors
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
@@ -34,16 +36,22 @@ LITE_MODEL = os.getenv("LITE_MODEL", DEFAULT_GEMINI_MODEL)
 
 
 def with_gemini_retry[T](fn: Callable[[], T], max_retries: int = 5) -> T:
-    """Reintenta con backoff ante 503/UNAVAILABLE transitorios de Gemini."""
+    """Retry transient Gemini failures with bounded exponential backoff."""
     for attempt in range(max_retries):
         try:
             return fn()
         except Exception as e:
-            transient = "503" in str(e) or "UNAVAILABLE" in str(e)
+            transient = is_transient_gemini_error(e)
             if not transient or attempt == max_retries - 1:
                 raise
-            wait_time = (attempt + 2) * 4  # 8s, 12s, 16s, 20s...
-            logger.warning(f"[Gemini] 503/UNAVAILABLE transitorio. Reintentando en {wait_time}s... ({attempt + 1}/{max_retries})")
+            wait_time = min(30, 2 ** attempt)
+            logger.warning(
+                "[Gemini] Error transitorio (%s). Reintentando en %ss... (%s/%s)",
+                _gemini_error_code(e),
+                wait_time,
+                attempt + 1,
+                max_retries,
+            )
             time.sleep(wait_time)
     raise RuntimeError("unreachable")
 
@@ -54,13 +62,41 @@ async def with_gemini_retry_async[T](fn: Callable[[], T], max_retries: int = 5) 
         try:
             return await asyncio.to_thread(fn)
         except Exception as e:
-            transient = "503" in str(e) or "UNAVAILABLE" in str(e)
+            transient = is_transient_gemini_error(e)
             if not transient or attempt == max_retries - 1:
                 raise
-            wait_time = (attempt + 2) * 4
+            wait_time = min(30, 2 ** attempt)
             logger.warning(
-                f"[Gemini] 503/UNAVAILABLE transitorio. Reintentando en "
-                f"{wait_time}s... ({attempt + 1}/{max_retries})"
+                "[Gemini] Error transitorio (%s). Reintentando en %ss... (%s/%s)",
+                _gemini_error_code(e),
+                wait_time,
+                attempt + 1,
+                max_retries,
             )
             await asyncio.sleep(wait_time)
     raise RuntimeError("unreachable")
+
+
+def _gemini_error_code(error: Exception) -> object:
+    return getattr(error, "code", None) or getattr(error, "status", None) or str(error)
+
+
+def is_transient_gemini_error(error: Exception) -> bool:
+    """Classify SDK/API errors without depending on message wording alone."""
+    code = getattr(error, "code", None)
+    if code in {408, 429, 500, 502, 503, 504}:
+        return True
+    if isinstance(error, errors.ServerError):
+        return True
+    if isinstance(error, (TimeoutError, asyncio.TimeoutError)):
+        return True
+    message = str(error).upper()
+    return (
+        "UNAVAILABLE" in message
+        or "DEADLINE" in message
+        or "TIMEOUT" in message
+        or " 503" in f" {message}"
+        or " 429" in f" {message}"
+        or "BUSY" in message
+        or "RESOURCE_EXHAUSTED" in message
+    )
