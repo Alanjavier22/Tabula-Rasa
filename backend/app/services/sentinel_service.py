@@ -1,18 +1,34 @@
 from sqlalchemy.orm import Session
-from typing import Any, cast
-from datetime import datetime, timezone, timedelta
+from typing import Any, cast, Literal, Optional
+from datetime import datetime, timezone
 import json
 import logging
-import asyncio
-import time
+from pydantic import BaseModel, Field
 from app.services.anomaly_detector import detect_anomalies
 from app.services.forecaster import get_financial_projection
 from app.services.insights_builders import _build_transaction_summary, _build_liquidity_summary, _build_credit_card_summary
-import google.genai as genai
 from google.genai import types
-from app.services.ai_models import REASONING_MODEL
+from app.services.ai_models import REASONING_MODEL, with_gemini_retry_async
+from app.services.ai_prompts import CORE_RULES, get_persona_prompt
+from app.services.gemini_gateway import create_gemini_client
 
 logger = logging.getLogger(__name__)
+
+
+class SentinelWarning(BaseModel):
+    level: Literal["warning", "info", "success"]
+    message: str
+
+
+class SentinelAIReport(BaseModel):
+    """Strict contract for the narrative portion returned by Gemini."""
+
+    health_score: int = Field(ge=0, le=100)
+    status_summary: str
+    top_concerns: list[str]
+    recommended_action: str
+    warnings: list[SentinelWarning]
+
 
 class SentinelService:
     """
@@ -20,10 +36,10 @@ class SentinelService:
     Consolida métricas, detecta anomalías y genera un reporte de salud integral.
     """
     
-    def __init__(self, db: Session, api_key: str):
+    def __init__(self, db: Session, api_key: Optional[str]):
         self.db = db
         self.api_key = api_key
-        self.client = genai.Client(api_key=api_key)
+        self.client = create_gemini_client(api_key) if api_key else None
 
     async def generate_health_report(self, persona: str = "professional") -> dict:
         """
@@ -93,10 +109,20 @@ class SentinelService:
             "proyeccion_3_meses": projection["timeline"][-1]["projected_balance"] / 100,
             "alarmas_ritmo_gasto": burn_rate_alarms
         }
+        context["health_score_calculado"] = self._calculate_health_score(context)
+
+        if self.client is None:
+            return self._generate_heuristic_fallback(
+                context,
+                "Gemini no configurado",
+            )
         
         # 3. Prompt Agentico para el Sentinel
+        persona_instruction = get_persona_prompt(persona)
         system_instruction = f"""
-        Eres SENTINEL, el Oráculo Omnisciente de este ecosistema financiero. 
+        {CORE_RULES}
+
+        Eres SENTINEL, el monitor financiero de este ecosistema.
         Tu misión es ser un guardián 360 que audita, proyecta y alerta con total transparencia.
 
         REGLAS DE COMUNICACIÓN (CRÍTICO):
@@ -104,7 +130,7 @@ class SentinelService:
         - PROHIBIDO usar el término "Runway". Usa "Meses de Supervivencia" o "Días de Reserva".
         - PROHIBIDO usar "Patrimonio neto negativo". Usa "Tus deudas superan tus activos" o "Balance de riqueza en rojo".
         - PROHIBIDO usar "Capacidad de respuesta ante proyecciones". Usa "Flexibilidad ante imprevistos" o "Margen de maniobra futuro".
-        - Sé directo, protector y omnisciente. No eres un asesor, eres el sistema mismo hablándole a su dueño.
+        - Sé directo, protector y transparente. Eres un sistema de análisis, no una autoridad omnisciente.
         - Eres un observador de solo lectura. No intentes sugerir acciones que impliquen que tú harás algo; tú solo reportas la verdad.
         - ALERTAS DE GASTO: Si 'alarmas_ritmo_gasto' no está vacío, genera avisos específicos en 'warnings' indicando que el usuario va por encima de lo esperado en esas categorías.
 
@@ -116,104 +142,127 @@ class SentinelService:
         5. "warnings": Una lista de alertas cortas con nivel (warning, info, success) y mensaje claro.
 
         REGLAS PARA HEALTH_SCORE:
-        - Si la carga fiscal proyectada + Deuda tarjetas > Liquidez Neta, el score debe ser < 40.
-        - Si los meses de supervivencia son < 2, score < 50.
-        - Si la riqueza (activos - deudas) es negativa, penaliza el score fuertemente.
+        - Copia exactamente el valor de 'health_score_calculado'. El backend calcula y valida el score; tú redactas la explicación.
+        - Si la carga fiscal proyectada + Deuda tarjetas > Liquidez Neta, explica el riesgo de liquidez.
+        - Si los meses de supervivencia son < 2, explica la falta de reserva.
         
-        Mantén un tono acorde a la persona: {persona}.
+        {persona_instruction}
         """
         
         prompt = f"Datos reales del ecosistema: {json.dumps(context, ensure_ascii=False)}"
         
         try:
-            # 3. Llamada a Gemini con Reintentos (Exponential Backoff)
-            import time
-            max_retries = 5
-            last_error = None
-            
-            for attempt in range(max_retries):
-                try:
-                    response = self.client.models.generate_content(
-                        model=REASONING_MODEL,
-                        contents=system_instruction + "\n\n" + prompt,
-                        config=types.GenerateContentConfig(
-                            temperature=0.0,
-                            response_mime_type="application/json",
-                            response_schema={
-                                "type": "object",
-                                "properties": {
-                                    "health_score": {"type": "integer"},
-                                    "status_summary": {"type": "string"},
-                                    "top_concerns": {"type": "array", "items": {"type": "string"}},
-                                    "recommended_action": {"type": "string"},
-                                    "warnings": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "level": {"type": "string", "enum": ["warning", "info", "success"]},
-                                                "message": {"type": "string"}
-                                            },
-                                            "required": ["level", "message"]
-                                        }
+            response = await with_gemini_retry_async(
+                lambda: self.client.models.generate_content(
+                    model=REASONING_MODEL,
+                    contents=system_instruction + "\n\n" + prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.0,
+                        response_mime_type="application/json",
+                        response_schema={
+                            "type": "object",
+                            "properties": {
+                                "health_score": {"type": "integer"},
+                                "status_summary": {"type": "string"},
+                                "top_concerns": {"type": "array", "items": {"type": "string"}},
+                                "recommended_action": {"type": "string"},
+                                "warnings": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "level": {"type": "string", "enum": ["warning", "info", "success"]},
+                                            "message": {"type": "string"}
+                                        },
+                                        "required": ["level", "message"]
                                     }
-                                },
-                                "required": ["health_score", "status_summary", "top_concerns", "recommended_action", "warnings"]
-                            }
-                        )
+                                }
+                            },
+                            "required": ["health_score", "status_summary", "top_concerns", "recommended_action", "warnings"]
+                        }
                     )
-                    # Si llegamos aquí, la llamada fue exitosa
-                    report = json.loads(cast(str, response.text))
-                    report["timestamp"] = datetime.now(timezone.utc).isoformat()
-                    return report
-                except Exception as e:
-                    last_error = e
-                    # Reintentamos solo en errores de disponibilidad (503, etc)
-                    if ("503" in str(e) or "UNAVAILABLE" in str(e) or "Deadline" in str(e)) and attempt < max_retries - 1:
-                        wait_time = (attempt + 1) * 3
-                        await asyncio.sleep(wait_time)
-                    else:
-                        # Si ya no hay más reintentos o es un error fatal, disparamos el fallback heurístico
-                        return self._generate_heuristic_fallback(context, str(e))
-            
-            # If for finishes without returning (should be covered by else in except)
-            return self._generate_heuristic_fallback(context, str(last_error) if last_error else "Max retries reached")
-        except Exception as e:
-            # Absolute fallback (No AI Mode)
-            return self._generate_heuristic_fallback(context, str(e))
+                )
+            )
+            report = SentinelAIReport.model_validate_json(cast(str, response.text)).model_dump()
+            # The score belongs to the deterministic financial rules, not to
+            # the language model. Gemini only supplies the narrative around it.
+            report["health_score"] = context["health_score_calculado"]
+            report["analysis_source"] = "gemini"
+            report["alarmas_ritmo_gasto"] = context["alarmas_ritmo_gasto"]
+            report["ai_error"] = None
+            report["timestamp"] = datetime.now(timezone.utc).isoformat()
+            return report
+        except Exception:
+            logger.exception("Sentinel Gemini request failed; using heuristic fallback")
+            return self._generate_heuristic_fallback(context, "Servicio IA no disponible")
 
-    def _generate_heuristic_fallback(self, context: dict, error_msg: str) -> dict:
+    @staticmethod
+    def _calculate_health_score(context: dict) -> int:
+        """Calculate the stable score used by both Gemini and offline mode."""
+        score = 100
+        liquidity = float(context.get("liquidez_neta", 0) or 0)
+        fiscal_debt = float(context.get("iva_proyectado_mes", 0) or 0)
+        fiscal_debt += float(context.get("retenciones_proyectadas", 0) or 0)
+        debt = float(context.get("deuda_tarjetas", 0) or 0) + fiscal_debt
+        runway = float(context.get("runway_meses", 0) or 0)
+
+        if debt > liquidity:
+            score -= 40
+        if runway < 2:
+            score -= 30
+        elif runway < 6:
+            score -= 10
+        if context.get("anomalias_detectadas"):
+            score -= 15
+        if context.get("alarmas_ritmo_gasto"):
+            score -= 10
+
+        return max(0, min(100, score))
+
+    def _generate_heuristic_fallback(
+        self,
+        context: dict,
+        error_msg: str,
+        analysis_source: str = "heuristic",
+    ) -> dict:
         """
         Generates a basic health report based on pure math when AI is unavailable.
         """
-        score = 100
+        score = self._calculate_health_score(context)
         concerns = []
         warnings = []
         
         # 1. Evaluate Liquidity vs Debt
         liquidez = context["liquidez_neta"]
-        deuda = context["deuda_tarjetas"] + context["iva_proyectado_mes"]
+        deuda = (
+            context["deuda_tarjetas"]
+            + context["iva_proyectado_mes"]
+            + context.get("retenciones_proyectadas", 0)
+        )
         
         if deuda > liquidez:
-            score -= 40
             concerns.append("La deuda inmediata supera la liquidez disponible")
             warnings.append({"level": "warning", "message": "Riesgo de liquidez: Deudas > Efectivo"})
             
         # 2. Evaluate Runway
         runway = context["runway_meses"]
         if runway < 2:
-            score -= 30
             concerns.append("El fondo de emergencia es insuficiente (< 2 meses)")
-            warnings.append({"level": "warning", "message": f"Runway crítico: {runway:.1f} meses"})
+            warnings.append({"level": "warning", "message": f"Reserva crítica: {runway:.1f} meses"})
         elif runway < 6:
-            score -= 10
             warnings.append({"level": "info", "message": f"Reserva aceptable: {runway:.1f} meses"})
 
         # 3. Anomalies
         if context["anomalias_detectadas"]:
-            score -= 15
             concerns.extend(context["anomalias_detectadas"])
             warnings.append({"level": "info", "message": f"Detectadas {len(context['anomalias_detectadas'])} fugas de dinero"})
+
+        for alarm in context.get("alarmas_ritmo_gasto", []):
+            concerns.append(f"Ritmo de gasto elevado en {alarm['category']}")
+            warnings.append({
+                "level": "warning",
+                "message": f"Gasto por encima de lo esperado en {alarm['category']}",
+            })
 
         # Final score clamping
         score = max(0, min(100, score))
@@ -237,5 +286,7 @@ class SentinelService:
             "recommended_action": "Priorizar el pago de deudas y aumentar el fondo de reserva" if score < 60 else "Mantener el control de gastos actual",
             "warnings": warnings if warnings else [{"level": "success", "message": "Parámetros financieros dentro de rangos normales"}],
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "ai_error": error_msg # Log the error but don't break the UI
+            "analysis_source": analysis_source,
+            "alarmas_ritmo_gasto": context.get("alarmas_ritmo_gasto", []),
+            "ai_error": error_msg,
         }
