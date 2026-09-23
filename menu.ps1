@@ -1,9 +1,11 @@
 # Menú interactivo para Finanzas Personales (Versión Enterprise)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 
 # --- CONFIGURACIÓN DE RUTAS (ALCANCE GLOBAL) ---
-# Usamos SCRIPT_DIR que viene definido desde el .bat
-$script:scriptPath = $global:SCRIPT_DIR
+# Usamos la ubicación real del script, tanto desde menu.bat como directamente.
+$script:scriptPath = $PSScriptRoot
 if (-not $script:scriptPath) { $script:scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path }
 if (-not $script:scriptPath) { $script:scriptPath = $PSScriptRoot }
 if (-not $script:scriptPath) { $script:scriptPath = "." } # Fallback al directorio actual
@@ -16,30 +18,32 @@ $script:backendErrorLog = Join-Path $script:scriptPath "backend_error.log"
 $script:frontendErrorLog = Join-Path $script:scriptPath "frontend_error.log"
 $script:venvPython = Join-Path $script:backendPath "venv\Scripts\python.exe"
 $script:nodeModules = Join-Path $script:frontendPath "node_modules"
+$script:runDirectory = Join-Path $script:scriptPath ".run"
+$script:backendPidFile = Join-Path $script:runDirectory "backend.pid"
+$script:frontendPidFile = Join-Path $script:runDirectory "frontend.pid"
+$script:uvicornHost = if ([string]::IsNullOrWhiteSpace($env:UVICORN_HOST)) { "127.0.0.1" } else { $env:UVICORN_HOST }
+
+New-Item -ItemType Directory -Force -Path $script:runDirectory | Out-Null
 
 # --- SISTEMA DE INSTALACIÓN AUTÓNOMA ---
 
 # Función para refrescar el PATH de la sesión actual
 function Refresh-SessionPath {
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path","Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path","User")
+    $processPath = $env:Path
+    $env:Path = (($machinePath, $userPath, $processPath) -split ';' |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Select-Object -Unique) -join ';'
 }
 
-# Desactivar los App Execution Aliases de Windows Store para python
-function Disable-PythonStoreAliases {
-    $aliasesPath = "$env:LOCALAPPDATA\Microsoft\WindowsApps"
-    foreach ($alias in @("python.exe", "python3.exe")) {
-        $fullPath = Join-Path $aliasesPath $alias
-        if (Test-Path $fullPath) {
-            $target = Get-Item $fullPath -ErrorAction SilentlyContinue
-            # Los aliases de la Store son archivos de 0 bytes
-            if ($target -and $target.Length -eq 0) {
-                try {
-                    Remove-Item $fullPath -Force -ErrorAction SilentlyContinue
-                    Write-Host "  Alias de Windows Store '$alias' desactivado." -ForegroundColor Gray
-                } catch { }
-            }
-        }
-    }
+function Get-UsableCommand {
+    param([string]$Name)
+
+    $windowsApps = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
+    return Get-Command $Name -CommandType Application -All -ErrorAction SilentlyContinue |
+        Where-Object { $_.Source -notlike "$windowsApps\*" } |
+        Select-Object -First 1
 }
 
 # Verificar si winget está disponible
@@ -52,49 +56,62 @@ function Test-WingetAvailable {
 function Install-PythonDirect {
     $pythonVersion = "3.12.8"
     $installerUrl = "https://www.python.org/ftp/python/$pythonVersion/python-$pythonVersion-amd64.exe"
-    $installerPath = Join-Path $env:TEMP "python-installer.exe"
+    $installerPath = Join-Path $env:TEMP ("tabula-rasa-python-{0}.exe" -f [guid]::NewGuid())
 
     Write-Host "  Descargando Python $pythonVersion..." -ForegroundColor Cyan
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+        Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing | Out-Null
+        $signature = Get-AuthenticodeSignature -FilePath $installerPath
+        if ($signature.Status -ne "Valid") {
+            throw "La firma Authenticode del instalador de Python no es válida ($($signature.Status))."
+        }
+
+        Write-Host "  Instalando Python $pythonVersion (silencioso)..." -ForegroundColor Cyan
+        $installArgs = "/quiet InstallAllUsers=0 PrependPath=1 Include_pip=1 Include_launcher=1"
+        $installerProcess = Start-Process -FilePath $installerPath -ArgumentList $installArgs -Wait -PassThru -NoNewWindow
+        if ($installerProcess.ExitCode -notin @(0, 3010)) {
+            throw "El instalador de Python terminó con código $($installerProcess.ExitCode)."
+        }
+        Refresh-SessionPath
+        return ($null -ne (Get-UsableCommand "python"))
     } catch {
-        Write-Host "  ERROR: No se pudo descargar Python. Verifica tu conexión a Internet." -ForegroundColor Red
+        Write-Host "  ERROR: No se pudo instalar Python: $($_.Exception.Message)" -ForegroundColor Red
         return $false
+    } finally {
+        Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
     }
-
-    Write-Host "  Instalando Python $pythonVersion (silencioso)..." -ForegroundColor Cyan
-    $installArgs = "/quiet InstallAllUsers=0 PrependPath=1 Include_pip=1 Include_launcher=1"
-    Start-Process -FilePath $installerPath -ArgumentList $installArgs -Wait -NoNewWindow
-    Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
-
-    Refresh-SessionPath
-    $check = Get-Command python -ErrorAction SilentlyContinue
-    return ($null -ne $check)
 }
 
 # Instalar Node.js directamente descargándolo (fallback si no hay winget)
 function Install-NodeDirect {
     $nodeVersion = "22.12.0"
     $installerUrl = "https://nodejs.org/dist/v$nodeVersion/node-v$nodeVersion-x64.msi"
-    $installerPath = Join-Path $env:TEMP "node-installer.msi"
+    $installerPath = Join-Path $env:TEMP ("tabula-rasa-node-{0}.msi" -f [guid]::NewGuid())
 
     Write-Host "  Descargando Node.js $nodeVersion..." -ForegroundColor Cyan
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+        Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing | Out-Null
+        $signature = Get-AuthenticodeSignature -FilePath $installerPath
+        if ($signature.Status -ne "Valid") {
+            throw "La firma Authenticode del instalador de Node.js no es válida ($($signature.Status))."
+        }
+
+        Write-Host "  Instalando Node.js $nodeVersion (silencioso)..." -ForegroundColor Cyan
+        $msiArgs = @("/i", $installerPath, "/quiet", "/norestart")
+        $installerProcess = Start-Process msiexec.exe -ArgumentList $msiArgs -Wait -PassThru -NoNewWindow
+        if ($installerProcess.ExitCode -notin @(0, 3010)) {
+            throw "El instalador de Node.js terminó con código $($installerProcess.ExitCode)."
+        }
+        Refresh-SessionPath
+        return ($null -ne (Get-UsableCommand "node"))
     } catch {
-        Write-Host "  ERROR: No se pudo descargar Node.js. Verifica tu conexión a Internet." -ForegroundColor Red
+        Write-Host "  ERROR: No se pudo instalar Node.js: $($_.Exception.Message)" -ForegroundColor Red
         return $false
+    } finally {
+        Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
     }
-
-    Write-Host "  Instalando Node.js $nodeVersion (silencioso)..." -ForegroundColor Cyan
-    Start-Process msiexec.exe -ArgumentList "/i `"$installerPath`" /quiet /norestart" -Wait -NoNewWindow
-    Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
-
-    Refresh-SessionPath
-    $check = Get-Command node -ErrorAction SilentlyContinue
-    return ($null -ne $check)
 }
 
 # Función principal de instalación autónoma (sin preguntar)
@@ -112,13 +129,15 @@ function Install-Requirement {
     # Intentar con winget primero
     if (Test-WingetAvailable) {
         Write-Host "  Usando winget para instalar $Name..." -ForegroundColor Cyan
-        winget install --id $Id --source winget --accept-package-agreements --accept-source-agreements --silent 2>&1 | Out-Null
-        Refresh-SessionPath
-        
-        if ($DirectInstallType -eq "python") {
-            $installed = ($null -ne (Get-Command python -ErrorAction SilentlyContinue))
-        } elseif ($DirectInstallType -eq "node") {
-            $installed = ($null -ne (Get-Command node -ErrorAction SilentlyContinue))
+        & winget install --id $Id --source winget --accept-package-agreements --accept-source-agreements --silent *> $null
+        $wingetExitCode = $LASTEXITCODE
+        if ($wingetExitCode -eq 0 -or $wingetExitCode -eq 3010) {
+            Refresh-SessionPath
+            if ($DirectInstallType -eq "python") {
+                $installed = ($null -ne (Get-UsableCommand "python"))
+            } elseif ($DirectInstallType -eq "node") {
+                $installed = ($null -ne (Get-UsableCommand "node"))
+            }
         }
     }
 
@@ -145,16 +164,13 @@ function Install-Requirement {
 
 # Validación de versión de Python (requerido: 3.12+)
 function Test-PythonVersion {
-    # Primero desactivar los aliases fantasma de Windows Store
-    Disable-PythonStoreAliases
-
-    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    $pythonCmd = Get-UsableCommand "python"
     if (-not $pythonCmd) {
         Install-Requirement "Python 3.12" "Python.Python.3.12" "python"
         Refresh-SessionPath
     }
     
-    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    $pythonCmd = Get-UsableCommand "python"
     if (-not $pythonCmd) {
         Write-Host "  ERROR FATAL: Python no se detecta después de la instalación." -ForegroundColor Red
         Write-Host "  Cierra esta ventana, abre una nueva terminal y ejecuta menu.bat de nuevo." -ForegroundColor Yellow
@@ -162,7 +178,7 @@ function Test-PythonVersion {
         exit 1
     }
 
-    $pythonVersionOutput = python --version 2>&1
+    $pythonVersionOutput = & $pythonCmd.Source --version 2>&1
     $versionStr = $pythonVersionOutput -replace "Python ", ""
     
     try {
@@ -179,19 +195,20 @@ function Test-PythonVersion {
             Write-Host "  Python $versionStr detectado" -ForegroundColor Green
         }
     } catch {
-        Write-Host "  Python detectado" -ForegroundColor Green
+        Write-Host "  ERROR: No se pudo interpretar la versión de Python ($versionStr)." -ForegroundColor Red
+        exit 1
     }
 }
 
 function Test-NodeVersion {
-    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    $nodeCmd = Get-UsableCommand "node"
     if (-not $nodeCmd) {
         Install-Requirement "Node.js" "OpenJS.NodeJS" "node"
         Refresh-SessionPath
     }
     
     # Re-verificar después de posible instalación
-    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    $nodeCmd = Get-UsableCommand "node"
     if (-not $nodeCmd) {
         Write-Host "  ERROR: Node.js no se detecta después de la instalación." -ForegroundColor Red
         Write-Host "  Cierra esta ventana, abre una nueva terminal y ejecuta menu.bat de nuevo." -ForegroundColor Yellow
@@ -199,7 +216,7 @@ function Test-NodeVersion {
         exit 1
     }
 
-    $nodeVersionOutput = node --version
+    $nodeVersionOutput = & $nodeCmd.Source --version
     $versionStr = $nodeVersionOutput -replace "^v", ""
 
     try {
@@ -216,7 +233,8 @@ function Test-NodeVersion {
             Write-Host "  Node.js $versionStr detectado" -ForegroundColor Green
         }
     } catch {
-        Write-Host "  Node.js $nodeVersionOutput detectado" -ForegroundColor Green
+        Write-Host "  ERROR: No se pudo interpretar la versión de Node.js ($nodeVersionOutput)." -ForegroundColor Red
+        exit 1
     }
 }
 
@@ -252,8 +270,13 @@ function Show-Menu {
     Write-Host ""
     Write-Host "  Estado actual: " -NoNewline; 
     $port8001 = Get-NetTCPConnection -LocalPort 8001 -State Listen -ErrorAction SilentlyContinue
-    if ($port8001) { 
+    $port5173 = Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
+    if ($port8001 -and $port5173) {
         Write-Host ">>> ONLINE <<<" -ForegroundColor Green 
+    } elseif ($port8001) {
+        Write-Host ">>> BACKEND ONLINE / FRONTEND OFFLINE <<<" -ForegroundColor Yellow
+    } elseif ($port5173) {
+        Write-Host ">>> BACKEND OFFLINE / FRONTEND ONLINE <<<" -ForegroundColor Yellow
     } else { 
         Write-Host ">>> OFFLINE <<<" -ForegroundColor Red 
     }
@@ -261,44 +284,9 @@ function Show-Menu {
 }
 
 function Stop-ProjectProcesses {
-    Write-Host "  Limpiando agresivamente procesos Python y Node..." -ForegroundColor Yellow
-    $killedSomething = $false
-
-    # Matar todos los procesos Python
-    $pythonProcesses = Get-Process -Name "python*" -ErrorAction SilentlyContinue
-    if ($pythonProcesses) {
-        foreach ($proc in $pythonProcesses) {
-            try {
-                Stop-Process -Id $proc.Id -Force
-                Write-Host "  Proceso $($proc.ProcessName) (PID: $($proc.Id)) detenido." -ForegroundColor Green
-                $killedSomething = $true
-            } catch {
-                Write-Host "  Error al detener $($proc.ProcessName): $($_.Exception.Message)" -ForegroundColor Red
-            }
-        }
-    }
-
-    # Matar todos los procesos Node
-    $nodeProcesses = Get-Process -Name "node*" -ErrorAction SilentlyContinue
-    if ($nodeProcesses) {
-        foreach ($proc in $nodeProcesses) {
-            try {
-                Stop-Process -Id $proc.Id -Force
-                Write-Host "  Proceso $($proc.ProcessName) (PID: $($proc.Id)) detenido." -ForegroundColor Green
-                $killedSomething = $true
-            } catch {
-                Write-Host "  Error al detener $($proc.ProcessName): $($_.Exception.Message)" -ForegroundColor Red
-            }
-        }
-    }
-
-    if (-not $killedSomething) {
-        Write-Host "  No se encontraron procesos Python o Node activos." -ForegroundColor Gray
-    }
-
-    # Dar tiempo al SO para liberar descriptores de archivos
-    Start-Sleep -Seconds 2
-    return $killedSomething
+    # Compatibilidad con llamadas antiguas: la parada real siempre queda
+    # restringida a procesos identificados por ruta/comando del proyecto.
+    return (Stop-SpecificPorts)
 }
 
 function Get-ProjectProcessIds {
@@ -333,27 +321,13 @@ function Stop-SpecificPorts {
     for ($pass = 1; $pass -le 3; $pass++) {
         $anyThisPass = $false
 
-        # 1) Procesos de este proyecto por ruta (agarra también al supervisor,
-        #    que no está "escuchando" nada él mismo).
+        # Procesos de este proyecto por ruta/comando. Nunca se mata un PID
+        # únicamente porque escuche en uno de los puertos configurados.
         foreach ($processId in (Get-ProjectProcessIds)) {
-            try {
-                # /T mata también los hijos (workers de --reload, hijos de npm)
-                & taskkill /F /T /PID $processId 2>&1 | Out-Null
+            & taskkill /F /T /PID $processId 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
                 Write-Host "  PID $processId (árbol del proyecto) detenido." -ForegroundColor Green
                 $anyThisPass = $true
-            } catch { }
-        }
-
-        # 2) Red de seguridad: cualquier cosa escuchando en los puertos del
-        #    aplicativo que no se haya reconocido por ruta arriba.
-        foreach ($port in @(8001, 5173)) {
-            $connections = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-            foreach ($conn in $connections) {
-                try {
-                    & taskkill /F /T /PID $conn.OwningProcess 2>&1 | Out-Null
-                    Write-Host "  PID $($conn.OwningProcess) (árbol, puerto $port) detenido." -ForegroundColor Green
-                    $anyThisPass = $true
-                } catch { }
             }
         }
 
@@ -367,6 +341,17 @@ function Stop-SpecificPorts {
 
     if (-not $killedSomething) {
         Write-Host "  No se encontraron procesos del proyecto activos." -ForegroundColor Gray
+    }
+
+    foreach ($pidFile in @($script:backendPidFile, $script:frontendPidFile)) {
+        Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+    }
+
+    foreach ($port in @(8001, 5173)) {
+        $connections = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+        if ($connections) {
+            Write-Host "  ADVERTENCIA: el puerto $port sigue ocupado; no se detuvo porque el proceso no fue identificado como parte del proyecto." -ForegroundColor Yellow
+        }
     }
 
     return $killedSomething
@@ -495,10 +480,10 @@ function Start-Application {
         Write-Host "  Creando entorno virtual e instalando dependencias..." -ForegroundColor Magenta
         
         # Asegurar que python está disponible en el PATH actual
-        $pythonExe = Get-Command python -ErrorAction SilentlyContinue
+        $pythonExe = Get-UsableCommand "python"
         if (-not $pythonExe) {
             Refresh-SessionPath
-            $pythonExe = Get-Command python -ErrorAction SilentlyContinue
+            $pythonExe = Get-UsableCommand "python"
         }
         if (-not $pythonExe) {
             Write-Host "  ERROR: Python no está disponible. Ejecuta menu.bat de nuevo." -ForegroundColor Red
@@ -508,6 +493,11 @@ function Start-Application {
 
         # Crear el entorno virtual
         & $pythonExe.Source -m venv $venvPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  ERROR: Python no pudo crear el entorno virtual." -ForegroundColor Red
+            Read-Host "Presiona Enter para continuar..."
+            return
+        }
         
         if (-not (Test-Path $script:venvPython)) {
             Write-Host "  ERROR: No se pudo crear el entorno virtual." -ForegroundColor Red
@@ -539,7 +529,8 @@ function Start-Application {
     Write-Host "[4/5] Iniciando Backend..."  -ForegroundColor Yellow
     
     # Inicia como proceso oculto, enrutando StdOut y StdErr al Log
-    Start-Process -FilePath $script:venvPython -ArgumentList "-m uvicorn main:app --host 0.0.0.0 --port 8001 --reload" -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendLog -RedirectStandardError $script:backendErrorLog
+    $backendProcess = Start-Process -FilePath $script:venvPython -ArgumentList "-m uvicorn main:app --host $script:uvicornHost --port 8001 --reload" -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendLog -RedirectStandardError $script:backendErrorLog -PassThru
+    $backendProcess.Id | Set-Content -Path $script:backendPidFile -Encoding ascii
 
     # Health Check Polling (Evitar Race Condition)
     Write-Host "  Esperando a que el backend esté listo..." -ForegroundColor Yellow
@@ -566,6 +557,7 @@ function Start-Application {
             Get-Content $script:backendErrorLog -Tail 20 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkYellow }
             Write-Host "  --------------------------------------------" -ForegroundColor Yellow
         }
+        Stop-SpecificPorts | Out-Null
         Read-Host "Presiona Enter para continuar..."
         return
     }
@@ -577,14 +569,48 @@ function Start-Application {
     if (-not (Test-Path $script:nodeModules)) {
         Write-Host "  Dependencias de Node no detectadas. Instalando..." -ForegroundColor Magenta
         Push-Location $script:frontendPath
-        npm install
-        Pop-Location
+        $npmInstallCommand = "install"
+        $npmInstallExitCode = 1
+        try {
+            $npmInstallCommand = if (Test-Path (Join-Path $script:frontendPath "package-lock.json")) { "ci" } else { "install" }
+            & npm $npmInstallCommand
+            $npmInstallExitCode = $LASTEXITCODE
+        } finally {
+            Pop-Location
+        }
+        if ($npmInstallExitCode -ne 0) {
+            Write-Host "  ERROR: npm $npmInstallCommand falló con código $npmInstallExitCode." -ForegroundColor Red
+            Stop-SpecificPorts | Out-Null
+            Read-Host "Presiona Enter para continuar..."
+            return
+        }
     }
 
     # Inicia Vite oculto enrutando logs
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run dev" -WorkingDirectory $script:frontendPath -WindowStyle Hidden -RedirectStandardOutput $script:frontendLog -RedirectStandardError $script:frontendErrorLog
+    $frontendCommand = "/d /c `"set `"TABULA_RASA_PROJECT_ROOT=$script:frontendPath`" && npm run dev -- --host 127.0.0.1`""
+    $frontendProcess = Start-Process -FilePath "cmd.exe" -ArgumentList $frontendCommand -WorkingDirectory $script:frontendPath -WindowStyle Hidden -RedirectStandardOutput $script:frontendLog -RedirectStandardError $script:frontendErrorLog -PassThru
+    $frontendProcess.Id | Set-Content -Path $script:frontendPidFile -Encoding ascii
 
-    Start-Sleep -Seconds 3
+    $frontendReady = $false
+    for ($retry = 0; $retry -lt 15; $retry++) {
+        try {
+            Invoke-WebRequest -Uri "http://127.0.0.1:5173" -UseBasicParsing -TimeoutSec 2 | Out-Null
+            $frontendReady = $true
+            break
+        } catch {
+            Start-Sleep -Seconds 1
+        }
+    }
+
+    if (-not $frontendReady) {
+        Write-Host "  ERROR: El frontend no respondió después de 15 segundos." -ForegroundColor Red
+        if ((Test-Path $script:frontendErrorLog) -and (Get-Item $script:frontendErrorLog).Length -gt 0) {
+            Get-Content $script:frontendErrorLog -Tail 20 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkYellow }
+        }
+        Stop-SpecificPorts | Out-Null
+        Read-Host "Presiona Enter para continuar..."
+        return
+    }
 
     Write-Host ""
     Write-Host "========================================"  -ForegroundColor Cyan
@@ -617,16 +643,39 @@ function Show-LogTail {
     Write-Host "Mostrando $Name en vivo. Presiona cualquier tecla para volver al menú." -ForegroundColor Cyan
     Write-Host ""
 
-    Get-Content $Path -Tail 30 | ForEach-Object { Write-Host $_ }
+    if ([Console]::IsInputRedirected) {
+        Get-Content $Path -Tail 30 -Wait
+        return
+    }
+
+    try {
+        Get-Content $Path -Tail 30 | ForEach-Object { Write-Host $_ }
+    } catch {
+        Write-Host "No se pudo leer el log: $($_.Exception.Message)" -ForegroundColor Red
+        Read-Host "Presiona Enter para continuar..."
+        return
+    }
 
     # Se abre con FileShare ReadWrite para no bloquear al proceso que sigue escribiendo el log
-    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    try {
+        $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    } catch {
+        Write-Host "No se pudo abrir el log: $($_.Exception.Message)" -ForegroundColor Red
+        Read-Host "Presiona Enter para continuar..."
+        return
+    }
     $reader = New-Object System.IO.StreamReader($stream)
     $reader.BaseStream.Seek(0, [System.IO.SeekOrigin]::End) | Out-Null
 
     try {
         while ($true) {
-            if ([Console]::KeyAvailable) {
+            $keyAvailable = $false
+            try {
+                $keyAvailable = [Console]::KeyAvailable
+            } catch {
+                break
+            }
+            if ($keyAvailable) {
                 [Console]::ReadKey($true) | Out-Null
                 break
             }
@@ -677,6 +726,12 @@ while ($true) {
         '2' { Stop-AllProcesses }
         '3' { Show-Logs }
         '4' {
+            $maintenanceConfirmation = Read-Host "Esto eliminará backend\venv y frontend\node_modules. Escribe LIMPIAR para confirmar"
+            if ($maintenanceConfirmation -ne "LIMPIAR") {
+                Write-Host "Mantenimiento cancelado." -ForegroundColor Yellow
+                Read-Host "Presiona Enter para continuar..."
+                continue
+            }
             Write-Host "Iniciando mantenimiento profundo..." -ForegroundColor Cyan
             Stop-SpecificPorts | Out-Null
             try {
