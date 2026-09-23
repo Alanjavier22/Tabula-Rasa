@@ -9,19 +9,26 @@ from typing import Annotated, List, Optional
 import json
 import logging
 from datetime import datetime, timedelta
-import google.genai as genai
 from google.genai import types
 from app.services.ai_models import REASONING_MODEL, with_gemini_retry_async
+from app.services.gemini_gateway import create_gemini_client
 from sqlalchemy.orm import Session
 from database import get_db
 from app.models.category import Category
 from app.models.transaction import Transaction
-from app.services.ai_prompts import get_current_time_context, CORE_RULES
+from app.models.config import Config
+from app.services.ai_prompts import get_current_time_context, CORE_RULES, get_persona_prompt
 from app.api.ai_shared import get_gemini_key, call_gemini_json, TransactionInput
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _get_persona_instruction(db: Session) -> str:
+    config_persona = db.query(Config).filter(Config.key == "ai_persona").first()
+    persona_value = config_persona.value if config_persona and config_persona.value else "professional"
+    return get_persona_prompt(str(persona_value))
 
 
 class WhatIfProjection(BaseModel):
@@ -90,8 +97,11 @@ async def simulate_what_if(
     api_key = get_gemini_key(db)
 
     time_context = get_current_time_context()
+    persona_instruction = _get_persona_instruction(db)
     system_prompt = f"""{time_context}
 {CORE_RULES}
+
+{persona_instruction}
 
 You are the 'Financial Oracle Engine'. Your task is to perform a DYNAMIC financial simulation for 12 months.
 
@@ -117,7 +127,7 @@ STRICT RULES:
 """
 
     try:
-        client = genai.Client(api_key=api_key)
+        client = create_gemini_client(api_key)
         response = await with_gemini_retry_async(lambda: client.models.generate_content(
             model=REASONING_MODEL,
             contents=system_prompt,
@@ -147,7 +157,7 @@ STRICT RULES:
         logger.exception("Error in Oracle Engine")  # pragma: no cover
         return WhatIfScenarioResponse(
             scenario_title="Error de Simulación",
-            summary=f"El Motor Oracle no pudo proyectar el escenario: {str(e)}",
+            summary="El Motor Oracle no pudo proyectar el escenario. Intenta nuevamente.",
             projection=[WhatIfProjection(month=m, baseline_net_worth=request.current_net_worth, projected_net_worth=request.current_net_worth) for m in range(1, 13)]
         )
 
@@ -172,8 +182,11 @@ async def suggest_whatif_scenarios(db: Annotated[Session, Depends(get_db)]):
     ).group_by(Category.name).order_by(func.sum(Transaction.amount).desc()).limit(5).all()
 
     expenses_context = "\n".join([f"- {name}: ${total/100:,.2f}" for name, total in top_expenses])
+    persona_instruction = _get_persona_instruction(db)
 
     system_prompt = f"""
+    {persona_instruction}
+
     Eres un estratega financiero experto. Basado en estos gastos reales del último mes, sugiere 3 escenarios 'What-If' (¿Qué pasaría si...?) realistas y significativos para el usuario.
 
     GASTOS TOP DEL USUARIO:
