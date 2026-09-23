@@ -5,6 +5,7 @@ from datetime import datetime
 from database import get_db
 from app.api.auth import get_current_device
 from app.models.config import Config
+from app.services.gemini_gateway import GEMINI_CONFIG_KEY, encrypt_gemini_key
 from pydantic import BaseModel, ConfigDict
 
 CONFIG_NOT_FOUND = "Config not found"
@@ -13,6 +14,7 @@ CONFIG_ERROR_RESPONSES = {
     400: {"description": "Configuration request is invalid."},
     500: {"description": "Configuration operation failed."},
 }
+SENSITIVE_CONFIG_KEYS = {GEMINI_CONFIG_KEY}
 
 router = APIRouter(
     prefix="/config", 
@@ -52,6 +54,31 @@ class ConfigResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def _is_sensitive_config(config: Config) -> bool:
+    return config.key in SENSITIVE_CONFIG_KEYS or not config.is_public
+
+
+def _config_response(config: Config) -> dict[str, Any]:
+    return {
+        "id": config.id,
+        "key": config.key,
+        "value": "********" if _is_sensitive_config(config) and config.value else config.value,
+        "value_type": config.value_type,
+        "description": config.description,
+        "is_public": config.is_public,
+    }
+
+
+def _prepare_config_value(config_key: str, value: Optional[str]) -> Optional[str]:
+    if config_key != GEMINI_CONFIG_KEY or value is None:
+        return value
+    if value == "********":
+        return None
+    if not value.strip():
+        raise HTTPException(status_code=400, detail="Gemini API Key no puede estar vacía")
+    return encrypt_gemini_key(value)
+
+
 @router.post("/", response_model=ConfigResponse, responses=CONFIG_ERROR_RESPONSES)
 def create_config(config: ConfigCreate, db: Session = Depends(get_db)):
     # Check if key already exists
@@ -59,11 +86,15 @@ def create_config(config: ConfigCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail=f"Config with key '{config.key}' already exists")
     
-    db_config = Config(**config.model_dump())
+    config_data = config.model_dump()
+    if config.key in SENSITIVE_CONFIG_KEYS:
+        config_data["is_public"] = False
+        config_data["value"] = _prepare_config_value(config.key, config.value)
+    db_config = Config(**config_data)
     db.add(db_config)
     db.commit()
     db.refresh(db_config)
-    return db_config
+    return _config_response(db_config)
 
 
 @router.get("/", response_model=List[ConfigResponse])
@@ -81,15 +112,7 @@ def get_configs(
     # SECURITY: Mask private values
     result = []
     for c in configs:
-        c_dict = {
-            "id": c.id,
-            "key": c.key,
-            "value": "********" if not c.is_public and c.value else c.value,
-            "value_type": c.value_type,
-            "description": c.description,
-            "is_public": c.is_public
-        }
-        result.append(c_dict)
+        result.append(_config_response(c))
         
     return result
 
@@ -100,16 +123,7 @@ def get_config(config_key: str, db: Session = Depends(get_db)):
     if not config:
         raise HTTPException(status_code=404, detail=CONFIG_NOT_FOUND)
         
-    # SECURITY: Mask private values
-    c_dict = {
-        "id": config.id,
-        "key": config.key,
-        "value": "********" if not config.is_public and config.value else config.value,
-        "value_type": config.value_type,
-        "description": config.description,
-        "is_public": config.is_public
-    }
-    return c_dict
+    return _config_response(config)
 
 
 @router.put("/{config_key}", response_model=ConfigResponse, responses=NOT_FOUND_RESPONSE)
@@ -123,12 +137,20 @@ def update_config(
         raise HTTPException(status_code=404, detail=CONFIG_NOT_FOUND)
     
     update_data = config.model_dump(exclude_unset=True)
+    if "value" in update_data:
+        prepared_value = _prepare_config_value(config_key, update_data["value"])
+        if prepared_value is None and update_data["value"] == "********":
+            update_data.pop("value")
+        else:
+            update_data["value"] = prepared_value
+    if config_key in SENSITIVE_CONFIG_KEYS:
+        update_data["is_public"] = False
     for key, value in update_data.items():
         setattr(db_config, key, value)
     
     db.commit()
     db.refresh(db_config)
-    return db_config
+    return _config_response(db_config)
 
 
 @router.delete("/{config_key}", responses=NOT_FOUND_RESPONSE)
