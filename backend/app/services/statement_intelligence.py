@@ -8,13 +8,13 @@ from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 import google.genai as genai
 from google.genai import types
-from app.services.ai_models import MULTIMODAL_MODEL
+from app.services.ai_models import MULTIMODAL_MODEL, with_gemini_retry_async
+from app.services.gemini_gateway import create_gemini_client, get_configured_gemini_key
 from datetime import date, datetime, timezone
 
 logger = logging.getLogger(__name__)
 from database import SessionLocal
 from sqlalchemy import func
-from app.models.config import Config
 from app.models.transaction import Transaction
 from app.models.import_log import ImportLog
 from app.models.credit_card_statement import CreditCardStatement, StatementStatus
@@ -56,8 +56,7 @@ class StatementIntelligenceService:
         self.db = db_session or SessionLocal()
 
     def _get_api_key(self) -> Optional[str]:
-        config = self.db.query(Config).filter(Config.key == "gemini_api_key").first()
-        return cast(Optional[str], config.value) if config else None
+        return get_configured_gemini_key(self.db)
 
     def generate_fingerprint(self, date: str, description: str, amount_cents: int, account_id: str, deferred_info: str = "", index: int = 0) -> str:
         """Generates a unique hash, including deferred info and index to disambiguate identical transactions."""
@@ -72,34 +71,29 @@ class StatementIntelligenceService:
         system_instruction: str,
         prompt: str,
     ) -> Dict:
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
-                response = await asyncio.to_thread(
-                    client.models.generate_content,
-                    model=MULTIMODAL_MODEL,
-                    contents=cast(Any, [
-                        types.Part.from_bytes(data=file_data, mime_type=mime_type),
-                        types.Part.from_text(text=prompt),
-                    ]),
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        response_mime_type="application/json",
-                        response_schema=StatementParsingResponse,
-                    ),
-                )
-                return json.loads((response.text or "{}").strip())
-            except Exception as error:
-                if attempt == max_retries - 1:
-                    raise ValueError(
-                        f"IA no disponible tras {max_retries} intentos. Google reporta: {str(error)}"
-                    )
-                wait_time = (attempt + 1) * 3
-                logger.warning(
-                    f"[IA] Gemini ocupado en importación de TC. Reintento {attempt + 1}/{max_retries} en {wait_time}s..."
-                )
-                await asyncio.sleep(wait_time)
-        return {"transactions": []}
+        def request_and_parse() -> Dict[str, Any]:
+            response = client.models.generate_content(
+                model=MULTIMODAL_MODEL,
+                contents=cast(Any, [
+                    types.Part.from_bytes(data=file_data, mime_type=mime_type),
+                    types.Part.from_text(text=prompt),
+                ]),
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    response_mime_type="application/json",
+                    response_schema=StatementParsingResponse,
+                ),
+            )
+            return json.loads((response.text or "{}").strip())
+
+        try:
+            return await with_gemini_retry_async(request_and_parse, max_retries=5)
+        except Exception as error:
+            logger.exception(
+                "[StatementIntelligence] Gemini parsing failed after retries: %s",
+                type(error).__name__,
+            )
+            raise ValueError("IA no disponible después de varios intentos.") from error
 
     def _enrich_transactions(
         self,
@@ -147,12 +141,12 @@ class StatementIntelligenceService:
         return enriched_transactions, calculated_consumptions, calculated_payments
 
     async def parse_statement(self, file_path: str, account_id: str, expected_bank_name: Optional[str] = None) -> Dict:
-        """Usa Gemini 1.5 Flash para extraer transacciones de un PDF o Imagen."""
+        """Usa Gemini multimodal para extraer transacciones de un PDF o imagen."""
         api_key = self._get_api_key()
         if not api_key:
             raise ValueError("GEMINI_API_KEY no configurada en el sistema.")
 
-        client = genai.Client(api_key=cast(str, api_key))
+        client = create_gemini_client(api_key, client_cls=genai.Client)
         
         # Leemos el archivo para enviarlo a la IA
         async with await anyio.open_file(file_path, "rb") as f:
