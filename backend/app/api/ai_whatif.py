@@ -153,7 +153,7 @@ STRICT RULES:
             projection=impact_data.get("projection", []),
             key_assumptions=impact_data.get("key_assumptions", [])
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Error in Oracle Engine")  # pragma: no cover
         return WhatIfScenarioResponse(
             scenario_title="Error de Simulación",
