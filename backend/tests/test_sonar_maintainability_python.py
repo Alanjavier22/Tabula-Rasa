@@ -139,7 +139,7 @@ def test_sentinel_fallback_handles_non_transient_ai_error(monkeypatch):
     service.client.models.generate_content = fail_generate_content
     result = asyncio.run(service.generate_health_report())
 
-    assert result["ai_error"] == "fatal"
+    assert result["ai_error"] == "Servicio IA no disponible"
 
 
 def test_sentinel_fallback_handles_empty_retry_loop(monkeypatch):
@@ -148,7 +148,7 @@ def test_sentinel_fallback_handles_empty_retry_loop(monkeypatch):
 
     result = asyncio.run(service.generate_health_report())
 
-    assert result["ai_error"] == "Max retries reached"
+    assert result["ai_error"] == "Servicio IA no disponible"
 
 
 def test_sentinel_fallback_handles_outer_error(monkeypatch):
@@ -160,7 +160,46 @@ def test_sentinel_fallback_handles_outer_error(monkeypatch):
     monkeypatch.setattr(sentinel_service, "range", fail_range, raising=False)
     result = asyncio.run(service.generate_health_report())
 
-    assert result["ai_error"] == "outer failure"
+    assert result["ai_error"] == "Servicio IA no disponible"
+
+
+def test_sentinel_score_is_deterministic_and_includes_burn_rate_risk():
+    context = {
+        "liquidez_neta": 100,
+        "deuda_tarjetas": 0,
+        "iva_proyectado_mes": 0,
+        "retenciones_proyectadas": 0,
+        "runway_meses": 6,
+        "anomalias_detectadas": [],
+        "alarmas_ritmo_gasto": [{"category": "Comida"}],
+    }
+
+    assert sentinel_service.SentinelService._calculate_health_score(context) == 90
+
+
+def test_sentinel_fallback_exposes_source_and_burn_alarms():
+    service = object.__new__(sentinel_service.SentinelService)
+    context = {
+        "liquidez_neta": 100,
+        "deuda_tarjetas": 0,
+        "iva_proyectado_mes": 0,
+        "retenciones_proyectadas": 0,
+        "runway_meses": 6,
+        "anomalias_detectadas": [],
+        "alarmas_ritmo_gasto": [{
+            "category": "Comida",
+            "spent": 120,
+            "expected": 100,
+            "remaining": 0,
+            "pacing_status": "over",
+        }],
+    }
+
+    result = service._generate_heuristic_fallback(context, "Gemini no configurado")
+
+    assert result["analysis_source"] == "heuristic"
+    assert result["alarmas_ritmo_gasto"][0]["category"] == "Comida"
+    assert result["health_score"] == 90
 
 
 def test_cleanup_duplicates_unpacks_duplicate_count_without_using_it(monkeypatch):
