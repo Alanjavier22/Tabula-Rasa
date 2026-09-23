@@ -10,97 +10,38 @@ interface SummaryCardsProps {
   readonly expenses: MoneyValue;
 }
 
+const summaryItems = [
+  { key: 'balance', label: 'Liquidez', description: 'Saldo disponible', icon: Wallet, tone: 'info' },
+  { key: 'income', label: 'Ingresos', description: 'Proyectados', icon: ArrowDownLeft, tone: 'success' },
+  { key: 'expenses', label: 'Gastos', description: 'Este mes', icon: ArrowUpRight, tone: 'warning' },
+  { key: 'debt', label: 'Deuda total', description: 'Tarjetas y compromisos', icon: CreditCard, tone: 'danger' },
+] as const;
+
 export default function SummaryCards({ balance, creditCardDebt, income, expenses }: SummaryCardsProps) {
-  const safeBalance = balance ?? 0;
-  const safeCreditCardDebt = creditCardDebt ?? 0;
-  const safeIncome = income ?? 0;
-  const safeExpenses = expenses ?? 0;
+  const values: Record<string, MoneyValue> = {
+    balance: balance ?? 0,
+    income: income ?? 0,
+    expenses: expenses ?? 0,
+    debt: toDecimal(creditCardDebt ?? 0).abs(),
+  };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-      {/* Saldo Disponible - Compact Precision */}
-      <div className="group relative bg-white/[0.03] backdrop-blur-[40px] rounded-2xl border border-white/10 p-4 transition-all duration-500 hover:bg-white/[0.06] hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/[0.03] via-transparent to-transparent pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col justify-between h-full space-y-1">
-          <div className="flex items-start justify-between">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-black text-white/30 uppercase tracking-widest font-mono leading-none">Liquidez Neta</span>
-              <span className="text-xs font-bold text-blue-400 group-hover:text-blue-300 transition-colors">Saldo Disponible</span>
+    <div className="app-summary-grid" aria-label="Indicadores financieros del periodo">
+      {summaryItems.map((item) => {
+        const Icon = item.icon;
+        return (
+          <article key={item.key} className={`app-summary-card app-summary-card-${item.tone}`}>
+            <div className="app-summary-card-head">
+              <div>
+                <p>{item.label}</p>
+                <span>{item.description}</span>
+              </div>
+              <div className="app-summary-icon"><Icon aria-hidden="true" /></div>
             </div>
-            <div className="relative bg-white/5 p-2 rounded-xl border border-white/10 shadow-inner group-hover:scale-105 transition-transform">
-              <Wallet className="w-4 h-4 text-blue-400" />
-            </div>
-          </div>
-          <p className="text-3xl font-black text-white tracking-tighter leading-none drop-shadow-sm">
-            <span className="text-xl text-blue-400 mr-1.5 font-mono">$</span>
-            {formatMoney(safeBalance)}
-          </p>
-        </div>
-      </div>
-
-      {/* Deuda Global - Compact Precision */}
-      <div className="group relative bg-white/[0.03] backdrop-blur-[40px] rounded-2xl border border-white/10 p-4 transition-all duration-500 hover:bg-white/[0.06] hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-tr from-rose-500/[0.03] via-transparent to-transparent pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col justify-between h-full space-y-1">
-          <div className="flex items-start justify-between">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-black text-white/30 uppercase tracking-widest font-mono leading-none">Pasivos Globales</span>
-              <span className="text-xs font-bold text-rose-400 group-hover:text-rose-300 transition-colors">Deuda Total</span>
-            </div>
-            <div className="relative bg-white/5 p-2 rounded-xl border border-white/10 shadow-inner group-hover:scale-105 transition-transform">
-              <CreditCard className="w-4 h-4 text-rose-400" />
-            </div>
-          </div>
-          <p className="text-3xl font-black text-rose-400 tracking-tighter leading-none drop-shadow-sm">
-            <span className="text-xl text-rose-400 mr-1.5 font-mono">$</span>
-            {formatMoney(toDecimal(safeCreditCardDebt).abs())}
-          </p>
-        </div>
-      </div>
-
-      {/* Ingresos - Compact Precision */}
-      <div className="group relative bg-white/[0.03] backdrop-blur-[40px] rounded-2xl border border-white/10 p-4 transition-all duration-500 hover:bg-white/[0.06] hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] via-transparent to-transparent pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col justify-between h-full space-y-1">
-          <div className="flex items-start justify-between">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-black text-white/30 uppercase tracking-widest font-mono leading-none">Flujo Mensual</span>
-              <span className="text-xs font-bold text-emerald-400 group-hover:text-emerald-300 transition-colors">Ingresos Mensuales</span>
-            </div>
-            <div className="relative bg-white/5 p-2 rounded-xl border border-white/10 shadow-inner group-hover:scale-105 transition-transform">
-              <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-            </div>
-          </div>
-          <p className="text-3xl font-black text-emerald-400 tracking-tighter leading-none drop-shadow-sm">
-            <span className="text-xl text-emerald-400 mr-1.5 font-mono">$</span>
-            {formatMoney(safeIncome)}
-          </p>
-        </div>
-      </div>
-
-      {/* Gastos - Compact Precision */}
-      <div className="group relative bg-white/[0.03] backdrop-blur-[40px] rounded-2xl border border-white/10 p-4 transition-all duration-500 hover:bg-white/[0.06] hover:shadow-2xl hover:-translate-y-1 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/[0.03] via-transparent to-transparent pointer-events-none" />
-        
-        <div className="relative z-10 flex flex-col justify-between h-full space-y-1">
-          <div className="flex items-start justify-between">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-black text-white/30 uppercase tracking-widest font-mono leading-none">Consumo Operativo</span>
-              <span className="text-xs font-bold text-amber-400 group-hover:text-amber-300 transition-colors">Gastos Totales</span>
-            </div>
-            <div className="relative bg-white/5 p-2 rounded-xl border border-white/10 shadow-inner group-hover:scale-105 transition-transform">
-              <ArrowDownLeft className="w-4 h-4 text-amber-400" />
-            </div>
-          </div>
-          <p className="text-3xl font-black text-amber-400 tracking-tighter leading-none drop-shadow-sm">
-            <span className="text-xl text-amber-400 mr-1.5 font-mono">$</span>
-            {formatMoney(safeExpenses)}
-          </p>
-        </div>
-      </div>
+            <strong>$ {formatMoney(values[item.key])}</strong>
+          </article>
+        );
+      })}
     </div>
   );
 }
