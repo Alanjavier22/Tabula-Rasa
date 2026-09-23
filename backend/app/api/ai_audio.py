@@ -2,16 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Annotated, List, Optional, Dict, Any, cast
-import google.genai as genai
 from app.services.ai_models import MULTIMODAL_MODEL, LITE_MODEL, with_gemini_retry_async
-from google.genai import errors, types
-import os
+from google.genai import types
 import base64
+import binascii
 import json
 import re
+import logging
 from database import get_db
 from app.api.auth import get_current_device
 from app.models.category import Category
+from app.api.ai_shared import get_gemini_key
+from app.services.gemini_gateway import create_gemini_client
 
 router = APIRouter(
     prefix="/api/ai", 
@@ -23,7 +25,17 @@ router = APIRouter(
 AI_AUDIO_ERROR_RESPONSES = {
     400: {"description": "Invalid audio or document request."},
     404: {"description": "Category resource not found."},
+    413: {"description": "Uploaded payload is too large."},
     500: {"description": "AI audio processing failed."},
+}
+logger = logging.getLogger(__name__)
+MAX_DOCUMENT_BYTES = 12 * 1024 * 1024
+MAX_DOCUMENT_BASE64_CHARS = 16_777_216
+SUPPORTED_DOCUMENT_TYPES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
 }
 
 
@@ -80,18 +92,6 @@ class BatchCategoryMappingResponse(BaseModel):
     mapping: Dict[str, str] = Field(..., description="Mapping of description to category_id")
 
 
-def get_gemini_key(db: Session) -> str:
-    """Get Gemini API key from config table."""
-    from app.models.config import Config
-    config = db.query(Config).filter(Config.key == 'gemini_api_key').first()
-    if not config or not config.value:
-        raise HTTPException(
-            status_code=400,
-            detail="IA en mantenimiento. Configura tu Gemini API Key en la página de Configuración."
-        )
-    return cast(str, config.value)
-
-
 @router.post("/document-to-txns", response_model=AudioToTransactionsResponse, responses=AI_AUDIO_ERROR_RESPONSES)
 async def document_to_transactions(document_data: dict, db: Annotated[Session, Depends(get_db)]):
     """
@@ -108,15 +108,24 @@ async def document_to_transactions(document_data: dict, db: Annotated[Session, D
         document_base64 = document_data.get("document_base64")
         if not document_base64:
             raise HTTPException(status_code=400, detail="document_base64 is required")
+        if not isinstance(document_base64, str) or len(document_base64) > MAX_DOCUMENT_BASE64_CHARS:
+            raise HTTPException(status_code=413, detail="El documento supera el tamaño máximo permitido")
         
         document_type = document_data.get("document_type", "image/jpeg")
+        if not isinstance(document_type, str) or document_type not in SUPPORTED_DOCUMENT_TYPES:
+            raise HTTPException(status_code=400, detail="Tipo de documento no soportado")
         
         # Decode base64 document
-        document_bytes = base64.b64decode(document_base64)
+        try:
+            document_bytes = base64.b64decode(document_base64, validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise HTTPException(status_code=400, detail="document_base64 no es válido") from error
+        if len(document_bytes) > MAX_DOCUMENT_BYTES:
+            raise HTTPException(status_code=413, detail="El documento supera el tamaño máximo permitido")
         
         # Configure Gemini API
         api_key = get_gemini_key(db)
-        client = genai.Client(api_key=api_key)
+        client = create_gemini_client(api_key)
 
         # Fetch context from DB
         from app.models.account import Account
@@ -212,10 +221,14 @@ Return ONLY the JSON response matching the schema."""
             raw_transcript=raw_transcript
         )
         
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"Failed to parse AI response: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
+    except HTTPException:
+        raise
+    except json.JSONDecodeError as error:
+        logger.exception("Gemini returned invalid document JSON")
+        raise HTTPException(status_code=500, detail="La IA no devolvió un formato válido.") from error
+    except Exception as error:
+        logger.exception("Gemini document processing failed")
+        raise HTTPException(status_code=500, detail="No se pudo procesar el documento.") from error
 
 
 @router.post("/batch-category-mapping", response_model=BatchCategoryMappingResponse, responses=AI_AUDIO_ERROR_RESPONSES)
@@ -241,7 +254,7 @@ async def batch_category_mapping(
         
         # Configure Gemini API
         api_key = get_gemini_key(db)
-        client = genai.Client(api_key=api_key)
+        client = create_gemini_client(api_key)
         
         # Prepare prompt
         descriptions_list = "\n".join([f"- {desc}" for desc in request.descriptions])
@@ -298,7 +311,11 @@ Return ONLY the JSON response matching the schema: {{"mapping": {{"description":
         
         return BatchCategoryMappingResponse(mapping=validated_mapping)
         
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"Failed to parse AI response: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error in batch categorization: {str(e)}")
+    except HTTPException:
+        raise
+    except json.JSONDecodeError as error:
+        logger.exception("Gemini returned invalid category JSON")
+        raise HTTPException(status_code=500, detail="La IA no devolvió un formato válido.") from error
+    except Exception as error:
+        logger.exception("Gemini batch categorization failed")
+        raise HTTPException(status_code=500, detail="No se pudo categorizar el lote.") from error
