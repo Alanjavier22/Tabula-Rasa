@@ -8,7 +8,8 @@ from typing import Optional, Any, cast
 from database import SessionLocal
 import google.genai as genai
 from google.genai import types
-from app.services.ai_models import LITE_MODEL
+from app.services.gemini_gateway import create_gemini_client, get_configured_gemini_key
+from app.services.ai_models import LITE_MODEL, is_transient_gemini_error
 from pydantic import BaseModel, Field
 from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType, PaymentMethod, ExpenseType
@@ -357,7 +358,7 @@ def _categorize_chunk_with_ai(
             _apply_batch_results(results, batch_results, category_by_id, other_category_id)
             break
         except Exception as error:
-            is_retryable = ("503" in str(error) or "UNAVAILABLE" in str(error)) and retry_count < max_retries
+            is_retryable = is_transient_gemini_error(error) and retry_count < max_retries
             if is_retryable:
                 retry_count += 1
                 wait_time = (retry_count + 1) * 4
@@ -432,15 +433,13 @@ def categorize_batch(transactions: list, db_session=None, throttle: bool = True)
         if not categories:
             return results
 
-        from app.models.config import Config
-        config_entry = db.query(Config).filter(Config.key == "gemini_api_key").first()
-        api_key = config_entry.value if config_entry and config_entry.value else None
+        api_key = get_configured_gemini_key(db)
 
         if not api_key:
             _assign_fallback_categories(results, pending_ai, _other_category_id(categories))
             return results
 
-        client = genai.Client(api_key=cast(str, api_key))
+        client = create_gemini_client(api_key, client_cls=genai.Client)
         return _categorize_pending_with_ai(client, categories, pending_ai, results, throttle)
     finally:
         if not db_session:
