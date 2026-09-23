@@ -2,11 +2,11 @@ import json
 import logging
 from typing import Optional, cast
 
-import google.genai as genai
 from google.genai import types
 from pydantic import BaseModel, Field
 
 from app.services.ai_models import LITE_MODEL, with_gemini_retry
+from app.services.gemini_gateway import create_gemini_client, get_configured_gemini_key
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +35,7 @@ class SRIBatchResponse(BaseModel):
 def _resolve_api_key(db_session, api_key: Optional[str]) -> Optional[str]:
     if api_key:
         return api_key
-    from app.models.config import Config
-    config_entry = db_session.query(Config).filter(Config.key == "gemini_api_key").first()
-    return config_entry.value if config_entry and config_entry.value else None
+    return get_configured_gemini_key(db_session)
 
 
 def _build_batch_instruction() -> str:
@@ -105,7 +103,7 @@ def sri_classify_batch(transactions: list, db_session, api_key: Optional[str] = 
     if not api_key:
         return {}
 
-    client = genai.Client(api_key=cast(str, api_key))
+    client = create_gemini_client(api_key)
     results: dict[int, str] = {}
 
     chunk_size = 80
@@ -140,7 +138,7 @@ class SRIClassifier:
 
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.client = genai.Client(api_key=api_key)
+        self.client = create_gemini_client(api_key)
 
     def classify(self, description: str, category_name: str = "") -> str:
         """Determina a qué grupo del SRI pertenece un gasto."""
