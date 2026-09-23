@@ -5,7 +5,6 @@ from typing import Annotated, List, Optional, Dict, Any, cast
 from app.services.ai_models import MULTIMODAL_MODEL, LITE_MODEL, with_gemini_retry_async
 from google.genai import types
 import base64
-import binascii
 import json
 import re
 import logging
@@ -118,7 +117,7 @@ async def document_to_transactions(document_data: dict, db: Annotated[Session, D
         # Decode base64 document
         try:
             document_bytes = base64.b64decode(document_base64, validate=True)
-        except (binascii.Error, ValueError) as error:
+        except ValueError as error:
             raise HTTPException(status_code=400, detail="document_base64 no es válido") from error
         if len(document_bytes) > MAX_DOCUMENT_BYTES:
             raise HTTPException(status_code=413, detail="El documento supera el tamaño máximo permitido")
