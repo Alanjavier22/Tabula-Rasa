@@ -45,6 +45,6 @@ async def test_component(component: str, db: Annotated[Session, Depends(get_db)]
         )
         text = response.text or "OK"
         return {"status": "success", "message": text.strip()}
-    except Exception as e:
+    except Exception:
         logger.exception("Gemini component test failed")
         return {"status": "error", "message": "No se pudo verificar la conexión con Gemini."}
