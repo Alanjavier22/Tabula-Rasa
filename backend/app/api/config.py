@@ -15,6 +15,7 @@ CONFIG_ERROR_RESPONSES = {
     500: {"description": "Configuration operation failed."},
 }
 SENSITIVE_CONFIG_KEYS = {GEMINI_CONFIG_KEY}
+MASKED_CONFIG_VALUE = "********"
 
 router = APIRouter(
     prefix="/config", 
@@ -62,7 +63,7 @@ def _config_response(config: Config) -> dict[str, Any]:
     return {
         "id": config.id,
         "key": config.key,
-        "value": "********" if _is_sensitive_config(config) and config.value else config.value,
+        "value": MASKED_CONFIG_VALUE if _is_sensitive_config(config) and config.value else config.value,
         "value_type": config.value_type,
         "description": config.description,
         "is_public": config.is_public,
@@ -72,7 +73,7 @@ def _config_response(config: Config) -> dict[str, Any]:
 def _prepare_config_value(config_key: str, value: Optional[str]) -> Optional[str]:
     if config_key != GEMINI_CONFIG_KEY or value is None:
         return value
-    if value == "********":
+    if value == MASKED_CONFIG_VALUE:
         return None
     if not value.strip():
         raise HTTPException(status_code=400, detail="Gemini API Key no puede estar vacía")
@@ -139,7 +140,7 @@ def update_config(
     update_data = config.model_dump(exclude_unset=True)
     if "value" in update_data:
         prepared_value = _prepare_config_value(config_key, update_data["value"])
-        if prepared_value is None and update_data["value"] == "********":
+        if prepared_value is None and update_data["value"] == MASKED_CONFIG_VALUE:
             update_data.pop("value")
         else:
             update_data["value"] = prepared_value
