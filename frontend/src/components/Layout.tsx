@@ -15,17 +15,43 @@ import {
   CreditCard,
   Receipt,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Moon,
+  Search,
+  Sun,
 } from 'lucide-react';
 import CommandPalette from './CommandPalette';
 import { SentinelBubble } from './SentinelBubble';
 
-const Layout = ({ children }: { children: React.ReactNode }) => {
+type LayoutProps = {
+  children: React.ReactNode;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
+};
+
+const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem('tabula_sidebar_collapsed') === 'true';
   });
+
+  const navItems = [
+    { path: '/', label: 'Panel Principal', shortLabel: 'Resumen', icon: LayoutDashboard },
+    { path: '/transactions', label: 'Transacciones', shortLabel: 'Movimientos', icon: ArrowUpDown },
+    { path: '/categories', label: 'Categorías', shortLabel: 'Categorías', icon: Tag },
+    { path: '/accounts', label: 'Cuentas', shortLabel: 'Cuentas', icon: Wallet },
+    { path: '/budgets', label: 'Presupuestos', shortLabel: 'Presupuestos', icon: PieChart },
+    { path: '/goals', label: 'Metas', shortLabel: 'Metas', icon: Target },
+    { path: '/reminders', label: 'Recordatorios', shortLabel: 'Alertas', icon: Bell },
+    { path: '/subscriptions', label: 'Suscripciones', shortLabel: 'Suscripciones', icon: CreditCard },
+    { path: '/snapshots', label: 'Snapshots', shortLabel: 'Snapshots', icon: Calendar },
+    { path: '/fiscal', label: 'SRI Fiscal', shortLabel: 'SRI Fiscal', icon: Receipt },
+    { path: '/settings', label: 'Configuración', shortLabel: 'Configuración', icon: SettingsIcon },
+  ];
+
+  const currentPage = navItems.find((item) => item.path === location.pathname) ?? navItems[0];
+  const isActive = (path: string) => location.pathname === path;
 
   const handleToggleSidebar = () => {
     const newState = !sidebarCollapsed;
@@ -33,153 +59,130 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('tabula_sidebar_collapsed', String(newState));
   };
 
-  const navItems = [
-    { path: '/', label: 'Panel Principal', icon: LayoutDashboard },
-    { path: '/transactions', label: 'Transacciones', icon: ArrowUpDown },
-    { path: '/categories', label: 'Categorías', icon: Tag },
-    { path: '/accounts', label: 'Cuentas', icon: Wallet },
-    { path: '/budgets', label: 'Presupuestos', icon: PieChart },
-    { path: '/goals', label: 'Metas', icon: Target },
-    { path: '/reminders', label: 'Recordatorios', icon: Bell },
-    { path: '/subscriptions', label: 'Suscripciones', icon: CreditCard },
-    { path: '/snapshots', label: 'Snapshots', icon: Calendar },
-    { path: '/fiscal', label: 'SRI Fiscal', icon: Receipt },
-    { path: '/settings', label: 'Configuración', icon: SettingsIcon },
-  ];
+  const themeLabel = theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className={`app-shell ${sidebarCollapsed ? 'app-shell-collapsed' : ''}`}>
       <CommandPalette />
       <SentinelBubble />
-      {/* Mobile Top Header */}
-      <header className="lg:hidden fixed top-0 w-full z-30 bg-slate-800/80 backdrop-blur-xl border-b border-slate-700/50 flex justify-between items-center px-4 py-3">
-        <h1 className="text-lg font-black text-white tracking-tighter">
-          TABULA <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">RASA</span>
-        </h1>
-      </header>
 
-      {/* Mobile Bottom Navigation (Native App Feel) */}
-      <nav className="lg:hidden fixed bottom-0 w-full z-40 bg-slate-800/95 backdrop-blur-2xl border-t border-slate-700/50 pb-safe pt-1 px-2 flex justify-around items-center h-16">
-        {navItems.slice(0, 4).map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
-                isActive ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] font-medium">{item.label}</span>
-            </Link>
-          );
-        })}
-        {/* "More" Menu Button */}
-        <button
-          onClick={() => setMobileMenuOpen(true)}
-          className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
-            mobileMenuOpen ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Menu className="w-5 h-5" />
-          <span className="text-[10px] font-medium">Más</span>
-        </button>
-      </nav>
-
-      {/* Mobile Expanded Menu (Slide-up or Fullscreen) */}
-      <div className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <button
-          type="button"
-          aria-label="Cerrar menú móvil"
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-        <div className={`absolute bottom-0 left-0 w-full bg-slate-900 border-t border-slate-700/50 rounded-t-3xl transition-transform duration-300 transform ${mobileMenuOpen ? 'translate-y-0' : 'translate-y-full'}`}>
-          <div className="flex justify-between items-center p-6 border-b border-slate-800">
-            <h2 className="text-xl font-bold text-white">Más Opciones</h2>
-            <button onClick={() => setMobileMenuOpen(false)} className="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="p-4 grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
-            {navItems.slice(4).map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex flex-col items-center justify-center p-4 bg-slate-800 rounded-2xl border border-slate-700/50 hover:bg-slate-700 transition-colors"
-                >
-                  <Icon className="w-6 h-6 text-purple-400 mb-2" />
-                  <span className="text-sm font-medium text-slate-200">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Desktop Sidebar */}
-      <aside 
-        style={{ willChange: 'width' }}
-        className={`transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-20' : 'w-64'} bg-slate-800/50 backdrop-blur-xl border-r border-slate-700/50 fixed h-full z-10 hidden lg:block overflow-y-auto scrollbar-hide`}
-      >
-        <div className={`p-6 border-b border-slate-700/50 flex ${sidebarCollapsed ? 'flex-col gap-4 justify-center items-center px-2 py-6' : 'justify-between items-center'}`}>
-          {!sidebarCollapsed ? (
-            <div>
-              <h1 className="text-xl font-black text-white tracking-tighter">
-                TABULA <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">RASA</span>
-              </h1>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Ecosistema Privado</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center">
-              <span className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">T</span>
-              <span className="text-xs font-black text-white">R</span>
+      <aside className="app-sidebar" aria-label="Navegación principal">
+        <div className="app-brand">
+          <div className="app-brand-mark" aria-hidden="true">TR</div>
+          {!sidebarCollapsed && (
+            <div className="app-brand-copy">
+              <strong>Tabula Rasa</strong>
+              <span>Finanzas privadas</span>
             </div>
           )}
+        </div>
+
+        <div className="app-sidebar-tools">
           <button
+            type="button"
+            className="app-icon-button app-sidebar-collapse"
             onClick={handleToggleSidebar}
-            className="p-1.5 rounded-lg bg-slate-800 border border-slate-700/50 text-slate-400 hover:text-white transition-colors"
+            aria-label={sidebarCollapsed ? 'Expandir navegación' : 'Contraer navegación'}
+            title={sidebarCollapsed ? 'Expandir navegación' : 'Contraer navegación'}
           >
-            {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            {sidebarCollapsed ? <ChevronRight aria-hidden="true" /> : <ChevronLeft aria-hidden="true" />}
           </button>
         </div>
-        <nav className="mt-4">
+
+        <nav className="app-nav">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path;
+            const active = isActive(item.path);
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 title={sidebarCollapsed ? item.label : undefined}
-                className={`flex items-center transition-all duration-200 ${
-                  sidebarCollapsed ? 'justify-center py-4 px-0' : 'px-6 py-4'
-                } ${
-                  isActive
-                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white border-l-4 border-purple-400'
-                    : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
-                }`}
+                aria-current={active ? 'page' : undefined}
+                className={`app-nav-item ${active ? 'is-active' : ''}`}
               >
-                <Icon className={`w-5 h-5 ${sidebarCollapsed ? '' : 'mr-3'}`} />
-                {!sidebarCollapsed && <span className="font-medium">{item.label}</span>}
+                <Icon aria-hidden="true" />
+                {!sidebarCollapsed && <span>{item.label}</span>}
               </Link>
             );
           })}
         </nav>
+
+        <div className="app-sidebar-bottom">
+          <button type="button" className="app-nav-item app-theme-nav" onClick={onToggleTheme} title={themeLabel}>
+            {theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+            {!sidebarCollapsed && <span>{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>}
+          </button>
+          {!sidebarCollapsed && (
+            <div className="app-sync-status"><span className="app-status-dot" aria-hidden="true" /> Datos sincronizados</div>
+          )}
+        </div>
       </aside>
 
-      {/* Main Content */}
-      <main 
-        style={{ willChange: 'margin-left' }}
-        className={`transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} flex-1 pt-16 pb-20 lg:pt-8 lg:pb-8 p-4 overflow-x-hidden w-full`}
-      >
-        {children}
-      </main>
+      <div className="app-main">
+        <header className="app-topbar">
+          <div className="app-breadcrumb"><span>Finanzas</span><span aria-hidden="true">/</span><strong>{currentPage.label}</strong></div>
+          <div className="app-topbar-actions">
+            <button
+              type="button"
+              className="app-icon-button"
+              aria-label="Abrir paleta de comandos"
+              title="Buscar (Ctrl + K)"
+              onClick={() => window.dispatchEvent(new Event('tabula:open-command-palette'))}
+            >
+              <Search aria-hidden="true" />
+            </button>
+            <div className="app-avatar" aria-label="Perfil de usuario">AM</div>
+          </div>
+        </header>
+
+        <header className="app-mobile-header">
+          <div className="app-brand app-brand-mobile">
+            <div className="app-brand-mark" aria-hidden="true">TR</div>
+            <div className="app-brand-copy"><strong>Tabula Rasa</strong><span>Finanzas privadas</span></div>
+          </div>
+          <button type="button" className="app-icon-button" onClick={onToggleTheme} aria-label={themeLabel} title={themeLabel}>
+            {theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+          </button>
+        </header>
+
+        <main className="app-content">{children}</main>
+      </div>
+
+      <nav className="app-mobile-nav" aria-label="Navegación móvil">
+        {navItems.slice(0, 4).map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item.path);
+          return (
+            <Link key={item.path} to={item.path} aria-current={active ? 'page' : undefined} className={`app-mobile-nav-item ${active ? 'is-active' : ''}`}>
+              <Icon aria-hidden="true" />
+              <span>{item.shortLabel}</span>
+            </Link>
+          );
+        })}
+        <button type="button" className={`app-mobile-nav-item ${mobileMenuOpen ? 'is-active' : ''}`} onClick={() => setMobileMenuOpen(true)} aria-expanded={mobileMenuOpen}>
+          <Menu aria-hidden="true" />
+          <span>Más</span>
+        </button>
+      </nav>
+
+      <div className={`app-mobile-menu ${mobileMenuOpen ? 'is-open' : ''}`} aria-hidden={!mobileMenuOpen}>
+        <button type="button" className="app-mobile-menu-backdrop" aria-label="Cerrar menú móvil" onClick={() => setMobileMenuOpen(false)} />
+        <section className="app-mobile-menu-panel" aria-label="Más opciones">
+          <div className="app-mobile-menu-heading"><div><span className="app-kicker">Navegación</span><h2>Más opciones</h2></div><button type="button" className="app-icon-button" aria-label="Cerrar menú móvil" onClick={() => setMobileMenuOpen(false)}><X aria-hidden="true" /></button></div>
+          <div className="app-mobile-menu-grid">
+            {navItems.slice(4).map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.path);
+              return (
+                <Link key={item.path} to={item.path} onClick={() => setMobileMenuOpen(false)} aria-current={active ? 'page' : undefined} className={`app-mobile-menu-item ${active ? 'is-active' : ''}`}>
+                  <Icon aria-hidden="true" /><span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      </div>
     </div>
   );
 };
