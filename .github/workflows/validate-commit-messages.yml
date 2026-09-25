@@ -1,0 +1,64 @@
+name: Validación de mensajes de commit
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: commits-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  conventional-commits:
+    name: Commits compatibles con releases
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validar asuntos de commits
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commits = await github.paginate(
+              github.rest.pulls.listCommits,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                per_page: 100,
+              },
+            );
+
+            const pattern = /^(feat|fix|perf|security|docs|ci|refactor|test|chore)(\([^)]*\))?!?:\s+\S/;
+            const invalid = commits
+              .map(({ sha, commit }) => ({
+                sha: sha.slice(0, 7),
+                subject: commit.message.split("\n", 1)[0],
+              }))
+              .filter(({ subject }) => !pattern.test(subject));
+
+            if (invalid.length === 0) {
+              core.info(`Se validaron ${commits.length} commits con prefijos reconocibles.`);
+              return;
+            }
+
+            const details = invalid
+              .map(({ sha, subject }) => `- ${sha}: ${subject}`)
+              .join("\n");
+
+            core.setFailed(
+              [
+                "Hay commits que Release Please no puede interpretar:",
+                details,
+                "Usa feat:, fix:, perf:, security:, docs:, ci:, refactor:, test: o chore:, y mantén la descripción en español.",
+              ].join("\n"),
+            );
