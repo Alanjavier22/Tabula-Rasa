@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.17](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.16...v0.1.17) (2026-09-26)
+
+
+### Documentación y mantenimiento
+
+* documenta tipos compatibles con Release Please ([3b9e13e](https://github.com/Alanjavier22/Tabula-Rasa/commit/3b9e13e0ae6131bb355fae9c808e17b0bc7b3d2e))
+* protege el flujo de releases con mensajes válidos ([9a79f0a](https://github.com/Alanjavier22/Tabula-Rasa/commit/9a79f0a8deb9653f20f27169498a2861fbf272a4))
+* valida asuntos de commits para releases ([d704429](https://github.com/Alanjavier22/Tabula-Rasa/commit/d704429e3946d8aeb61d56d08cf71ffa806abe05))
+
 ## [0.1.16](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.15...v0.1.16) (2026-09-22)
 
 
