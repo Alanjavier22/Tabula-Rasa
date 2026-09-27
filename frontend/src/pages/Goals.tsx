@@ -201,16 +201,16 @@ const Goals = () => {
   }
 
   return (
-    <div className="w-full relative min-h-screen pb-20">
+    <div className="goals-page compact-page w-full relative min-h-screen pb-20">
       {/* Background Decor */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[20%] -right-[10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]"></div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto">
+      <div className="compact-page-content relative z-10 max-w-7xl mx-auto">
         {/* Header Section */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+        <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
             <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold tracking-[0.2em] uppercase mb-1">
               <div className="w-8 h-[1px] bg-emerald-500/50"></div>
@@ -227,7 +227,7 @@ const Goals = () => {
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-wrap gap-3"
+            className="compact-page-actions flex flex-wrap gap-3"
           >
             <button
               onClick={handleFetchRecommendations}
@@ -255,9 +255,9 @@ const Goals = () => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12"
+          className="compact-summary grid grid-cols-1 md:grid-cols-4 gap-6 mb-12"
         >
-          <div className="md:col-span-2 bg-slate-800/40 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/5 flex flex-col justify-center">
+          <div className="compact-summary-card md:col-span-2 bg-slate-800/40 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/5 flex flex-col justify-center">
             <div className="flex justify-between items-end mb-4">
               <div>
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Ahorro Total Acumulado</p>
@@ -277,7 +277,7 @@ const Goals = () => {
             </div>
           </div>
 
-          <div className="bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/5 flex items-center gap-5">
+          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/5 flex items-center gap-5">
             <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 text-blue-400">
               <Target className="w-7 h-7" />
             </div>
@@ -287,7 +287,7 @@ const Goals = () => {
             </div>
           </div>
 
-          <div className="bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/5 flex items-center gap-5">
+          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/5 flex items-center gap-5">
             <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20 text-purple-400">
               <Zap className="w-7 h-7" />
             </div>
@@ -305,7 +305,7 @@ const Goals = () => {
               initial={{ opacity: 0, height: 0, marginBottom: 0 }}
               animate={{ opacity: 1, height: 'auto', marginBottom: 48 }}
               exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-              className="bg-gradient-to-br from-emerald-900/40 to-blue-900/40 border border-emerald-500/30 rounded-[2.5rem] p-8 backdrop-blur-xl relative overflow-hidden group"
+              className="compact-panel bg-gradient-to-br from-emerald-900/40 to-blue-900/40 border border-emerald-500/30 rounded-[2.5rem] p-8 backdrop-blur-xl relative overflow-hidden group"
             >
               <div className="absolute top-0 right-0 p-6">
                 <button onClick={() => setSmartRecommendations(null)} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-emerald-400 hover:text-white transition-all">
@@ -335,7 +335,7 @@ const Goals = () => {
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.1 }}
-                      className="bg-slate-900/60 border border-emerald-500/10 rounded-[2rem] p-6 hover:border-emerald-500/30 transition-all"
+                      className="compact-card-mini bg-slate-900/60 border border-emerald-500/10 rounded-[2rem] p-6 hover:border-emerald-500/30 transition-all"
                     >
                       <div className="flex justify-between items-start mb-4">
                         <span className="text-sm font-black text-white uppercase tracking-tight">{rec.goal_name}</span>
@@ -360,11 +360,11 @@ const Goals = () => {
         </AnimatePresence>
 
         {/* Goals Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="compact-page-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <AnimatePresence mode="popLayout">
             {goals.length === 0 ? (
               <motion.div 
-                className="col-span-full py-32 flex flex-col items-center text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10"
+                className="compact-empty col-span-full py-32 flex flex-col items-center text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
@@ -389,7 +389,7 @@ const Goals = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: index * 0.05 }}
-                    className="group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden"
+                    className="compact-card group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden"
                   >
                     {/* Progress Background Decor */}
                     <motion.div 

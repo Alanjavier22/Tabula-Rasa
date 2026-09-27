@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { type CSSProperties, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Decimal from 'decimal.js-light';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,7 +9,7 @@ import { formatMoney, toDecimal, toCents, clampZero } from '../utils/money';
 import { Plus, Trash2, Edit, ChevronDown, ChevronUp, Clock, CheckCircle2, Link } from 'lucide-react';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { type AccountFormData, getAccountStyle, getAccountIcon } from '../components/accounts/shared';
+import { type AccountFormData, getAccountAccent, getAccountTypeLabel, getAccountIcon } from '../components/accounts/shared';
 import CreateAccountModal from '../components/accounts/CreateAccountModal';
 import EditAccountModal from '../components/accounts/EditAccountModal';
 import AccountStatementModal, { type StatementFormData } from '../components/accounts/AccountStatementModal';
@@ -43,10 +43,18 @@ const emptyStatementForm: StatementFormData = {
   notes: '',
 };
 
+const getAccountColumnCount = () => {
+  if (typeof window === 'undefined') return 3;
+  if (window.innerWidth <= 720) return 1;
+  if (window.innerWidth <= 1100) return 2;
+  return 3;
+};
+
 
 
 const Accounts = () => {
   const queryClient = useQueryClient();
+  const [accountColumnCount, setAccountColumnCount] = useState(getAccountColumnCount);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -70,6 +78,12 @@ const Accounts = () => {
       document.body.style.overflow = 'unset';
     };
   }, [showCreateModal, showEditModal, showStatementModal]);
+
+  useEffect(() => {
+    const handleResize = () => setAccountColumnCount(getAccountColumnCount());
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // --- React Query: Data Fetching ---
   const { data: accounts = [], isLoading: accountsLoading, isError: accountsError, refetch: refetchAccounts } = useQuery<Account[]>({
@@ -158,6 +172,10 @@ const Accounts = () => {
   const saving = createMutation.isPending || updateMutation.isPending || createStatementMutation.isPending || updateStatementMutation.isPending;
 
   const getStatementForAccount = (accountId: string) => statements.find(s => s.account_id === accountId);
+  const accountColumns = Array.from({ length: accountColumnCount }, () => [] as Account[]);
+  accounts.forEach((account, index) => {
+    accountColumns[index % accountColumnCount].push(account);
+  });
 
   const handleCreateStatement = (accountId: string) => {
     setStatementForm({ ...emptyStatementForm, account_id: accountId });
@@ -278,16 +296,16 @@ const Accounts = () => {
   }
 
   return (
-    <div className="w-full relative min-h-screen pb-20">
+    <div className="accounts-page w-full relative min-h-screen pb-20">
       {/* Background Glows */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[10%] -left-[10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px]"></div>
       </div>
 
-      <div className="relative z-10">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+      <div className="accounts-content relative z-10">
+        <div className="accounts-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+          <motion.div className="accounts-page-heading" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
             <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold tracking-widest uppercase mb-1">
               <div className="w-8 h-[1px] bg-indigo-500/50"></div>
               <span>Tabula Rasa</span>
@@ -300,82 +318,89 @@ const Accounts = () => {
 
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-6 py-3.5 rounded-2xl hover:shadow-lg hover:shadow-indigo-500/20 transition-all font-bold group"
+            className="accounts-actions-primary flex items-center gap-2 text-white px-6 py-3.5 rounded-2xl transition-all font-bold group"
           >
             <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
             <span>Nueva Cuenta</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          <AnimatePresence mode="popLayout">
-            {accounts.length === 0 ? (
-              <div className="col-span-full text-center py-20 bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-700/30">
-                <p className="text-slate-400 text-lg font-medium">No hay fuentes registradas</p>
-                <button onClick={() => setShowCreateModal(true)} className="text-indigo-400 text-sm font-bold mt-2 hover:underline">
-                  Registra tu primera cuenta aquí
-                </button>
-              </div>
-            ) : (
-              accounts.map((account, index) => {
+        <div className="accounts-grid">
+          {accounts.length === 0 ? (
+            <div className="col-span-full text-center py-20 bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-700/30">
+              <p className="text-slate-400 text-lg font-medium">No hay fuentes registradas</p>
+              <button onClick={() => setShowCreateModal(true)} className="text-indigo-400 text-sm font-bold mt-2 hover:underline">
+                Registra tu primera cuenta aquí
+              </button>
+            </div>
+          ) : (
+            accountColumns.map((column, columnIndex) => (
+              <div className="accounts-column" key={`account-column-${columnIndex}`}>
+                <AnimatePresence mode="popLayout">
+                  {column.map((account, index) => {
                 const stmt = account.account_type === 'credit_card' ? getStatementForAccount(account.id) : null;
                 const isExpanded = expandedCard === account.id;
-                const style = getAccountStyle(account.account_type);
+                const accountAccent = getAccountAccent(account.account_type);
 
                 return (
-                  <motion.div
+                  <motion.article
                     key={account.id}
                     layout
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className={`bg-gradient-to-br ${style} backdrop-blur-xl border rounded-[2rem] p-6 shadow-xl relative overflow-hidden group`}
+                    className="account-card"
+                    style={{ '--account-color': accountAccent } as CSSProperties}
                   >
-                    {/* Decorative Card Elements */}
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-white/10 transition-all"></div>
+                    <div className="account-card-glow" aria-hidden="true"></div>
                     
-                    <div className="flex justify-between items-start mb-6 relative">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-white/10 flex items-center justify-center shadow-inner">
+                    <div className="account-card-top">
+                      <div className="account-card-identity">
+                        <div className="account-card-icon">
                           {getAccountIcon(account.account_type)}
                         </div>
-                        <div>
-                          <h3 className="text-xl font-black text-white tracking-tight leading-none mb-1">{account.name}</h3>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-white/40">{account.bank_name || 'Privado'}</span>
+                        <div className="account-card-title">
+                          <span>{getAccountTypeLabel(account.account_type)}</span>
+                          <h3>{account.name}</h3>
+                          <div className="account-card-bank">
+                            <span>{account.bank_name || 'Cuenta privada'}</span>
                             {account.linked_account_id && (
-                              <div className="flex items-center gap-1 text-[10px] text-indigo-400 font-bold uppercase">
+                              <span className="account-card-linked">
                                 <Link className="w-2.5 h-2.5" />
                                 <span>Vinculada</span>
-                              </div>
+                              </span>
                             )}
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <button onClick={() => handleEdit(account)} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all">
+                      <div className="account-card-actions">
+                        <button aria-label={`Editar ${account.name}`} title="Editar cuenta" onClick={() => handleEdit(account)} className="account-card-action account-card-action-edit">
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(account.id)} className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-white/60 hover:text-rose-400 transition-all">
+                        <button aria-label={`Eliminar ${account.name}`} title="Eliminar cuenta" onClick={() => handleDelete(account.id)} className="account-card-action account-card-action-delete">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
 
-                    <div className="mb-8 relative">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-white font-black text-4xl tracking-tighter">
+                    <div className="account-card-balance">
+                      <span className="account-card-balance-label">
+                        {account.account_type === 'credit_card' ? 'Utilizado · deuda total' : 'Saldo disponible'}
+                      </span>
+                      <div className="account-card-balance-row">
+                        <strong>
                           ${(() => {
                             const bal = toDecimal(account.balance).abs();
                             const stmtBal = stmt ? toDecimal(stmt.statement_balance) : new Decimal(0);
                             const displayBal = (account.account_type === 'credit_card' && bal.lt(stmtBal)) ? stmtBal : bal;
                             return formatMoney(account.account_type === 'credit_card' ? displayBal : account.balance);
                           })()}
+                        </strong>
+                        <span className={`account-card-status ${account.is_active ? 'is-active' : 'is-inactive'}`}>
+                          <i></i>
+                          {account.is_active ? 'Activa' : 'Inactiva'}
                         </span>
                       </div>
-                      <p className="text-white/30 text-[10px] font-black uppercase tracking-[0.2em]">
-                        {account.account_type === 'credit_card' ? 'Utilizado (Deuda Total)' : 'Saldo Disponible'}
-                      </p>
 
                       {/* Global Debt Breakdown for Credit Cards */}
                       {account.account_type === 'credit_card' && (() => {
@@ -393,15 +418,15 @@ const Accounts = () => {
                         const totalUserDebtCents = clampZero(bankDebtCents.minus(totalOthersDebtCents));
 
                         return (
-                          <div className="mt-4 flex gap-6 p-4 bg-black/20 rounded-2xl border border-white/5 shadow-inner">
-                            <div className="flex flex-col">
-                              <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] mb-1">Tu Deuda Real</span>
-                              <span className="text-sm font-black text-indigo-400 tracking-tight">${formatMoney(totalUserDebtCents)}</span>
+                          <div className="account-card-breakdown">
+                            <div>
+                              <span>Tu deuda real</span>
+                              <strong>${formatMoney(totalUserDebtCents)}</strong>
                             </div>
-                            <div className="w-[1px] bg-white/5 self-stretch"></div>
-                            <div className="flex flex-col">
-                              <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] mb-1">De Otros</span>
-                              <span className="text-sm font-black text-yellow-500/80 tracking-tight">${formatMoney(totalOthersDebtCents)}</span>
+                            <div className="account-card-breakdown-divider"></div>
+                            <div>
+                              <span>De otras personas</span>
+                              <strong>${formatMoney(totalOthersDebtCents)}</strong>
                             </div>
                           </div>
                         );
@@ -409,24 +434,24 @@ const Accounts = () => {
                     </div>
 
                     {account.account_type === 'credit_card' && (
-                      <div className="mt-6 pt-6 border-t border-white/5 relative">
+                      <div className="account-card-statement">
                         {stmt ? (
                           <div className="space-y-4">
-                            <div className="flex justify-between items-center">
+                            <div className="account-statement-heading">
                               <button 
                                 onClick={() => setExpandedCard(isExpanded ? null : account.id)}
-                                className="flex items-center gap-2 text-xs font-black text-white/60 hover:text-white transition-colors"
+                                className="account-statement-toggle"
                               >
                                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                 ESTADO DE CUENTA
                               </button>
-                              <div className="flex gap-2">
-                                <button onClick={() => handleEditStatement(stmt)} className="text-white/40 hover:text-blue-400 transition-colors"><Edit className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => handleDeleteStatement(stmt.id)} className="text-white/40 hover:text-rose-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                              <div className="account-statement-actions">
+                                <button aria-label="Editar estado de cuenta" title="Editar estado de cuenta" onClick={() => handleEditStatement(stmt)}><Edit className="w-3.5 h-3.5" /></button>
+                                <button aria-label="Eliminar estado de cuenta" title="Eliminar estado de cuenta" onClick={() => handleDeleteStatement(stmt.id)}><Trash2 className="w-3.5 h-3.5" /></button>
                               </div>
                             </div>
 
-                            <div className="bg-black/20 rounded-[1.5rem] p-5 border border-white/5 space-y-4">
+                            <div className="account-statement-panel space-y-4">
                               {/* Calculation Header */}
                               <div className="space-y-2">
                                 <div className="flex justify-between items-center text-[10px] font-black text-white/30 uppercase tracking-widest">
@@ -511,7 +536,7 @@ const Accounts = () => {
                         ) : (
                           <button
                             onClick={() => handleCreateStatement(account.id)}
-                            className="w-full flex items-center justify-center gap-2 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-white/60 hover:text-white text-xs font-black uppercase tracking-widest transition-all"
+                            className="account-statement-empty w-full flex items-center justify-center gap-2 py-4 text-xs font-black uppercase tracking-widest transition-all"
                           >
                             <Plus className="w-4 h-4" />
                             Agregar Estado de Cuenta
@@ -520,25 +545,24 @@ const Accounts = () => {
                       </div>
                     )}
 
-                    {!stmt && account.account_type !== 'credit_card' && (
-                      <div className="mt-6 pt-6 border-t border-white/5 relative flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${account.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></div>
-                          <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">{account.is_active ? 'Activa' : 'Inactiva'}</span>
-                        </div>
+                    {!stmt && account.account_type !== 'credit_card' && (account.credit_limit !== undefined || account.description) && (
+                      <div className="account-card-footer">
                         {account.credit_limit && (
-                          <div className="text-right">
-                            <p className="text-[9px] font-black text-white/20 uppercase tracking-widest">Límite</p>
-                            <p className="text-xs font-bold text-white/60">${formatMoney(account.credit_limit)}</p>
+                          <div>
+                            <span>Límite de crédito</span>
+                            <strong>${formatMoney(account.credit_limit)}</strong>
                           </div>
                         )}
+                        {account.description && <p>{account.description}</p>}
                       </div>
                     )}
-                  </motion.div>
-                );
-              })
-            )}
-          </AnimatePresence>
+                  </motion.article>
+                  );
+                })}
+                </AnimatePresence>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

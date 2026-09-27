@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard,
   ArrowUpDown,
@@ -31,6 +31,7 @@ type LayoutProps = {
 
 const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
   const location = useLocation();
+  const mainRef = useRef<HTMLDivElement>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem('tabula_sidebar_collapsed') === 'true';
@@ -60,6 +61,13 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
   };
 
   const themeLabel = theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
+
+  useEffect(() => {
+    // Each route owns its own page position. Without this reset, navigating
+    // from a long screen leaves the next screen halfway down the document.
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname]);
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'app-shell-collapsed' : ''}`}>
@@ -113,13 +121,10 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
             {theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
             {!sidebarCollapsed && <span>{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>}
           </button>
-          {!sidebarCollapsed && (
-            <div className="app-sync-status"><span className="app-status-dot" aria-hidden="true" /> Datos sincronizados</div>
-          )}
         </div>
       </aside>
 
-      <div className="app-main">
+      <div ref={mainRef} className="app-main">
         <header className="app-topbar">
           <div className="app-breadcrumb"><span>Finanzas</span><span aria-hidden="true">/</span><strong>{currentPage.label}</strong></div>
           <div className="app-topbar-actions">

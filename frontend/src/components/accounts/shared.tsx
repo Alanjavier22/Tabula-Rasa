@@ -24,6 +24,26 @@ export const getAccountStyle = (type: string) => {
   }
 };
 
+export const getAccountAccent = (type: string) => {
+  switch (type) {
+    case 'checking': return '#70b7ff';
+    case 'savings': return '#45d39a';
+    case 'credit_card': return '#b5a2ff';
+    case 'investment': return '#f5bd5e';
+    default: return '#94a4b8';
+  }
+};
+
+export const getAccountTypeLabel = (type: string) => {
+  switch (type) {
+    case 'checking': return 'Cuenta corriente';
+    case 'savings': return 'Cuenta de ahorro';
+    case 'credit_card': return 'Tarjeta de crédito';
+    case 'investment': return 'Inversión';
+    default: return 'Cuenta financiera';
+  }
+};
+
 export const getAccountIcon = (type: string) => {
   switch (type) {
     case 'checking': return <Wallet className="w-6 h-6" />;

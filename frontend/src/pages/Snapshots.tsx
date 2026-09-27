@@ -83,16 +83,16 @@ const Snapshots = () => {
   const historicalGrowth = latestNetWorth - firstNetWorth;
 
   return (
-    <div className="w-full relative min-h-screen pb-20">
+    <div className="snapshots-page compact-page w-full relative min-h-screen pb-20">
       {/* Background Atmosphere */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[10%] left-[20%] w-[60%] h-[60%] bg-blue-600/5 rounded-full blur-[150px]"></div>
         <div className="absolute bottom-[20%] right-[10%] w-[40%] h-[40%] bg-emerald-600/5 rounded-full blur-[150px]"></div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto">
+      <div className="compact-page-content relative z-10 max-w-7xl mx-auto">
         {/* Header Section */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-12 gap-6">
+        <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-12 gap-6">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
             <div className="flex items-center gap-2 text-blue-400 text-xs font-bold tracking-[0.2em] uppercase mb-1">
               <div className="w-8 h-[1px] bg-blue-500/50"></div>
@@ -127,7 +127,7 @@ const Snapshots = () => {
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-slate-800/40 backdrop-blur-3xl border border-white/5 rounded-[3rem] p-20 text-center"
+            className="compact-empty bg-slate-800/40 backdrop-blur-3xl border border-white/5 rounded-[3rem] p-20 text-center"
           >
             <div className="w-24 h-24 rounded-[2rem] bg-slate-900 border border-white/5 flex items-center justify-center mx-auto mb-8">
               <History className="w-12 h-12 text-slate-600" />
@@ -138,7 +138,7 @@ const Snapshots = () => {
             </p>
           </motion.div>
         ) : (
-          <div className="space-y-10">
+          <div className="snapshots-list space-y-10">
             <AnimatePresence mode="popLayout">
               {snapshots.map((snapshot, index) => {
                 const prevSnapshot = snapshots[index + 1];
@@ -159,11 +159,11 @@ const Snapshots = () => {
                       <div className="absolute left-10 top-full h-10 w-[1px] bg-gradient-to-b from-blue-500/30 to-transparent"></div>
                     )}
 
-                    <div className="bg-slate-800/30 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] p-8 lg:p-10 transition-all hover:border-white/10 relative overflow-hidden">
+                    <div className="compact-card bg-slate-800/30 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] p-8 lg:p-10 transition-all hover:border-white/10 relative overflow-hidden">
                       {/* Subdued Glow Background */}
                       <div className={`absolute top-0 right-0 w-[40%] h-full blur-[100px] opacity-10 transition-all group-hover:opacity-15 ${isPositive ? 'bg-emerald-600' : 'bg-rose-600'}`}></div>
 
-                      <div className="relative z-10 flex flex-col lg:flex-row gap-10">
+                      <div className="snapshot-layout relative z-10 flex flex-col lg:flex-row gap-10">
                         {/* Left: Date & Main Info */}
                         <div className="lg:w-1/4">
                           <div className="flex items-center gap-4 mb-6">
@@ -211,8 +211,8 @@ const Snapshots = () => {
                         </div>
 
                         {/* Center: Financial Stats */}
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="bg-black/20 rounded-[2rem] p-6 border border-white/5">
+                        <div className="snapshot-stats flex-1 grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className="compact-card-mini bg-black/20 rounded-[2rem] p-6 border border-white/5">
                             <div className="flex items-center gap-2 mb-4">
                               <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-400">
                                 <DollarSign className="w-4 h-4" />
@@ -223,7 +223,7 @@ const Snapshots = () => {
                             <p className="text-[10px] text-emerald-400/60 font-bold mt-1 uppercase tracking-widest">Capital Bruto</p>
                           </div>
 
-                          <div className="bg-black/20 rounded-[2rem] p-6 border border-white/5">
+                          <div className="compact-card-mini bg-black/20 rounded-[2rem] p-6 border border-white/5">
                             <div className="flex items-center gap-2 mb-4">
                               <div className="w-8 h-8 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20 text-rose-400">
                                 <AlertCircle className="w-4 h-4" />
@@ -234,7 +234,7 @@ const Snapshots = () => {
                             <p className="text-[10px] text-rose-400/60 font-bold mt-1 uppercase tracking-widest">Deuda Externa</p>
                           </div>
 
-                          <div className={`rounded-[2rem] p-6 border transition-all ${isPositive ? 'bg-blue-500/10 border-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'bg-rose-500/10 border-rose-500/20'}`}>
+                          <div className={`compact-card-mini rounded-[2rem] p-6 border transition-all ${isPositive ? 'bg-blue-500/10 border-blue-500/20 shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'bg-rose-500/10 border-rose-500/20'}`}>
                             <div className="flex items-center gap-2 mb-4">
                               <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${isPositive ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' : 'bg-rose-500/20 border-rose-500/30 text-rose-400'}`}>
                                 {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
@@ -265,7 +265,7 @@ const Snapshots = () => {
                             exit={{ opacity: 0, height: 0, marginTop: 0 }}
                             className="relative overflow-hidden"
                           >
-                            <div className="bg-gradient-to-r from-blue-900/40 to-indigo-900/40 backdrop-blur-3xl rounded-[2rem] border border-blue-500/30 p-8">
+                            <div className="compact-panel bg-gradient-to-r from-blue-900/40 to-indigo-900/40 backdrop-blur-3xl rounded-[2rem] border border-blue-500/30 p-8">
                               <div className="flex items-center gap-3 mb-4">
                                 <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400">
                                   <Sparkles className="w-5 h-5" />
