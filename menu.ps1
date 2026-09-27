@@ -1,4 +1,4 @@
-# Menú interactivo para Finanzas Personales (Versión Enterprise)
+﻿# Menú interactivo para Finanzas Personales (Versión Enterprise)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
@@ -22,6 +22,8 @@ $script:runDirectory = Join-Path $script:scriptPath ".run"
 $script:backendPidFile = Join-Path $script:runDirectory "backend.pid"
 $script:frontendPidFile = Join-Path $script:runDirectory "frontend.pid"
 $script:uvicornHost = if ([string]::IsNullOrWhiteSpace($env:UVICORN_HOST)) { "127.0.0.1" } else { $env:UVICORN_HOST }
+$script:backendReload = $env:TABULA_RASA_RELOAD -eq "1"
+$script:startupMutex = New-Object System.Threading.Mutex($false, "Local\TabulaRasa.Startup")
 
 New-Item -ItemType Directory -Force -Path $script:runDirectory | Out-Null
 
@@ -44,6 +46,23 @@ function Get-UsableCommand {
     return Get-Command $Name -CommandType Application -All -ErrorAction SilentlyContinue |
         Where-Object { $_.Source -notlike "$windowsApps\*" } |
         Select-Object -First 1
+}
+
+function Reset-LogFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    try {
+        if (Test-Path -LiteralPath $Path) {
+            Clear-Content -LiteralPath $Path -ErrorAction Stop
+        } else {
+            New-Item -ItemType File -Force -Path $Path | Out-Null
+        }
+    } catch {
+        throw "No se pudo preparar el log '$Path': $($_.Exception.Message)"
+    }
 }
 
 # Verificar si winget está disponible
@@ -241,16 +260,6 @@ function Test-NodeVersion {
 Test-PythonVersion
 Test-NodeVersion
 
-# Validación de privilegios de Administrador
-$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
-    Write-Host "⚠️  ADVERTENCIA: Sin privilegios de Administrador." -ForegroundColor Red
-    Write-Host "   La instalación automática podría requerir permisos." -ForegroundColor Yellow
-    Start-Sleep -Seconds 1
-}
-
-
-
 function Show-Header {
     Write-Host "  ____________________________________________" -ForegroundColor Magenta
     Write-Host "  |                                          |" -ForegroundColor Magenta
@@ -357,6 +366,38 @@ function Stop-SpecificPorts {
     return $killedSomething
 }
 
+function Get-BusyPorts {
+    param(
+        [int[]]$Ports
+    )
+
+    $busyPorts = @()
+    foreach ($port in $Ports) {
+        $connection = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+        if ($connection) {
+            $busyPorts += $port
+        }
+    }
+    return $busyPorts
+}
+
+function Wait-ForPortsFree {
+    param(
+        [int[]]$Ports,
+        [int]$TimeoutSeconds = 10
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        if (@(Get-BusyPorts -Ports $Ports).Count -eq 0) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+
+    return $false
+}
+
 function Remove-VenvSafely {
     param(
         [string]$Path
@@ -393,7 +434,7 @@ function Remove-VenvSafely {
     throw "No se pudo eliminar $Path después de $maxRetries intentos"
 }
 
-function Stop-AllProcesses {
+function Stop-AllProcessesCore {
     Write-Host ""
     Write-Host "========================================"  -ForegroundColor Cyan
     Write-Host "  Deteniendo Aplicativo de forma segura..."  -ForegroundColor Yellow
@@ -416,7 +457,28 @@ function Stop-AllProcesses {
     Read-Host "Presiona Enter para continuar..."
 }
 
-function Start-Application {
+function Stop-AllProcesses {
+    $lockTaken = $false
+    try {
+        $lockTaken = $script:startupMutex.WaitOne(0)
+        if (-not $lockTaken) {
+            Write-Host "Ya hay otro proceso de inicio o detención en curso." -ForegroundColor Yellow
+            Read-Host "Presiona Enter para continuar..."
+            return
+        }
+
+        Stop-AllProcessesCore
+    } catch {
+        Write-Host "ERROR inesperado durante la detención: $($_.Exception.Message)" -ForegroundColor Red
+        Read-Host "Presiona Enter para continuar..."
+    } finally {
+        if ($lockTaken) {
+            $script:startupMutex.ReleaseMutex()
+        }
+    }
+}
+
+function Start-ApplicationCore {
     Write-Host ""
     Write-Host "========================================"  -ForegroundColor Cyan
     Write-Host "  Iniciando Aplicativo..."  -ForegroundColor Green
@@ -426,28 +488,49 @@ function Start-Application {
     # 1. Asesino de Zombies Quirúrgico
     Write-Host "[1/5] Verificando puertos limpios..."  -ForegroundColor Yellow
     Stop-SpecificPorts | Out-Null
-    Start-Sleep -Seconds 2
+    if (-not (Wait-ForPortsFree -Ports @(8001, 5173) -TimeoutSeconds 10)) {
+        $busyPorts = @(Get-BusyPorts -Ports @(8001, 5173)) -join ", "
+        Write-Host "  ERROR: Los puertos $busyPorts siguen ocupados por procesos ajenos al proyecto." -ForegroundColor Red
+        Write-Host "  Cierra esos servicios o libera los puertos antes de iniciar el aplicativo." -ForegroundColor Yellow
+        Read-Host "Presiona Enter para continuar..."
+        return
+    }
 
     # 2. Rotación de Logs (Limpieza en frío)
     Write-Host "[2/5] Limpiando archivos de log anteriores..." -ForegroundColor Yellow
-    Clear-Content $script:backendLog -ErrorAction SilentlyContinue
-    Clear-Content $script:frontendLog -ErrorAction SilentlyContinue
-    Clear-Content $script:backendErrorLog -ErrorAction SilentlyContinue
-    Clear-Content $script:frontendErrorLog -ErrorAction SilentlyContinue
+    try {
+        Reset-LogFile $script:backendLog
+        Reset-LogFile $script:frontendLog
+        Reset-LogFile $script:backendErrorLog
+        Reset-LogFile $script:frontendErrorLog
+    } catch {
+        Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        Read-Host "Presiona Enter para continuar..."
+        return
+    }
 
     # 3. Backend Health Check & Self-Healing
     Write-Host "[3/5] Verificando salud del entorno virtual..."  -ForegroundColor Yellow
     $venvPath = Join-Path $script:backendPath "venv"
-    $venvNeedsReinstall = $false
+    $venvNeedsInstall = $false
 
     if (Test-Path $script:venvPython) {
-        # Check if critical packages and app can be imported
-        & $script:venvPython -c "import fastapi, sqlalchemy, pydantic, cryptography, jwt" 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "  Entorno virtual corrupto detectado. Reinstalando..." -ForegroundColor Magenta
+        # Un venv puede conservar python.exe aunque su instalación base haya
+        # sido eliminada o actualizada. En ese caso hay que recrearlo; instalar
+        # paquetes sobre un ejecutable roto nunca lo reparará.
+        $venvRuntimeHealthy = $false
+        try {
+            & $script:venvPython -c "import sys; print(sys.executable)" 2>&1 | Out-Null
+            $venvRuntimeHealthy = ($LASTEXITCODE -eq 0)
+        } catch {
+            $venvRuntimeHealthy = $false
+        }
+
+        if (-not $venvRuntimeHealthy) {
+            Write-Host "  El entorno virtual no es ejecutable. Recreando..." -ForegroundColor Magenta
             try {
-                Remove-VenvSafely $venvPath
-                $venvNeedsReinstall = $true
+                Remove-VenvSafely $venvPath | Out-Null
+                $venvNeedsInstall = $true
             } catch {
                 Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
                 Write-Host "  Cierra procesos que puedan estar usando el venv e inténtalo de nuevo." -ForegroundColor Yellow
@@ -455,29 +538,28 @@ function Start-Application {
                 return
             }
         } else {
-            # Try to import the main app module
-            & $script:venvPython -c "import sys; sys.path.insert(0, r'$script:backendPath'); from main import app" 2>&1 | Out-Null
+            # Check if critical packages and app can be imported
+            & $script:venvPython -c "import fastapi, sqlalchemy, pydantic, cryptography, jwt" 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
-                Write-Host "  Error al importar aplicación. Reinstalando..." -ForegroundColor Magenta
-                try {
-                    Remove-VenvSafely $venvPath
-                    $venvNeedsReinstall = $true
-                } catch {
-                    Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
-                    Write-Host "  Cierra procesos que puedan estar usando el venv e inténtalo de nuevo." -ForegroundColor Yellow
-                    Read-Host "Presiona Enter para continuar..."
-                    return
-                }
+                Write-Host "  Faltan dependencias del entorno virtual. Reparando sin eliminarlo..." -ForegroundColor Magenta
+                $venvNeedsInstall = $true
             } else {
-                Write-Host "  Entorno virtual saludable." -ForegroundColor Green
+                # Try to import the main app module
+                & $script:venvPython -c "import sys; sys.path.insert(0, r'$script:backendPath'); from main import app" 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "  La aplicación no pudo importarse. Reparando dependencias sin eliminar el entorno..." -ForegroundColor Magenta
+                    $venvNeedsInstall = $true
+                } else {
+                    Write-Host "  Entorno virtual saludable." -ForegroundColor Green
+                }
             }
         }
     } else {
-        $venvNeedsReinstall = $true
+        $venvNeedsInstall = $true
     }
 
-    if ($venvNeedsReinstall) {
-        Write-Host "  Creando entorno virtual e instalando dependencias..." -ForegroundColor Magenta
+    if ($venvNeedsInstall) {
+        Write-Host "  Preparando entorno virtual e instalando dependencias..." -ForegroundColor Magenta
         
         # Asegurar que python está disponible en el PATH actual
         $pythonExe = Get-UsableCommand "python"
@@ -491,16 +573,19 @@ function Start-Application {
             return
         }
 
-        # Crear el entorno virtual
-        & $pythonExe.Source -m venv $venvPath
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "  ERROR: Python no pudo crear el entorno virtual." -ForegroundColor Red
-            Read-Host "Presiona Enter para continuar..."
-            return
-        }
-        
+        # Crear el entorno solo cuando no existe. Si ya existe, se reparan sus
+        # dependencias sin borrarlo para no ocultar errores de configuración.
         if (-not (Test-Path $script:venvPython)) {
-            Write-Host "  ERROR: No se pudo crear el entorno virtual." -ForegroundColor Red
+            & $pythonExe.Source -m venv $venvPath
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  ERROR: Python no pudo crear el entorno virtual." -ForegroundColor Red
+                Read-Host "Presiona Enter para continuar..."
+                return
+            }
+        }
+
+        if (-not (Test-Path $script:venvPython)) {
+            Write-Host "  ERROR: No se pudo preparar el entorno virtual." -ForegroundColor Red
             Read-Host "Presiona Enter para continuar..."
             return
         }
@@ -523,27 +608,62 @@ function Start-Application {
             Read-Host "Presiona Enter para continuar..."
             return
         }
+
+        & $script:venvPython -c "import sys; sys.path.insert(0, r'$script:backendPath'); from main import app" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  ERROR: La aplicación sigue sin poder importarse después de reparar dependencias." -ForegroundColor Red
+            Write-Host "  Revisa la configuración de backend/.env y los logs del backend." -ForegroundColor Yellow
+            Read-Host "Presiona Enter para continuar..."
+            return
+        }
     }
 
     # 4. Iniciar Backend
     Write-Host "[4/5] Iniciando Backend..."  -ForegroundColor Yellow
-    
-    # Inicia como proceso oculto, enrutando StdOut y StdErr al Log
-    $backendProcess = Start-Process -FilePath $script:venvPython -ArgumentList "-m uvicorn main:app --host $script:uvicornHost --port 8001 --reload" -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendLog -RedirectStandardError $script:backendErrorLog -PassThru
-    $backendProcess.Id | Set-Content -Path $script:backendPidFile -Encoding ascii
+
+    $backendArguments = @(
+        "-m", "uvicorn", "main:app",
+        "--host", $script:uvicornHost,
+        "--port", "8001"
+    )
+    if ($script:backendReload) {
+        $backendArguments += "--reload"
+        Write-Host "  Modo de recarga automática activado por TABULA_RASA_RELOAD=1." -ForegroundColor Yellow
+    }
+
+    # Inicia como proceso oculto, enrutando StdOut y StdErr al Log.
+    try {
+        $backendProcess = Start-Process -FilePath $script:venvPython -ArgumentList $backendArguments -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendLog -RedirectStandardError $script:backendErrorLog -PassThru
+        $backendProcess.Id | Set-Content -Path $script:backendPidFile -Encoding ascii
+    } catch {
+        Write-Host "  ERROR: No se pudo iniciar el backend: $($_.Exception.Message)" -ForegroundColor Red
+        Stop-SpecificPorts | Out-Null
+        Read-Host "Presiona Enter para continuar..."
+        return
+    }
 
     # Health Check Polling (Evitar Race Condition)
     Write-Host "  Esperando a que el backend esté listo..." -ForegroundColor Yellow
-    $maxRetries = 15
+    $maxRetries = 30
     $retryCount = 0
     $backendReady = $false
+    $lastHealthError = "sin respuesta"
     
     while ($retryCount -lt $maxRetries) {
         try {
-            Invoke-RestMethod -Uri "http://127.0.0.1:8001/health" | Out-Null
+            $backendProcess.Refresh()
+            if ($backendProcess.HasExited) {
+                throw "el proceso terminó antes de responder"
+            }
+
+            $healthResponse = Invoke-RestMethod -Uri "http://127.0.0.1:8001/health" -TimeoutSec 3
+            if ($healthResponse.status -notin @("healthy", "degraded")) {
+                throw "el health check devolvió un estado no válido: $($healthResponse.status)"
+            }
             $backendReady = $true
             break
         } catch {
+            $lastHealthError = $_.Exception.Message
             $retryCount++
             Start-Sleep -Seconds 1
         }
@@ -551,6 +671,7 @@ function Start-Application {
     
     if (-not $backendReady) {
         Write-Host "  ERROR: El backend no respondió después de $maxRetries segundos." -ForegroundColor Red
+        Write-Host "  Último diagnóstico: $lastHealthError" -ForegroundColor Yellow
         if ((Test-Path $script:backendErrorLog) -and (Get-Item $script:backendErrorLog).Length -gt 0) {
             Write-Host ""
             Write-Host "  --- Últimas líneas de backend_error.log ---" -ForegroundColor Yellow
@@ -566,14 +687,23 @@ function Start-Application {
 
     # 5. Frontend (Self-Healing + Start)
     Write-Host "[5/5] Preparando e Iniciando Frontend..."  -ForegroundColor Yellow
-    if (-not (Test-Path $script:nodeModules)) {
+    $npmCommand = Get-UsableCommand "npm"
+    if (-not $npmCommand) {
+        Write-Host "  ERROR: npm no está disponible aunque Node.js sí fue detectado." -ForegroundColor Red
+        Stop-SpecificPorts | Out-Null
+        Read-Host "Presiona Enter para continuar..."
+        return
+    }
+
+    $viteBinary = Join-Path $script:nodeModules ".bin\vite.cmd"
+    if (-not (Test-Path $script:nodeModules) -or -not (Test-Path $viteBinary)) {
         Write-Host "  Dependencias de Node no detectadas. Instalando..." -ForegroundColor Magenta
         Push-Location $script:frontendPath
         $npmInstallCommand = "install"
         $npmInstallExitCode = 1
         try {
             $npmInstallCommand = if (Test-Path (Join-Path $script:frontendPath "package-lock.json")) { "ci" } else { "install" }
-            & npm $npmInstallCommand
+            & $npmCommand.Source $npmInstallCommand
             $npmInstallExitCode = $LASTEXITCODE
         } finally {
             Pop-Location
@@ -587,23 +717,43 @@ function Start-Application {
     }
 
     # Inicia Vite oculto enrutando logs
-    $frontendCommand = "/d /c `"set `"TABULA_RASA_PROJECT_ROOT=$script:frontendPath`" && npm run dev -- --host 127.0.0.1`""
-    $frontendProcess = Start-Process -FilePath "cmd.exe" -ArgumentList $frontendCommand -WorkingDirectory $script:frontendPath -WindowStyle Hidden -RedirectStandardOutput $script:frontendLog -RedirectStandardError $script:frontendErrorLog -PassThru
-    $frontendProcess.Id | Set-Content -Path $script:frontendPidFile -Encoding ascii
+    # La variable de entorno también deja la ruta del proyecto en la línea de
+    # comandos para que el apagado pueda identificar el supervisor de npm.
+    $frontendCommand = "/d /c `"set `"TABULA_RASA_PROJECT_ROOT=$script:frontendPath`" && `"$($npmCommand.Source)`" run dev -- --host 127.0.0.1`""
+    try {
+        $frontendProcess = Start-Process -FilePath "cmd.exe" -ArgumentList $frontendCommand -WorkingDirectory $script:frontendPath -WindowStyle Hidden -RedirectStandardOutput $script:frontendLog -RedirectStandardError $script:frontendErrorLog -PassThru
+        $frontendProcess.Id | Set-Content -Path $script:frontendPidFile -Encoding ascii
+    } catch {
+        Write-Host "  ERROR: No se pudo iniciar el frontend: $($_.Exception.Message)" -ForegroundColor Red
+        Stop-SpecificPorts | Out-Null
+        Read-Host "Presiona Enter para continuar..."
+        return
+    }
 
     $frontendReady = $false
-    for ($retry = 0; $retry -lt 15; $retry++) {
+    $lastFrontendError = "sin respuesta"
+    for ($retry = 0; $retry -lt 30; $retry++) {
         try {
-            Invoke-WebRequest -Uri "http://127.0.0.1:5173" -UseBasicParsing -TimeoutSec 2 | Out-Null
+            $frontendProcess.Refresh()
+            if ($frontendProcess.HasExited) {
+                throw "el proceso terminó antes de responder"
+            }
+
+            $frontendResponse = Invoke-WebRequest -Uri "http://127.0.0.1:5173" -UseBasicParsing -TimeoutSec 3
+            if ($frontendResponse.StatusCode -ne 200 -or $frontendResponse.Content -notmatch 'id=["'']root["'']') {
+                throw "la respuesta no contiene el punto de montaje de la aplicación"
+            }
             $frontendReady = $true
             break
         } catch {
+            $lastFrontendError = $_.Exception.Message
             Start-Sleep -Seconds 1
         }
     }
 
     if (-not $frontendReady) {
-        Write-Host "  ERROR: El frontend no respondió después de 15 segundos." -ForegroundColor Red
+        Write-Host "  ERROR: El frontend no respondió después de 30 segundos." -ForegroundColor Red
+        Write-Host "  Último diagnóstico: $lastFrontendError" -ForegroundColor Yellow
         if ((Test-Path $script:frontendErrorLog) -and (Get-Item $script:frontendErrorLog).Length -gt 0) {
             Get-Content $script:frontendErrorLog -Tail 20 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkYellow }
         }
@@ -625,6 +775,32 @@ function Start-Application {
     Start-Process "http://localhost:5173"
 
     Read-Host "Presiona Enter para volver al menú..."
+}
+
+function Start-Application {
+    $lockTaken = $false
+    try {
+        $lockTaken = $script:startupMutex.WaitOne(0)
+        if (-not $lockTaken) {
+            Write-Host "Ya hay otro proceso de inicio o detención en curso." -ForegroundColor Yellow
+            Read-Host "Presiona Enter para continuar..."
+            return
+        }
+
+        Start-ApplicationCore
+    } catch {
+        Write-Host "ERROR inesperado durante el arranque: $($_.Exception.Message)" -ForegroundColor Red
+        try {
+            Stop-SpecificPorts | Out-Null
+        } catch {
+            Write-Host "No se pudo completar la limpieza de procesos: $($_.Exception.Message)" -ForegroundColor DarkYellow
+        }
+        Read-Host "Presiona Enter para continuar..."
+    } finally {
+        if ($lockTaken) {
+            $script:startupMutex.ReleaseMutex()
+        }
+    }
 }
 
 function Show-LogTail {

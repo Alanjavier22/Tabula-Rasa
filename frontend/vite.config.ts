@@ -12,31 +12,34 @@ export default defineConfig({
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
-      '/transactions': {
+      // Las rutas de la SPA usan los mismos nombres que algunos recursos de la API.
+      // El límite final evita que una recarga de `/categories` (por ejemplo) se
+      // proxifique al backend y conserva la navegación del frontend en Vite.
+      '^/transactions/': {
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
-      '/categories': {
+      '^/categories/': {
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
-      '/accounts': {
+      '^/accounts/': {
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
-      '/budgets': {
+      '^/budgets/': {
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
-      '/goals': {
+      '^/goals/': {
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
-      '/reminders': {
+      '^/reminders/': {
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
-      '/subscriptions': {
+      '^/subscriptions/': {
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
@@ -64,7 +67,7 @@ export default defineConfig({
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
-      '/fiscal': {
+      '^/fiscal/': {
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
@@ -72,7 +75,7 @@ export default defineConfig({
         target: 'http://localhost:8001',
         changeOrigin: true,
       },
-      '/snapshots': {
+      '^/snapshots/': {
         target: 'http://localhost:8001',
         changeOrigin: true,
       },

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { categoriesAPI } from '../services/api';
 import type { Category } from '../types';
@@ -175,15 +175,15 @@ const Categories = () => {
   }
 
   return (
-    <div className="w-full relative min-h-screen pb-20">
+    <div className="categories-page w-full relative min-h-screen pb-20">
       {/* Background Glows */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-[10%] -right-[5%] w-[30%] h-[30%] bg-blue-600/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[20%] -left-[5%] w-[30%] h-[30%] bg-purple-600/10 rounded-full blur-[120px]"></div>
       </div>
 
-      <div className="relative z-10">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+      <div className="categories-content relative z-10">
+        <div className="categories-page-heading flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -198,7 +198,7 @@ const Categories = () => {
             <p className="text-slate-400 text-sm lg:text-base font-medium">Organiza y segmenta tu flujo financiero</p>
           </motion.div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="categories-actions flex flex-wrap gap-2">
             <div className="flex bg-slate-800/50 backdrop-blur-md p-1 rounded-2xl border border-slate-700/50 shadow-xl">
               <button
                 onClick={handleExport}
@@ -225,65 +225,74 @@ const Categories = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="categories-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <AnimatePresence mode="popLayout">
-            {categories.map((category, index) => (
-              <motion.div
-                key={category.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.2, delay: index * 0.05 }}
-                className="group bg-slate-800/30 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-5 hover:bg-slate-800/50 hover:border-slate-600/50 transition-all shadow-lg hover:shadow-black/20 relative overflow-hidden"
-              >
-                {/* Color Strip */}
-                <div 
-                  className="absolute left-0 top-0 bottom-0 w-1.5 opacity-60 group-hover:opacity-100 transition-opacity"
-                  style={{ backgroundColor: category.color || '#8b5cf6' }}
-                ></div>
+            {categories.map((category, index) => {
+              const categoryColor = category.color || '#8b5cf6';
 
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-3 h-3 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)]"
-                      style={{ backgroundColor: category.color || '#8b5cf6' }}
-                    ></div>
-                    <h3 className="text-lg font-bold text-white tracking-tight leading-tight group-hover:text-blue-400 transition-colors">
-                      {category.name}
-                    </h3>
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                    <button 
-                      onClick={() => handleEdit(category)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 transition-all"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(category.id)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+              return (
+                <motion.div
+                  key={category.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.2, delay: index * 0.05 }}
+                  className="category-card group"
+                  style={{ '--category-color': categoryColor } as CSSProperties}
+                >
+                  <div className="category-card-glow" aria-hidden="true" />
 
-                <p className="text-slate-400 text-sm leading-relaxed line-clamp-3 min-h-[3rem]">
-                  {category.description || 'Sin descripción'}
-                </p>
+                  <div className="category-card-top">
+                    <div className="category-card-identity">
+                      <div className="category-card-icon" aria-hidden="true">
+                        <Tag />
+                      </div>
+                      <div className="category-card-title">
+                        <span>Categoría</span>
+                        <h3>{category.name}</h3>
+                      </div>
+                    </div>
 
-                <div className="mt-4 pt-4 border-t border-slate-700/30 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  <span>ID: {category.id.substring(0, 8)}</span>
-                  <div 
-                    className="px-2 py-0.5 rounded bg-slate-900/50 border border-slate-700/50"
-                    style={{ color: category.color || '#8b5cf6' }}
-                  >
-                    {category.color}
+                    <div className="category-card-actions">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(category)}
+                        className="category-card-action category-card-action-edit"
+                        aria-label={`Editar categoría ${category.name}`}
+                        title="Editar categoría"
+                      >
+                        <Edit aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(category.id)}
+                        className="category-card-action category-card-action-delete"
+                        aria-label={`Eliminar categoría ${category.name}`}
+                        title="Eliminar categoría"
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+
+                  <p className="category-card-description">
+                    {category.description || 'Sin descripción añadida todavía.'}
+                  </p>
+
+                  <div className="category-card-footer">
+                    <div className="category-card-id">
+                      <span>Identificador</span>
+                      <code>{category.id.substring(0, 8)}</code>
+                    </div>
+                    <span className="category-card-color">
+                      <i aria-hidden="true" />
+                      {categoryColor}
+                    </span>
+                  </div>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
 
           {categories.length === 0 && (

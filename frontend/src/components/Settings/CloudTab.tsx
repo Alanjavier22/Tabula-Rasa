@@ -36,7 +36,7 @@ const CloudTab = ({ backups, loadingBackups, creatingBackup, onCreateBackup, onR
           </button>
         </div>
 
-        <div className="space-y-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+        <div className="space-y-3 pr-1">
           {loadingBackups && (
             <div className="p-10 text-center text-slate-500 text-sm animate-pulse">Consultando historial...</div>
           )}

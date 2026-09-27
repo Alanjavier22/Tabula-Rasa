@@ -265,16 +265,16 @@ const Reminders = () => {
   }
 
   return (
-    <div className="w-full relative min-h-screen pb-20">
+    <div className="reminders-page compact-page w-full relative min-h-screen pb-20">
       {/* Background Decor */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[15%] -left-[10%] w-[50%] h-[50%] bg-orange-600/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[25%] -right-[10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px]"></div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto">
+      <div className="compact-page-content relative z-10 max-w-7xl mx-auto">
         {/* Header Section */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+        <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
             <div className="flex items-center gap-2 text-orange-400 text-xs font-bold tracking-[0.2em] uppercase mb-1">
               <div className="w-8 h-[1px] bg-orange-500/50"></div>
@@ -288,7 +288,8 @@ const Reminders = () => {
             </p>
           </motion.div>
 
-          <motion.div 
+          <motion.div
+            className="compact-page-actions"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
           >
@@ -306,9 +307,9 @@ const Reminders = () => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-wrap gap-4 mb-12"
+          className="compact-summary flex flex-wrap gap-4 mb-12"
         >
-          <div className="bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4">
+          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20 text-orange-400">
               <Bell className="w-5 h-5" />
             </div>
@@ -318,7 +319,7 @@ const Reminders = () => {
             </div>
           </div>
 
-          <div className="bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4">
+          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20 text-rose-400">
               <AlertCircle className="w-5 h-5" />
             </div>
@@ -328,7 +329,7 @@ const Reminders = () => {
             </div>
           </div>
 
-          <div className="bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4 ml-auto">
+          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4 ml-auto">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 text-blue-400">
               <CalendarDays className="w-5 h-5" />
             </div>
@@ -339,11 +340,11 @@ const Reminders = () => {
         </motion.div>
 
         {/* Reminders Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="compact-page-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <AnimatePresence mode="popLayout">
             {reminders.length === 0 ? (
               <motion.div 
-                className="col-span-full py-32 flex flex-col items-center text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10"
+                className="compact-empty col-span-full py-32 flex flex-col items-center text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
@@ -370,7 +371,7 @@ const Reminders = () => {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ delay: index * 0.05 }}
-                      className={`group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden ${
+                      className={`compact-card group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden ${
                         !reminder.is_active ? 'opacity-50 grayscale' : ''
                       } ${config.glow}`}
                     >

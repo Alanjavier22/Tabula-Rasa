@@ -279,16 +279,16 @@ const Budgets = () => {
   }
 
   return (
-    <div className="w-full relative min-h-screen pb-20">
+    <div className="budgets-page compact-page w-full relative min-h-screen pb-20">
       {/* Background Decor */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[10%] -left-[10%] w-[50%] h-[50%] bg-purple-600/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[20%] -right-[10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]"></div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto">
+      <div className="compact-page-content relative z-10 max-w-7xl mx-auto">
         {/* Header Section */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+        <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
             <div className="flex items-center gap-2 text-purple-400 text-xs font-bold tracking-[0.2em] uppercase mb-1">
               <div className="w-8 h-[1px] bg-purple-500/50"></div>
@@ -305,7 +305,7 @@ const Budgets = () => {
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-wrap gap-3"
+            className="compact-page-actions flex flex-wrap gap-3"
           >
             <button 
               onClick={() => setShowRecurringModal(true)} 
@@ -329,9 +329,9 @@ const Budgets = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12"
+          className="compact-summary grid grid-cols-1 md:grid-cols-3 gap-6 mb-12"
         >
-          <div className="bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/5 flex items-center gap-5">
+          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/5 flex items-center gap-5">
             <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
               <PieChart className="w-7 h-7 text-purple-400" />
             </div>
@@ -341,7 +341,7 @@ const Budgets = () => {
             </div>
           </div>
 
-          <div className="bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/5 flex items-center gap-5">
+          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/5 flex items-center gap-5">
             <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
               <TrendingUp className="w-7 h-7 text-blue-400" />
             </div>
@@ -351,7 +351,7 @@ const Budgets = () => {
             </div>
           </div>
 
-          <div className="bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/5">
+          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/5">
             <div className="flex justify-between items-end mb-2">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Utilización Global</p>
               <p className={`text-sm font-black ${overallPercentage > 90 ? 'text-rose-400' : 'text-emerald-400'}`}>
@@ -371,11 +371,11 @@ const Budgets = () => {
         </motion.div>
 
         {/* Budgets Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="compact-page-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <AnimatePresence mode="popLayout">
             {budgets.length === 0 ? (
               <motion.div 
-                className="col-span-full py-20 flex flex-col items-center text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10"
+                className="compact-empty col-span-full py-20 flex flex-col items-center text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
@@ -400,7 +400,7 @@ const Budgets = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: index * 0.05 }}
-                    className="group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden"
+                    className="compact-card group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden"
                   >
                     {/* Background Visual Decor */}
                     <div className={`absolute top-0 right-0 w-32 h-32 blur-[60px] opacity-10 transition-all group-hover:opacity-20 ${getBudgetGlowClass(isOverBudget, percentage)}`}></div>
