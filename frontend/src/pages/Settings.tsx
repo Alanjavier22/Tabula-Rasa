@@ -56,10 +56,10 @@ const Settings = () => {
   const [authorizingDrive, setAuthorizingDrive] = useState(false);
 
   const tabs = [
-    { id: 'general', label: 'General', icon: SettingsIcon, color: 'text-blue-400' },
-    { id: 'ai', label: 'Núcleo API', icon: Cpu, color: 'text-indigo-400' },
-    { id: 'labs', label: 'AI Labs', icon: Sparkles, color: 'text-amber-400' },
-    { id: 'cloud', label: 'Respaldo Cloud', icon: Cloud, color: 'text-emerald-400' },
+    { id: 'general', label: 'General', icon: SettingsIcon, color: 'text-info' },
+    { id: 'ai', label: 'Asistente IA', icon: Cpu, color: 'text-accent-strong' },
+    { id: 'labs', label: 'Personalización', icon: Sparkles, color: 'text-warning' },
+    { id: 'cloud', label: 'Respaldos', icon: Cloud, color: 'text-success' },
   ];
 
   const fetchData = useCallback(async () => {
@@ -191,7 +191,7 @@ const Settings = () => {
         description: `Auto-updated ${key}`,
         is_public: true
       };
-      
+
       try {
         await configAPI.getByKey(key);
         await configAPI.update(key, data);
@@ -209,13 +209,13 @@ const Settings = () => {
     const newList = config.vehicle_categories.includes(categoryId)
       ? config.vehicle_categories.filter(id => id !== categoryId)
       : [...config.vehicle_categories, categoryId];
-      
+
     setConfig(prev => ({
       ...prev,
       vehicle_categories: newList,
     }));
-    
-    handleQuickSave('vehicle_categories', newList, 'json');
+
+    void handleQuickSave('vehicle_categories', newList, 'json');
   };
 
   const handleExportCSV = async () => {
@@ -306,9 +306,9 @@ const Settings = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-white">
-        <RefreshCw className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-        <p className="text-slate-400 font-medium animate-pulse">Iniciando Centro de Mando...</p>
+      <div className="flex flex-col items-center justify-center h-[60vh] text-primary">
+        <RefreshCw className="w-10 h-10 animate-spin text-accent-strong mb-4" />
+        <p className="text-muted font-medium animate-pulse">Iniciando Centro de Mando...</p>
       </div>
     );
   }
@@ -317,15 +317,10 @@ const Settings = () => {
     <div className="app-page settings-page">
       <div>
         <div className="settings-page-heading">
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold tracking-widest uppercase mb-1">
-              <div className="w-8 h-[1px] bg-indigo-500/50"></div>
-              <span>Panel de Control</span>
-            </div>
-            <h1 className="text-3xl lg:text-4xl font-black text-white tracking-tight">
-              Configuración del <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Sistema</span>
-            </h1>
-            <p className="text-slate-400 text-sm lg:text-base font-medium">Personaliza el comportamiento y seguridad de Tabula Rasa</p>
+          <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
+
+            <h1 className="text-3xl lg:text-4xl font-black text-primary tracking-tight">Configuración</h1>
+            <p className="text-muted text-sm lg:text-base font-medium">Personaliza el comportamiento y seguridad de Tabula Rasa</p>
           </motion.div>
         </div>
 
@@ -339,13 +334,14 @@ const Settings = () => {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as SettingsTab)}
                   aria-pressed={activeTab === tab.id}
+                  aria-controls="settings-panel"
                   className={`settings-tab-button ${activeTab === tab.id ? 'is-active' : ''}`}
                 >
                   <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? tab.color : ''}`} />
                   <span>{tab.label}</span>
                   {activeTab === tab.id && (
                     <motion.div layoutId="activeTabIndicator" className="ml-auto">
-                      <ChevronRight className="w-4 h-4 text-white/40" />
+                      <ChevronRight className="w-4 h-4 text-muted" />
                     </motion.div>
                   )}
                 </button>
@@ -371,10 +367,11 @@ const Settings = () => {
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, x: 20 }}
+                initial={false}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }}
+                id="settings-panel" role="region" aria-label={tabs.find(tab => tab.id === activeTab)?.label}
                 className="settings-panel app-surface"
               >
                 {activeTab === 'general' && (
@@ -412,7 +409,7 @@ const Settings = () => {
                     aiPersona={config.ai_persona}
                     onPersonaChange={(personaId) => {
                       setConfig({ ...config, ai_persona: personaId });
-                      handleQuickSave('ai_persona', personaId, 'string');
+                      void handleQuickSave('ai_persona', personaId, 'string');
                     }}
                     setToast={setToast}
                   />

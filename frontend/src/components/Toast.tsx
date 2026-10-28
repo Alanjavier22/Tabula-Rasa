@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { CheckCircle, XCircle, AlertCircle, X } from "lucide-react";
 
-type ToastType = 'success' | 'error' | 'warning';
+type ToastType = "success" | "error" | "warning";
 
 interface ToastProps {
   message: string;
@@ -10,28 +10,42 @@ interface ToastProps {
   duration?: number;
 }
 
-const Toast = ({ message, type, onClose, duration = 3000 }: ToastProps) => {
+const Toast = ({ message, type, onClose, duration }: ToastProps) => {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const autoCloseAfter = duration ?? (type === "success" ? 5000 : 0);
   useEffect(() => {
-    const timer = setTimeout(onClose, duration);
+    if (autoCloseAfter <= 0 || hovered || focused) return;
+    const timer = setTimeout(onClose, autoCloseAfter);
     return () => clearTimeout(timer);
-  }, [onClose, duration]);
+  }, [onClose, autoCloseAfter, hovered, focused, message, type]);
 
-  const icons = {
-    success: <CheckCircle className="w-5 h-5 text-green-400" />,
-    error: <XCircle className="w-5 h-5 text-red-400" />,
-    warning: <AlertCircle className="w-5 h-5 text-yellow-400" />,
-  };
-
-  const bgColors = {
-    success: 'bg-green-900/90 border-green-700',
-    error: 'bg-red-900/90 border-red-700',
-    warning: 'bg-yellow-900/90 border-yellow-700',
-  };
+  const Icon =
+    type === "success" ? CheckCircle : type === "error" ? XCircle : AlertCircle;
 
   return (
-    <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg border ${bgColors[type]} text-white shadow-lg animate-in slide-in-from-right duration-300`}>
-      {icons[type]}
-      <span className="text-sm font-medium">{message}</span>
+    <div
+      className={`app-toast app-toast-${type}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+          setFocused(false);
+      }}
+    >
+      <Icon aria-hidden="true" />
+      <p role={type === "error" ? "alert" : "status"} aria-atomic="true">
+        {message}
+      </p>
+      <button
+        type="button"
+        className="app-icon-button"
+        aria-label="Cerrar notificación"
+        onClick={onClose}
+      >
+        <X aria-hidden="true" />
+      </button>
     </div>
   );
 };

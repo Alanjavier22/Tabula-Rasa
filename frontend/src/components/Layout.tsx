@@ -1,25 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import {
-  LayoutDashboard,
-  ArrowUpDown,
-  Tag,
-  Wallet,
-  Target,
-  PieChart,
-  Bell,
-  Menu,
-  X,
-  Settings as SettingsIcon,
-  Calendar,
-  CreditCard,
-  Receipt,
-  ChevronLeft,
-  ChevronRight,
-  Moon,
-  Search,
-  Sun,
-} from 'lucide-react';
+import { Menu, X, ChevronLeft, ChevronRight, Moon, Search, Sun } from 'lucide-react';
+import Modal from './common/Modal';
+import { navigationGroups, navigationItems, mobileItems } from '../utils/navigation';
 import CommandPalette from './CommandPalette';
 import { SentinelBubble } from './SentinelBubble';
 
@@ -37,21 +20,7 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
     return localStorage.getItem('tabula_sidebar_collapsed') === 'true';
   });
 
-  const navItems = [
-    { path: '/', label: 'Panel Principal', shortLabel: 'Resumen', icon: LayoutDashboard },
-    { path: '/transactions', label: 'Transacciones', shortLabel: 'Movimientos', icon: ArrowUpDown },
-    { path: '/categories', label: 'Categorías', shortLabel: 'Categorías', icon: Tag },
-    { path: '/accounts', label: 'Cuentas', shortLabel: 'Cuentas', icon: Wallet },
-    { path: '/budgets', label: 'Presupuestos', shortLabel: 'Presupuestos', icon: PieChart },
-    { path: '/goals', label: 'Metas', shortLabel: 'Metas', icon: Target },
-    { path: '/reminders', label: 'Recordatorios', shortLabel: 'Alertas', icon: Bell },
-    { path: '/subscriptions', label: 'Suscripciones', shortLabel: 'Suscripciones', icon: CreditCard },
-    { path: '/snapshots', label: 'Snapshots', shortLabel: 'Snapshots', icon: Calendar },
-    { path: '/fiscal', label: 'SRI Fiscal', shortLabel: 'SRI Fiscal', icon: Receipt },
-    { path: '/settings', label: 'Configuración', shortLabel: 'Configuración', icon: SettingsIcon },
-  ];
-
-  const currentPage = navItems.find((item) => item.path === location.pathname) ?? navItems[0];
+  const currentPage = navigationItems.find((item) => item.path === location.pathname) ?? navigationItems[0];
   const isActive = (path: string) => location.pathname === path;
 
   const handleToggleSidebar = () => {
@@ -71,6 +40,7 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'app-shell-collapsed' : ''}`}>
+      <a className="app-skip-link" href="#main-content">Saltar al contenido</a>
       <CommandPalette />
       <SentinelBubble />
 
@@ -98,22 +68,19 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
         </div>
 
         <nav className="app-nav">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.path);
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                title={sidebarCollapsed ? item.label : undefined}
-                aria-current={active ? 'page' : undefined}
-                className={`app-nav-item ${active ? 'is-active' : ''}`}
-              >
-                <Icon aria-hidden="true" />
-                {!sidebarCollapsed && <span>{item.label}</span>}
-              </Link>
-            );
-          })}
+          {navigationGroups.map(group => (
+            <div className="app-nav-group" key={group.label}>
+              <p className="app-nav-group-label">{group.label}</p>
+              {group.items.map(item => {
+                const Icon = item.icon;
+                return <Link key={item.path} to={item.path} title={item.label} aria-label={item.label}
+                  aria-current={isActive(item.path) ? 'page' : undefined}
+                  className={`app-nav-item ${isActive(item.path) ? 'is-active' : ''}`}>
+                  <Icon aria-hidden="true" />{!sidebarCollapsed && <span>{item.label}</span>}
+                </Link>;
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="app-sidebar-bottom">
@@ -137,7 +104,7 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
             >
               <Search aria-hidden="true" />
             </button>
-            <div className="app-avatar" aria-label="Perfil de usuario">AM</div>
+
           </div>
         </header>
 
@@ -151,17 +118,17 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
           </button>
         </header>
 
-        <main className="app-content">{children}</main>
+        <main id="main-content" tabIndex={-1} className="app-content">{children}</main>
       </div>
 
       <nav className="app-mobile-nav" aria-label="Navegación móvil">
-        {navItems.slice(0, 4).map((item) => {
+        {mobileItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.path);
           return (
             <Link key={item.path} to={item.path} aria-current={active ? 'page' : undefined} className={`app-mobile-nav-item ${active ? 'is-active' : ''}`}>
               <Icon aria-hidden="true" />
-              <span>{item.shortLabel}</span>
+              <span>{item.path === '/transactions' ? 'Actividad' : item.path === '/budgets' ? 'Planificar' : item.label}</span>
             </Link>
           );
         })}
@@ -171,23 +138,22 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
         </button>
       </nav>
 
-      <div className={`app-mobile-menu ${mobileMenuOpen ? 'is-open' : ''}`} aria-hidden={!mobileMenuOpen}>
-        <button type="button" className="app-mobile-menu-backdrop" aria-label="Cerrar menú móvil" onClick={() => setMobileMenuOpen(false)} />
-        <section className="app-mobile-menu-panel" aria-label="Más opciones">
-          <div className="app-mobile-menu-heading"><div><span className="app-kicker">Navegación</span><h2>Más opciones</h2></div><button type="button" className="app-icon-button" aria-label="Cerrar menú móvil" onClick={() => setMobileMenuOpen(false)}><X aria-hidden="true" /></button></div>
-          <div className="app-mobile-menu-grid">
-            {navItems.slice(4).map((item) => {
+      {mobileMenuOpen && <Modal onClose={() => setMobileMenuOpen(false)} label="Navegación" className="app-mobile-navigation-dialog">
+        <section className="app-mobile-menu-panel">
+          <div className="app-mobile-menu-heading"><h2>Navegación</h2><button type="button" className="app-icon-button" aria-label="Cerrar navegación" onClick={() => setMobileMenuOpen(false)}><X aria-hidden="true" /></button></div>
+          {navigationGroups.map(group => <div key={group.label}>
+            <h3 className="app-nav-group-label">{group.label}</h3>
+            <div className="app-mobile-menu-grid">{group.items.map(item => {
               const Icon = item.icon;
-              const active = isActive(item.path);
-              return (
-                <Link key={item.path} to={item.path} onClick={() => setMobileMenuOpen(false)} aria-current={active ? 'page' : undefined} className={`app-mobile-menu-item ${active ? 'is-active' : ''}`}>
-                  <Icon aria-hidden="true" /><span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
+              return <Link key={item.path} to={item.path} onClick={() => setMobileMenuOpen(false)}
+                aria-current={isActive(item.path) ? 'page' : undefined} className={`app-mobile-menu-item ${isActive(item.path) ? 'is-active' : ''}`}>
+                <Icon aria-hidden="true" /><span>{item.label}</span>
+              </Link>;
+            })}</div>
+          </div>)}
         </section>
-      </div>
+      </Modal>}
+
     </div>
   );
 };

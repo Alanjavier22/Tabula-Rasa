@@ -1,3 +1,4 @@
+import Modal from '../common/Modal';
 import type { Dispatch, SetStateAction } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layers, DollarSign, ShieldCheck, CheckCircle2, Calendar, AlignLeft, RefreshCw, X } from 'lucide-react';
@@ -31,23 +32,23 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-md flex items-center justify-center z-50 p-4 overflow-hidden">
+        <Modal onClose={onClose} label={'Estado de cuenta'}>
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+            className="bg-surface border border-line rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col "
           >
             {/* Header */}
-            <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-white/5 shrink-0">
-              <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-500/5 to-rose-500/5 pointer-events-none"></div>
-              <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
-                  <Layers className="w-5 h-5 text-purple-400" />
+            <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-line shrink-0">
+
+              <h2 className="text-xl font-black text-primary tracking-tight flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-accent-soft flex items-center justify-center border border-line">
+                  <Layers className="w-5 h-5 text-accent-strong" />
                 </div>
                 {editingStatement ? 'Editar Estado' : 'Nuevo Estado'}
               </h2>
-              <button onClick={onClose} className="w-10 h-10 rounded-full hover:bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all border border-transparent hover:border-white/10">
+              <button aria-label="Cerrar diálogo" onClick={onClose} className="w-10 h-10 rounded-full hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all border border-transparent hover:border-line">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -56,12 +57,12 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="statement-balance" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="statement-balance" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                     <DollarSign className="w-3 h-3" />
                     Saldo al Corte
                   </label>
                   <div className="relative">
-                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
+                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-muted font-bold">$</span>
                     <input
                       id="statement-balance"
                       type="text"
@@ -72,18 +73,18 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                         const val = e.target.value.replace(/[^0-9.,]/g, '');
                         setStatementForm({...statementForm, statement_balance: val});
                       }}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl pl-10 pr-5 py-4 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-all font-bold"
+                      className="w-full bg-surface-soft border border-line rounded-2xl pl-10 pr-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-bold"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="statement-user-share" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="statement-user-share" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                     <ShieldCheck className="w-3 h-3" />
                     Tu Parte (Gasto Real)
                   </label>
                   <div className="relative">
-                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
+                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-muted font-bold">$</span>
                     <input
                       id="statement-user-share"
                       type="text"
@@ -94,7 +95,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                         const val = e.target.value.replace(/[^0-9.,]/g, '');
                         setStatementForm({...statementForm, user_share: val});
                       }}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl pl-10 pr-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-bold"
+                      className="w-full bg-surface-soft border border-line rounded-2xl pl-10 pr-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-bold"
                       placeholder="0.00"
                     />
                   </div>
@@ -102,12 +103,12 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
               </div>
 
               <div>
-                <label htmlFor="statement-amount-paid" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                <label htmlFor="statement-amount-paid" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                   <CheckCircle2 className="w-3 h-3" />
                   Monto ya Abonado
                 </label>
                 <div className="relative">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-muted font-bold">$</span>
                   <input
                     id="statement-amount-paid"
                     type="text"
@@ -117,7 +118,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                       const val = e.target.value.replace(/[^0-9.,]/g, '');
                       setStatementForm({...statementForm, amount_paid: val});
                     }}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-10 pr-5 py-4 text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-all font-bold"
+                    className="w-full bg-surface-soft border border-line rounded-2xl pl-10 pr-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-bold"
                     placeholder="0.00"
                   />
                 </div>
@@ -125,7 +126,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <span className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <span className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                     <Calendar className="w-3 h-3" />
                     Periodo (Mes/Año)
                   </span>
@@ -139,7 +140,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                       required
                       value={statementForm.month}
                       onChange={e => setStatementForm({...statementForm, month: Number.parseInt(e.target.value)})}
-                      className="w-1/2 bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-bold"
+                      className="w-1/2 bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-bold"
                     />
                     <input
                       id="statement-year"
@@ -150,12 +151,12 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                       required
                       value={statementForm.year}
                       onChange={e => setStatementForm({...statementForm, year: Number.parseInt(e.target.value)})}
-                      className="w-1/2 bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-bold"
+                      className="w-1/2 bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-bold"
                     />
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="statement-status" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="statement-status" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                     Estado de Pago
                   </label>
                   <Select
@@ -173,7 +174,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="statement-cut-off-date" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="statement-cut-off-date" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                     Fecha de Corte
                   </label>
                   <input
@@ -181,11 +182,11 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                     type="date"
                     value={statementForm.cut_off_date}
                     onChange={e => setStatementForm({...statementForm, cut_off_date: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-medium [color-scheme:dark]"
+                    className="w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-medium [color-scheme:dark]"
                   />
                 </div>
                 <div>
-                  <label htmlFor="statement-payment-due-date" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                  <label htmlFor="statement-payment-due-date" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                     Límite de Pago
                   </label>
                   <input
@@ -193,13 +194,13 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                     type="date"
                     value={statementForm.payment_due_date}
                     onChange={e => setStatementForm({...statementForm, payment_due_date: e.target.value})}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-medium [color-scheme:dark]"
+                    className="w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-medium [color-scheme:dark]"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="statement-notes" className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                <label htmlFor="statement-notes" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                   <AlignLeft className="w-3 h-3" />
                   Notas Adicionales
                 </label>
@@ -207,7 +208,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                   id="statement-notes"
                   value={statementForm.notes}
                   onChange={e => setStatementForm({...statementForm, notes: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-medium resize-none"
+                  className="w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-medium resize-none"
                   rows={3}
                   placeholder="Opcional..."
                 />
@@ -215,11 +216,11 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
             </form>
 
             {/* Footer */}
-            <div className="p-7 border-t border-white/5 bg-slate-900/50 flex items-center gap-4">
+            <div className="p-7 border-t border-line bg-canvas flex items-center gap-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 py-4 rounded-2xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/5 transition-all text-xs font-black uppercase tracking-widest"
+                className="flex-1 py-4 rounded-2xl border border-line text-muted hover:text-primary hover:bg-surface-soft transition-all text-xs font-black uppercase tracking-widest"
               >
                 Cancelar
               </button>
@@ -227,7 +228,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                 type="submit"
                 onClick={onSubmit}
                 disabled={saving}
-                className="flex-[2] py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white transition-all text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-900/20 disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
+                className="flex-[2] py-4 rounded-2xl bg-surface-soft   text-primary transition-all text-xs font-black uppercase tracking-widest shadow-xl  disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
               >
                 {saving ? (
                   <div className="flex items-center justify-center gap-2">
@@ -240,7 +241,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
               </button>
             </div>
           </motion.div>
-        </div>
+        </Modal>
       )}
     </AnimatePresence>
   );

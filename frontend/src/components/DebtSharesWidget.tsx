@@ -1,3 +1,4 @@
+import Modal from './common/Modal';
 import { useState } from 'react';
 import { statementsAPI } from '../services/api';
 import type { CreditCardStatement, DebtShare, Cents } from '../types';
@@ -6,9 +7,9 @@ import { Users, DollarSign, CheckCircle, X, Plus } from 'lucide-react';
 import Toast from './Toast';
 
 const getDebtShareStatusClass = (status: string) => {
-  if (status === 'paid_to_card') return 'bg-green-500/20 text-green-400';
-  if (status === 'received') return 'bg-blue-500/20 text-blue-400';
-  return 'bg-orange-500/20 text-orange-400';
+  if (status === 'paid_to_card') return 'bg-success-soft text-success';
+  if (status === 'received') return 'bg-info-soft text-info';
+  return 'bg-warning-soft text-warning';
 };
 
 const getDebtShareStatusLabel = (status: string) => {
@@ -101,17 +102,17 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
 
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+    <div className="bg-surface border border-line rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Users className="w-5 h-5 text-purple-400" />
-          <h3 className="text-lg font-semibold text-white">Deudas Compartidas</h3>
+          <Users className="w-5 h-5 text-accent-strong" />
+          <h3 className="text-lg font-semibold text-primary">Deudas Compartidas</h3>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">{allDebtShares.length} deuda(s)</span>
-          <button 
+          <span className="text-xs text-muted">{allDebtShares.length} deuda(s)</span>
+          <button
             onClick={handleAddDebtShare}
-            className="p-1 hover:bg-purple-500/20 rounded-lg text-purple-400 transition-colors"
+            className="p-1 hover:bg-accent-soft rounded-lg text-accent-strong transition-colors"
             title="Agregar deuda manual"
           >
             <Plus className="w-4 h-4" />
@@ -120,34 +121,34 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
       </div>
 
       {/* Summary */}
-      <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 mb-3">
+      <div className="bg-accent-soft border border-line rounded-lg p-3 mb-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-purple-400 mb-1">Pendiente Total</p>
-            <p className="text-lg font-bold text-purple-300">${(totalPending / 100).toFixed(2)}</p>
+            <p className="text-xs text-accent-strong mb-1">Pendiente Total</p>
+            <p className="text-lg font-bold text-accent-strong">${(totalPending / 100).toFixed(2)}</p>
           </div>
-          <DollarSign className="w-6 h-6 text-purple-400" />
+          <DollarSign className="w-6 h-6 text-accent-strong" />
         </div>
       </div>
 
       {/* List */}
       <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
         {allDebtShares.map(ds => (
-          <div key={ds.id} className="flex items-center justify-between p-3 bg-slate-700/30 rounded-xl border border-white/5">
+          <div key={ds.id} className="flex items-center justify-between p-3 bg-surface rounded-xl border border-line">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-white truncate">{ds.person_name}</p>
-                <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">Mensual</span>
+                <p className="text-sm font-bold text-primary truncate">{ds.person_name}</p>
+                <span className="text-xs bg-accent-soft text-accent-strong px-1.5 py-0.5 rounded font-black uppercase tracking-tight">Mensual</span>
               </div>
-              <p className="text-[10px] text-slate-400">{ds.statement.account_name || 'Visa Platinum'}</p>
+              <p className="text-xs text-muted">{ds.statement.account_name || 'Visa Platinum'}</p>
               {ds.description && (
-                <p className="text-[10px] text-slate-500 italic truncate">"{ds.description}"</p>
+                <p className="text-xs text-muted italic truncate">"{ds.description}"</p>
               )}
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
-                <p className="text-sm font-black text-purple-400">${(ds.amount / 100).toFixed(2)}</p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getDebtShareStatusClass(ds.status)}`}>
+                <p className="text-sm font-black text-accent-strong">${(ds.amount / 100).toFixed(2)}</p>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getDebtShareStatusClass(ds.status)}`}>
                   {getDebtShareStatusLabel(ds.status)}
                 </span>
               </div>
@@ -156,14 +157,14 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
                   <>
                     <button
                       onClick={() => handleUpdateStatus(ds.id, 'received')}
-                      className="p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-500/20 rounded transition-colors"
+                      className="p-1 text-muted hover:text-info hover:bg-info-soft rounded transition-colors"
                       title="Marcar como recibido"
                     >
                       <CheckCircle className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleUpdateStatus(ds.id, 'paid_to_card')}
-                      className="p-1 text-slate-400 hover:text-green-400 hover:bg-green-500/20 rounded transition-colors"
+                      className="p-1 text-muted hover:text-success hover:bg-success-soft rounded transition-colors"
                       title="Marcar como pagado a tarjeta"
                     >
                       <DollarSign className="w-4 h-4" />
@@ -172,7 +173,7 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
                 )}
                 <button
                   onClick={() => handleDeleteShare(ds.id)}
-                  className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded transition-colors"
+                  className="p-1 text-muted hover:text-danger hover:bg-danger-soft rounded transition-colors"
                   title="Eliminar"
                 >
                   <X className="w-4 h-4" />
@@ -193,63 +194,63 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
 
       {/* Add Debt Share Modal */}
       {showAddModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <Modal onClose={() => setShowAddModal({ isOpen: false, statementId: null })} label={'Agregar deuda compartida'}>
           <button
             type="button"
             aria-label="Cerrar modal de deuda"
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-overlay "
             onClick={() => setShowAddModal({ isOpen: false, statementId: null })}
           />
-          <div className="relative bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md">
+          <div className="relative bg-surface border border-line rounded-xl p-6 w-full max-w-md">
             <button
               onClick={() => setShowAddModal({ isOpen: false, statementId: null })}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+              className="absolute top-4 right-4 text-muted hover:text-primary"
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-lg font-semibold text-white mb-4">Agregar Deuda Compartida</h3>
+            <h3 className="text-lg font-semibold text-primary mb-4">Agregar Deuda Compartida</h3>
             <form onSubmit={handleAddShare}>
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="debt-share-person" className="block text-sm font-medium text-slate-300 mb-2">Persona</label>
+                  <label htmlFor="debt-share-person" className="block text-sm font-medium text-muted mb-2">Persona</label>
                   <input
                     id="debt-share-person"
                     type="text"
                     value={formData.person_name}
                     onChange={(e) => setFormData({ ...formData, person_name: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 bg-surface border border-line rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="debt-share-amount" className="block text-sm font-medium text-slate-300 mb-2">Monto</label>
+                  <label htmlFor="debt-share-amount" className="block text-sm font-medium text-muted mb-2">Monto</label>
                   <input
                     id="debt-share-amount"
                     type="number"
                     step="0.01"
                     value={formData.amount}
                     onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 bg-surface border border-line rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="debt-share-description" className="block text-sm font-medium text-slate-300 mb-2">Descripción (opcional)</label>
+                  <label htmlFor="debt-share-description" className="block text-sm font-medium text-muted mb-2">Descripción (opcional)</label>
                   <input
                     id="debt-share-description"
                     type="text"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 bg-surface border border-line rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
                 <div>
-                  <label htmlFor="debt-share-status" className="block text-sm font-medium text-slate-300 mb-2">Estado</label>
+                  <label htmlFor="debt-share-status" className="block text-sm font-medium text-muted mb-2">Estado</label>
                   <select
                     id="debt-share-status"
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 bg-surface border border-line rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     <option value="pending">Pendiente</option>
                     <option value="received">Recibido</option>
@@ -261,21 +262,21 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
                 <button
                   type="button"
                   onClick={() => setShowAddModal({ isOpen: false, statementId: null })}
-                  className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                  className="flex-1 px-4 py-2 bg-surface text-primary rounded-lg hover:bg-surface-strong transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={adding}
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                  className="flex-1 px-4 py-2 bg-accent-strong text-on-color rounded-lg hover:bg-accent-strong disabled:opacity-50 transition-colors"
                 >
                   {adding ? 'Agregando...' : 'Agregar'}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import ChartDataTable from './ChartDataTable';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { DashboardSummaryResponse } from '../../types';
 import SkeletonChart from './SkeletonChart';
@@ -18,28 +19,27 @@ const formatDayLabel = (value: string) => {
 
 const DailySpendingChart = ({ dashboardSummary, dailySpending }: DailySpendingChartProps) => {
   return (
-    <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6 mb-6">
-      <h3 className="text-lg font-semibold text-white mb-4">Gasto Diario</h3>
+    <div className="bg-surface  rounded-2xl border border-line p-4 lg:p-6 mb-6">
+      <h3 className="text-lg font-semibold text-primary mb-4">Gasto Diario</h3>
       {dashboardSummary && dailySpending.length > 0 && (
         <ResponsiveContainer width="100%" height={220}>
           <AreaChart data={dailySpending}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--app-border)" vertical={false} />
             <XAxis
               dataKey="date"
-              tick={{ fill: '#94a3b8', fontSize: 11 }}
+              tick={{ fill: 'var(--app-muted)', fontSize: 12 }}
               tickFormatter={formatDayLabel}
             />
             <YAxis
-              tick={{ fill: '#94a3b8', fontSize: 11 }}
+              tick={{ fill: 'var(--app-muted)', fontSize: 12 }}
               tickFormatter={(value) => `$${value.toLocaleString()}`}
             />
             <Tooltip
               contentStyle={{
-                background: 'rgba(15, 23, 42, 0.8)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid rgba(148, 163, 184, 0.1)',
+                background: 'var(--app-surface)',
+                border: '1px solid var(--app-border)',
                 borderRadius: '12px',
-                color: '#fff',
+                color: 'var(--app-text)',
                 boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
               }}
               labelFormatter={(label) => {
@@ -48,16 +48,17 @@ const DailySpendingChart = ({ dashboardSummary, dailySpending }: DailySpendingCh
               }}
               formatter={(value) => [`$${(typeof value === 'number' ? value : Number(value ?? 0)).toLocaleString()}`, 'Gasto']}
             />
-            <Area type="monotone" dataKey="gasto" stroke="#a855f7" fill="url(#gradGastoDiario)" strokeWidth={3} />
+            <Area isAnimationActive={false} type="monotone" dataKey="gasto" stroke="var(--app-accent-strong)" fill="var(--app-accent-soft)" strokeWidth={3} />
           </AreaChart>
         </ResponsiveContainer>
       )}
       {dashboardSummary && dailySpending.length === 0 && (
-        <p className="text-slate-500 text-center py-8">Sin datos</p>
+        <p className="text-muted text-center py-8">No hay movimientos en este periodo.</p>
       )}
       {!dashboardSummary && (
         <SkeletonChart height="h-56" />
       )}
+      <ChartDataTable caption="Gasto diario" columns={['Día', 'Gasto']} rows={dailySpending.map(item => [formatDayLabel(item.date), `$ ${item.gasto.toFixed(2)}`])} />
     </div>
   );
 };

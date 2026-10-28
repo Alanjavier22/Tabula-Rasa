@@ -4,15 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { goalsAPI, aiGoalsAPI } from '../services/api';
 import type { Goal, GoalStatus, SmartGoalResponse } from '../types';
 import { formatMoney, toCents } from '../utils/money';
-import { 
-  Plus, 
-  Trash2, 
-  Edit, 
-  Target, 
-  CheckCircle2, 
-  X, 
-  Sparkles, 
-  Loader2, 
+import {
+  Plus,
+  Trash2,
+  Edit,
+  Target,
+  CheckCircle2,
+  X,
+  Sparkles,
+  Loader2,
   ArrowRight,
   Calendar,
   Zap,
@@ -31,9 +31,9 @@ const emptyForm: GoalFormData = {
 };
 
 const getGoalStatusClass = (status: GoalStatus) => {
-  if (status === 'completed') return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400';
-  if (status === 'cancelled') return 'bg-rose-500/10 border-rose-500/20 text-rose-400';
-  return 'bg-blue-500/10 border-blue-500/20 text-blue-400';
+  if (status === 'completed') return 'bg-success-soft border-line text-success';
+  if (status === 'cancelled') return 'bg-danger-soft border-line text-danger';
+  return 'bg-info-soft border-line text-info';
 };
 
 const getGoalStatusLabel = (status: GoalStatus) => {
@@ -56,16 +56,7 @@ const Goals = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
 
   // Bloquear scroll del body cuando el modal está abierto
-  useEffect(() => {
-    if (showCreateModal || showEditModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [showCreateModal, showEditModal]);
+
 
   // AI Recommendations State
   const [smartRecommendations, setSmartRecommendations] = useState<SmartGoalResponse | null>(null);
@@ -96,7 +87,7 @@ const Goals = () => {
     try {
       await goalsAPI.delete(deleteConfirm.id);
       setToast({ message: 'Meta eliminada del sistema', type: 'success' });
-      fetchGoals();
+      void fetchGoals();
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
@@ -149,7 +140,7 @@ const Goals = () => {
       setShowCreateModal(false);
       setForm(emptyForm);
       setToast({ message: 'Nueva meta establecida con éxito', type: 'success' });
-      fetchGoals();
+      void fetchGoals();
       queryClient.invalidateQueries({ queryKey: ['goals'] });
     } catch (error) {
       console.error('Error creating goal:', error);
@@ -175,7 +166,7 @@ const Goals = () => {
       setEditingGoal(null);
       setEditForm(emptyForm);
       setToast({ message: 'Meta actualizada correctamente', type: 'success' });
-      fetchGoals();
+      void fetchGoals();
       queryClient.invalidateQueries({ queryKey: ['goals'] });
     } catch (error) {
       console.error('Error updating goal:', error);
@@ -193,9 +184,9 @@ const Goals = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-white">
-        <Loader2 className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
-        <p className="text-slate-400 font-medium animate-pulse">Sincronizando metas financieras...</p>
+      <div className="flex flex-col items-center justify-center h-[60vh] text-primary">
+        <Loader2 className="w-10 h-10 animate-spin text-success mb-4" />
+        <p className="text-muted font-medium animate-pulse">Sincronizando metas financieras...</p>
       </div>
     );
   }
@@ -203,47 +194,39 @@ const Goals = () => {
   return (
     <div className="goals-page compact-page w-full relative min-h-screen pb-20">
       {/* Background Decor */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute top-[20%] -right-[10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[120px]"></div>
-      </div>
+
 
       <div className="compact-page-content relative z-10 max-w-7xl mx-auto">
         {/* Header Section */}
         <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-            <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold tracking-[0.2em] uppercase mb-1">
-              <div className="w-8 h-[1px] bg-emerald-500/50"></div>
-              <span>Hitos de Capital</span>
-            </div>
-            <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tight">
-              Tus <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-blue-400">Objetivos</span>
-            </h1>
-            <p className="text-slate-400 text-sm lg:text-base font-medium mt-2 max-w-md">
+          <motion.div initial={false} animate={{ opacity: 1, x: 0 }}>
+
+            <h1 className="text-4xl lg:text-5xl font-black text-primary tracking-tight">Metas</h1>
+            <p className="text-muted text-sm lg:text-base font-medium mt-2 max-w-md">
               Visualiza tu crecimiento y acelera el camino hacia tus metas con asistencia de IA.
             </p>
           </motion.div>
 
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
+          <motion.div
+            initial={false}
             animate={{ opacity: 1, scale: 1 }}
             className="compact-page-actions flex flex-wrap gap-3"
           >
             <button
               onClick={handleFetchRecommendations}
               disabled={loadingRecommendations}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all group disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-surface-soft hover:bg-surface-soft border border-line text-primary transition-all group disabled:opacity-50"
             >
               {loadingRecommendations ? (
-                <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                <Loader2 className="w-4 h-4 animate-spin text-success" />
               ) : (
-                <Sparkles className="w-4 h-4 text-emerald-400 group-hover:scale-125 transition-transform" />
+                <Sparkles className="w-4 h-4 text-success group-hover:scale-125 transition-transform" />
               )}
               <span className="text-xs font-black uppercase tracking-widest">Consejero IA</span>
             </button>
-            <button 
-              onClick={() => setShowCreateModal(true)} 
-              className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-blue-600 text-white hover:shadow-[0_0_30px_rgba(16,185,129,0.3)] transition-all transform hover:-translate-y-1"
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="app-btn app-btn-primary"
             >
               <Plus className="w-5 h-5" />
               <span className="text-xs font-black uppercase tracking-widest">Nueva Meta</span>
@@ -252,48 +235,48 @@ const Goals = () => {
         </div>
 
         {/* Global Progress Summary */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+        <motion.div
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           className="compact-summary grid grid-cols-1 md:grid-cols-4 gap-6 mb-12"
         >
-          <div className="compact-summary-card md:col-span-2 bg-slate-800/40 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/5 flex flex-col justify-center">
+          <div className="compact-summary-card md:col-span-2 bg-surface  p-8 rounded-2xl border border-line flex flex-col justify-center">
             <div className="flex justify-between items-end mb-4">
               <div>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Ahorro Total Acumulado</p>
-                <p className="text-3xl font-black text-white tracking-tight">${formatMoney(totalSaved)}</p>
+                <p className="text-xs font-black text-muted uppercase tracking-widest mb-1">Ahorro Total Acumulado</p>
+                <p className="text-3xl font-black text-primary tracking-tight">${formatMoney(totalSaved)}</p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Progreso Global</p>
-                <p className="text-lg font-black text-emerald-400">{globalProgress.toFixed(1)}%</p>
+                <p className="text-xs font-black text-muted uppercase tracking-widest mb-1">Progreso Global</p>
+                <p className="text-lg font-black text-success">{globalProgress.toFixed(1)}%</p>
               </div>
             </div>
-            <div className="w-full bg-black/40 rounded-full h-3 overflow-hidden">
-              <motion.div 
-                initial={{ width: 0 }}
+            <div className="w-full bg-surface-soft rounded-full h-3 overflow-hidden">
+              <motion.div
+                initial={false}
                 animate={{ width: `${Math.min(globalProgress, 100)}%` }}
-                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]"
+                className="h-full rounded-full bg-success   "
               />
             </div>
           </div>
 
-          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/5 flex items-center gap-5">
-            <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 text-blue-400">
+          <div className="compact-summary-card bg-surface  p-6 rounded-2xl border border-line flex items-center gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-info-soft flex items-center justify-center border border-line text-info">
               <Target className="w-7 h-7" />
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Metas Activas</p>
-              <p className="text-2xl font-black text-white">{activeGoalsCount}</p>
+              <p className="text-xs font-black text-muted uppercase tracking-widest mb-1">Metas Activas</p>
+              <p className="text-2xl font-black text-primary">{activeGoalsCount}</p>
             </div>
           </div>
 
-          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/5 flex items-center gap-5">
-            <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20 text-purple-400">
+          <div className="compact-summary-card bg-surface  p-6 rounded-2xl border border-line flex items-center gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-accent-soft flex items-center justify-center border border-line text-accent-strong">
               <Zap className="w-7 h-7" />
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Objetivo Final</p>
-              <p className="text-2xl font-black text-white">${formatMoney(totalTarget)}</p>
+              <p className="text-xs font-black text-muted uppercase tracking-widest mb-1">Objetivo Final</p>
+              <p className="text-2xl font-black text-primary">${formatMoney(totalTarget)}</p>
             </div>
           </div>
         </motion.div>
@@ -301,53 +284,53 @@ const Goals = () => {
         {/* AI Recommendations Panel */}
         <AnimatePresence>
           {smartRecommendations && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            <motion.div
+              initial={false}
               animate={{ opacity: 1, height: 'auto', marginBottom: 48 }}
               exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-              className="compact-panel bg-gradient-to-br from-emerald-900/40 to-blue-900/40 border border-emerald-500/30 rounded-[2.5rem] p-8 backdrop-blur-xl relative overflow-hidden group"
+              className="compact-panel bg-surface-soft   border border-line rounded-2xl p-8  relative overflow-hidden group"
             >
               <div className="absolute top-0 right-0 p-6">
-                <button onClick={() => setSmartRecommendations(null)} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-emerald-400 hover:text-white transition-all">
+                <button onClick={() => setSmartRecommendations(null)} className="w-10 h-10 rounded-xl bg-surface-soft hover:bg-surface-soft flex items-center justify-center text-success hover:text-primary transition-all">
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              
+
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                  <Sparkles className="w-6 h-6 text-emerald-400" />
+                <div className="w-12 h-12 rounded-2xl bg-success-soft flex items-center justify-center border border-line">
+                  <Sparkles className="w-6 h-6 text-success" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-emerald-300 tracking-tight">Análisis del Consejero IA</h2>
-                  <p className="text-xs text-emerald-500 font-bold uppercase tracking-widest">Recomendaciones Estratégicas</p>
+                  <h2 className="text-2xl font-black text-success tracking-tight">Análisis del Consejero IA</h2>
+                  <p className="text-xs text-success font-bold uppercase tracking-widest">Recomendaciones Estratégicas</p>
                 </div>
               </div>
 
-              <div className="bg-black/20 rounded-3xl p-6 border border-white/5 mb-8">
-                <p className="text-slate-200 leading-relaxed font-medium italic">"{smartRecommendations.summary_message}"</p>
+              <div className="bg-surface-soft rounded-3xl p-6 border border-line mb-8">
+                <p className="text-primary leading-relaxed font-medium italic">"{smartRecommendations.summary_message}"</p>
               </div>
-              
+
               {smartRecommendations.recommendations.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {smartRecommendations.recommendations.map((rec, idx) => (
-                    <motion.div 
-                      key={rec.goal_id} 
-                      initial={{ opacity: 0, x: 20 }}
+                    <motion.div
+                      key={rec.goal_id}
+                      initial={false}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.1 }}
-                      className="compact-card-mini bg-slate-900/60 border border-emerald-500/10 rounded-[2rem] p-6 hover:border-emerald-500/30 transition-all"
+                      className="compact-card-mini bg-canvas border border-line rounded-2xl p-6 hover:border-line transition-all"
                     >
                       <div className="flex justify-between items-start mb-4">
-                        <span className="text-sm font-black text-white uppercase tracking-tight">{rec.goal_name}</span>
-                        <div className="px-3 py-1 bg-emerald-500/20 rounded-lg text-emerald-400 text-xs font-black">
+                        <span className="text-sm font-black text-primary uppercase tracking-tight">{rec.goal_name}</span>
+                        <div className="px-3 py-1 bg-success-soft rounded-lg text-success text-xs font-black">
                           +${formatMoney(rec.suggested_transfer_cents)}
                         </div>
                       </div>
                       <div className="flex gap-3 items-start">
-                        <div className="mt-1 p-1 rounded bg-emerald-500/20 text-emerald-400">
+                        <div className="mt-1 p-1 rounded bg-success-soft text-success">
                           <ArrowRight className="w-3 h-3" />
                         </div>
-                        <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                        <p className="text-xs text-muted font-medium leading-relaxed">
                           {rec.reasoning}
                         </p>
                       </div>
@@ -363,61 +346,62 @@ const Goals = () => {
         <div className="compact-page-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <AnimatePresence mode="popLayout">
             {goals.length === 0 ? (
-              <motion.div 
-                className="compact-empty col-span-full py-32 flex flex-col items-center text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10"
-                initial={{ opacity: 0 }}
+              <motion.div
+                className="compact-empty col-span-full py-32 flex flex-col items-center text-center bg-surface-soft rounded-2xl border border-dashed border-line"
+                initial={false}
                 animate={{ opacity: 1 }}
               >
-                <div className="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center mb-8">
-                  <Target className="w-12 h-12 text-slate-600" />
+                <div className="w-24 h-24 rounded-full bg-surface flex items-center justify-center mb-8">
+                  <Target className="w-12 h-12 text-muted" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-3">Tu futuro financiero empieza aquí</h3>
-                <p className="text-slate-500 max-w-sm leading-relaxed font-medium">
+                <h3 className="text-2xl font-bold text-primary mb-3">Tu futuro financiero empieza aquí</h3>
+                <p className="text-muted max-w-sm leading-relaxed font-medium">
                   Establece tu primera meta de ahorro y deja que el sistema te ayude a materializarla.
                 </p>
+                <button type="button" className="app-btn app-btn-primary mt-5" onClick={() => setShowCreateModal(true)}>Crear primera meta</button>
               </motion.div>
             ) : (
               goals.map((goal, index) => {
                 const percentage = (goal.current_amount / goal.target_amount) * 100;
                 const remaining = goal.target_amount - goal.current_amount;
                 const isCompleted = goal.status === 'completed';
-                
+
                 return (
                   <motion.div
                     key={goal.id}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={false}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: index * 0.05 }}
-                    className="compact-card group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden"
+                    className="compact-card group bg-surface  rounded-2xl border border-line hover:border-line transition-all p-8 relative overflow-hidden"
                   >
                     {/* Progress Background Decor */}
-                    <motion.div 
-                      initial={{ scaleX: 0 }}
+                    <motion.div
+                      initial={false}
                       animate={{ scaleX: Math.min(percentage, 100) / 100 }}
                       style={{ originX: 0 }}
                       className={`absolute bottom-0 left-0 right-0 h-1 transition-all duration-1000 ${
-                        isCompleted ? 'bg-emerald-500' : 'bg-blue-500'
+                        isCompleted ? 'bg-success' : 'bg-info'
                       }`}
                     />
 
                     <div className="flex items-start justify-between mb-8 relative z-10">
                       <div className="flex items-center gap-4">
                         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all ${
-                          isCompleted 
-                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                            : 'bg-white/5 border-white/10 text-slate-400 group-hover:text-blue-400'
+                          isCompleted
+                            ? 'bg-success-soft border-line text-success'
+                            : 'bg-surface-soft border-line text-muted group-hover:text-info'
                         }`}>
                           {isCompleted ? <CheckCircle2 className="w-8 h-8" /> : <Target className="w-8 h-8" />}
                         </div>
                         <div>
-                          <h3 className="text-xl font-black text-white tracking-tight leading-tight">{goal.name}</h3>
+                          <h3 className="text-xl font-black text-primary tracking-tight leading-tight">{goal.name}</h3>
                           <div className="flex items-center gap-2 mt-1.5">
-                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${getGoalStatusClass(goal.status)}`}>
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-black uppercase tracking-widest border ${getGoalStatusClass(goal.status)}`}>
                               {getGoalStatusLabel(goal.status)}
                             </span>
                             {goal.target_date && (
-                              <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                              <div className="flex items-center gap-1 text-xs font-bold text-muted uppercase tracking-widest">
                                 <Calendar className="w-3 h-3" />
                                 <span>{new Date(goal.target_date).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}</span>
                               </div>
@@ -427,15 +411,15 @@ const Goals = () => {
                       </div>
 
                       <div className="flex gap-1">
-                        <button 
-                          onClick={() => handleEdit(goal)} 
-                          className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/10 text-slate-500 hover:text-white transition-all"
+                        <button
+                          onClick={() => handleEdit(goal)}
+                          className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-surface-soft text-muted hover:text-primary transition-all"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button 
-                          onClick={() => handleDelete(goal.id)} 
-                          className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-rose-500/10 text-slate-500 hover:text-rose-400 transition-all"
+                        <button
+                          onClick={() => handleDelete(goal.id)}
+                          className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-danger-soft text-muted hover:text-danger transition-all"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -446,24 +430,24 @@ const Goals = () => {
                       <div>
                         <div className="flex justify-between items-end mb-4">
                           <div className="flex flex-col">
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Ahorro Actual</span>
-                            <span className="text-2xl font-black text-white tracking-tight">${formatMoney(goal.current_amount)}</span>
+                            <span className="text-xs font-black text-muted uppercase tracking-widest mb-1">Ahorro Actual</span>
+                            <span className="text-2xl font-black text-primary tracking-tight">${formatMoney(goal.current_amount)}</span>
                           </div>
                           <div className="text-right">
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Meta Final</span>
-                            <span className="text-sm font-black text-slate-400">${formatMoney(goal.target_amount)}</span>
+                            <span className="text-xs font-black text-muted uppercase tracking-widest mb-1">Meta Final</span>
+                            <span className="text-sm font-black text-muted">${formatMoney(goal.target_amount)}</span>
                           </div>
                         </div>
 
                         {/* Progress Meter */}
-                        <div className="relative h-3 w-full bg-black/40 rounded-full overflow-hidden border border-white/5 p-0.5">
-                          <motion.div 
-                            initial={{ width: 0 }}
+                        <div className="relative h-3 w-full bg-surface-soft rounded-full overflow-hidden border border-line p-0.5">
+                          <motion.div
+                            initial={false}
                             animate={{ width: `${Math.min(percentage, 100)}%` }}
                             className={`h-full rounded-full transition-all duration-1000 ${
-                              isCompleted 
-                                ? 'bg-gradient-to-r from-emerald-600 to-teal-400 shadow-[0_0_15px_rgba(16,185,129,0.5)]' 
-                                : 'bg-gradient-to-r from-blue-600 to-indigo-400 shadow-[0_0_15px_rgba(59,130,246,0.5)]'
+                              isCompleted
+                                ? 'bg-success'
+                                : 'bg-info'
                             }`}
                           />
                         </div>
@@ -471,20 +455,20 @@ const Goals = () => {
 
                       <div className="flex items-center justify-between pt-2">
                         <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${percentage > 90 ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}`}></div>
-                          <span className="text-xs font-black text-white tracking-tight">{percentage.toFixed(0)}% Alcanzado</span>
+                          <div className={`w-2 h-2 rounded-full ${percentage > 90 ? 'bg-success animate-pulse' : 'bg-info'}`}></div>
+                          <span className="text-xs font-black text-primary tracking-tight">{percentage.toFixed(0)}% Alcanzado</span>
                         </div>
                         <div className="text-right">
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Faltante</p>
-                          <p className="text-sm font-black text-emerald-400 tracking-tight">${formatMoney(Math.max(0, remaining))}</p>
+                          <p className="text-xs font-black text-muted uppercase tracking-widest mb-0.5">Faltante</p>
+                          <p className="text-sm font-black text-success tracking-tight">${formatMoney(Math.max(0, remaining))}</p>
                         </div>
                       </div>
 
                       {goal.description && (
-                        <div className="pt-4 border-t border-white/5">
+                        <div className="pt-4 border-t border-line">
                           <div className="flex gap-2 items-start opacity-60">
-                            <Info className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                            <p className="text-[11px] font-medium text-slate-400 leading-relaxed italic line-clamp-2">
+                            <Info className="w-3 h-3 text-muted shrink-0 mt-0.5" />
+                            <p className="text-xs font-medium text-muted leading-relaxed italic line-clamp-2">
                               {goal.description}
                             </p>
                           </div>

@@ -28,16 +28,7 @@ const Categories = () => {
   const [importing, setImporting] = useState(false);
 
   // Bloquear scroll del body cuando el modal está activo
-  useEffect(() => {
-    if (showCreateModal || showEditModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [showCreateModal, showEditModal]);
+
 
   const fetchCategories = async () => {
     try {
@@ -84,11 +75,11 @@ const Categories = () => {
       const text = await file.text();
       const categories = JSON.parse(text);
       const response = await categoriesAPI.import(categories);
-      setToast({ 
-        message: `Importación completada: ${response.data.imported_count} nuevas, ${response.data.skipped_count} omitidas (duplicados)`, 
-        type: 'success' 
+      setToast({
+        message: `Importación completada: ${response.data.imported_count} nuevas, ${response.data.skipped_count} omitidas (duplicados)`,
+        type: 'success'
       });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error importing categories:', error);
       setToast({ message: 'Error al importar categorías', type: 'error' });
@@ -107,7 +98,7 @@ const Categories = () => {
     try {
       await categoriesAPI.delete(deleteConfirm.id);
       setToast({ message: 'Categoría eliminada', type: 'success' });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error deleting category:', error);
       setToast({ message: 'Error al eliminar categoría', type: 'error' });
@@ -138,7 +129,7 @@ const Categories = () => {
       setShowCreateModal(false);
       setForm(emptyForm);
       setToast({ message: 'Categoría creada', type: 'success' });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error creating category:', error);
       setToast({ message: 'Error al crear categoría', type: 'error' });
@@ -161,7 +152,7 @@ const Categories = () => {
       setEditingCategory(null);
       setEditForm(emptyForm);
       setToast({ message: 'Categoría actualizada', type: 'success' });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error updating category:', error);
       setToast({ message: 'Error al actualizar categoría', type: 'error' });
@@ -171,53 +162,45 @@ const Categories = () => {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-white font-medium">Cargando ecosistema...</div>;
+    return <div className="flex items-center justify-center h-64 text-primary font-medium">Cargando ecosistema...</div>;
   }
 
   return (
     <div className="categories-page w-full relative min-h-screen pb-20">
       {/* Background Glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[10%] -right-[5%] w-[30%] h-[30%] bg-blue-600/10 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[20%] -left-[5%] w-[30%] h-[30%] bg-purple-600/10 rounded-full blur-[120px]"></div>
-      </div>
+
 
       <div className="categories-content relative z-10">
         <div className="categories-page-heading flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
+            initial={false}
             animate={{ opacity: 1, x: 0 }}
           >
-            <div className="flex items-center gap-2 text-blue-400 text-xs font-bold tracking-widest uppercase mb-1">
-              <div className="w-8 h-[1px] bg-blue-500/50"></div>
-              <span>Tabula Rasa</span>
-            </div>
-            <h1 className="text-3xl lg:text-4xl font-black text-white tracking-tight">
-              Libro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Categorías</span>
-            </h1>
-            <p className="text-slate-400 text-sm lg:text-base font-medium">Organiza y segmenta tu flujo financiero</p>
+
+            <h1 className="text-3xl lg:text-4xl font-black text-primary tracking-tight">Categorías</h1>
+            <p className="text-muted text-sm lg:text-base font-medium">Organiza y segmenta tu flujo financiero</p>
           </motion.div>
 
           <div className="categories-actions flex flex-wrap gap-2">
-            <div className="flex bg-slate-800/50 backdrop-blur-md p-1 rounded-2xl border border-slate-700/50 shadow-xl">
+            <div className="flex bg-surface  p-1 rounded-2xl border border-line shadow-xl">
               <button
                 onClick={handleExport}
-                className="p-2 lg:px-4 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all flex items-center gap-2 text-sm font-semibold"
+                className="p-2 lg:px-4 py-2.5 rounded-xl text-muted hover:text-primary hover:bg-surface transition-all flex items-center gap-2 text-sm font-semibold"
                 title="Exportar JSON"
               >
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Exportar</span>
               </button>
-              <label className="p-2 lg:px-4 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all flex items-center gap-2 text-sm font-semibold cursor-pointer">
+              <label className="p-2 lg:px-4 py-2.5 rounded-xl text-muted hover:text-primary hover:bg-surface transition-all flex items-center gap-2 text-sm font-semibold cursor-pointer">
                 <Upload className="w-4 h-4" />
                 <span className="hidden sm:inline">Importar</span>
-                <input type="file" accept=".json" onChange={handleImport} disabled={importing} className="hidden" />
+                <input type="file" aria-label="Importar categorías desde JSON" accept=".json" onChange={handleImport} disabled={importing} className="sr-only" />
               </label>
             </div>
-            
+
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-2xl hover:shadow-lg hover:shadow-blue-500/20 transition-all font-bold group"
+              className="app-btn app-btn-primary"
             >
               <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
               <span>Nueva Categoría</span>
@@ -225,6 +208,7 @@ const Categories = () => {
           </div>
         </div>
 
+        {categories.length === 0 && <div className="app-empty-state"><h2>Organiza tus movimientos</h2><p>Crea una categoría para distinguir tus ingresos y gastos.</p><button type="button" className="app-btn app-btn-primary" onClick={() => setShowCreateModal(true)}>Crear primera categoría</button></div>}
         <div className="categories-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           <AnimatePresence mode="popLayout">
             {categories.map((category, index) => {
@@ -234,14 +218,14 @@ const Categories = () => {
                 <motion.div
                   key={category.id}
                   layout
-                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  initial={false}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ duration: 0.2, delay: index * 0.05 }}
                   className="category-card group"
                   style={{ '--category-color': categoryColor } as CSSProperties}
                 >
-                  <div className="category-card-glow" aria-hidden="true" />
+
 
                   <div className="category-card-top">
                     <div className="category-card-identity">
@@ -296,12 +280,12 @@ const Categories = () => {
           </AnimatePresence>
 
           {categories.length === 0 && (
-            <div className="col-span-full text-center py-20 bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-700/30">
-              <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700">
-                <Tag className="w-8 h-8 text-slate-600" />
+            <div className="col-span-full text-center py-20 bg-surface rounded-3xl border-2 border-dashed border-line">
+              <div className="w-16 h-16 bg-surface rounded-full flex items-center justify-center mx-auto mb-4 border border-line">
+                <Tag className="w-8 h-8 text-muted" />
               </div>
-              <p className="text-slate-400 text-lg font-medium">Tu libro de categorías está vacío</p>
-              <p className="text-slate-600 text-sm mt-2">Crea categorías para organizar tu flujo financiero</p>
+              <p className="text-muted text-lg font-medium">Tu libro de categorías está vacío</p>
+              <p className="text-muted text-sm mt-2">Crea categorías para organizar tu flujo financiero</p>
             </div>
           )}
         </div>

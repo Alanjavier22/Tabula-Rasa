@@ -1,3 +1,4 @@
+import Modal from '../common/Modal';
 /**
  * FiscalDashboard - FASE 3: Analytics Layer for Tabula Rasa
  * FASE 4: Added SRI Annex export with progress tracking
@@ -27,10 +28,10 @@ import type { FiscalReportResponse, MonthlyTrendItem } from '../../types';
 
 // Chart colors - hex values for Recharts legend
 const COLORS = {
-  iva15: '#ef4444',
-  iva0: '#10b981',
+  iva15: 'var(--app-danger)',
+  iva0: 'var(--app-success)',
   deductible: '#8b5cf6',
-  income: '#10b981',
+  income: 'var(--app-success)',
   expense: '#ec4899',
 };
 
@@ -50,35 +51,35 @@ interface KPICardProps {
 }
 
 const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, color, icon, glowColor }) => (
-  <motion.div 
+  <motion.div
     whileHover={{ y: -5, scale: 1.02 }}
     transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-    className="relative overflow-hidden bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 flex flex-col justify-between h-36 group shadow-2xl transition-all duration-300"
+    className="relative overflow-hidden bg-canvas  rounded-3xl border border-line p-6 flex flex-col justify-between h-36 group shadow-2xl transition-all duration-300"
   >
     {/* Background Glow */}
-    <div 
-      className="absolute -right-10 -top-10 w-24 h-24 rounded-full opacity-10 blur-2xl group-hover:scale-150 transition-all duration-500"
+    <div
+      className="absolute -right-10 -top-10 w-24 h-24 rounded-full opacity-10  group-hover:scale-150 transition-all duration-500"
       style={{ backgroundColor: glowColor }}
     />
-    
+
     <div className="flex justify-between items-start">
       <div>
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">{title}</h3>
+        <h3 className="text-xs font-bold text-muted uppercase tracking-widest mb-1">{title}</h3>
         <p className="text-3xl font-black tracking-tight" style={{ color }}>{value}</p>
       </div>
-      <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 group-hover:text-white group-hover:bg-white/10 transition-colors">
+      <div className="p-3 rounded-2xl bg-surface-soft border border-line text-muted group-hover:text-primary  transition-colors">
         {icon}
       </div>
     </div>
-    <p className="text-xs text-slate-400 font-semibold mt-2">{subtitle}</p>
+    <p className="text-xs text-muted font-semibold mt-2">{subtitle}</p>
   </motion.div>
 );
 
 const getTooltipColor = (color: string | undefined) => {
-  if (color === 'url(#colorIncome)') return '#10b981';
+  if (color === 'url(#colorIncome)') return 'var(--app-success)';
   if (color === 'url(#colorExpenses)') return '#8b5cf6';
-  if (color === 'url(#colorIva15)') return '#ef4444';
-  return '#10b981';
+  if (color === 'url(#colorIva15)') return 'var(--app-danger)';
+  return 'var(--app-success)';
 };
 
 /**
@@ -95,12 +96,12 @@ const CustomTooltip = ({ active, payload, label }: TooltipContentProps) => {
     })();
 
     return (
-      <div className="bg-slate-900/90 backdrop-blur-xl p-4 rounded-2xl shadow-2xl border border-white/10">
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{formattedLabel}</p>
+      <div className="bg-canvas  p-4 rounded-2xl shadow-2xl border border-line">
+        <p className="text-xs font-bold text-muted uppercase tracking-widest mb-2">{formattedLabel}</p>
         {payload.map((entry) => (
           <div key={String(entry.name ?? entry.color ?? 'series')} className="flex items-center gap-2 mt-1">
             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getTooltipColor(entry.color) }} />
-            <p className="text-sm font-semibold text-white">
+            <p className="text-sm font-semibold text-primary">
               {entry.name}: <span className="font-mono">${formatMoney(entry.value)}</span>
             </p>
           </div>
@@ -141,7 +142,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
       }
     };
 
-    loadData();
+    void loadData();
   }, [startDate, endDate, categoryIds]);
 
   const [showExportModal, setShowExportModal] = useState(false);
@@ -153,7 +154,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
 
     try {
       const response = await fiscalAPI.exportDeclaracionSRI(year, exportFormat);
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -162,7 +163,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       setShowExportModal(false);
     } catch (error) {
       console.error('[FiscalDashboard] Error exporting SRI declaration:', error);
@@ -192,18 +193,18 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   // Recharts Pie automatically maps the 'fill' key of each data object to style each slice natively
   const taxBreakdown = useMemo(() => {
     if (!report) return [];
-    
+
     // We get actual IVA 15% amount paid. The base spending for it is amount / 0.15
     const iva15Paid = toNumber(report.totals.iva_pagado_15);
     const baseIva15 = iva15Paid / 0.15;
-    
+
     // The remaining deductible spending carries 0% IVA
     const totalDeductible = toNumber(report.totals.total_deductible);
     const baseIva0 = Math.max(0, totalDeductible - baseIva15);
 
     return [
-      { name: 'Base con IVA 15%', value: baseIva15, color: '#ef4444', fill: 'url(#colorIva15)' },
-      { name: 'Base con IVA 0%', value: baseIva0, color: '#10b981', fill: 'url(#colorIva0)' },
+      { name: 'Base con IVA 15%', value: baseIva15, color: 'var(--app-danger)', fill: 'url(#colorIva15)' },
+      { name: 'Base con IVA 0%', value: baseIva0, color: 'var(--app-success)', fill: 'url(#colorIva0)' },
     ].filter(item => item.value > 0);
   }, [report]);
 
@@ -219,29 +220,29 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   // Cap Y-axis correctly using exact trendData fields
   const yDomain = useMemo(() => {
     if (trendData.length === 0) return [0, 0];
-    
+
     const isMobile = window.innerWidth < 768;
     const percentile = isMobile ? 0.85 : 0.95;
-    
+
     const allValues = trendData.flatMap(d => [toNumber(d.income), toNumber(d.expenses), toNumber(d.iva_projected)]);
       const sorted = allValues.filter(v => !Number.isNaN(v)).sort((a, b) => a - b);
-    
+
     if (sorted.length === 0) return [0, 1000];
-    
+
     const pIndex = Math.floor(sorted.length * percentile);
     const pValue = sorted[pIndex] || sorted[sorted.length - 1];
-    
+
     const magnitude = Math.pow(10, Math.floor(Math.log10(pValue || 100)));
     const capped = Math.ceil((pValue || 100) / magnitude) * magnitude;
-    
+
     return [0, capped];
   }, [trendData]);
 
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50 text-center animate-pulse">
-          <span className="text-sm font-semibold text-blue-400">Procesando datos fiscales y tasas de IVA del SRI...</span>
+        <div className="bg-surface rounded-2xl p-6 border border-line text-center animate-pulse">
+          <span className="text-sm font-semibold text-info">Procesando datos fiscales y tasas de IVA del SRI...</span>
         </div>
       </div>
     );
@@ -252,12 +253,12 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
   return (
     <div className="space-y-8 relative">
       {/* Export Header */}
-      <div className="flex justify-between items-center bg-slate-900/40 p-4 rounded-2xl border border-white/5 shadow-inner">
-        <h3 className="text-lg font-black text-white uppercase tracking-wider">Resumen Fiscal</h3>
+      <div className="flex justify-between items-center bg-canvas p-4 rounded-2xl border border-line shadow-inner">
+        <h3 className="text-lg font-black text-primary uppercase tracking-wider">Resumen Fiscal</h3>
         <button
           onClick={() => setShowExportModal(true)}
           disabled={exporting}
-          className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+          className="flex items-center gap-2 px-5 py-3 bg-surface-soft     text-primary font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg "
         >
           <Download className="w-4 h-4" />
           {exporting ? 'Generando...' : 'Descargar Anexo SRI'}
@@ -267,19 +268,19 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
       {/* SRI Export Modal */}
       <AnimatePresence>
         {showExportModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <Modal onClose={() => setShowExportModal(false)} label={'Exportar resumen fiscal'}>
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={false}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-slate-900 border border-white/10 rounded-[2rem] p-8 max-w-md w-full shadow-2xl"
+              className="bg-surface border border-line rounded-2xl p-8 max-w-md w-full shadow-2xl"
             >
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-500/20 shadow-inner">
-                  <Download className="w-8 h-8 text-blue-400" />
+                <div className="w-16 h-16 bg-info-soft rounded-2xl flex items-center justify-center mx-auto mb-4 border border-line shadow-inner">
+                  <Download className="w-8 h-8 text-info" />
                 </div>
-                <h2 className="text-2xl font-black text-white">Exportación SRI</h2>
-                <p className="text-slate-400 mt-2">Selecciona el formato para tu declaración de Impuesto a la Renta {new Date(endDate).getFullYear()}</p>
+                <h2 className="text-2xl font-black text-primary">Exportación SRI</h2>
+                <p className="text-muted mt-2">Selecciona el formato para tu declaración de Impuesto a la Renta {new Date(endDate).getFullYear()}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-8">
@@ -287,8 +288,8 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
                   onClick={() => setExportFormat('xml')}
                   className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${
                     exportFormat === 'xml'
-                      ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-lg shadow-blue-500/10'
-                      : 'bg-slate-800/50 border-transparent text-slate-500 hover:border-slate-700 hover:text-slate-300'
+                      ? 'bg-info-soft border-line text-info shadow-lg '
+                      : 'bg-surface border-transparent text-muted hover:border-line hover:text-muted'
                   }`}
                 >
                   <FileCode className="w-8 h-8" />
@@ -298,8 +299,8 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
                   onClick={() => setExportFormat('json')}
                   className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${
                     exportFormat === 'json'
-                      ? 'bg-purple-600/20 border-purple-500 text-purple-400 shadow-lg shadow-purple-500/10'
-                      : 'bg-slate-800/50 border-transparent text-slate-500 hover:border-slate-700 hover:text-slate-300'
+                      ? 'bg-accent-soft border-line text-accent-strong shadow-lg '
+                      : 'bg-surface border-transparent text-muted hover:border-line hover:text-muted'
                   }`}
                 >
                   <FileJson className="w-8 h-8" />
@@ -310,27 +311,27 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowExportModal(false)}
-                  className="flex-1 px-6 py-3 bg-slate-800 text-slate-300 font-bold rounded-xl hover:bg-slate-700 transition-colors"
+                  className="flex-1 px-6 py-3 bg-surface text-muted font-bold rounded-xl hover:bg-surface transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleExportSRI}
                   disabled={exporting}
-                  className="flex-2 px-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex-2 px-8 py-3 bg-info text-on-color font-bold rounded-xl hover:bg-info transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {exporting && <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />}
+                  {exporting && <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-4 h-4 border-2 border-line border-t-white rounded-full" />}
                   Confirmar
                 </button>
               </div>
 
-              <div className="mt-6 p-4 bg-slate-800/30 rounded-xl border border-white/5">
-                <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest font-bold">
+              <div className="mt-6 p-4 bg-surface rounded-xl border border-line">
+                <p className="text-xs text-muted text-center uppercase tracking-widest font-bold">
                   Nota: El archivo incluirá los conceptos mapeados (3290, 3300, etc.) para gastos personales.
                 </p>
               </div>
             </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
 
@@ -364,19 +365,19 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
 
       {/* Two Column Chart Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
+
         {/* Monthly Deductible Expenses BarChart */}
-        <div className="bg-slate-900/40 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 flex flex-col justify-between shadow-2xl">
+        <div className="bg-canvas  rounded-3xl border border-line p-6 flex flex-col justify-between shadow-2xl">
           <div>
-            <h3 className="text-lg font-black text-white uppercase tracking-wider mb-1">Tendencia de Flujo Fiscal</h3>
-            <p className="text-xs text-slate-500 font-semibold mb-6">Comparativa mensual de tus Ingresos y Gastos Deducibles</p>
+            <h3 className="text-lg font-black text-primary uppercase tracking-wider mb-1">Tendencia de Flujo Fiscal</h3>
+            <p className="text-xs text-muted font-semibold mb-6">Comparativa mensual de tus Ingresos y Gastos Deducibles</p>
           </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={trendData} {...barChartConfig}>
                 <defs>
                   <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                    <stop offset="5%" stopColor="var(--app-success)" stopOpacity={0.8}/>
                     <stop offset="95%" stopColor="#059669" stopOpacity={0.8}/>
                   </linearGradient>
                   <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
@@ -385,8 +386,8 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
-                <XAxis 
-                  dataKey="month" 
+                <XAxis
+                  dataKey="month"
                   tick={{ fontSize: 11, fill: '#64748b', fontWeight: 'bold' }}
                   axisLine={false}
                   tickLine={false}
@@ -397,7 +398,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
                     return monthNames[monthIndex] || value;
                   }}
                 />
-                <YAxis 
+                <YAxis
                   tickFormatter={(value) => `$${formatMoney(value, 0)}`}
                   tick={{ fontSize: 10, fill: '#64748b', fontWeight: 'bold' }}
                   axisLine={false}
@@ -414,30 +415,30 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
         </div>
 
         {/* Tax Breakdown PieChart */}
-        <div className="bg-slate-900/40 backdrop-blur-2xl rounded-3xl border border-white/10 p-6 flex flex-col justify-between shadow-2xl relative">
+        <div className="bg-canvas  rounded-3xl border border-line p-6 flex flex-col justify-between shadow-2xl relative">
           <div>
-            <h3 className="text-lg font-black text-white uppercase tracking-wider mb-1">Distribución de IVA (15% vs 0%)</h3>
-            <p className="text-xs text-slate-500 font-semibold mb-6">Desglose real de bases imponibles según normativa del SRI</p>
+            <h3 className="text-lg font-black text-primary uppercase tracking-wider mb-1">Distribución de IVA (15% vs 0%)</h3>
+            <p className="text-xs text-muted font-semibold mb-6">Desglose real de bases imponibles según normativa del SRI</p>
           </div>
-          
+
           <div className="relative h-[300px] flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <defs>
                   <linearGradient id="colorIva15" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.9}/>
-                    <stop offset="95%" stopColor="#b91c1c" stopOpacity={0.9}/>
+                    <stop offset="5%" stopColor="var(--app-danger)" stopOpacity={0.9}/>
+                    <stop offset="95%" stopColor="var(--app-danger)" stopOpacity={0.9}/>
                   </linearGradient>
                   <linearGradient id="colorIva0" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.9}/>
-                    <stop offset="95%" stopColor="#047857" stopOpacity={0.9}/>
+                    <stop offset="5%" stopColor="var(--app-success)" stopOpacity={0.9}/>
+                    <stop offset="95%" stopColor="var(--app-success)" stopOpacity={0.9}/>
                   </linearGradient>
                 </defs>
                 <Pie
                   data={taxBreakdown}
                   {...pieChartConfig}
                   dataKey="value"
-                  stroke="#0f172a"
+                  stroke="var(--app-surface)"
                   strokeWidth={3}
                 />
                 <Tooltip content={CustomTooltip} />
@@ -446,20 +447,20 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
 
             {/* Centered Total Indicator */}
             <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">IVA Acumulado</span>
-              <span className="text-2xl font-black text-white tracking-tight">${formatMoney(report.totals.iva_pagado_15)}</span>
+              <span className="text-xs font-black text-muted uppercase tracking-widest mb-0.5">IVA Acumulado</span>
+              <span className="text-2xl font-black text-primary tracking-tight">${formatMoney(report.totals.iva_pagado_15)}</span>
             </div>
           </div>
-          
+
           {/* Custom Custom Legend Grid for Donut */}
-          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5 text-center">
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-line text-center">
             {taxBreakdown.map((item) => (
               <div key={item.name} className="flex flex-col items-center">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-xs font-bold text-slate-400">{item.name}</span>
+                  <span className="text-xs font-bold text-muted">{item.name}</span>
                 </div>
-                <span className="text-sm font-black text-white mt-1">${formatMoney(item.value)}</span>
+                <span className="text-sm font-black text-primary mt-1">${formatMoney(item.value)}</span>
               </div>
             ))}
           </div>

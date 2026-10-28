@@ -68,16 +68,7 @@ const Accounts = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
 
   // Bloquear scroll del body cuando el modal está activo
-  useEffect(() => {
-    if (showCreateModal || showEditModal || showStatementModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [showCreateModal, showEditModal, showStatementModal]);
+
 
   useEffect(() => {
     const handleResize = () => setAccountColumnCount(getAccountColumnCount());
@@ -227,7 +218,7 @@ const Accounts = () => {
 
 
   const handleDelete = (id: string) => setDeleteConfirm({ isOpen: true, id });
-  const confirmDelete = () => deleteConfirm.id && deleteMutation.mutate(deleteConfirm.id);
+  const confirmDelete = () => { if (deleteConfirm.id) deleteMutation.mutate(deleteConfirm.id); };
 
   const handleEdit = (account: Account) => {
     setEditingAccount(account);
@@ -278,16 +269,16 @@ const Accounts = () => {
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64 text-white font-medium">Sincronizando cuentas...</div>;
+    return <div className="flex items-center justify-center h-64 text-primary font-medium">Sincronizando cuentas...</div>;
   }
 
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
-        <p className="text-white font-medium">No se pudieron cargar las cuentas.</p>
+        <p className="text-primary font-medium">No se pudieron cargar las cuentas.</p>
         <button
           onClick={() => { refetchAccounts(); refetchStatements(); }}
-          className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
+          className="px-4 py-2 rounded-lg bg-accent-strong hover:bg-accent-strong text-on-color text-sm font-semibold transition-colors"
         >
           Reintentar
         </button>
@@ -298,27 +289,19 @@ const Accounts = () => {
   return (
     <div className="accounts-page w-full relative min-h-screen pb-20">
       {/* Background Glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[10%] -left-[10%] w-[40%] h-[40%] bg-emerald-600/10 rounded-full blur-[120px]"></div>
-      </div>
+
 
       <div className="accounts-content relative z-10">
         <div className="accounts-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
-          <motion.div className="accounts-page-heading" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold tracking-widest uppercase mb-1">
-              <div className="w-8 h-[1px] bg-indigo-500/50"></div>
-              <span>Tabula Rasa</span>
-            </div>
-            <h1 className="text-3xl lg:text-4xl font-black text-white tracking-tight">
-              Bóveda de <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-emerald-400">Cuentas</span>
-            </h1>
-            <p className="text-slate-400 text-sm lg:text-base font-medium">Control total sobre tus fuentes de capital</p>
+          <motion.div className="accounts-page-heading" initial={false} animate={{ opacity: 1, x: 0 }}>
+
+            <h1 className="text-3xl lg:text-4xl font-black text-primary tracking-tight">Cuentas</h1>
+            <p className="text-muted text-sm lg:text-base font-medium">Saldos, tarjetas y compromisos en un solo lugar.</p>
           </motion.div>
 
           <button
             onClick={() => setShowCreateModal(true)}
-            className="accounts-actions-primary flex items-center gap-2 text-white px-6 py-3.5 rounded-2xl transition-all font-bold group"
+            className="app-btn app-btn-primary"
           >
             <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
             <span>Nueva Cuenta</span>
@@ -327,9 +310,9 @@ const Accounts = () => {
 
         <div className="accounts-grid">
           {accounts.length === 0 ? (
-            <div className="col-span-full text-center py-20 bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-700/30">
-              <p className="text-slate-400 text-lg font-medium">No hay fuentes registradas</p>
-              <button onClick={() => setShowCreateModal(true)} className="text-indigo-400 text-sm font-bold mt-2 hover:underline">
+            <div className="col-span-full text-center py-20 bg-surface rounded-3xl border-2 border-dashed border-line">
+              <p className="text-muted text-lg font-medium">Aún no hay cuentas registradas</p>
+              <button onClick={() => setShowCreateModal(true)} className="app-btn app-btn-primary">
                 Registra tu primera cuenta aquí
               </button>
             </div>
@@ -346,14 +329,14 @@ const Accounts = () => {
                   <motion.article
                     key={account.id}
                     layout
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={false}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     className="account-card"
                     style={{ '--account-color': accountAccent } as CSSProperties}
                   >
-                    <div className="account-card-glow" aria-hidden="true"></div>
-                    
+
+
                     <div className="account-card-top">
                       <div className="account-card-identity">
                         <div className="account-card-icon">
@@ -409,12 +392,12 @@ const Accounts = () => {
                           const statementOthers = toDecimal(s.statement_balance).minus(toDecimal(s.user_share));
                           return acc.plus(statementOthers);
                         }, new Decimal(0));
-                        
+
                         // Treat balance as debt magnitude for credit cards
                         const bal = toDecimal(account.balance).abs();
                         const stmtBal = stmt ? toDecimal(stmt.statement_balance) : new Decimal(0);
                         const bankDebtCents = bal.gt(stmtBal) ? bal : stmtBal;
-                          
+
                         const totalUserDebtCents = clampZero(bankDebtCents.minus(totalOthersDebtCents));
 
                         return (
@@ -438,7 +421,7 @@ const Accounts = () => {
                         {stmt ? (
                           <div className="space-y-4">
                             <div className="account-statement-heading">
-                              <button 
+                              <button
                                 onClick={() => setExpandedCard(isExpanded ? null : account.id)}
                                 className="account-statement-toggle"
                               >
@@ -454,43 +437,43 @@ const Accounts = () => {
                             <div className="account-statement-panel space-y-4">
                               {/* Calculation Header */}
                               <div className="space-y-2">
-                                <div className="flex justify-between items-center text-[10px] font-black text-white/30 uppercase tracking-widest">
+                                <div className="flex justify-between items-center text-xs font-black text-muted uppercase tracking-widest">
                                   <span>Consumo Total (Banco)</span>
-                                  <span className="text-white/80 font-black">${formatMoney(stmt.statement_balance)}</span>
+                                  <span className="text-primary font-black">${formatMoney(stmt.statement_balance)}</span>
                                 </div>
-                                
+
                                 {(stmt.debt_shares ?? []).length > 0 && (
-                                  <div className="flex justify-between items-center text-[10px] font-black text-rose-400/60 uppercase tracking-widest">
+                                  <div className="flex justify-between items-center text-xs font-black text-danger uppercase tracking-widest">
                                     <span>(-) Consumo de Otros</span>
                                     <span className="font-black">-${formatMoney(toDecimal(stmt.statement_balance).minus(toDecimal(stmt.user_share)))}</span>
                                   </div>
                                 )}
 
-                                <div className="h-[1px] bg-white/5 my-2"></div>
+                                <div className="h-[1px] bg-surface-soft my-2"></div>
 
                                 <div className="flex justify-between items-center">
-                                  <span className="text-[10px] font-black text-indigo-400/60 uppercase tracking-widest">Tu Gasto Real</span>
-                                  <span className="text-2xl font-black text-indigo-400 tracking-tighter">${formatMoney(stmt.user_share)}</span>
+                                  <span className="text-xs font-black text-accent-strong uppercase tracking-widest">Tu Gasto Real</span>
+                                  <span className="text-2xl font-black text-accent-strong tracking-tight">${formatMoney(stmt.user_share)}</span>
                                 </div>
                               </div>
 
                               {/* Progress Bar & Status */}
                               <div className="pt-2 space-y-3">
-                                <div className="bg-black/40 h-2 rounded-full overflow-hidden p-[1px] border border-white/5">
-                                  <div 
-                                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(52,211,153,0.2)]"
+                                <div className="bg-surface-soft h-2 rounded-full overflow-hidden p-[1px] border border-line">
+                                  <div
+                                    className="h-full bg-accent-strong   rounded-full transition-all duration-1000 "
                                     style={{ width: `${Math.min(100, (Number.parseFloat(toDecimal(stmt.amount_paid).toString()) / Number.parseFloat(toDecimal(stmt.statement_balance).toString())) * 100)}%` }}
                                   ></div>
                                 </div>
-                                
+
                                 <div className="flex justify-between items-end">
                                   <div className="flex flex-col">
-                                    <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Abonado</span>
-                                    <span className="text-xs font-bold text-white/60">${formatMoney(stmt.amount_paid)}</span>
+                                    <span className="text-xs font-black text-muted uppercase tracking-widest">Abonado</span>
+                                    <span className="text-xs font-bold text-muted">${formatMoney(stmt.amount_paid)}</span>
                                   </div>
                                   <div className="flex flex-col text-right">
-                                    <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Falta por Pagar</span>
-                                    <span className={`text-sm font-black tracking-tight ${toDecimal(stmt.statement_balance).minus(toDecimal(stmt.amount_paid)).lte(0) ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    <span className="text-xs font-black text-muted uppercase tracking-widest">Falta por Pagar</span>
+                                    <span className={`text-sm font-black tracking-tight ${toDecimal(stmt.statement_balance).minus(toDecimal(stmt.amount_paid)).lte(0) ? 'text-success' : 'text-danger'}`}>
                                       ${formatMoney(clampZero(toDecimal(stmt.statement_balance).minus(toDecimal(stmt.amount_paid))))}
                                     </span>
                                   </div>
@@ -500,31 +483,31 @@ const Accounts = () => {
 
                             <AnimatePresence>
                               {isExpanded && (stmt.debt_shares ?? []).length > 0 && (
-                                <motion.div 
-                                  initial={{ opacity: 0, height: 0 }} 
-                                  animate={{ opacity: 1, height: 'auto' }} 
-                                  exit={{ opacity: 0, height: 0 }} 
+                                <motion.div
+                                  initial={false}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
                                   className="overflow-hidden space-y-2 pt-2"
                                 >
                                   <div className="flex items-center gap-2 mb-2">
-                                    <div className="h-[1px] flex-1 bg-white/5"></div>
-                                    <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">Pendientes de Cobro</span>
-                                    <div className="h-[1px] flex-1 bg-white/5"></div>
+                                    <div className="h-[1px] flex-1 bg-surface-soft"></div>
+                                    <span className="text-xs font-black text-muted uppercase tracking-wide">Pendientes de Cobro</span>
+                                    <div className="h-[1px] flex-1 bg-surface-soft"></div>
                                   </div>
                                   {(stmt.debt_shares ?? []).map((share) => (
-                                    <div key={share.id} className="flex items-center justify-between bg-black/20 rounded-2xl px-4 py-3 border border-white/5 group/share">
+                                    <div key={share.id} className="flex items-center justify-between bg-surface-soft rounded-2xl px-4 py-3 border border-line group/share">
                                       <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-xs font-black text-white/40 border border-white/5 group-hover/share:border-indigo-500/30 transition-all">
+                                        <div className="w-8 h-8 rounded-xl bg-surface-soft flex items-center justify-center text-xs font-black text-muted border border-line group-hover/share:border-line transition-all">
                                           {share.person_name.charAt(0)}
                                         </div>
-                                        <span className="text-sm font-bold text-white/80 group-hover/share:text-white transition-colors">{share.person_name}</span>
+                                        <span className="text-sm font-bold text-primary group-hover/share:text-primary transition-colors">{share.person_name}</span>
                                       </div>
                                       <div className="flex items-center gap-3">
-                                        <span className="text-sm font-black text-yellow-400">${formatMoney(share.amount)}</span>
+                                        <span className="text-sm font-black text-warning">${formatMoney(share.amount)}</span>
                                         {share.status === 'paid' ? (
-                                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                          <CheckCircle2 className="w-4 h-4 text-success" />
                                         ) : (
-                                          <Clock className="w-4 h-4 text-yellow-400 animate-pulse" />
+                                          <Clock className="w-4 h-4 text-warning animate-pulse" />
                                         )}
                                       </div>
                                     </div>

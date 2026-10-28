@@ -1,3 +1,4 @@
+import Modal from './common/Modal';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { aiAPI, accountsAPI, categoriesAPI, transactionsAPI } from '../services/api';
@@ -39,7 +40,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       categoriesAPI.getAll()
     ]).then(([accRes, catRes]) => {
       // Filtrar solo cuentas corrientes, de ahorros y efectivo
-      const bankAccounts = accRes.data.filter((acc: Account) => 
+      const bankAccounts = accRes.data.filter((acc: Account) =>
         ['savings', 'checking', 'cash'].includes(acc.account_type)
       );
       setAccounts(bankAccounts);
@@ -47,6 +48,8 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       if (bankAccounts.length > 0) {
         setAccountId(bankAccounts[0].id);
       }
+    }).catch(() => {
+      setResult({ success: false, message: 'No se pudieron cargar las cuentas y categorías. Cierra el formulario y vuelve a abrirlo para reintentar.' });
     });
   }, []);
 
@@ -54,7 +57,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
     setFile(selectedFile);
     setExtractedTransactions([]);
     setResult(null);
-    
+
     // Create preview for images
     if (selectedFile.type.startsWith('image/')) {
       const reader = new FileReader();
@@ -77,7 +80,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
     if (!file) return;
     setProcessing(true);
     setResult(null);
-    
+
     try {
       const response = await aiAPI.parseReceipt(file);
 
@@ -155,37 +158,30 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2, ease: "easeInOut" }}
-      style={{ willChange: 'opacity, backdrop-filter' }}
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-    >
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.98, y: 15 }}
+    <Modal onClose={onClose} label={'Escanear recibo'}>
+      <motion.div
+        initial={false}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: 15 }}
         transition={{ duration: 0.25, ease: "easeInOut" }}
-        className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto shadow-2xl relative"
+        className="bg-surface border border-line rounded-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto shadow-2xl relative"
       >
-        <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 sticky top-0 z-[60] backdrop-blur-md">
+        <div className="flex items-center justify-between p-4 border-b border-line bg-surface sticky top-0 z-[60] ">
           <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-blue-500/20 rounded-lg">
-              <FileText className="w-5 h-5 text-blue-400" />
+            <div className="p-1.5 bg-info-soft rounded-lg">
+              <FileText className="w-5 h-5 text-info" />
             </div>
-            <h2 className="text-lg font-black text-white tracking-tight">Importador IA <span className="text-blue-400 font-medium text-xs ml-2 px-2 py-0.5 bg-blue-500/10 rounded-full">Documento</span></h2>
+            <h2 className="text-lg font-black text-primary tracking-tight">Importador IA <span className="text-info font-medium text-xs ml-2 px-2 py-0.5 bg-info-soft rounded-full">Documento</span></h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+          <button aria-label="Cerrar diálogo" onClick={onClose} className="text-muted hover:text-primary transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="p-4 md:p-5 space-y-4 md:space-y-5">
           {/* Account Selection */}
-          <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700">
-            <label htmlFor="document-import-account" className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Cuenta destino</label>
+          <div className="bg-canvas p-3.5 rounded-xl border border-line">
+            <label htmlFor="document-import-account" className="block text-xs font-black text-muted mb-1.5 uppercase tracking-wider">Cuenta destino</label>
             <Select
               id="document-import-account"
               value={accountId}
@@ -202,24 +198,24 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
               onDragOver={handleDrag}
               onDrop={handleDrop}
               className={`border-2 border-dashed rounded-2xl p-5 md:p-6 text-center transition-all duration-300 ${
-                dragActive ? 'border-blue-500 bg-blue-500/10 scale-[1.01]' : 'border-slate-600 hover:border-blue-500 hover:bg-slate-800/50'
+                dragActive ? 'border-line bg-info-soft scale-[1.01]' : 'border-line hover:border-line hover:bg-surface'
               }`}
             >
               <input
-                type="file"
+                type="file" aria-label="Seleccionar recibo o documento"
                 accept="image/*,.pdf"
                 onChange={handleFileSelect}
-                className="hidden"
+                className="sr-only"
                 id="document-upload"
               />
               <label htmlFor="document-upload" className="cursor-pointer flex flex-col items-center">
-                <div className={`${dragActive ? 'text-blue-400 scale-110' : 'text-slate-400'} transition-all duration-300 mb-2`}>
+                <div className={`${dragActive ? 'text-info scale-110' : 'text-muted'} transition-all duration-300 mb-2`}>
                   {getFileIcon()}
                 </div>
-                <p className="text-base text-white font-bold mb-1">
+                <p className="text-base text-primary font-bold mb-1">
                   {file ? file.name : 'Arrastra tu documento aquí'}
                 </p>
-                <p className="text-slate-400 text-xs">
+                <p className="text-muted text-xs">
                   {file ? 'Haz clic abajo para analizar' : 'Imágenes (JPEG, PNG, WebP) o PDF'}
                 </p>
               </label>
@@ -228,9 +224,9 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
 
           {/* Preview */}
           {file && preview && !extractedTransactions.length && (
-            <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-700/50">
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 tracking-wider">Vista previa:</p>
-              <img src={preview} alt="Preview" className="max-h-48 mx-auto rounded-lg shadow-md border border-slate-600" />
+            <div className="bg-canvas rounded-xl p-3 border border-line">
+              <p className="text-xs font-bold text-muted uppercase mb-2 tracking-wider">Vista previa:</p>
+              <img src={preview} alt="Vista previa del documento" className="max-h-48 mx-auto rounded-lg shadow-md border border-line" />
             </div>
           )}
 
@@ -239,11 +235,11 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
             <button
               onClick={handleProcess}
               disabled={processing}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-sm hover:shadow-lg hover:shadow-blue-500/20 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-surface-soft   text-primary font-bold text-sm hover:shadow-lg  hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
             >
               {processing ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
                   Procesando con IA...
                 </>
               ) : (
@@ -259,7 +255,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
           {extractedTransactions.length > 0 && (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Transacciones Extraídas</h3>
+                <h3 className="text-sm font-bold text-muted uppercase tracking-wider">Transacciones Extraídas</h3>
                 <button
                   onClick={() => {
                     setFile(null);
@@ -267,18 +263,18 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                     setExtractedTransactions([]);
                     setResult(null);
                   }}
-                  className="flex items-center gap-2 text-slate-400 hover:text-white text-[10px] font-bold uppercase bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 transition-all"
+                  className="flex items-center gap-2 text-muted hover:text-primary text-xs font-bold uppercase bg-surface px-3 py-1.5 rounded-lg border border-line transition-all"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1" />
                   Nuevo documento
                 </button>
               </div>
-              
-              <div className="bg-slate-900/50 rounded-2xl border border-slate-700 overflow-hidden">
+
+              <div className="bg-canvas rounded-2xl border border-line overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-slate-800/80 sticky top-0 z-10 backdrop-blur-md shadow-sm">
+                  <thead className="bg-surface sticky top-0 z-10  shadow-sm">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">
                         <input
                           type="checkbox"
                           checked={extractedTransactions.every(t => t.selected)}
@@ -287,38 +283,38 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                               prev.map(txn => ({ ...txn, selected: e.target.checked }))
                             );
                           }}
-                          className="mr-2 accent-blue-500 rounded"
+                          className="mr-2 accent-info rounded"
                         />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Descripción</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Monto</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Tipo</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Categoría</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Descripción</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Monto</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Tipo</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Categoría</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700/50">
+                  <tbody className="divide-y divide-line">
                     {extractedTransactions.map((txn, index) => (
-                      <tr key={txn.id} className={`transition-colors ${txn.selected ? 'bg-blue-500/5' : 'hover:bg-slate-700/30'}`}>
+                      <tr key={txn.id} className={`transition-colors ${txn.selected ? 'bg-info-soft' : 'hover:bg-surface'}`}>
                         <td className="px-4 py-3">
                           <input
                             type="checkbox"
                             checked={txn.selected}
                             onChange={() => toggleTransactionSelection(index)}
-                            className="accent-blue-500 rounded"
+                            className="accent-info rounded"
                           />
                         </td>
-                        <td className="px-4 py-3 text-sm text-white font-medium">{txn.description}</td>
-                        <td className="px-4 py-3 text-sm font-bold text-slate-200">${(txn.amount / 100).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-primary font-medium">{txn.description}</td>
+                        <td className="px-4 py-3 text-sm font-bold text-primary">${(txn.amount / 100).toFixed(2)}</td>
                         <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
+                          <span className={`px-2 py-0.5 text-xs font-bold uppercase tracking-wider rounded-full ${
                             txn.transaction_type === 'income'
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-rose-500/20 text-rose-400'
+                              ? 'bg-success-soft text-success'
+                              : 'bg-danger-soft text-danger'
                           }`}>
                             {txn.transaction_type === 'income' ? 'Ingreso' : 'Gasto'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-300">
+                        <td className="px-4 py-3 text-sm text-muted">
                           {txn.category_id
                             ? categories.find(c => c.id === txn.category_id)?.name || 'Desconocida'
                             : 'Sin categoría'}
@@ -329,25 +325,25 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                 </table>
               </div>
 
-              <div className="flex items-center justify-between pt-4 border-t border-slate-700">
-                <p className="text-slate-400 text-sm">
-                  Se importarán <strong className="text-white">{extractedTransactions.filter(t => t.selected).length}</strong> transacciones.
+              <div className="flex items-center justify-between pt-4 border-t border-line">
+                <p className="text-muted text-sm">
+                  Se importarán <strong className="text-primary">{extractedTransactions.filter(t => t.selected).length}</strong> transacciones.
                 </p>
                 <div className="flex gap-3">
-                  <button
+                  <button aria-label="Cerrar diálogo"
                     onClick={onClose}
-                    className="px-6 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors font-semibold"
+                    className="px-6 py-3 rounded-xl border border-line text-muted hover:bg-surface hover:text-primary transition-colors font-semibold"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleSave}
                     disabled={saving || !extractedTransactions.some(t => t.selected)}
-                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:from-blue-500 hover:to-cyan-500 font-bold shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 flex items-center gap-2"
+                    className="px-8 py-3 rounded-xl bg-surface-soft   text-primary   font-bold shadow-lg  transition-all disabled:opacity-50 flex items-center gap-2"
                   >
                     {saving ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
                         Guardando...
                       </>
                     ) : 'Confirmar Importación'}
@@ -360,7 +356,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
           {/* Result */}
           {result && (
             <div className={`rounded-xl p-4 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 ${
-              result.success ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
+              result.success ? 'bg-success-soft border border-line text-success' : 'bg-danger-soft border border-line text-danger'
             }`}>
               {result.success ? <CheckCircle className="w-6 h-6 flex-shrink-0" /> : <AlertCircle className="w-6 h-6 flex-shrink-0" />}
               <span className="font-semibold">{result.message}</span>
@@ -368,7 +364,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
           )}
         </div>
       </motion.div>
-    </motion.div>
+    </Modal>
   );
 };
 

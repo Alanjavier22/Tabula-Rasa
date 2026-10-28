@@ -13,25 +13,25 @@ const AIInsightsSection = ({ insights, aiAlerts, aiPatterns, isPending, onRefres
   return (
     <div className="mb-10">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-purple-500/20">
-            <Sparkles className="w-5 h-5 text-purple-400" />
+        <h2 className="text-xl font-bold text-primary flex items-center gap-2">
+          <div className="p-2 rounded-lg bg-accent-soft">
+            <Sparkles className="w-5 h-5 text-accent-strong" />
           </div>
-          Insights Estratégicos
+          Análisis financiero
         </h2>
         <button
           onClick={onRefresh}
           disabled={isPending}
-          className={`flex items-center gap-2 px-5 py-2 rounded-full text-white text-sm font-bold transition-all border ${
+          className={`flex items-center gap-2 px-5 py-2 rounded-full text-primary text-sm font-bold transition-all border ${
             isPending
-              ? 'bg-slate-800 border-slate-700 opacity-70 animate-pulse'
-              : 'bg-slate-900/50 border-purple-500/50 hover:bg-purple-500/10 hover:border-purple-400'
+              ? 'bg-surface border-line opacity-70 animate-pulse'
+              : 'bg-canvas border-line hover:bg-accent-soft hover:border-line'
           }`}
         >
           {isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+            <Loader2 className="w-4 h-4 animate-spin text-accent-strong" />
           ) : (
-            <RefreshCw className="w-4 h-4 text-purple-400" />
+            <RefreshCw className="w-4 h-4 text-accent-strong" />
           )}
           {isPending ? 'Consultando IA...' : 'Refrescar Análisis'}
         </button>
@@ -43,16 +43,16 @@ const AIInsightsSection = ({ insights, aiAlerts, aiPatterns, isPending, onRefres
             {insights.map((insight, index) => (
               <motion.div
                 key={insight}
-                initial={{ opacity: 0, y: 10 }}
+                initial={false}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="group bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-5 hover:border-purple-500/30 transition-all hover:bg-slate-800/50 shadow-lg"
+                className="group bg-surface  rounded-2xl border border-line p-5 hover:border-line transition-all hover:bg-surface shadow-lg"
               >
                 <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 text-sm font-bold border border-purple-500/20 group-hover:bg-purple-500/20 transition-all">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent-soft flex items-center justify-center text-accent-strong text-sm font-bold border border-line group-hover:bg-accent-soft transition-all">
                     {index + 1}
                   </div>
-                  <p className="text-slate-200 text-sm leading-relaxed">{insight}</p>
+                  <p className="text-primary text-sm leading-relaxed">{insight}</p>
                 </div>
               </motion.div>
             ))}
@@ -62,17 +62,17 @@ const AIInsightsSection = ({ insights, aiAlerts, aiPatterns, isPending, onRefres
           {aiAlerts.map((alert) => (
             <motion.div
               key={`alert-${alert}`}
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={false}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-red-500/5 backdrop-blur-xl rounded-2xl border border-red-500/20 p-5"
+              className="bg-danger-soft  rounded-2xl border border-line p-5"
             >
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-danger-soft flex items-center justify-center text-danger">
                   <AlertCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">Riesgo Detectado</h4>
-                  <p className="text-red-200 text-sm leading-relaxed">{alert}</p>
+                  <h4 className="text-danger text-xs font-bold uppercase tracking-wider mb-1">Riesgo Detectado</h4>
+                  <p className="text-danger text-sm leading-relaxed">{alert}</p>
                 </div>
               </div>
             </motion.div>
@@ -81,29 +81,29 @@ const AIInsightsSection = ({ insights, aiAlerts, aiPatterns, isPending, onRefres
           {aiPatterns.map((pattern) => (
             <motion.div
               key={`pattern-${pattern}`}
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={false}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-amber-500/5 backdrop-blur-xl rounded-2xl border border-amber-500/20 p-5"
+              className="bg-warning-soft  rounded-2xl border border-line p-5"
             >
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-warning-soft flex items-center justify-center text-warning">
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-amber-400 text-xs font-bold uppercase tracking-wider mb-1">Patrón de Gasto</h4>
-                  <p className="text-amber-200 text-sm leading-relaxed">{pattern}</p>
+                  <h4 className="text-warning text-xs font-bold uppercase tracking-wider mb-1">Patrón de Gasto</h4>
+                  <p className="text-warning text-sm leading-relaxed">{pattern}</p>
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
       ) : !isPending && (
-        <div className="flex flex-col items-center justify-center py-12 px-4 bg-slate-800/20 rounded-3xl border border-dashed border-slate-700">
-          <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center mb-4">
-            <Sparkles className="w-8 h-8 text-purple-400/50" />
+        <div className="flex flex-col items-center justify-center py-12 px-4 bg-surface rounded-3xl border border-dashed border-line">
+          <div className="w-16 h-16 bg-accent-soft rounded-full flex items-center justify-center mb-4">
+            <Sparkles className="w-8 h-8 text-accent-strong" />
           </div>
-          <h3 className="text-white font-semibold mb-1">Análisis IA Pendiente</h3>
-          <p className="text-slate-400 text-sm text-center max-w-xs">Haz clic en el botón para que la IA escanee tu situación actual y genere estrategias personalizadas.</p>
+          <h3 className="text-primary font-semibold mb-1">Análisis pendiente</h3>
+          <p className="text-muted text-sm text-center max-w-xs">Haz clic en el botón para que la IA escanee tu situación actual y genere estrategias personalizadas.</p>
         </div>
       )}
     </div>

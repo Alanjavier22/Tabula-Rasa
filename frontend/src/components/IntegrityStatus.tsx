@@ -12,15 +12,15 @@ interface IntegrityStatusProps {
 export const IntegrityStatus = ({ accounts, statements, isLoading }: IntegrityStatusProps) => {
   const healthStatus = useMemo(() => {
     if (isLoading) return { status: 'loading', message: 'Verificando...' };
-    
+
     const ccAccounts = accounts.filter(a => a.account_type === 'credit_card');
     let discrepancies = 0;
-    
+
     ccAccounts.forEach(acc => {
       const latestStmt = statements
         .filter(s => s.account_id === acc.id)
         .sort((a, b) => (b.year * 12 + b.month) - (a.year * 12 + a.month))[0];
-      
+
       if (latestStmt) {
         const diff = Math.abs(acc.balance + latestStmt.statement_balance);
         if (diff > 10) discrepancies++;
@@ -28,15 +28,15 @@ export const IntegrityStatus = ({ accounts, statements, isLoading }: IntegritySt
     });
 
     if (discrepancies > 0) {
-      return { 
-        status: 'warning', 
+      return {
+        status: 'warning',
         message: 'DISCREPANCIA BANCARIA',
         severity: 'amber'
       };
     }
 
-    return { 
-      status: 'healthy', 
+    return {
+      status: 'healthy',
       message: 'INTEGRIDAD MATEMÁTICA: 100%',
       severity: 'emerald'
     };
@@ -44,7 +44,7 @@ export const IntegrityStatus = ({ accounts, statements, isLoading }: IntegritySt
 
   if (healthStatus.status === 'loading') {
     return (
-      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/30 border border-slate-700/30 text-[9px] font-black text-slate-400 uppercase tracking-tighter">
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-line text-xs font-black text-muted uppercase tracking-tight">
         <Loader2 className="w-2.5 h-2.5 animate-spin" />
         {healthStatus.message}
       </div>
@@ -54,29 +54,29 @@ export const IntegrityStatus = ({ accounts, statements, isLoading }: IntegritySt
   const isHealthy = healthStatus.status === 'healthy';
 
   return (
-    <motion.div 
-      initial={{ scale: 0.9, opacity: 0 }}
+    <motion.div
+      initial={false}
       animate={{ scale: 1, opacity: 1 }}
       whileHover={{ scale: 1.02 }}
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-lg backdrop-blur-md transition-colors duration-500 w-fit ${
-        isHealthy 
-          ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400 shadow-emerald-500/5' 
-          : 'bg-amber-500/5 border-amber-500/20 text-amber-400 shadow-amber-500/5'
-      } text-[10px] font-bold uppercase tracking-wider cursor-help relative overflow-hidden`}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border shadow-lg  transition-colors duration-500 w-fit ${
+        isHealthy
+          ? 'bg-success-soft border-line text-success '
+          : 'bg-warning-soft border-line text-warning '
+      } text-xs font-bold uppercase tracking-wider cursor-help relative overflow-hidden`}
       title={isHealthy ? 'Balances sincronizados con la fuente de verdad bancaria' : 'Se detectaron diferencias significativas entre el balance y el estado de cuenta'}
     >
       {/* Animated Glow Overlay */}
-      <motion.div 
-        animate={{ 
+      <motion.div
+        animate={{
           opacity: [0.1, 0.3, 0.1],
           scale: [1, 1.2, 1]
         }}
-        transition={{ 
-          duration: isHealthy ? 3 : 1.5, 
+        transition={{
+          duration: isHealthy ? 3 : 1.5,
           repeat: Infinity,
           ease: "easeInOut"
         }}
-        className={`absolute inset-0 blur-xl ${isHealthy ? 'bg-emerald-500/20' : 'bg-amber-500/20'}`}
+        className={`absolute inset-0  ${isHealthy ? 'bg-success-soft' : 'bg-warning-soft'}`}
       />
 
       {isHealthy ? (
