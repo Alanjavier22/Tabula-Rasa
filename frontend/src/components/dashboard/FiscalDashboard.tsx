@@ -142,7 +142,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
       }
     };
 
-    loadData();
+    void loadData();
   }, [startDate, endDate, categoryIds]);
 
   const [showExportModal, setShowExportModal] = useState(false);

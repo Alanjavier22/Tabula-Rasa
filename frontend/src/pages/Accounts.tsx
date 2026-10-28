@@ -218,7 +218,7 @@ const Accounts = () => {
 
 
   const handleDelete = (id: string) => setDeleteConfirm({ isOpen: true, id });
-  const confirmDelete = () => deleteConfirm.id && deleteMutation.mutate(deleteConfirm.id);
+  const confirmDelete = () => { if (deleteConfirm.id) deleteMutation.mutate(deleteConfirm.id); };
 
   const handleEdit = (account: Account) => {
     setEditingAccount(account);

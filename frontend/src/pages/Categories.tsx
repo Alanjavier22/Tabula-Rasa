@@ -79,7 +79,7 @@ const Categories = () => {
         message: `Importación completada: ${response.data.imported_count} nuevas, ${response.data.skipped_count} omitidas (duplicados)`,
         type: 'success'
       });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error importing categories:', error);
       setToast({ message: 'Error al importar categorías', type: 'error' });
@@ -98,7 +98,7 @@ const Categories = () => {
     try {
       await categoriesAPI.delete(deleteConfirm.id);
       setToast({ message: 'Categoría eliminada', type: 'success' });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error deleting category:', error);
       setToast({ message: 'Error al eliminar categoría', type: 'error' });
@@ -129,7 +129,7 @@ const Categories = () => {
       setShowCreateModal(false);
       setForm(emptyForm);
       setToast({ message: 'Categoría creada', type: 'success' });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error creating category:', error);
       setToast({ message: 'Error al crear categoría', type: 'error' });
@@ -152,7 +152,7 @@ const Categories = () => {
       setEditingCategory(null);
       setEditForm(emptyForm);
       setToast({ message: 'Categoría actualizada', type: 'success' });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error updating category:', error);
       setToast({ message: 'Error al actualizar categoría', type: 'error' });

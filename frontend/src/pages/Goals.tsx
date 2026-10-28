@@ -87,7 +87,7 @@ const Goals = () => {
     try {
       await goalsAPI.delete(deleteConfirm.id);
       setToast({ message: 'Meta eliminada del sistema', type: 'success' });
-      fetchGoals();
+      void fetchGoals();
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
@@ -140,7 +140,7 @@ const Goals = () => {
       setShowCreateModal(false);
       setForm(emptyForm);
       setToast({ message: 'Nueva meta establecida con éxito', type: 'success' });
-      fetchGoals();
+      void fetchGoals();
       queryClient.invalidateQueries({ queryKey: ['goals'] });
     } catch (error) {
       console.error('Error creating goal:', error);
@@ -166,7 +166,7 @@ const Goals = () => {
       setEditingGoal(null);
       setEditForm(emptyForm);
       setToast({ message: 'Meta actualizada correctamente', type: 'success' });
-      fetchGoals();
+      void fetchGoals();
       queryClient.invalidateQueries({ queryKey: ['goals'] });
     } catch (error) {
       console.error('Error updating goal:', error);

@@ -57,7 +57,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
+    void (async () => {
       try {
         if (!isLocalhost) {
           setLocalhostError('El acceso remoto está deshabilitado por ahora. Abre Tabula Rasa en la máquina host.');

@@ -23,9 +23,7 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
   const iconWrapperClass = isCreate
     ? 'w-10 h-10 rounded-xl bg-info-soft flex items-center justify-center border border-line'
     : 'w-10 h-10 rounded-xl bg-accent-soft flex items-center justify-center border border-line';
-  const fieldClass = isCreate
-    ? 'w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line focus:bg-surface-soft transition-all font-medium'
-    : 'w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line focus:bg-surface-soft transition-all font-medium';
+  const fieldClass = 'w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line focus:bg-surface-soft transition-all font-medium';
   const submitLabel = isCreate ? 'Crear Categoría' : 'Actualizar Categoría';
 
   return (
@@ -40,7 +38,7 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
           >
             {/* Header con estilo Glass */}
             <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-line shrink-0">
-              <div className={`absolute top-0 left-0 w-full h-full bg-surface-soft ${isCreate ? ' ' : ' '} pointer-events-none`}></div>
+              
               <h2 className="text-xl font-black text-primary tracking-tight flex items-center gap-3">
                 <div className={iconWrapperClass}>
                   {isCreate ? <Tag className="w-5 h-5 text-info" /> : <Edit className="w-5 h-5 text-accent-strong" />}
@@ -157,7 +155,7 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
                 type="submit"
                 onClick={onSubmit}
                 disabled={saving}
-                className={`flex-[2] py-4 rounded-2xl bg-surface-soft ${isCreate ? '  ' : '  '} text-primary transition-all text-xs font-black uppercase tracking-widest shadow-xl disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]`}
+                className="app-btn app-btn-primary flex-[2]"
               >
                 {saving ? (
                   <div className="flex items-center justify-center gap-2">

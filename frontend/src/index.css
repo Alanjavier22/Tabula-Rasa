@@ -2486,3 +2486,5 @@ body.dark .app-date-input { color-scheme: dark; }
 label:has(> input[type="file"]:focus-visible), .app-modal-layer div:has(> input[type="file"]:focus-visible) { outline: 3px solid var(--app-accent); outline-offset: 3px; border-radius: 8px; }
 
 .app-mobile-header { position: sticky; top: 0; z-index: 40; background: var(--app-surface); }
+
+.app-select-popup button[role="option"] { width: 100%; text-align: left; }

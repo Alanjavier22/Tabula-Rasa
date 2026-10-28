@@ -79,7 +79,7 @@ const Reminders = () => {
     try {
       await remindersAPI.delete(deleteConfirm.id);
       setToast({ message: 'Alerta eliminada del sistema', type: 'success' });
-      fetchReminders();
+      void fetchReminders();
     } catch (error) {
       console.error('Error deleting reminder:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
@@ -122,7 +122,7 @@ const Reminders = () => {
       setShowCreateModal(false);
       setForm(emptyForm);
       setToast({ message: 'Nueva alerta programada', type: 'success' });
-      fetchReminders();
+      void fetchReminders();
     } catch (error) {
       console.error('Error creating reminder:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
@@ -153,7 +153,7 @@ const Reminders = () => {
       setEditingReminder(null);
       setEditForm(emptyForm);
       setToast({ message: 'Configuración de alerta actualizada', type: 'success' });
-      fetchReminders();
+      void fetchReminders();
     } catch (error) {
       console.error('Error updating reminder:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
@@ -170,7 +170,7 @@ const Reminders = () => {
     try {
       await remindersAPI.update(id, { status: 'completed' });
       setToast({ message: 'Misión cumplida', type: 'success' });
-      fetchReminders();
+      void fetchReminders();
     } catch (error) {
       console.error('Error marking reminder as complete:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;

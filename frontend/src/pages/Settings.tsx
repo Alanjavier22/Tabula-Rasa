@@ -215,7 +215,7 @@ const Settings = () => {
       vehicle_categories: newList,
     }));
 
-    handleQuickSave('vehicle_categories', newList, 'json');
+    void handleQuickSave('vehicle_categories', newList, 'json');
   };
 
   const handleExportCSV = async () => {
@@ -409,7 +409,7 @@ const Settings = () => {
                     aiPersona={config.ai_persona}
                     onPersonaChange={(personaId) => {
                       setConfig({ ...config, ai_persona: personaId });
-                      handleQuickSave('ai_persona', personaId, 'string');
+                      void handleQuickSave('ai_persona', personaId, 'string');
                     }}
                     setToast={setToast}
                   />

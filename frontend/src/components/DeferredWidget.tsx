@@ -26,7 +26,7 @@ const DeferredWidget = () => {
     if (!confirm('¿Avanzar una cuota en este diferido?')) return;
     try {
       await deferredAPI.advance(id);
-      fetchDeferreds();
+      void fetchDeferreds();
     } catch (error) {
       console.error('Error advancing deferred:', error);
     }
@@ -36,7 +36,7 @@ const DeferredWidget = () => {
     if (!confirm('¿Eliminar este diferido permanentemente?')) return;
     try {
       await deferredAPI.delete(id);
-      fetchDeferreds();
+      void fetchDeferreds();
     } catch (error) {
       console.error('Error deleting deferred:', error);
     }

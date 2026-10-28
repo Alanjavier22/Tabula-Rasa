@@ -123,7 +123,7 @@ const Budgets = () => {
     try {
       await budgetsAPI.delete(deleteConfirm.id);
       setToast({ message: 'Presupuesto eliminado', type: 'success' });
-      fetchBudgets();
+      void fetchBudgets();
     } catch (error) {
       console.error('Error deleting budget:', error);
       setToast({ message: 'Error al eliminar presupuesto', type: 'error' });
@@ -158,7 +158,7 @@ const Budgets = () => {
       setShowCreateModal(false);
       setForm(emptyForm);
       setToast({ message: 'Presupuesto creado con éxito', type: 'success' });
-      fetchBudgets();
+      void fetchBudgets();
       queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
     } catch (error) {
@@ -185,7 +185,7 @@ const Budgets = () => {
       setEditingBudget(null);
       setEditForm(emptyForm);
       setToast({ message: 'Presupuesto actualizado', type: 'success' });
-      fetchBudgets();
+      void fetchBudgets();
     } catch (error) {
       console.error('Error updating budget:', error);
       setToast({ message: 'Error al actualizar presupuesto', type: 'error' });
@@ -226,7 +226,7 @@ const Budgets = () => {
       setShowPaymentModal(false);
       setPaymentBudget(null);
       setToast({ message: 'Pago registrado y presupuesto actualizado', type: 'success' });
-      fetchBudgets();
+      void fetchBudgets();
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
@@ -245,7 +245,7 @@ const Budgets = () => {
       await budgetsAPI.generateRecurring(recurringForm);
       setToast({ message: 'Ecosistema de presupuestos sincronizado', type: 'success' });
       setShowRecurringModal(false);
-      fetchBudgets();
+      void fetchBudgets();
     } catch (error) {
       console.error('Error generating recurring budgets:', error);
       const errorMessage = (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al generar recurrentes';

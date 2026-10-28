@@ -48,6 +48,8 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
       if (bankAccounts.length > 0) {
         setAccountId(bankAccounts[0].id);
       }
+    }).catch(() => {
+      setResult({ success: false, message: 'No se pudieron cargar las cuentas y categorías. Cierra el formulario y vuelve a abrirlo para reintentar.' });
     });
   }, []);
 

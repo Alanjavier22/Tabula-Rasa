@@ -82,7 +82,7 @@ const Subscriptions = () => {
     try {
       await subscriptionsAPI.delete(deleteConfirm.id);
       setToast({ message: 'Suscripción removida del ecosistema', type: 'success' });
-      fetchAll();
+      void fetchAll();
     } catch (error) {
       console.error('Error deleting subscription:', error);
       setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al eliminar suscripción', type: 'error' });
@@ -113,7 +113,7 @@ const Subscriptions = () => {
         message: `✅ Pago registrado. Próximo ciclo: ${res.data.next_billing_date ? new Date(res.data.next_billing_date).toLocaleDateString('es-ES') : 'N/A'}`,
         type: 'success'
       });
-      fetchAll();
+      void fetchAll();
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
     } catch (error) {
@@ -167,7 +167,7 @@ const Subscriptions = () => {
       setShowModal(false);
       setEditingSubscription(null);
       setForm(emptyForm);
-      fetchAll();
+      void fetchAll();
     } catch (error) {
       console.error('Error saving subscription:', error);
       setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error en la operación', type: 'error' });
@@ -438,7 +438,7 @@ const Subscriptions = () => {
           setEditingSubscription(null);
           setForm(emptyForm);
         }}
-        onSubmit={(e) => { e.preventDefault(); handleSubmit(form); }}
+        onSubmit={(e) => { e.preventDefault(); void handleSubmit(form); }}
       />
 
       {toast && (

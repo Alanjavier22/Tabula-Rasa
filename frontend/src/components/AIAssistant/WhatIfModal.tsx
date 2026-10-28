@@ -46,7 +46,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      fetchSuggestions();
+      void fetchSuggestions();
     } else {
       document.body.style.overflow = 'unset';
       setWhatIfPrompt('');

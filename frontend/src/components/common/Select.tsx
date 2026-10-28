@@ -252,7 +252,9 @@ const Select = ({
               aria-label={ariaLabel ?? placeholder}
             >
               {filteredOptions.map((option, index) => (
-                <div
+                <button
+                  type="button"
+                  tabIndex={-1}
                   key={option.value}
                   id={optionId(index)}
                   role="option"
@@ -264,7 +266,7 @@ const Select = ({
                 >
                   <span>{option.label}</span>
                   {option.value === value && <Check aria-hidden="true" />}
-                </div>
+                </button>
               ))}
             </div>
             {filteredOptions.length === 0 && (
