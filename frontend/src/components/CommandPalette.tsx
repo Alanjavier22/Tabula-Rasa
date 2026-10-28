@@ -1,5 +1,7 @@
+import { navigationItems } from '../utils/navigation';
+import Modal from './common/Modal';
 import { useState, useEffect, useRef } from 'react';
-import { Search, Home, DollarSign, PieChart, Target, Calendar, List, Sparkles, Send, Loader2, Bot } from 'lucide-react';
+import { Search, Sparkles, Send, Loader2, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -49,14 +51,7 @@ const CommandPalette = () => {
     };
   }, []);
 
-  const routes = [
-    { name: 'Ir al Panel Principal', path: '/', icon: Home },
-    { name: 'Ver Transacciones', path: '/transactions', icon: List },
-    { name: 'Gestionar Cuentas', path: '/accounts', icon: DollarSign },
-    { name: 'Ver Presupuestos', path: '/budgets', icon: PieChart },
-    { name: 'Metas Financieras', path: '/goals', icon: Target },
-    { name: 'Recordatorios', path: '/reminders', icon: Calendar },
-  ];
+  const routes = navigationItems.map(item => ({ name: item.label, path: item.path, icon: item.icon }));
 
   const filteredRoutes = routes.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
 
@@ -107,22 +102,24 @@ const CommandPalette = () => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] sm:pt-[20vh] px-4">
+    <Modal onClose={() => setIsOpen(false)} label={'Buscar y navegar'}>
       <button
         type="button"
         aria-label="Cerrar paleta de comandos"
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-overlay "
         onClick={() => setIsOpen(false)}
       />
-      <div className="relative bg-slate-800 border border-purple-500/30 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative bg-surface border border-line rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         {mode === 'navigation' ? (
           <>
-            <div className="flex items-center px-4 border-b border-slate-700/50">
-              <Search className="w-5 h-5 text-slate-400" />
+            <div className="flex items-center px-4 border-b border-line">
+              <Search className="w-5 h-5 text-muted" />
               <input
                 type="text"
-                className="w-full bg-transparent border-0 text-white px-4 py-4 focus:ring-0 placeholder:text-slate-500 outline-none"
-                placeholder="Buscar o saltar a... (Usa las flechas)"
+                className="w-full bg-transparent border-0 text-primary px-4 py-4 focus:ring-0 placeholder:text-muted outline-none"
+                aria-label="Buscar sección"
+                role="combobox" aria-expanded={filteredRoutes.length > 0} aria-controls="command-routes" aria-activedescendant={filteredRoutes[selectedRouteIndex] ? `command-route-${selectedRouteIndex}` : undefined}
+                placeholder="Buscar una sección…"
                 value={query}
                 ref={navigationInputRef}
                 onChange={(e) => {
@@ -142,27 +139,27 @@ const CommandPalette = () => {
                   }
                 }}
               />
-              <kbd className="hidden sm:inline-block bg-slate-700 text-slate-300 text-xs px-2 py-1 rounded-md">ESC</kbd>
+              <kbd className="hidden sm:inline-block bg-surface text-muted text-xs px-2 py-1 rounded-md">ESC</kbd>
             </div>
             {filteredRoutes.length > 0 ? (
               <ul
-                role="listbox"
+                id="command-routes" role="listbox"
                 aria-label="Rutas disponibles"
                 className="max-h-72 overflow-y-auto p-2"
               >
                 {filteredRoutes.map((route) => {
                   const Icon = route.icon;
                   return (
-                    <li key={route.path}>
+                    <li role="presentation" key={route.path}>
                       <button
                         type="button"
-                        role="option"
+                        id={`command-route-${filteredRoutes.indexOf(route)}`} role="option"
                         aria-selected={selectedRouteIndex === filteredRoutes.indexOf(route)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left text-slate-300 hover:bg-slate-700/50 hover:text-white rounded-xl transition-colors ${selectedRouteIndex === filteredRoutes.indexOf(route) ? 'bg-purple-500/10' : ''}`}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-left text-muted hover:bg-surface hover:text-primary rounded-xl transition-colors ${selectedRouteIndex === filteredRoutes.indexOf(route) ? 'bg-accent-soft' : ''}`}
                         onMouseEnter={() => setSelectedRouteIndex(filteredRoutes.indexOf(route))}
                         onClick={() => navigateToRoute(route.path)}
                       >
-                        <Icon className="w-4 h-4 text-purple-400" />
+                        <Icon className="w-4 h-4 text-accent-strong" />
                         {route.name}
                       </button>
                     </li>
@@ -170,28 +167,28 @@ const CommandPalette = () => {
                 })}
               </ul>
             ) : (
-              <div className="p-8 text-center text-slate-500">No se encontraron resultados para "{query}"</div>
+              <div className="p-8 text-center text-muted">No se encontraron resultados para "{query}"</div>
             )}
             {query && (
-              <div className="p-3 border-t border-slate-700/50">
+              <div className="p-3 border-t border-line">
                 <button
                   onClick={() => setMode('ai')}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all text-sm"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-surface-soft   text-primary rounded-lg   transition-all text-sm"
                 >
                   <Sparkles className="w-4 h-4" />
-                  Preguntar a IA Assistant
+                  Consultar al asistente
                 </button>
               </div>
             )}
           </>
         ) : (
           <>
-            <div className="flex items-center justify-between px-4 border-b border-slate-700/50">
+            <div className="flex items-center justify-between px-4 border-b border-line">
               <div className="flex items-center gap-2 flex-1">
-                <Sparkles className="w-5 h-5 text-purple-400" />
+                <Sparkles className="w-5 h-5 text-accent-strong" />
                 <input
                   type="text"
-                  className="w-full bg-transparent border-0 text-white px-4 py-4 focus:ring-0 placeholder:text-slate-500 outline-none"
+                  className="w-full bg-transparent border-0 text-primary px-4 py-4 focus:ring-0 placeholder:text-muted outline-none"
                   placeholder="Pregunta sobre tus finanzas (ej: ¿Cuánto presupuesto me queda en Comida?)"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -205,7 +202,7 @@ const CommandPalette = () => {
               </div>
               <button
                 onClick={resetToNavigation}
-                className="ml-2 text-slate-400 hover:text-white text-sm"
+                className="ml-2 text-muted hover:text-primary text-sm"
               >
                 Navegación
               </button>
@@ -213,19 +210,19 @@ const CommandPalette = () => {
             <div className="max-h-72 overflow-y-auto p-4">
               {chatMutation.isPending && (
                 <div className="flex flex-col items-center justify-center py-8 space-y-4">
-                  <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+                  <Loader2 className="w-8 h-8 text-accent-strong animate-spin" />
                   <div className="space-y-2 text-center flex flex-col items-center">
-                    <span className="text-purple-300 font-medium animate-pulse flex items-center gap-2">
+                    <span className="text-accent-strong font-medium animate-pulse flex items-center gap-2">
                       <Bot className="w-4 h-4" />
                       La IA está pensando y ejecutando acciones...
                     </span>
-                    <span className="text-xs text-slate-500">Esto puede tomar unos segundos...</span>
+                    <span className="text-xs text-muted">Esto puede tomar unos segundos...</span>
                   </div>
                 </div>
               )}
               {!chatMutation.isPending && aiResponse && (
                 <div className="space-y-4">
-                  <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 backdrop-blur-xl rounded-xl border border-purple-500/50 p-4 prose prose-invert prose-sm max-w-none prose-p:leading-relaxed">
+                  <div className="bg-surface-soft    rounded-xl border border-line p-4 prose prose-invert prose-sm max-w-none prose-p:leading-relaxed">
                     <ReactMarkdown>{aiResponse}</ReactMarkdown>
                   </div>
                   <button
@@ -233,7 +230,7 @@ const CommandPalette = () => {
                       setQuery('');
                       setAiResponse('');
                     }}
-                    className="w-full text-center text-sm text-slate-400 hover:text-white"
+                    className="w-full text-center text-sm text-muted hover:text-primary"
                   >
                     Hacer otra pregunta
                   </button>
@@ -241,29 +238,29 @@ const CommandPalette = () => {
               )}
               {!chatMutation.isPending && !aiResponse && (
                 <div className="text-center py-8">
-                  <p className="text-slate-400 text-sm mb-4">Ejemplos de preguntas:</p>
-                  <ul className="text-left text-sm text-slate-500 space-y-2">
+                  <p className="text-muted text-sm mb-4">Ejemplos de preguntas:</p>
+                  <ul className="text-left text-sm text-muted space-y-2">
                     <li className="flex items-start gap-2">
-                      <span className="text-purple-400">•</span>{' '}
+                      <span className="text-accent-strong">•</span>{' '}
                       ¿Cuánto presupuesto me queda en Comida?
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-purple-400">•</span>{' '}
+                      <span className="text-accent-strong">•</span>{' '}
                       ¿Cuál es el saldo de mi cuenta principal?
                     </li>
                     <li className="flex items-start gap-2">
-                      <span className="text-purple-400">•</span>{' '}
+                      <span className="text-accent-strong">•</span>{' '}
                       ¿Cuánto dinero tengo en total?
                     </li>
                   </ul>
                 </div>
               )}
             </div>
-            <form onSubmit={handleSubmit} className="p-3 border-t border-slate-700/50">
+            <form onSubmit={handleSubmit} className="p-3 border-t border-line">
               <button
                 type="submit"
                 disabled={chatMutation.isPending || !query.trim()}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all text-sm disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-surface-soft   text-primary rounded-lg   transition-all text-sm disabled:opacity-50"
               >
                 {chatMutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -276,7 +273,7 @@ const CommandPalette = () => {
           </>
         )}
       </div>
-    </div>
+    </Modal>
   );
 };
 

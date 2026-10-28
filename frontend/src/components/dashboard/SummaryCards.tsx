@@ -12,7 +12,7 @@ interface SummaryCardsProps {
 
 const summaryItems = [
   { key: 'balance', label: 'Liquidez', description: 'Saldo disponible', icon: Wallet, tone: 'info' },
-  { key: 'income', label: 'Ingresos', description: 'Proyectados', icon: ArrowDownLeft, tone: 'success' },
+  { key: 'income', label: 'Ingresos', description: 'Este mes', icon: ArrowDownLeft, tone: 'success' },
   { key: 'expenses', label: 'Gastos', description: 'Este mes', icon: ArrowUpRight, tone: 'warning' },
   { key: 'debt', label: 'Deuda total', description: 'Tarjetas y compromisos', icon: CreditCard, tone: 'danger' },
 ] as const;

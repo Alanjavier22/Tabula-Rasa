@@ -1,3 +1,4 @@
+import Modal from './common/Modal';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { intelligenceAPI, accountsAPI, categoriesAPI } from '../services/api';
@@ -26,7 +27,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
   const [importLogId, setImportLogId] = useState<string | null>(null);
   const [extractedTransactions, setExtractedTransactions] = useState<ExtractedTransactionRow[]>([]);
   const [accountMetadata, setAccountMetadata] = useState<Omit<AccountParsingResponse, 'transactions'> | null>(null);
-  
+
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -34,7 +35,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
   useEffect(() => {
     // Cargar solo cuentas de tipo Ahorro, Corriente o Efectivo
     accountsAPI.getAll().then(res => {
-      const bAccounts = res.data.filter((acc: Account) => 
+      const bAccounts = res.data.filter((acc: Account) =>
         ['savings', 'checking', 'cash'].includes(acc.account_type)
       );
       setBankAccounts(bAccounts);
@@ -42,7 +43,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
         setAccountId(bAccounts[0].id.toString());
       }
     });
-    
+
     categoriesAPI.getAll().then(res => {
       setCategories(res.data);
     });
@@ -74,12 +75,12 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
     if (!file || !accountId) return;
     setProcessing(true);
     setResult(null);
-    
+
     try {
       const response = await intelligenceAPI.uploadAccountDocument(accountId, file);
-      
+
       setImportLogId(response.data.import_log_id);
-      
+
       const parsed = response.data.parsed_data;
       if (parsed.transactions && parsed.transactions.length > 0) {
         // Seleccionamos por defecto las que NO son duplicadas
@@ -87,9 +88,9 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
           ...tx,
           selected: !tx.is_duplicate
         }));
-        
+
         setExtractedTransactions(txsWithSelection);
-        
+
         // Extraemos los metadatos globales
         setAccountMetadata({
           bank_name: parsed.bank_name,
@@ -113,7 +114,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
 
   const handleSave = async () => {
     if (!importLogId) return;
-    
+
     const selectedTransactions = extractedTransactions.filter(t => t.selected);
     if (selectedTransactions.length === 0) {
       setResult({ success: false, message: 'Selecciona al menos una transacción para importar.' });
@@ -123,12 +124,12 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
     setSaving(true);
     try {
       const response = await intelligenceAPI.confirmAccountImport(
-        importLogId, 
+        importLogId,
         selectedTransactions
       );
-      
+
       setResult({ success: true, message: `Éxito: ${response.data.imported_count} movimientos importados correctamente.` });
-      
+
       setTimeout(() => {
         onSuccess(response.data.imported_count);
         onClose();
@@ -143,29 +144,22 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2, ease: "easeInOut" }}
-      style={{ willChange: 'opacity, backdrop-filter' }}
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-    >
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.98, y: 15 }}
+    <Modal onClose={onClose} label={'Importar movimientos'}>
+      <motion.div
+        initial={false}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: 15 }}
         transition={{ duration: 0.25, ease: "easeInOut" }}
-        className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto shadow-2xl"
+        className="bg-surface border border-line rounded-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto shadow-2xl"
       >
-        <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800/80 sticky top-0 z-10 backdrop-blur-md">
+        <div className="flex items-center justify-between p-4 border-b border-line bg-surface sticky top-0 z-10 ">
           <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-emerald-500/20 rounded-lg">
-              <Wallet className="w-5 h-5 text-emerald-400" />
+            <div className="p-1.5 bg-success-soft rounded-lg">
+              <Wallet className="w-5 h-5 text-success" />
             </div>
-            <h2 className="text-lg font-black text-white tracking-tight">Importador IA <span className="text-emerald-400 font-medium text-xs ml-2 px-2 py-0.5 bg-emerald-500/10 rounded-full">Movimientos</span></h2>
+            <h2 className="text-lg font-black text-primary tracking-tight">Importador IA <span className="text-success font-medium text-xs ml-2 px-2 py-0.5 bg-success-soft rounded-full">Movimientos</span></h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+          <button aria-label="Cerrar diálogo" onClick={onClose} className="text-muted hover:text-primary transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -175,15 +169,15 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
           {!extractedTransactions.length && (
             <div className="space-y-6">
               {bankAccounts.length === 0 ? (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-center">
+                <div className="p-4 bg-warning-soft border border-line rounded-xl text-warning text-center">
                   <AlertCircle className="w-8 h-8 mx-auto mb-2" />
                   <p>No tienes cuentas bancarias configuradas.</p>
                   <p className="text-sm opacity-80 mt-1">Crea una cuenta de tipo Ahorro o Corriente primero.</p>
                 </div>
               ) : (
                 <>
-                  <div className="bg-slate-900/50 p-3.5 rounded-xl border border-slate-700">
-                    <label htmlFor="account-import-account" className="block text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-wider">Cuenta Destino</label>
+                  <div className="bg-canvas p-3.5 rounded-xl border border-line">
+                    <label htmlFor="account-import-account" className="block text-xs font-black text-muted mb-1.5 uppercase tracking-wider">Cuenta Destino</label>
                     <Select
                       id="account-import-account"
                       value={accountId}
@@ -198,24 +192,24 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                     onDragOver={handleDrag}
                     onDrop={handleDrop}
                     className={`border-2 border-dashed rounded-2xl p-5 md:p-6 text-center transition-all duration-300 ${
-                      dragActive ? 'border-emerald-500 bg-emerald-500/10 scale-[1.01]' : 'border-slate-600 hover:border-emerald-500 hover:bg-slate-800/50'
+                      dragActive ? 'border-line bg-success-soft scale-[1.01]' : 'border-line hover:border-line hover:bg-surface'
                     }`}
                   >
                     <input
-                      type="file"
+                      type="file" aria-label="Seleccionar archivo de movimientos"
                       accept=".csv,.xlsx"
                       onChange={handleFileSelect}
-                      className="hidden"
+                      className="sr-only"
                       id="account-upload"
                     />
                     <label htmlFor="account-upload" className="cursor-pointer flex flex-col items-center">
-                      <div className={`${dragActive ? 'text-emerald-400 scale-110' : 'text-slate-400'} transition-all duration-300 mb-2`}>
+                      <div className={`${dragActive ? 'text-success scale-110' : 'text-muted'} transition-all duration-300 mb-2`}>
                         <FileSpreadsheet className="w-12 h-12" />
                       </div>
-                      <p className="text-base text-white font-bold mb-1">
+                      <p className="text-base text-primary font-bold mb-1">
                         {file ? file.name : 'Arrastra tu archivo CSV o Excel aquí'}
                       </p>
-                      <p className="text-slate-400 text-xs">
+                      <p className="text-muted text-xs">
                         {file ? 'Haz clic abajo para analizar' : 'Soporta cualquier formato exportado de tu banco (.csv, .xlsx)'}
                       </p>
                     </label>
@@ -225,11 +219,11 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                     <button
                       onClick={handleProcess}
                       disabled={processing}
-                      className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm hover:shadow-lg hover:shadow-emerald-500/20 hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+                      className="w-full py-3 rounded-xl bg-surface-soft   text-primary font-bold text-sm hover:shadow-lg  hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
                     >
                       {processing ? (
                         <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
                           Analizando con IA...
                         </>
                       ) : (
@@ -248,47 +242,47 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
           {/* Paso 2: Auditoría y Confirmación */}
           {extractedTransactions.length > 0 && accountMetadata && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              
+
               {/* Tarjetas de Resumen (Metadata) */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-5 rounded-2xl border border-slate-700 shadow-inner">
-                  <div className="flex items-center gap-2 text-slate-400 mb-2">
+                <div className="bg-surface-soft   p-5 rounded-2xl border border-line shadow-inner">
+                  <div className="flex items-center gap-2 text-muted mb-2">
                     <Calendar className="w-4 h-4" />
                     <span className="text-xs font-bold uppercase tracking-wider">Período</span>
                   </div>
-                  <p className="text-lg font-semibold text-white">
+                  <p className="text-lg font-semibold text-primary">
                     {accountMetadata.period_start || '?'} al {accountMetadata.period_end || '?'}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">{accountMetadata.bank_name}</p>
+                  <p className="text-xs text-muted mt-1">{accountMetadata.bank_name}</p>
                 </div>
-                
-                <div className="bg-gradient-to-br from-emerald-900/40 to-slate-900 p-5 rounded-2xl border border-emerald-500/30 shadow-inner relative overflow-hidden">
-                  <div className="absolute -right-4 -top-4 w-16 h-16 bg-emerald-500/20 rounded-full blur-xl"></div>
-                  <div className="flex items-center gap-2 text-emerald-400 mb-2 relative z-10">
+
+                <div className="bg-surface-soft   p-5 rounded-2xl border border-line shadow-inner relative overflow-hidden">
+                  <div className="absolute -right-4 -top-4 w-16 h-16 bg-success-soft rounded-full "></div>
+                  <div className="flex items-center gap-2 text-success mb-2 relative z-10">
                     <TrendingUp className="w-4 h-4" />
                     <span className="text-xs font-bold uppercase tracking-wider">Ingresos del Periodo</span>
                   </div>
-                  <p className="text-2xl font-black text-white relative z-10">
+                  <p className="text-2xl font-black text-primary relative z-10">
                     +${formatMoney(accountMetadata.total_income_cents || 0)}
                   </p>
                 </div>
 
-                <div className="bg-gradient-to-br from-rose-900/40 to-slate-900 p-5 rounded-2xl border border-rose-500/30 shadow-inner relative overflow-hidden">
-                  <div className="absolute -right-4 -top-4 w-16 h-16 bg-rose-500/20 rounded-full blur-xl"></div>
-                  <div className="flex items-center gap-2 text-rose-400 mb-2 relative z-10">
+                <div className="bg-surface-soft   p-5 rounded-2xl border border-line shadow-inner relative overflow-hidden">
+                  <div className="absolute -right-4 -top-4 w-16 h-16 bg-danger-soft rounded-full "></div>
+                  <div className="flex items-center gap-2 text-danger mb-2 relative z-10">
                     <TrendingDown className="w-4 h-4" />
                     <span className="text-xs font-bold uppercase tracking-wider">Egresos del Periodo</span>
                   </div>
-                  <p className="text-2xl font-black text-white relative z-10">
+                  <p className="text-2xl font-black text-primary relative z-10">
                     -${formatMoney(Math.abs(accountMetadata.total_expense_cents || 0))}
                   </p>
                 </div>
               </div>
 
               {/* Tabla de Transacciones */}
-              <div className="bg-slate-900/50 rounded-2xl border border-slate-700 overflow-hidden">
-                <div className="flex items-center justify-between p-4 bg-slate-800/50 border-b border-slate-700">
-                  <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Movimientos Detectados ({extractedTransactions.length})</h3>
+              <div className="bg-canvas rounded-2xl border border-line overflow-hidden">
+                <div className="flex items-center justify-between p-4 bg-surface border-b border-line">
+                  <h3 className="text-sm font-bold text-muted uppercase tracking-wider">Movimientos Detectados ({extractedTransactions.length})</h3>
                   <button
                     onClick={() => {
                       setFile(null);
@@ -296,18 +290,18 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                       setAccountMetadata(null);
                       setResult(null);
                     }}
-                    className="flex items-center text-slate-400 hover:text-white text-sm bg-slate-800 px-3 py-1 rounded-lg transition-colors"
+                    className="flex items-center text-muted hover:text-primary text-sm bg-surface px-3 py-1 rounded-lg transition-colors"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Descartar y Rehacer
                   </button>
                 </div>
-                
+
                 <div className="max-h-[40vh] overflow-y-auto">
                   <table className="w-full">
-                    <thead className="bg-slate-800/80 sticky top-0 z-10 backdrop-blur-md shadow-sm">
+                    <thead className="bg-surface sticky top-0 z-10  shadow-sm">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">
+                        <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">
                           <input
                             type="checkbox"
                             checked={extractedTransactions.filter(t => !t.is_duplicate).every(t => t.selected)}
@@ -316,18 +310,18 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                                 prev.map(txn => ({ ...txn, selected: e.target.checked && !txn.is_duplicate }))
                               );
                             }}
-                            className="mr-2 accent-emerald-500 rounded"
+                            className="mr-2 accent-success rounded"
                           />
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Fecha</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Descripción</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Categoría</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase">Monto</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Fecha</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Descripción</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Categoría</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-muted uppercase">Monto</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700/50">
+                    <tbody className="divide-y divide-line">
                       {extractedTransactions.map((txn, index) => (
-                        <tr key={txn.fingerprint} className={`transition-colors ${txn.selected ? 'bg-emerald-500/5' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-slate-700/30'}`}>
+                        <tr key={txn.fingerprint} className={`transition-colors ${txn.selected ? 'bg-success-soft' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-surface'}`}>
                           <td className="px-4 py-3">
                             <input
                               type="checkbox"
@@ -338,19 +332,19 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                                   prev.map((t, i) => i === index ? { ...t, selected: !t.selected } : t)
                                 );
                               }}
-                              className="accent-emerald-500 rounded"
+                              className="accent-success rounded"
                             />
                           </td>
-                          <td className="px-4 py-3 text-sm text-slate-300">{txn.date}</td>
-                          <td className="px-4 py-3 text-sm text-white font-medium">
+                          <td className="px-4 py-3 text-sm text-muted">{txn.date}</td>
+                          <td className="px-4 py-3 text-sm text-primary font-medium">
                             {txn.description}
                             {txn.beneficiary && (
-                              <div className="text-[11px] text-slate-500 font-normal mt-0.5 truncate max-w-[250px]" title={txn.beneficiary}>
+                              <div className="text-xs text-muted font-normal mt-0.5 truncate max-w-[250px]" title={txn.beneficiary}>
                                 → {txn.beneficiary}
                               </div>
                             )}
                             {txn.is_duplicate && (
-                              <span className="ml-2 px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] rounded-full uppercase font-bold tracking-wider">
+                              <span className="ml-2 px-2 py-0.5 bg-danger-soft text-danger text-xs rounded-full uppercase font-bold tracking-wider">
                                 Duplicado
                               </span>
                             )}
@@ -365,7 +359,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                                   prev.map((t, i) => i === index ? { ...t, category_id: newCategoryId, category_name: newCategoryName } : t)
                                 );
                               }}
-                              className="bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 px-2 py-1 text-xs w-full max-w-[200px] focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                              className="bg-surface border border-line rounded-lg text-muted px-2 py-1 text-xs w-full max-w-[200px] focus:outline-none focus:ring-1 focus:ring-success focus:border-line transition-colors"
                             >
                               <option value="" disabled>Seleccione...</option>
                               {categories.map(cat => (
@@ -373,7 +367,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                               ))}
                             </select>
                           </td>
-                          <td className={`px-4 py-3 text-sm font-bold text-right ${txn.transaction_type === 'income' ? 'text-blue-400' : 'text-rose-400'}`}>
+                          <td className={`px-4 py-3 text-sm font-bold text-right ${txn.transaction_type === 'income' ? 'text-info' : 'text-danger'}`}>
                             {txn.transaction_type === 'income' ? '+' : '-'}${formatMoney(Math.abs(txn.amount_cents))}
                           </td>
                         </tr>
@@ -384,25 +378,25 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
               </div>
 
               {/* Controles Finales */}
-              <div className="flex items-center justify-between pt-4 border-t border-slate-700">
-                <p className="text-slate-400 text-sm">
-                  Se importarán <strong className="text-white">{extractedTransactions.filter(t => t.selected).length}</strong> nuevos movimientos a tu cuenta.
+              <div className="flex items-center justify-between pt-4 border-t border-line">
+                <p className="text-muted text-sm">
+                  Se importarán <strong className="text-primary">{extractedTransactions.filter(t => t.selected).length}</strong> nuevos movimientos a tu cuenta.
                 </p>
                 <div className="flex gap-3">
-                  <button
+                  <button aria-label="Cerrar diálogo"
                     onClick={onClose}
-                    className="px-6 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors font-semibold"
+                    className="px-6 py-3 rounded-xl border border-line text-muted hover:bg-surface hover:text-primary transition-colors font-semibold"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleSave}
                     disabled={saving || !extractedTransactions.some(t => t.selected)}
-                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-500 hover:to-teal-500 font-bold shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 flex items-center gap-2"
+                    className="px-8 py-3 rounded-xl bg-surface-soft   text-primary   font-bold shadow-lg  transition-all disabled:opacity-50 flex items-center gap-2"
                   >
                     {saving ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
                         Aplicando...
                       </>
                     ) : 'Confirmar Importación'}
@@ -415,7 +409,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
           {/* Mensajes de Resultado */}
           {result && (
             <div className={`rounded-xl p-4 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 ${
-              result.success ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
+              result.success ? 'bg-success-soft border border-line text-success' : 'bg-danger-soft border border-line text-danger'
             }`}>
               {result.success ? <CheckCircle className="w-6 h-6 flex-shrink-0" /> : <AlertCircle className="w-6 h-6 flex-shrink-0" />}
               <span className="font-semibold">{result.message}</span>
@@ -423,7 +417,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
           )}
         </div>
       </motion.div>
-    </motion.div>
+    </Modal>
   );
 };
 

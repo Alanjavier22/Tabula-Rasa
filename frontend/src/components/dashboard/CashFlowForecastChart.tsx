@@ -1,3 +1,4 @@
+import ChartDataTable from './ChartDataTable';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { AlertCircle } from 'lucide-react';
 import type { CashFlowForecastResponse } from '../../types';
@@ -18,9 +19,9 @@ const CashFlowForecastChart = ({ cashFlowForecast, forecastDays, setForecastDays
   }
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 lg:p-6 mb-6">
+    <div className="bg-surface  rounded-2xl border border-line p-4 lg:p-6 mb-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <h3 className="text-lg font-semibold text-white">Proyección de Liquidez</h3>
+        <h3 className="text-lg font-semibold text-primary">Proyección de Liquidez</h3>
         <div className="flex items-center gap-2">
           {[30, 60, 90].map(days => (
             <button
@@ -28,15 +29,15 @@ const CashFlowForecastChart = ({ cashFlowForecast, forecastDays, setForecastDays
               onClick={() => setForecastDays(days)}
               className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${
                 forecastDays === days
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/30'
-                  : 'bg-slate-700/50 text-slate-400 hover:bg-slate-600/50 hover:text-white'
+                  ? 'bg-accent-strong text-on-color shadow-lg '
+                  : 'bg-surface text-muted hover:bg-surface-strong hover:text-primary'
               }`}
             >
               {days}d
             </button>
           ))}
           {cashFlowForecast.has_negative_balance && (
-            <div className="flex items-center gap-2 text-red-400 text-sm font-bold ml-2">
+            <div className="flex items-center gap-2 text-danger text-sm font-bold ml-2">
               <AlertCircle className="w-5 h-5" />
               <span className="hidden sm:inline">Riesgo de Liquidez</span>
             </div>
@@ -48,14 +49,14 @@ const CashFlowForecastChart = ({ cashFlowForecast, forecastDays, setForecastDays
           <AreaChart data={cashFlowForecast.forecast}>
             <defs>
               <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                <stop offset="5%" stopColor="var(--app-accent-strong)" stopOpacity={0.8}/>
+                <stop offset="95%" stopColor="var(--app-accent-strong)" stopOpacity={0}/>
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--app-border)" />
             <XAxis
               dataKey="date"
-              stroke="#94a3b8"
+              stroke="var(--app-muted)"
               fontSize={12}
               tickFormatter={(value: string) => {
                 const parts = value.split('-');
@@ -65,14 +66,14 @@ const CashFlowForecastChart = ({ cashFlowForecast, forecastDays, setForecastDays
               }}
             />
             <YAxis
-              stroke="#94a3b8"
+              stroke="var(--app-muted)"
               fontSize={12}
               tickFormatter={(value) => `$${(value / 100).toLocaleString()}`}
             />
             <Tooltip
-              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
-              labelStyle={{ color: '#f1f5f9' }}
-              itemStyle={{ color: '#f1f5f9' }}
+              contentStyle={{ backgroundColor: 'var(--app-surface)', border: '1px solid var(--app-border)', borderRadius: '8px' }}
+              labelStyle={{ color: 'var(--app-text)' }}
+              itemStyle={{ color: 'var(--app-text)' }}
               labelFormatter={(label) => {
                 if (typeof label !== 'string') return '';
                 const [year, month, day] = label.split('-');
@@ -82,12 +83,12 @@ const CashFlowForecastChart = ({ cashFlowForecast, forecastDays, setForecastDays
               }}
               formatter={(value) => [`$${formatMoney(value)}`, 'Balance Proyectado']}
             />
-            <ReferenceLine y={0} stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" />
-            <Area
+            <ReferenceLine y={0} stroke="var(--app-danger)" strokeWidth={2} strokeDasharray="5 5" />
+            <Area isAnimationActive={false}
               type="monotone"
               dataKey="projected_balance"
               name="Balance Proyectado"
-              stroke="#8b5cf6"
+              stroke="var(--app-accent-strong)"
               strokeWidth={2}
               fillOpacity={1}
               fill="url(#colorBalance)"
@@ -95,8 +96,9 @@ const CashFlowForecastChart = ({ cashFlowForecast, forecastDays, setForecastDays
           </AreaChart>
         </ResponsiveContainer>
       ) : (
-        <p className="text-slate-500 text-center py-8">Sin datos de proyección</p>
+        <p className="text-muted text-center py-8">La proyección aparecerá cuando existan datos suficientes.</p>
       )}
+      <ChartDataTable caption="Proyección de liquidez" columns={['Fecha', 'Saldo proyectado']} rows={(cashFlowForecast.forecast ?? []).map(item => [item.date, `$ ${formatMoney(item.projected_balance)}`])} />
     </div>
   );
 };

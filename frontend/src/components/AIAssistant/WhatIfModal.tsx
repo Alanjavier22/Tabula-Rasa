@@ -1,3 +1,4 @@
+import Modal from '../common/Modal';
 import React, { useState, useCallback, useEffect } from 'react';
 import { X, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -123,38 +124,38 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
   }
 
   const suggestionsToUse: ScenarioSuggestion[] = dynamicSuggestions.length > 0 ? dynamicSuggestions : [
-    { user_prompt: "¿Qué pasaría si me compro una laptop de $1500?", title: "Compra Laptop", description: "Simular gasto puntual", icon: "💻", color: "from-blue-500/20 to-indigo-500/20" },
-    { user_prompt: "¿Cómo afectaría si aumento mi ahorro en $200?", title: "Ahorro Extra", description: "Mejorar capacidad de ahorro", icon: "💰", color: "from-emerald-500/20 to-teal-500/20" },
-    { user_prompt: "¿Y si reduzco mis gastos de comida un 30%?", title: "Comida en Casa", description: "Optimizar gastos variables", icon: "🍕", color: "from-orange-500/20 to-rose-500/20" }
+    { user_prompt: "¿Qué pasaría si me compro una laptop de $1500?", title: "Compra Laptop", description: "Simular gasto puntual", icon: "💻", color: " " },
+    { user_prompt: "¿Cómo afectaría si aumento mi ahorro en $200?", title: "Ahorro Extra", description: "Mejorar capacidad de ahorro", icon: "💰", color: " " },
+    { user_prompt: "¿Y si reduzco mis gastos de comida un 30%?", title: "Comida en Casa", description: "Optimizar gastos variables", icon: "🍕", color: " " }
   ];
-  
+
   const colors = [
-    "from-blue-500/20 to-indigo-500/20",
-    "from-emerald-500/20 to-teal-500/20",
-    "from-orange-500/20 to-rose-500/20"
+    " ",
+    " ",
+    " "
   ];
 
   return (
-    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xl z-50 flex items-center justify-center p-4 lg:p-8">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 30 }}
+    <Modal onClose={onClose} label={'Simular escenario'}>
+      <motion.div
+        initial={false}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 30 }}
-        className="bg-slate-900/90 border border-white/10 rounded-2xl md:rounded-[3rem] w-full max-w-6xl max-h-[95vh] md:max-h-[90vh] overflow-hidden flex flex-col shadow-[0_30px_100px_rgba(0,0,0,0.6)] relative"
+        className="bg-surface border border-line rounded-2xl md:rounded-2xl w-full max-w-6xl max-h-[95vh] md:max-h-[90vh] overflow-hidden flex flex-col  relative"
       >
         {/* Glow Effects */}
-        <div className="absolute -top-24 -left-24 w-64 h-64 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none"></div>
-        <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-purple-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+
 
         {/* Header - Compacted */}
-        <div className="relative flex items-center justify-between py-3 md:py-5 px-6 md:px-10 border-b border-white/5 shrink-0">
+        <div className="relative flex items-center justify-between py-3 md:py-5 px-6 md:px-10 border-b border-line shrink-0">
           <div className="flex items-center gap-4">
-            <Sparkles className="w-6 h-6 text-blue-400 animate-pulse" />
-            <h2 className="text-xl md:text-2xl font-black text-white tracking-tight leading-none">Simulador <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">WhatIf</span></h2>
+            <Sparkles className="w-6 h-6 text-info animate-pulse" />
+            <h2 className="text-xl md:text-2xl font-black text-primary tracking-tight leading-none">Simulador <span className="text-primary  ">WhatIf</span></h2>
           </div>
-          <button 
+          <button
             onClick={handleClose}
-            className="w-10 h-10 rounded-xl hover:bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-all"
+            className="w-10 h-10 rounded-xl hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all"
           >
             <X className="w-6 h-6" />
           </button>
@@ -164,8 +165,8 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
           {!whatIfScenario ? (
             <div className="max-w-5xl mx-auto space-y-6 md:space-y-8">
               <div className="text-center space-y-2">
-                <h3 className="text-2xl font-black text-white tracking-tight">¿Qué tienes en mente hoy?</h3>
-                <p className="text-slate-400 text-sm font-medium max-w-2xl mx-auto">
+                <h3 className="text-2xl font-black text-primary tracking-tight">¿Qué tienes en mente hoy?</h3>
+                <p className="text-muted text-sm font-medium max-w-2xl mx-auto">
                   Simula el impacto de cualquier escenario financiero en tu patrimonio real con nuestra IA.
                 </p>
               </div>
@@ -174,7 +175,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 {loadingSuggestions ? (
                   Array.from({ length: 3 }, (_, i) => (
-                    <div key={i} className="h-32 rounded-[2rem] bg-white/5 animate-pulse" />
+                    <div key={i} className="h-32 rounded-2xl bg-surface-soft animate-pulse" />
                   ))
                 ) : (
                   suggestionsToUse.map((suggestion, idx) => (
@@ -183,15 +184,15 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
                       whileHover={{ y: -4, scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setWhatIfPrompt(suggestion.user_prompt)}
-                      className={`p-5 rounded-[1.8rem] bg-gradient-to-br ${suggestion.color || colors[idx % colors.length]} border border-white/5 hover:border-white/20 transition-all text-left flex flex-col gap-2.5 group`}
+                      className={`p-5 rounded-[1.8rem] bg-surface-soft ${suggestion.color || colors[idx % colors.length]} border border-line hover:border-line transition-all text-left flex flex-col gap-2.5 group`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="text-xl shrink-0">{suggestion.icon || "💡"}</div>
-                        <Sparkles className="w-3.5 h-3.5 text-white/20 group-hover:text-blue-400 transition-colors" />
+                        <Sparkles className="w-3.5 h-3.5 text-muted group-hover:text-info transition-colors" />
                       </div>
                       <div>
-                        <p className="text-[9px] font-black text-white/50 uppercase tracking-widest mb-0.5">{suggestion.title || "Sugerencia"}</p>
-                        <p className="text-xs font-bold text-white leading-snug group-hover:text-blue-300 transition-colors">
+                        <p className="text-xs font-black text-muted uppercase tracking-widest mb-0.5">{suggestion.title || "Sugerencia"}</p>
+                        <p className="text-xs font-bold text-primary leading-snug group-hover:text-info transition-colors">
                           {suggestion.description || suggestion.user_prompt}
                         </p>
                       </div>
@@ -202,8 +203,8 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
 
               {/* Input Area - Imposing Cinema Style */}
               <div className="relative group pt-4">
-                <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/30 to-purple-600/30 rounded-3xl blur-xl opacity-30 group-focus-within:opacity-80 transition duration-1000"></div>
-                <div className="relative flex gap-3 p-2.5 bg-slate-900/80 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl">
+                <div className="absolute -inset-1 bg-surface-soft   rounded-3xl  opacity-30 group-focus-within:opacity-80 transition duration-1000"></div>
+                <div className="relative flex gap-3 p-2.5 bg-canvas  border border-line rounded-3xl shadow-2xl">
                   <input
                     type="text"
                     value={whatIfPrompt}
@@ -211,12 +212,12 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
                     onKeyPress={(e) => e.key === 'Enter' && handleSimulateWhatIf()}
                     placeholder="Escribe tu escenario financiero aquí..."
                     disabled={loadingWhatIf}
-                    className="flex-1 bg-transparent border-none px-5 py-4 text-white text-lg placeholder-slate-500 focus:ring-0 disabled:opacity-50 font-semibold"
+                    className="flex-1 bg-transparent border-none px-5 py-4 text-primary text-lg placeholder-muted focus:ring-0 disabled:opacity-50 font-semibold"
                   />
                   <button
                     onClick={handleSimulateWhatIf}
                     disabled={loadingWhatIf || !whatIfPrompt.trim()}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-xl hover:shadow-blue-500/20 disabled:from-slate-800 disabled:to-slate-900 disabled:cursor-not-allowed text-white px-8 rounded-2xl transition-all flex items-center gap-2.5 font-black text-xs uppercase tracking-widest"
+                    className="bg-surface-soft   hover:shadow-xl  disabled: disabled: disabled:cursor-not-allowed text-primary px-8 rounded-2xl transition-all flex items-center gap-2.5 font-black text-xs uppercase tracking-widest"
                   >
                     {loadingWhatIf ? (
                       <Loader2 className="w-4.5 h-4.5 animate-spin" />
@@ -231,26 +232,26 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
               </div>
             </div>
           ) : (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
+            <motion.div
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-8"
             >
-              <div className="bg-slate-800/40 backdrop-blur-xl border border-white/5 rounded-3xl p-4 md:p-6 relative overflow-hidden group">
+              <div className="bg-surface  border border-line rounded-3xl p-4 md:p-6 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-4 opacity-5">
-                  <Sparkles className="w-12 h-12 text-blue-400" />
+                  <Sparkles className="w-12 h-12 text-info" />
                 </div>
-                <p className="text-[9px] font-black text-blue-400 uppercase tracking-[0.3em] mb-1">Escenario Proyectado</p>
-                <p className="text-lg md:text-xl font-bold text-white tracking-tight leading-tight">"{whatIfPrompt}"</p>
+                <p className="text-xs font-black text-info uppercase tracking-[0.3em] mb-1">Escenario Proyectado</p>
+                <p className="text-lg md:text-xl font-bold text-primary tracking-tight leading-tight">"{whatIfPrompt}"</p>
               </div>
 
-              <div className="bg-slate-900/50 rounded-3xl border border-white/5 p-0.5">
+              <div className="bg-canvas rounded-3xl border border-line p-0.5">
                 <AIWhatIfSimulator scenario={whatIfScenario} isLoading={loadingWhatIf} />
               </div>
 
               <button
                 onClick={() => setWhatIfScenario(null)}
-                className="w-full py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 group"
+                className="w-full py-4 bg-surface-soft hover:bg-surface-soft text-primary rounded-xl border border-line transition-all text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 group"
               >
                 <RefreshCw className="w-3 h-3 group-hover:rotate-180 transition-transform duration-500" />
                 Nueva Simulación
@@ -259,7 +260,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
           )}
         </div>
       </motion.div>
-    </div>
+    </Modal>
   );
 });
 

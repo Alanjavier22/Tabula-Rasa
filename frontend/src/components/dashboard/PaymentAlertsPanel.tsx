@@ -7,27 +7,27 @@ interface PaymentAlertsPanelProps {
 }
 
 const getAlertContainerClass = (severity: string) => {
-  if (severity === 'critical') return 'bg-red-500/15 border border-red-500/30';
-  if (severity === 'warning') return 'bg-amber-500/15 border border-amber-500/30';
-  return 'bg-slate-700/30 border border-slate-600/30';
+  if (severity === 'critical') return 'bg-danger-soft border border-line';
+  if (severity === 'warning') return 'bg-warning-soft border border-line';
+  return 'bg-surface border border-line';
 };
 
 const getAlertIconClass = (severity: string) => {
-  if (severity === 'critical') return 'bg-red-500/20';
-  if (severity === 'warning') return 'bg-amber-500/20';
-  return 'bg-blue-500/20';
+  if (severity === 'critical') return 'bg-danger-soft';
+  if (severity === 'warning') return 'bg-warning-soft';
+  return 'bg-info-soft';
 };
 
 const getAlertTextClass = (severity: string) => {
-  if (severity === 'critical') return 'text-red-400';
-  if (severity === 'warning') return 'text-amber-400';
-  return 'text-slate-300';
+  if (severity === 'critical') return 'text-danger';
+  if (severity === 'warning') return 'text-warning';
+  return 'text-muted';
 };
 
 const getAlertIcon = (alertType: string) => {
-  if (alertType === 'overdue') return <AlertCircle className="w-4 h-4 text-red-400" />;
-  if (alertType === 'payment_due') return <CreditCard className="w-4 h-4 text-amber-400" />;
-  return <Calendar className="w-4 h-4 text-blue-400" />;
+  if (alertType === 'overdue') return <AlertCircle className="w-4 h-4 text-danger" />;
+  if (alertType === 'payment_due') return <CreditCard className="w-4 h-4 text-warning" />;
+  return <Calendar className="w-4 h-4 text-info" />;
 };
 
 const getPaymentDueMessage = (daysRemaining: number) => {
@@ -39,11 +39,11 @@ const getPaymentDueMessage = (daysRemaining: number) => {
 const PaymentAlertsPanel = ({ data }: PaymentAlertsPanelProps) => {
   return (
     <div className="mb-6">
-      <div className="bg-gradient-to-r from-amber-900/30 to-red-900/30 backdrop-blur-xl rounded-2xl border border-amber-500/40 p-4 lg:p-6">
-        <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-          <Bell className="w-5 h-5 text-amber-400" />
+      <div className="bg-surface-soft    rounded-2xl border border-line p-4 lg:p-6">
+        <h3 className="text-lg font-semibold text-primary mb-3 flex items-center gap-2">
+          <Bell className="w-5 h-5 text-warning" />
           Alertas de Pago
-          <span className="ml-auto text-sm font-normal text-amber-400">
+          <span className="ml-auto text-sm font-normal text-warning">
             Pendiente total: ${formatMoney(data.total_pending)}
           </span>
         </h3>
@@ -58,12 +58,14 @@ const PaymentAlertsPanel = ({ data }: PaymentAlertsPanelProps) => {
                   {getAlertIcon(alert.alert_type)}
                 </div>
                 <div>
-                  <p className="text-white text-sm font-medium">{alert.account_name}</p>
-                  <p className="text-xs text-slate-400">
-                    {alert.alert_type === 'overdue' && `Vencido hace ${Math.abs(alert.days_remaining)} días`}
-                    {alert.alert_type === 'payment_due' && getPaymentDueMessage(alert.days_remaining)}
-                    {alert.alert_type === 'statement_cut' && `Corte en ${alert.days_remaining} días`}
-                    {alert.due_date && ` · ${alert.due_date}`}
+                  <p className="text-primary text-sm font-medium">{alert.account_name}</p>
+                  <p className="text-xs text-muted">
+                    {!alert.due_date || alert.due_date === 'Sin fecha' ? 'Vencimiento sin registrar' : <>
+                      {alert.alert_type === 'overdue' && `Vencido hace ${Math.abs(alert.days_remaining)} días`}
+                      {alert.alert_type === 'payment_due' && getPaymentDueMessage(alert.days_remaining)}
+                      {alert.alert_type === 'statement_cut' && `Corte en ${alert.days_remaining} días`}
+                      {` · ${alert.due_date}`}
+                    </>}
                   </p>
                 </div>
               </div>
@@ -72,7 +74,7 @@ const PaymentAlertsPanel = ({ data }: PaymentAlertsPanelProps) => {
                   ${formatMoney(alert.amount_pending)}
                 </p>
                 {alert.bank_name && (
-                  <p className="text-xs text-slate-500">{alert.bank_name}</p>
+                  <p className="text-xs text-muted">{alert.bank_name}</p>
                 )}
               </div>
             </div>

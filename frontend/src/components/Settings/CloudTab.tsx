@@ -18,18 +18,18 @@ const CloudTab = ({ backups, loadingBackups, creatingBackup, onCreateBackup, onR
       <section>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-              <Cloud className="w-5 h-5 text-emerald-400" />
+            <div className="w-10 h-10 rounded-xl bg-success-soft flex items-center justify-center border border-line">
+              <Cloud className="w-5 h-5 text-success" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Backups en la Nube</h2>
-              <p className="text-slate-400 text-sm">Instantáneas de seguridad de tu base de datos</p>
+              <h2 className="text-xl font-bold text-primary">Backups en la Nube</h2>
+              <p className="text-muted text-sm">Instantáneas de seguridad de tu base de datos</p>
             </div>
           </div>
           <button
             onClick={onCreateBackup}
             disabled={creatingBackup}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest transition-all shadow-lg"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-success hover:bg-success text-on-color text-xs font-black uppercase tracking-widest transition-all shadow-lg"
           >
             {creatingBackup ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Nuevo Backup
@@ -38,55 +38,55 @@ const CloudTab = ({ backups, loadingBackups, creatingBackup, onCreateBackup, onR
 
         <div className="space-y-3 pr-1">
           {loadingBackups && (
-            <div className="p-10 text-center text-slate-500 text-sm animate-pulse">Consultando historial...</div>
+            <div className="p-10 text-center text-muted text-sm animate-pulse">Consultando historial...</div>
           )}
           {!loadingBackups && backups.length > 0 && backups.map((backup: BackupFile) => (
-              <div key={backup.id} className="group flex items-center justify-between p-4 bg-black/20 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
+              <div key={backup.id} className="group flex items-center justify-between p-4 bg-surface-soft rounded-2xl border border-line hover:border-line transition-all">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/10 transition-all">
-                    <Database className="w-5 h-5 text-slate-500 group-hover:text-emerald-400" />
+                  <div className="w-10 h-10 rounded-xl bg-surface-soft flex items-center justify-center group-hover:bg-success-soft transition-all">
+                    <Database className="w-5 h-5 text-muted group-hover:text-success" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white/80 group-hover:text-white transition-all">{backup.name}</p>
-                    <p className="text-[10px] text-slate-500 font-medium">
+                    <p className="text-sm font-bold text-primary group-hover:text-primary transition-all">{backup.name}</p>
+                    <p className="text-xs text-muted font-medium">
                       {new Date(backup.createdTime).toLocaleString('es-EC')}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => onRestoreBackup(backup.id)}
-                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 opacity-0 group-hover:opacity-100"
+                  className="px-4 py-2 rounded-xl bg-surface-soft hover:bg-success text-on-color text-xs font-black uppercase tracking-widest transition-all border border-line opacity-0 group-hover:opacity-100"
                 >
                   Restaurar
                 </button>
               </div>
             ))}
           {!loadingBackups && backups.length === 0 && (
-            <div className="p-10 text-center text-slate-500 text-sm bg-black/10 rounded-3xl border border-dashed border-white/5">
+            <div className="p-10 text-center text-muted text-sm bg-surface-soft rounded-3xl border border-dashed border-line">
               No se han encontrado backups.
             </div>
           )}
         </div>
       </section>
 
-      <section className="pt-10 border-t border-red-500/10">
+      <section className="pt-10 border-t border-line">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
-            <AlertTriangle className="w-5 h-5 text-rose-500" />
+          <div className="w-10 h-10 rounded-xl bg-danger-soft flex items-center justify-center border border-line">
+            <AlertTriangle className="w-5 h-5 text-danger" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-rose-500">Zona de Peligro</h2>
-            <p className="text-slate-400 text-sm">Acciones críticas e irreversibles</p>
+            <h2 className="text-xl font-bold text-danger">Zona de Peligro</h2>
+            <p className="text-muted text-sm">Acciones críticas e irreversibles</p>
           </div>
         </div>
 
-        <div className="bg-rose-500/5 rounded-[2rem] p-8 border border-rose-500/10 relative overflow-hidden">
+        <div className="bg-danger-soft rounded-2xl p-8 border border-line relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-5">
-            <AlertTriangle className="w-32 h-32 text-rose-500" />
+            <AlertTriangle className="w-32 h-32 text-danger" />
           </div>
           <div className="relative z-10">
-            <h3 className="text-rose-400 font-bold mb-2">Vaciar Base de Datos</h3>
-            <p className="text-slate-400 text-xs mb-6 max-w-lg leading-relaxed">
+            <h3 className="text-danger font-bold mb-2">Vaciar Base de Datos</h3>
+            <p className="text-muted text-xs mb-6 max-w-lg leading-relaxed">
               Se eliminarán todas las transacciones, estados de cuenta, presupuestos, metas, suscripciones,
               recordatorios, snapshots, activos y logs de importación.
               Las cuentas se conservarán con saldo en $0. Las categorías y configuración permanecen intactas.
@@ -105,7 +105,7 @@ const CloudTab = ({ backups, loadingBackups, creatingBackup, onCreateBackup, onR
                   setToast({ message: 'Error al limpiar', type: 'error' });
                 }
               }}
-              className="px-6 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white transition-all text-xs font-black uppercase tracking-widest"
+              className="px-6 py-3 rounded-xl bg-danger-soft border border-line text-danger hover:bg-danger hover:text-on-color transition-all text-xs font-black uppercase tracking-widest"
             >
               Eliminar Todo el Historial
             </button>

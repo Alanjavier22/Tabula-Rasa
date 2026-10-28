@@ -1,3 +1,4 @@
+import Modal from './common/Modal';
 import { useState, useEffect } from 'react';
 import { intelligenceAPI, accountsAPI } from '../services/api';
 import { X, CheckCircle, AlertCircle, Trash2, CreditCard, Calendar, DollarSign, User } from 'lucide-react';
@@ -41,13 +42,13 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
   const [accountId, setAccountId] = useState<string>('');
   const [creditCardAccounts, setCreditCardAccounts] = useState<Account[]>([]);
   const [processing, setProcessing] = useState(false);
-  
+
   // Datos extraídos de la IA
   const [importLogId, setImportLogId] = useState<string | null>(null);
   const [extractedTransactions, setExtractedTransactions] = useState<ExtractedStatementRow[]>([]);
   const [statementMetadata, setStatementMetadata] = useState<StatementMetadataDraft | null>(null);
   const [auditInfo, setAuditInfo] = useState<StatementParsingResponse['audit'] | null>(null);
-  
+
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -91,12 +92,12 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
     if (!file || !accountId) return;
     setProcessing(true);
     setResult(null);
-    
+
     try {
       const response = await intelligenceAPI.uploadStatement(accountId, file);
-      
+
       setImportLogId(response.data.import_log_id);
-      
+
       const parsed = response.data.parsed_data;
       if (parsed.transactions && parsed.transactions.length > 0) {
         // Seleccionamos por defecto las que NO son duplicadas
@@ -104,9 +105,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
           ...tx,
           selected: !tx.is_duplicate
         }));
-        
+
         setExtractedTransactions(txsWithSelection);
-        
+
         // Extraemos los metadatos globales
         setStatementMetadata({
           issuer_identity: parsed.issuer_identity,
@@ -122,7 +123,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
           user_share_cents: parsed.statement_balance_cents, // Por defecto el usuario asume todo
           debt_shares: []
         });
-        
+
         setAuditInfo(parsed.audit);
       } else {
         setResult({ success: false, message: 'No se detectaron transacciones en el documento.' });
@@ -138,7 +139,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
 
   const handleSave = async () => {
     if (!importLogId) return;
-    
+
     const selectedTransactions = extractedTransactions.filter(t => t.selected);
     if (selectedTransactions.length === 0) {
       setResult({ success: false, message: 'Selecciona al menos una transacción para importar.' });
@@ -155,9 +156,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
           ? { ...statementMetadata, user_share_cents: userShareCents }
           : undefined
       );
-      
+
       setResult({ success: true, message: `Éxito: ${response.data.imported_count} transacciones importadas y deudas actualizadas.` });
-      
+
       setTimeout(() => {
         onSuccess(response.data.imported_count);
         onClose();
@@ -187,29 +188,22 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
 
   return (
     <>
+      <Modal onClose={onClose} label={'Importar estado de cuenta'}>
       <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2, ease: "easeInOut" }}
-      style={{ willChange: 'opacity, backdrop-filter' }}
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-    >
-      <motion.div
-        initial={{ opacity: 0, y: 15, scale: 0.98 }}
+        initial={false}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 15, scale: 0.98 }}
         transition={{ duration: 0.25, ease: "easeInOut" }}
-        className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto shadow-2xl relative"
+        className="bg-surface border border-line rounded-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto shadow-2xl relative"
       >
-          <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 sticky top-0 z-[60] backdrop-blur-md">
+          <div className="flex items-center justify-between p-4 border-b border-line bg-surface sticky top-0 z-[60] ">
             <div className="flex items-center gap-3">
-              <div className="p-1.5 bg-purple-500/20 rounded-lg">
-                <CreditCard className="w-5 h-5 text-purple-400" />
+              <div className="p-1.5 bg-accent-soft rounded-lg">
+                <CreditCard className="w-5 h-5 text-accent-strong" />
               </div>
-              <h2 className="text-lg font-black text-white tracking-tight">Importador IA <span className="text-purple-400 font-medium text-xs ml-2 px-2 py-0.5 bg-purple-500/10 rounded-full">Estados de Cuenta</span></h2>
+              <h2 className="text-lg font-black text-primary tracking-tight">Importador IA <span className="text-accent-strong font-medium text-xs ml-2 px-2 py-0.5 bg-accent-soft rounded-full">Estados de Cuenta</span></h2>
             </div>
-            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+            <button aria-label="Cerrar diálogo" onClick={onClose} className="text-muted hover:text-primary transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -234,48 +228,48 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
             {/* Paso 2: Auditoría y Confirmación */}
             {extractedTransactions.length > 0 && statementMetadata && (
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                
+
                 {/* Tarjeta de Resumen (Metadata) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-5 rounded-2xl border border-slate-700 shadow-inner">
-                    <div className="flex items-center gap-2 text-slate-400 mb-2">
+                  <div className="bg-surface-soft   p-5 rounded-2xl border border-line shadow-inner">
+                    <div className="flex items-center gap-2 text-muted mb-2">
                       <Calendar className="w-4 h-4" />
                       <span className="text-xs font-bold uppercase tracking-wider">Período</span>
                     </div>
-                    <p className="text-lg font-semibold text-white">{statementMetadata.statement_period}</p>
+                    <p className="text-lg font-semibold text-primary">{statementMetadata.statement_period}</p>
                     {statementMetadata.cut_off_date && (
-                      <p className="text-xs text-slate-500 mt-1">Corte: {statementMetadata.cut_off_date}</p>
+                      <p className="text-xs text-muted mt-1">Corte: {statementMetadata.cut_off_date}</p>
                     )}
                   </div>
-                  
-                  <div className="bg-gradient-to-br from-purple-900/40 to-slate-900 p-5 rounded-2xl border border-purple-500/30 shadow-inner relative overflow-hidden">
-                     <div className="absolute -right-4 -top-4 w-16 h-16 bg-purple-500/20 rounded-full blur-xl"></div>
+
+                  <div className="bg-surface-soft   p-5 rounded-2xl border border-line shadow-inner relative overflow-hidden">
+                     <div className="absolute -right-4 -top-4 w-16 h-16 bg-accent-soft rounded-full "></div>
                      <div className="flex items-center justify-between mb-2 relative z-10">
-                       <div className="flex items-center gap-2 text-purple-400">
+                       <div className="flex items-center gap-2 text-accent-strong">
                          <DollarSign className="w-4 h-4" />
                          <span className="text-xs font-bold uppercase tracking-wider">Deuda Total</span>
                        </div>
-                       <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full font-bold">PAGO CONTADO</span>
+                       <span className="text-xs bg-accent-soft text-accent-strong px-2 py-0.5 rounded-full font-bold">PAGO CONTADO</span>
                      </div>
-                     <p className="text-2xl font-black text-white relative z-10 mb-3">
+                     <p className="text-2xl font-black text-primary relative z-10 mb-3">
                        ${formatMoney(statementMetadata.statement_balance_cents)}
                      </p>
-                     
+
                      {/* Selector de Cuota de Usuario */}
-                     <div className="pt-3 border-t border-purple-500/20 relative z-10">
+                     <div className="pt-3 border-t border-line relative z-10">
                         <div className="flex items-center justify-between mb-2">
-                           <span className="text-[10px] font-bold text-purple-300/70 uppercase">Tu Responsabilidad</span>
-                           <span className="text-xs font-bold text-white">${formatMoney(userShareCents)}</span>
+                           <span className="text-xs font-bold text-accent-strong uppercase">Tu Responsabilidad</span>
+                           <span className="text-xs font-bold text-primary">${formatMoney(userShareCents)}</span>
                         </div>
-                        <div className="w-full h-1.5 bg-purple-900 rounded-lg overflow-hidden relative">
-                          <div 
-                            className="h-full bg-purple-400 transition-all duration-300" 
+                        <div className="w-full h-1.5 bg-accent-soft rounded-lg overflow-hidden relative">
+                          <div
+                            className="h-full bg-accent-strong transition-all duration-300"
                             style={{ width: `${(userShareCents / statementMetadata.statement_balance_cents) * 100}%` }}
                           />
                         </div>
 
                        {userShareCents < statementMetadata.statement_balance_cents && (
-                         <p className="text-[10px] text-emerald-400 mt-2 font-bold flex items-center gap-1">
+                         <p className="text-xs text-success mt-2 font-bold flex items-center gap-1">
                            <User className="w-3 h-3" />
                            Compartido: ${formatMoney(statementMetadata.statement_balance_cents - userShareCents)} serán asignados a terceros.
                          </p>
@@ -283,28 +277,28 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                      </div>
                    </div>
 
-                  <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-5 rounded-2xl border border-slate-700 shadow-inner">
+                  <div className="bg-surface-soft   p-5 rounded-2xl border border-line shadow-inner">
                      <div className="flex justify-between items-end h-full">
                        <div>
-                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Consumos Mes</p>
-                         <p className="text-lg font-bold text-emerald-400">+${formatMoney(statementMetadata.total_new_consumos_cents)}</p>
+                         <p className="text-xs font-bold text-muted uppercase tracking-wider mb-1">Consumos Mes</p>
+                         <p className="text-lg font-bold text-success">+${formatMoney(statementMetadata.total_new_consumos_cents)}</p>
                        </div>
                        <div className="text-right">
-                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Abonos</p>
-                         <p className="text-lg font-bold text-blue-400">-${formatMoney(Math.abs(statementMetadata.total_pagos_cents))}</p>
+                         <p className="text-xs font-bold text-muted uppercase tracking-wider mb-1">Abonos</p>
+                         <p className="text-lg font-bold text-info">-${formatMoney(Math.abs(statementMetadata.total_pagos_cents))}</p>
                        </div>
                      </div>
                   </div>
                 </div>
-   
+
                 {/* Alerta de Auditoría / Discrepancia */}
                 {auditInfo && (!auditInfo.consumos_match || !auditInfo.pagos_match) && (
-                  <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div className="p-4 bg-warning-soft border border-line rounded-xl flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-amber-500 font-bold text-sm uppercase tracking-wider">Discrepancia detectada en Auditoría 1:1</p>
-                      <p className="text-amber-200/80 text-xs mt-1">
-                        La suma de las transacciones extraídas no coincide exactamente con el resumen del banco. 
+                      <p className="text-warning font-bold text-sm uppercase tracking-wider">Discrepancia detectada en Auditoría 1:1</p>
+                      <p className="text-warning text-xs mt-1">
+                        La suma de las transacciones extraídas no coincide exactamente con el resumen del banco.
                         Por favor, revisa el documento original para asegurar precisión absoluta.
                       </p>
                     </div>
@@ -314,9 +308,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                 {/* Método de Extracción */}
                 {auditInfo && (
                   <div className="flex items-center justify-end px-2">
-                    <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-700/30 rounded-full border border-slate-700">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-surface rounded-full border border-line">
+                      <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></div>
+                      <span className="text-xs font-bold text-muted uppercase tracking-widest">
                         MÉTODO: {auditInfo.extraction_method}
                       </span>
                     </div>
@@ -324,16 +318,16 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                 )}
 
                 {/* Tabla de Transacciones */}
-                <div className="bg-slate-900/50 rounded-2xl border border-slate-700 overflow-hidden">
-                  <div className="flex items-center justify-between p-4 bg-slate-800/50 border-b border-slate-700">
-                    <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Transacciones Detectadas ({extractedTransactions.length})</h3>
+                <div className="bg-canvas rounded-2xl border border-line overflow-hidden">
+                  <div className="flex items-center justify-between p-4 bg-surface border-b border-line">
+                    <h3 className="text-sm font-bold text-muted uppercase tracking-wider">Transacciones Detectadas ({extractedTransactions.length})</h3>
                     <div className="flex items-center gap-2">
                       {extractedTransactions.some(t => t.is_duplicate) && (
                         <button
                           onClick={() => {
                             setExtractedTransactions(prev => prev.filter(t => !t.is_duplicate));
                           }}
-                          className="flex items-center gap-2 text-rose-400 hover:text-rose-300 text-[10px] font-bold uppercase bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20 transition-all"
+                          className="flex items-center gap-2 text-danger hover:text-danger text-xs font-bold uppercase bg-danger-soft px-3 py-1.5 rounded-lg border border-line transition-all"
                         >
                           <Trash2 className="w-3 h-3" />
                           Limpiar Duplicados
@@ -346,20 +340,20 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                           setStatementMetadata(null);
                           setResult(null);
                         }}
-                        className="flex items-center gap-2 text-slate-400 hover:text-white text-[10px] font-bold uppercase bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 transition-all"
+                        className="flex items-center gap-2 text-muted hover:text-primary text-xs font-bold uppercase bg-surface px-3 py-1.5 rounded-lg border border-line transition-all"
                       >
                         <Trash2 className="w-3 h-3" />
                         Descartar y Rehacer
                       </button>
                     </div>
                   </div>
-                  
+
                   <div className="max-h-[40vh] overflow-y-auto relative">
                     <table className="w-full">
-                      <thead className="bg-slate-800 sticky top-0 z-30 shadow-sm border-b border-slate-700">
+                      <thead className="bg-surface sticky top-0 z-30 shadow-sm border-b border-line">
 
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">
+                          <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">
                             <input
                               type="checkbox"
                               checked={extractedTransactions.every(t => t.selected)}
@@ -368,20 +362,20 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                                   prev.map(txn => ({ ...txn, selected: e.target.checked && !txn.is_duplicate }))
                                 );
                               }}
-                              className="mr-2 accent-purple-500 rounded"
+                              className="mr-2 accent-accent rounded"
                             />
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Fecha</th>
-                          <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Descripción</th>
-                          <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Responsable</th>
-                          <th className="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase">Categoría</th>
-                          <th className="px-4 py-3 text-right text-xs font-bold text-slate-400 uppercase">Monto</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Fecha</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Descripción</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Responsable</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">Categoría</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-muted uppercase">Monto</th>
 
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-700/50">
+                      <tbody className="divide-y divide-line">
                         {extractedTransactions.map((txn, index) => (
-                          <tr key={txn.fingerprint} className={`transition-colors ${txn.selected ? 'bg-purple-500/5' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-slate-700/30'}`}>
+                          <tr key={txn.fingerprint} className={`transition-colors ${txn.selected ? 'bg-accent-soft' : ''} ${txn.is_duplicate ? 'opacity-50 grayscale' : 'hover:bg-surface'}`}>
                             <td className="px-4 py-3">
                                <div className="flex items-center gap-2">
                                  <input
@@ -393,39 +387,39 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                                        prev.map((t, i) => i === index ? { ...t, selected: !t.selected } : t)
                                      );
                                    }}
-                                   className="accent-purple-500 rounded"
+                                   className="accent-accent rounded"
                                  />
                                </div>
                              </td>
 
-                            <td className="px-4 py-3 text-sm text-slate-300">{txn.date}</td>
-                            <td className="px-4 py-3 text-sm text-white font-medium">
+                            <td className="px-4 py-3 text-sm text-muted">{txn.date}</td>
+                            <td className="px-4 py-3 text-sm text-primary font-medium">
                                <div className="flex flex-col">
                                  <span>{txn.description}</span>
                                  {txn.shared_with && (
-                                   <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-tight">
+                                   <span className="text-xs text-success font-bold uppercase tracking-tight">
                                      👤 {txn.shared_with} te debe ${formatMoney(txn.shared_amount || 0)}
                                    </span>
                                  )}
                                </div>
                                {txn.is_deferred && (
-                                 <span className="ml-2 px-2 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] rounded-full uppercase font-bold tracking-wider">
+                                 <span className="ml-2 px-2 py-0.5 bg-info-soft text-info text-xs rounded-full uppercase font-bold tracking-wider">
                                    Diferido {txn.deferred_info}
                                  </span>
                                )}
                                {txn.is_duplicate && (
-                                 <span className="ml-2 px-2 py-0.5 bg-rose-500/20 text-rose-400 text-[10px] rounded-full uppercase font-bold tracking-wider">
+                                 <span className="ml-2 px-2 py-0.5 bg-danger-soft text-danger text-xs rounded-full uppercase font-bold tracking-wider">
                                    Duplicado
                                  </span>
                                )}
                              </td>
                              <td className="px-4 py-3">
                                <div className="flex items-center gap-2">
-                                 <button 
+                                 <button
                                    onClick={() => {
                                      if (txn.shared_with) {
                                        // Unshare directly if already shared
-                                       const newTransactions = extractedTransactions.map((t, i) => 
+                                       const newTransactions = extractedTransactions.map((t, i) =>
                                          i === index ? { ...t, shared_with: undefined, shared_amount: undefined } : t
                                        );
                                        setExtractedTransactions(newTransactions);
@@ -434,10 +428,10 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                                      }
                                    }}
 
-                                   className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
-                                     txn.shared_with 
-                                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                                       : 'bg-slate-700/50 text-slate-500 border border-slate-600 hover:text-slate-300'
+                                   className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-bold uppercase transition-all ${
+                                     txn.shared_with
+                                       ? 'bg-success-soft text-success border border-line'
+                                       : 'bg-surface text-muted border border-line hover:text-muted'
                                    }`}
                                  >
                                    <User className="w-3.5 h-3.5" />
@@ -446,10 +440,10 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                                </div>
                              </td>
 
-                            <td className="px-4 py-3 text-sm text-slate-400">
+                            <td className="px-4 py-3 text-sm text-muted">
                               {txn.category_name || <span className="italic opacity-50">Sin Categoría</span>}
                             </td>
-                            <td className={`px-4 py-3 text-sm font-bold text-right ${txn.transaction_type === 'income' ? 'text-blue-400' : 'text-rose-400'}`}>
+                            <td className={`px-4 py-3 text-sm font-bold text-right ${txn.transaction_type === 'income' ? 'text-info' : 'text-danger'}`}>
                               {txn.transaction_type === 'income' ? '-' : '+'}${formatMoney(Math.abs(txn.amount_cents))}
                             </td>
                           </tr>
@@ -460,25 +454,25 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                 </div>
 
                 {/* Controles Finales */}
-                <div className="flex items-center justify-between pt-4 border-t border-slate-700">
-                  <p className="text-slate-400 text-sm">
-                    Se importarán <strong className="text-white">{extractedTransactions.filter(t => t.selected).length}</strong> transacciones y se actualizará el balance de la tarjeta.
+                <div className="flex items-center justify-between pt-4 border-t border-line">
+                  <p className="text-muted text-sm">
+                    Se importarán <strong className="text-primary">{extractedTransactions.filter(t => t.selected).length}</strong> transacciones y se actualizará el balance de la tarjeta.
                   </p>
                   <div className="flex gap-3">
-                    <button
+                    <button aria-label="Cerrar diálogo"
                       onClick={onClose}
-                      className="px-6 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors font-semibold"
+                      className="px-6 py-3 rounded-xl border border-line text-muted hover:bg-surface hover:text-primary transition-colors font-semibold"
                     >
                       Cancelar
                     </button>
                     <button
                       onClick={handleSave}
                       disabled={saving || !extractedTransactions.some(t => t.selected)}
-                      className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-500 hover:to-blue-500 font-bold shadow-lg shadow-purple-500/20 transition-all disabled:opacity-50 flex items-center gap-2"
+                      className="px-8 py-3 rounded-xl bg-surface-soft   text-primary   font-bold shadow-lg  transition-all disabled:opacity-50 flex items-center gap-2"
                     >
                       {saving ? (
                         <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
                           Aplicando...
                         </>
                       ) : 'Confirmar Importación'}
@@ -491,7 +485,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
             {/* Mensajes de Resultado */}
             {result && (
               <div className={`rounded-xl p-4 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 ${
-                result.success ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
+                result.success ? 'bg-success-soft border border-line text-success' : 'bg-danger-soft border border-line text-danger'
               }`}>
                 {result.success ? <CheckCircle className="w-6 h-6 flex-shrink-0" /> : <AlertCircle className="w-6 h-6 flex-shrink-0" />}
                 <span className="font-semibold">{result.message}</span>
@@ -499,8 +493,8 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
             )}
           </div>
         </motion.div>
-      </motion.div>
-      
+      </Modal>
+
       {/* Mini-Modal para repartir gasto (Premium replacement for prompt) */}
       {sharingTransaction && (
         <ShareTransactionModal
