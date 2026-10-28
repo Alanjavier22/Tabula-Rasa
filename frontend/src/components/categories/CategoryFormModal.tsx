@@ -38,7 +38,7 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
           >
             {/* Header con estilo Glass */}
             <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-line shrink-0">
-              
+
               <h2 className="text-xl font-black text-primary tracking-tight flex items-center gap-3">
                 <div className={iconWrapperClass}>
                   {isCreate ? <Tag className="w-5 h-5 text-info" /> : <Edit className="w-5 h-5 text-accent-strong" />}
