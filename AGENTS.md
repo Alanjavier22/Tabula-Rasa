@@ -4,7 +4,7 @@ Antes de modificar el proyecto, leer `.agents/PROJECT_CONTEXT.md`. Ese archivo e
 
 Para contexto histórico y decisiones anteriores, consultar `HISTORIAL.md`.
 
-Para preguntas de arquitectura, relaciones entre archivos o flujo de datos, usar el grafo Graphify externo en `C:\Users\Alan\Documents\tabularasa_main\graphify-out`. Consultar primero su `graph.json`/`GRAPH_REPORT.md`; regenerarlo después de refactors estructurales con `graphify update C:\Users\Alan\Documents\tabularasa_main --force`.
+Para preguntas de arquitectura, relaciones entre archivos o flujo de datos, usar el grafo Graphify externo en `C:\Users\Alan\Documents\tabularasa_main\graphify-out`. Consultar primero su `graph.json`/`GRAPH_REPORT.md`; regenerarlo después de refactors estructurales con `graphify extract C:\Users\Alan\Documents\tabularasa_main\Tabula-Rasa --out C:\Users\Alan\Documents\tabularasa_main --code-only --force seguido de `graphify cluster-only C:\Users\Alan\Documents\tabularasa_main --no-label`.
 
 Reglas de continuidad:
 

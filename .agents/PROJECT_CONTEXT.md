@@ -6,12 +6,13 @@ Este archivo es la fuente operativa única para reanudar el trabajo. Los documen
 
 ## Graphify
 
-Existe un grafo arquitectónico externo en `C:\Users\Alan\Documents\tabularasa_main\graphify-out`, generado por Graphify. Consultar su `GRAPH_REPORT.md` para la fecha, recuentos y cobertura vigentes; el directorio padre también contiene repositorios de herramientas como Impeccable. Usarlo para arquitectura, dependencias y flujo entre módulos, confirmando siempre contra el código: las relaciones inferidas son orientación, no una fuente normativa.
+Existe un grafo arquitectónico externo en `C:\Users\Alan\Documents\tabularasa_main\graphify-out`, generado por Graphify. Consultar su `GRAPH_REPORT.md` para la fecha, recuentos y cobertura vigentes; el directorio padre también contiene repositorios de herramientas como Impeccable, React Bits y Magic UI, que deben quedar fuera del grafo. Usarlo para arquitectura, dependencias y flujo entre módulos, confirmando siempre contra el código: las relaciones inferidas son orientación, no una fuente normativa.
 
 Para regenerar el grafo después de refactors estructurales:
 
 ```powershell
-graphify update C:\Users\Alan\Documents\tabularasa_main --force
+graphify extract C:\Users\Alan\Documents\tabularasa_main\Tabula-Rasa --out C:\Users\Alan\Documents\tabularasa_main --code-only --force
+graphify cluster-only C:\Users\Alan\Documents\tabularasa_main --no-label
 ```
 
 La actualización de código es local y no requiere API key. Las etiquetas de comunidades pueden quedar pendientes de refrescar si cambia la estructura; eso no invalida el grafo de código.
@@ -80,6 +81,8 @@ Verificaciones vigentes:
 - El menú de arranque comprueba también `jwt` dentro del entorno virtual.
 - GitHub Actions valida automáticamente pruebas, dependencias, esquema, lint y build en Pull Requests hacia `main`, pushes a `main` y ejecuciones manuales. CodeQL analiza Python y JavaScript/TypeScript en Pull Requests, pushes, agenda semanal y ejecuciones manuales.
 - Primera mejora del frontend basada en Impeccable: disponible con horizonte real de 30 días, estados según el saldo, desglose de ajustes y recuperación ante errores; se retiraron el estado saludable fijo y el porcentaje presentado como presupuesto. Los selectores compartidos tienen búsqueda y navegación por teclado con opciones fuera del recorte de los formularios. Las confirmaciones usan `dialog` nativo, foco inicial en Cancelar, ciclo de Tab y retorno al origen. Los avisos de error/advertencia permanecen hasta cerrarlos por defecto. La migración visual se extendió a las once rutas: se retiró la capa global de compatibilidad del tema claro y se documentó el sistema en `frontend/DESIGN.md`. La navegación y la paleta comparten `utils/navigation.ts`; el resumen prioriza disponible, pagos y movimientos, con gráficos diferidos al abrir tendencias. Las transacciones agrupan importaciones, agregan filtros por cuenta/categoría y conservan virtualización con filas adaptables a ventanas estrechas. Los formularios principales comparten `Modal`, nombres accesibles y cancelación con Escape; el calendario nativo conserva el día y reemplaza react-datepicker. El Centinela se abre desde la cabecera, sin cubrir las acciones de filas. Los gráficos tienen tokens de tema y tablas de datos; el desglose de gastos usa barras ordenadas.
+- La dirección visual elegida para el frontend es «Lectura anotada»: papel cálido en claro, grafito cálido en oscuro, acento terracota, titulares e importes destacados con serif y superficies más abiertas. Los gráficos principales usan transiciones cortas que respetan movimiento reducido; la proyección de liquidez añade una nota calculada desde su punto futuro de menor saldo, sin invocar IA.
+- La auditoría visual unificó titulares y tono de las acciones, dejó visibles las acciones de cuentas, categorías, suscripciones y estados de cuenta con áreas de 44 px, y cambió la revisión financiera a un panel lateral contextual. La conciliación distingue tarjetas sin estados y resultados parciales; el índice del Centinela queda separado de su explicación asistida por IA y usa un tono neutral, también en el fallback local. La página fiscal comparte los tokens editoriales y elimina los degradados decorativos.
 
 ## Cómo arrancar
 
@@ -138,3 +141,7 @@ No hay pendientes bloqueantes. Quedan como trabajo futuro o decisiones explícit
 2. Ejecutar `git status --short` y preservar cambios no comprometidos.
 3. Confirmar el estado con la validación mínima antes de introducir cambios grandes.
 4. Si una solicitud contradice las decisiones de SRI histórico o multidispositivo, pedir confirmación antes de implementarla.
+
+## Dirección de escritorio vigente
+
+El usuario confirmó que el producto es web de escritorio. Se priorizan ventanas desde 980 px; no se desarrolla una experiencia móvil. Configuración queda fija al pie del lateral, con navegación desplazable si falta altura. El modo claro se adopta por defecto mediante una migración de preferencia única; después se conserva la elección explícita. El resumen editorial presenta proyección y disponible lado a lado, y pagos y movimientos en dos columnas. Validación: 121 pruebas backend, 13 frontend, Alembic, lint y build correctos.
