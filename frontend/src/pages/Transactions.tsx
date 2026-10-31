@@ -373,6 +373,44 @@ const Transactions = () => {
     if (isRecording) return "Detener grabación";
     return "Dictar";
   }
+
+  function renderTransactionResults() {
+    if (filteredTransactions.length) return (
+          <VirtualTransactionList
+            key={`${deferredSearchQuery}-${startDate}-${endDate}-${categoryFilter}-${accountFilter}`}
+            transactions={filteredTransactions}
+            rowHeight={132}
+            visibleRowCount={8}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        );
+    return (
+          <div className="app-empty-state">
+            <h2>
+              {transactions?.length
+                ? "No hay coincidencias"
+                : "Tu actividad empieza aquí"}
+            </h2>
+            <p>
+              {transactions?.length
+                ? "Prueba otra búsqueda o elimina los filtros para ver más movimientos."
+                : "Registra tu primera transacción o importa movimientos desde tu cuenta."}
+            </p>
+            <button
+              type="button"
+              className="app-btn"
+              onClick={
+                transactions?.length ? clearFilters : () => setShowModal(true)
+              }
+            >
+              {transactions?.length
+                ? "Limpiar filtros"
+                : "Registrar transacción"}
+            </button>
+          </div>
+        );
+  }
 return (
     <div className="app-page transactions-page">
       <div className="app-page-heading">
@@ -545,40 +583,7 @@ return (
         aria-label="Movimientos"
         aria-busy={searchQuery !== deferredSearchQuery}
       >
-        {filteredTransactions.length ? (
-          <VirtualTransactionList
-            key={`${deferredSearchQuery}-${startDate}-${endDate}-${categoryFilter}-${accountFilter}`}
-            transactions={filteredTransactions}
-            rowHeight={132}
-            visibleRowCount={8}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        ) : (
-          <div className="app-empty-state">
-            <h2>
-              {transactions?.length
-                ? "No hay coincidencias"
-                : "Tu actividad empieza aquí"}
-            </h2>
-            <p>
-              {transactions?.length
-                ? "Prueba otra búsqueda o elimina los filtros para ver más movimientos."
-                : "Registra tu primera transacción o importa movimientos desde tu cuenta."}
-            </p>
-            <button
-              type="button"
-              className="app-btn"
-              onClick={
-                transactions?.length ? clearFilters : () => setShowModal(true)
-              }
-            >
-              {transactions?.length
-                ? "Limpiar filtros"
-                : "Registrar transacción"}
-            </button>
-          </div>
-        )}
+        {renderTransactionResults()}
       </section>
       <AnimatePresence>
         {showImportModal && (

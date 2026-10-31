@@ -522,207 +522,9 @@ const Accounts = () => {
                   )
                 : 0;
 
-              return (
-                <motion.article
-                  key={account.id}
-                  layout
-                  initial={false}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
-                  className="account-card"
-                  style={{ '--account-color': accountAccent } as CSSProperties}
-                >
-                  {/* Compact Header Row */}
-                  <div className="account-card-top">
-                    <div className="account-card-identity">
-                      <div className="account-card-icon" aria-hidden="true">
-                        {getAccountIcon(account.account_type)}
-                      </div>
-                      <div className="account-card-title">
-                        <div className="account-card-meta-row">
-                          <span>{getAccountTypeLabel(account.account_type)}</span>
-                          <span className="account-card-dot">·</span>
-                          <span>{account.bank_name || 'Personal'}</span>
-                          {account.linked_account_id && (
-                            <span className="account-card-linked">
-                              <Link className="w-2.5 h-2.5" aria-hidden="true" />
-                              <span>Vinculada</span>
-                            </span>
-                          )}
-                        </div>
-                        <h3>{account.name}</h3>
-                      </div>
-                    </div>
 
-                    <div className="account-card-actions">
-                      <span
-                        className={`account-card-status ${
-                          account.is_active ? 'is-active' : 'is-inactive'
-                        }`}
-                      >
-                        <i aria-hidden="true" />
-                        {account.is_active ? 'Activa' : 'Inactiva'}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`Editar ${account.name}`}
-                        title="Editar cuenta"
-                        onClick={() => handleEdit(account)}
-                        className="account-card-action account-card-action-edit"
-                      >
-                        <Edit className="w-3.5 h-3.5" aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Eliminar ${account.name}`}
-                        title="Eliminar cuenta"
-                        onClick={() => handleDelete(account.id)}
-                        className="account-card-action account-card-action-delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Compact Balance Strip */}
-                  <div className="account-card-balance">
-                    <div className="account-card-balance-main">
-                      <span className="account-card-balance-label">
-                        {isCredit ? 'Deuda utilizada' : 'Saldo disponible'}
-                      </span>
-                      <strong className="account-card-balance-figure">
-                        $ {formatMoney(isCredit ? displayBal : account.balance)}
-                      </strong>
-                    </div>
-
-                    {isCredit ? (
-                      <div className="account-card-inline-split">
-                        <span>
-                          Tu parte: <strong>$ {formatMoney(totalUserDebtCents)}</strong>
-                        </span>
-                        <span className="account-card-dot">·</span>
-                        <span>
-                          Terceros: <strong>$ {formatMoney(totalOthersDebtCents)}</strong>
-                        </span>
-                        {account.credit_limit ? (
-                          <>
-                            <span className="account-card-dot">·</span>
-                            <span>
-                              Cupo: <strong>$ {formatMoney(account.credit_limit)}</strong>
-                            </span>
-                          </>
-                        ) : null}
-                      </div>
-                    ) : (
-                      (account.description ||
-                        account.statement_day ||
-                        account.payment_day) && (
-                        <div className="account-card-inline-split">
-                          {account.description && (
-                            <span>{account.description}</span>
-                          )}
-                        </div>
-                      )
-                    )}
-                  </div>
-
-                  {/* Credit Card Collapsible Statement Section */}
-                  {isCredit && (
-                    <div className="account-card-statement">
-                      {stmt ? (
-                        <div className="account-statement-block">
-                          <div className="account-statement-bar">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setExpandedCard(
-                                  isExpanded ? null : account.id,
-                                )
-                              }
-                              className={`account-statement-trigger ${
-                                isExpanded ? 'is-open' : ''
-                              }`}
-                              aria-expanded={isExpanded}
-                            >
-                              <div className="account-statement-trigger-left">
-                                <FileText
-                                  className="w-3.5 h-3.5 text-accent-strong"
-                                  aria-hidden="true"
-                                />
-                                <span className="account-statement-trigger-label">
-                                  Estado de cuenta ·{' '}
-                                  {MONTH_SHORT[(stmt.month ?? 1) - 1] ??
-                                    stmt.month}{' '}
-                                  {stmt.year}
-                                </span>
-                                <span
-                                  className={`account-statement-pill ${
-                                    remainingToPay.lte(0)
-                                      ? 'is-paid'
-                                      : 'is-pending'
-                                  }`}
-                                >
-                                  {remainingToPay.lte(0)
-                                    ? 'Al día'
-                                    : `Falta $ ${formatMoney(remainingToPay)}`}
-                                </span>
-                              </div>
-                              <span
-                                className="app-disclosure-chevron"
-                                aria-hidden="true"
-                              >
-                                <ChevronDown className="w-3.5 h-3.5" />
-                              </span>
-                            </button>
-
-                            <div className="account-statement-actions">
-                              <button
-                                type="button"
-                                aria-label={`Editar estado de cuenta de ${account.name}`}
-                                title="Editar estado de cuenta"
-                                onClick={() => handleEditStatement(stmt)}
-                              >
-                                <Edit
-                                  className="w-3.5 h-3.5"
-                                  aria-hidden="true"
-                                />
-                              </button>
-                              <button
-                                type="button"
-                                aria-label={`Eliminar estado de cuenta de ${account.name}`}
-                                title="Eliminar estado de cuenta"
-                                onClick={() => handleDeleteStatement(stmt.id)}
-                              >
-                                <Trash2
-                                  className="w-3.5 h-3.5"
-                                  aria-hidden="true"
-                                />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Thin progress indicator always visible */}
-                          <div
-                            className="account-statement-mini-progress"
-                            title={`Abonado: ${paidPct.toFixed(0)}%`}
-                          >
-                            <div style={{ width: `${paidPct}%` }} />
-                          </div>
-
-                          {/* Expandable Drawer */}
-                          <AnimatePresence initial={false}>
-                            {isExpanded && (
-                              <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{
-                                  duration: 0.22,
-                                  ease: [0.22, 1, 0.36, 1],
-                                }}
-                                className="app-disclosure-body"
-                              >
-                                <div className="account-statement-drawer">
+              function renderStatementDrawer() { if (!stmt) return null;
+                return (<div className="account-statement-drawer">
                                   {(stmt.cut_off_date ||
                                     stmt.payment_due_date ||
                                     account.statement_day ||
@@ -841,7 +643,105 @@ const Accounts = () => {
                                       </p>
                                     )
                                   )}
-                                </div>
+                                </div>);
+              }
+
+              function renderAccountStatement() {
+                return (<div className="account-card-statement">
+                      {stmt ? (
+                        <div className="account-statement-block">
+                          <div className="account-statement-bar">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedCard(
+                                  isExpanded ? null : account.id,
+                                )
+                              }
+                              className={`account-statement-trigger ${
+                                isExpanded ? 'is-open' : ''
+                              }`}
+                              aria-expanded={isExpanded}
+                            >
+                              <div className="account-statement-trigger-left">
+                                <FileText
+                                  className="w-3.5 h-3.5 text-accent-strong"
+                                  aria-hidden="true"
+                                />
+                                <span className="account-statement-trigger-label">
+                                  Estado de cuenta ·{' '}
+                                  {MONTH_SHORT[(stmt.month ?? 1) - 1] ??
+                                    stmt.month}{' '}
+                                  {stmt.year}
+                                </span>
+                                <span
+                                  className={`account-statement-pill ${
+                                    remainingToPay.lte(0)
+                                      ? 'is-paid'
+                                      : 'is-pending'
+                                  }`}
+                                >
+                                  {remainingToPay.lte(0)
+                                    ? 'Al día'
+                                    : `Falta $ ${formatMoney(remainingToPay)}`}
+                                </span>
+                              </div>
+                              <span
+                                className="app-disclosure-chevron"
+                                aria-hidden="true"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </span>
+                            </button>
+
+                            <div className="account-statement-actions">
+                              <button
+                                type="button"
+                                aria-label={`Editar estado de cuenta de ${account.name}`}
+                                title="Editar estado de cuenta"
+                                onClick={() => handleEditStatement(stmt)}
+                              >
+                                <Edit
+                                  className="w-3.5 h-3.5"
+                                  aria-hidden="true"
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Eliminar estado de cuenta de ${account.name}`}
+                                title="Eliminar estado de cuenta"
+                                onClick={() => handleDeleteStatement(stmt.id)}
+                              >
+                                <Trash2
+                                  className="w-3.5 h-3.5"
+                                  aria-hidden="true"
+                                />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Thin progress indicator always visible */}
+                          <div
+                            className="account-statement-mini-progress"
+                            title={`Abonado: ${paidPct.toFixed(0)}%`}
+                          >
+                            <div style={{ width: `${paidPct}%` }} />
+                          </div>
+
+                          {/* Expandable Drawer */}
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{
+                                  duration: 0.22,
+                                  ease: [0.22, 1, 0.36, 1],
+                                }}
+                                className="app-disclosure-body"
+                              >
+                                {renderStatementDrawer()}
                               </motion.div>
                             )}
                           </AnimatePresence>
@@ -856,8 +756,118 @@ const Accounts = () => {
                           Agregar estado de cuenta
                         </button>
                       )}
+                    </div>);
+              }
+
+              function renderAccountBalance() {
+                return (<div className="account-card-balance">
+                    <div className="account-card-balance-main">
+                      <span className="account-card-balance-label">
+                        {isCredit ? 'Deuda utilizada' : 'Saldo disponible'}
+                      </span>
+                      <strong className="account-card-balance-figure">
+                        $ {formatMoney(isCredit ? displayBal : account.balance)}
+                      </strong>
                     </div>
-                  )}
+
+                    {isCredit ? (
+                      <div className="account-card-inline-split">
+                        <span>
+                          Tu parte: <strong>$ {formatMoney(totalUserDebtCents)}</strong>
+                        </span>
+                        <span className="account-card-dot">·</span>
+                        <span>
+                          Terceros: <strong>$ {formatMoney(totalOthersDebtCents)}</strong>
+                        </span>
+                        {account.credit_limit ? (
+                          <>
+                            <span className="account-card-dot">·</span>
+                            <span>
+                              Cupo: <strong>$ {formatMoney(account.credit_limit)}</strong>
+                            </span>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : (
+                      (account.description ||
+                        account.statement_day ||
+                        account.payment_day) && (
+                        <div className="account-card-inline-split">
+                          {account.description && (
+                            <span>{account.description}</span>
+                          )}
+                        </div>
+                      )
+                    )}
+                  </div>);
+              }
+return (
+                <motion.article
+                  key={account.id}
+                  layout
+                  initial={false}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                  className="account-card"
+                  style={{ '--account-color': accountAccent } as CSSProperties}
+                >
+                  {/* Compact Header Row */}
+                  <div className="account-card-top">
+                    <div className="account-card-identity">
+                      <div className="account-card-icon" aria-hidden="true">
+                        {getAccountIcon(account.account_type)}
+                      </div>
+                      <div className="account-card-title">
+                        <div className="account-card-meta-row">
+                          <span>{getAccountTypeLabel(account.account_type)}</span>
+                          <span className="account-card-dot">·</span>
+                          <span>{account.bank_name || 'Personal'}</span>
+                          {account.linked_account_id && (
+                            <span className="account-card-linked">
+                              <Link className="w-2.5 h-2.5" aria-hidden="true" />
+                              <span>Vinculada</span>
+                            </span>
+                          )}
+                        </div>
+                        <h3>{account.name}</h3>
+                      </div>
+                    </div>
+
+                    <div className="account-card-actions">
+                      <span
+                        className={`account-card-status ${
+                          account.is_active ? 'is-active' : 'is-inactive'
+                        }`}
+                      >
+                        <i aria-hidden="true" />
+                        {account.is_active ? 'Activa' : 'Inactiva'}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Editar ${account.name}`}
+                        title="Editar cuenta"
+                        onClick={() => handleEdit(account)}
+                        className="account-card-action account-card-action-edit"
+                      >
+                        <Edit className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Eliminar ${account.name}`}
+                        title="Eliminar cuenta"
+                        onClick={() => handleDelete(account.id)}
+                        className="account-card-action account-card-action-delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Compact Balance Strip */}
+                  {renderAccountBalance()}
+
+                  {/* Credit Card Collapsible Statement Section */}
+                  {isCredit && renderAccountStatement()}
                 </motion.article>
               );
             })}

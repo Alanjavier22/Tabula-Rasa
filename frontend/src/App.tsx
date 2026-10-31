@@ -91,7 +91,7 @@ function App() {
       }
     };
 
-    void runHeartbeat();
+    runHeartbeat();
   }, []);
 
   useEffect(() => {
