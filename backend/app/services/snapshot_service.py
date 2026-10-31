@@ -187,7 +187,6 @@ class SnapshotService:
         is_past_month = target_end_date < datetime.now(timezone.utc)
         assets_accounts = db.query(Account).filter(
             Account.is_active == 1,
-            Account.is_active == 1,
             Account.is_deleted == False,
             Account.account_type.in_(["checking", "savings", "investment", "cash"])
         ).all()
