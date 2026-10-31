@@ -1,7 +1,9 @@
+import { importFailure } from '../utils/importOutcome';
+import ImportResult from './common/ImportResult';
 import Modal from './common/Modal';
 import { useState, useEffect } from 'react';
 import { intelligenceAPI, accountsAPI } from '../services/api';
-import { X, CheckCircle, AlertCircle, Trash2, CreditCard, Calendar, DollarSign, User } from 'lucide-react';
+import { X, AlertCircle, Trash2, CreditCard, Calendar, DollarSign, User } from 'lucide-react';
 import type { Account, StatementExtractedTransaction, StatementParsingResponse } from '../types';
 import type { AxiosError } from 'axios';
 import { formatMoney } from '../utils/money';
@@ -128,11 +130,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
       } else {
         setResult({ success: false, message: 'No se detectaron transacciones en el documento.' });
       }
-    } catch (error) {
-      console.error('Processing error:', error);
-      const detail = (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al procesar el estado de cuenta con IA.';
-      setResult({ success: false, message: detail });
-    } finally {
+    } catch (error) { setResult(importFailure(error, "Error al procesar el estado de cuenta con IA.")); } finally {
       setProcessing(false);
     }
   };
@@ -483,14 +481,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
             )}
 
             {/* Mensajes de Resultado */}
-            {result && (
-              <div className={`rounded-xl p-4 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 ${
-                result.success ? 'bg-success-soft border border-line text-success' : 'bg-danger-soft border border-line text-danger'
-              }`}>
-                {result.success ? <CheckCircle className="w-6 h-6 flex-shrink-0" /> : <AlertCircle className="w-6 h-6 flex-shrink-0" />}
-                <span className="font-semibold">{result.message}</span>
-              </div>
-            )}
+            <ImportResult result={result} />
           </div>
         </motion.div>
       </Modal>

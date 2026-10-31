@@ -1,7 +1,8 @@
+import FormActions from '../common/FormActions';
 import Modal from '../common/Modal';
 import type { Dispatch, SetStateAction } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, DollarSign, ShieldCheck, CheckCircle2, Calendar, AlignLeft, RefreshCw, X } from 'lucide-react';
+import { Layers, DollarSign, ShieldCheck, CheckCircle2, Calendar, AlignLeft, X } from 'lucide-react';
 import type { CreditCardStatement } from '../../types';
 import Select from '../common/Select';
 
@@ -216,30 +217,9 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
             </form>
 
             {/* Footer */}
-            <div className="p-7 border-t border-line bg-canvas flex items-center gap-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 py-4 rounded-2xl border border-line text-muted hover:text-primary hover:bg-surface-soft transition-all text-xs font-black uppercase tracking-widest"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                onClick={onSubmit}
-                disabled={saving}
-                className="flex-[2] py-4 rounded-2xl bg-surface-soft   text-primary transition-all text-xs font-black uppercase tracking-widest shadow-xl  disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
-              >
-                {saving ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Guardando...
-                  </div>
-                ) : (
+            <FormActions saving={saving} onClose={onClose} onSubmit={onSubmit} submitLabel={(
                   'Registrar Corte'
-                )}
-              </button>
-            </div>
+                )} />
           </motion.div>
         </Modal>
       )}

@@ -1,6 +1,7 @@
-import Modal from '../common/Modal';
+import FormModalFrame from '../common/FormModalFrame';
+
 import type { Dispatch, SetStateAction } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+
 import { Bell, X } from 'lucide-react';
 import type { ReminderFrequency, ReminderStatus } from '../../types';
 import Select from '../common/Select';
@@ -32,16 +33,7 @@ const ReminderFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditF
   const submitLabel = isCreate ? 'Crear Alerta' : 'Actualizar Alerta';
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <Modal onClose={onClose} label={'Recordatorio'}>
-          <motion.div
-            initial={false}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 12 }}
-            className="relative w-full max-w-lg bg-canvas rounded-2xl border border-line shadow-2xl overflow-hidden flex flex-col max-h-[88dvh]"
-            onClick={e => e.stopPropagation()}
-          >
+    <FormModalFrame isOpen={isOpen} onClose={onClose} label="Recordatorio">
             <div className="px-6 py-4 border-b border-line flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-warning-soft flex items-center justify-center border border-line text-warning">
@@ -189,10 +181,7 @@ const ReminderFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditF
                 </button>
               </div>
             </form>
-          </motion.div>
-        </Modal>
-      )}
-    </AnimatePresence>
+          </FormModalFrame>
   );
 };
 

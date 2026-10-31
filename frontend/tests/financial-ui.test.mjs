@@ -38,6 +38,22 @@ after(async () => {
   await server?.close();
 });
 
+test('los gráficos conservan meses y cantidades al cruzar el año', async () => {
+  const { formatMonthLabel, formatMonthShort, formatUSD } = await server.ssrLoadModule('/src/utils/chartFormatters.ts');
+  assert.equal(formatMonthLabel('2026-12'), 'Diciembre de 2026');
+  assert.equal(formatMonthShort('2027-01'), 'Ene 27');
+  assert.equal(formatUSD(1234.56), '1,234.56');
+});
+
+test('las importaciones muestran errores legibles y evitan detalles inválidos', async () => {
+  const { importFailure } = await server.ssrLoadModule('/src/utils/importOutcome.ts');
+  assert.deepEqual(importFailure({ isAxiosError: true, response: { data: { detail: 'Archivo no válido' } } }, 'Reintenta'), {
+    success: false, message: 'Archivo no válido',
+  });
+  assert.equal(importFailure({ isAxiosError: true, response: { data: { detail: { code: 500 } } } }, 'Reintenta').message, 'Reintenta');
+  assert.equal(importFailure(new Error('Información interna'), 'Reintenta').message, 'Reintenta');
+});
+
 const data = {
   safe_to_spend: 10000,
   current_balance: 20000,

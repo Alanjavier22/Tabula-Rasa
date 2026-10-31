@@ -1,3 +1,4 @@
+import FormActions from '../common/FormActions';
 import Modal from '../common/Modal';
 import type { Dispatch, SetStateAction } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -166,22 +167,7 @@ const BudgetFormModal = ({
                   </div>
                 </div>
 
-                <div className="pt-2 flex justify-end gap-3 border-t border-line">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="app-btn app-btn-ghost"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="app-btn app-btn-primary disabled:opacity-50"
-                  >
-                    {saving ? 'Guardando...' : 'Confirmar Presupuesto'}
-                  </button>
-                </div>
+                <FormActions variant="inline" saving={saving} onClose={onClose} submitLabel={'Confirmar Presupuesto'} />
               </form>
             )}
 
@@ -256,22 +242,7 @@ const BudgetFormModal = ({
                   </div>
                 </div>
 
-                <div className="pt-2 flex justify-end gap-3 border-t border-line">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="app-btn app-btn-ghost"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="app-btn app-btn-primary disabled:opacity-50"
-                  >
-                    {saving ? 'Guardando...' : 'Actualizar Límites'}
-                  </button>
-                </div>
+                <FormActions variant="inline" saving={saving} onClose={onClose} submitLabel={'Actualizar Límites'} />
               </form>
             )}
 
@@ -323,22 +294,7 @@ const BudgetFormModal = ({
                     Limpiar registros previos del mes destino
                   </span>
                 </label>
-                <div className="pt-2 flex justify-end gap-3 border-t border-line">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="app-btn app-btn-ghost"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="app-btn app-btn-primary disabled:opacity-50"
-                  >
-                    {saving ? 'Procesando...' : 'Sincronizar Mes'}
-                  </button>
-                </div>
+                <FormActions variant="inline" saving={saving} onClose={onClose} submitLabel={'Sincronizar Mes'} />
               </form>
             )}
           </motion.div>
