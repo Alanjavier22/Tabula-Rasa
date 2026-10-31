@@ -47,3 +47,11 @@ El detector de Impeccable mantiene avisos estilísticos por la familia Inter exi
 - Magic UI: `AnimatedList` revela elementos secuencialmente; `NumberTicker` interpola cifras y `BlurFade` oculta contenido durante la entrada. No se aplican a movimientos ni saldos porque retrasar o animar valores puede dificultar su lectura. `ScrollProgress` se basa en el scroll de ventana, mientras escritorio usa un contenedor propio. Su licencia es MIT. Estas referencias se evaluaron sin copiar código ni añadir dependencias.
 
 El modo claro es el valor inicial. La migración `editorial-light-v1` adopta ese valor una vez para preferencias antiguas; después se conserva la selección explícita del usuario. El resumen muestra proyección y disponible en columnas, seguidos por pagos y movimientos.
+
+
+## Componentes compartidos y cascada
+
+- Modal utiliza dialog nativo. FormModalFrame conserva la animación y estructura de los formularios compactos; FormActions unifica cancelación y guardado; ImportResult presenta el resultado como estado accesible.
+- ActionMenu conserva el cierre con Escape y devuelve el foco al resumen del menú.
+- Los estilos definen una sola regla por selector y contexto. Resolver conflictos mediante orden de variantes y especificidad contextual; conservar los ajustes de movimiento reducido.
+- chartFormatters comparte nombres de meses e importes entre las gráficas.

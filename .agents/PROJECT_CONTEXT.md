@@ -1,6 +1,6 @@
 # Tabula Rasa — contexto operativo del proyecto
 
-Última actualización: 2026-10-28
+Última actualización: 2026-10-31
 
 Este archivo es la fuente operativa única para reanudar el trabajo. Los documentos de trabajo `TECH_DEBT.md` y `PLAN_LLM.md` fueron retirados del nivel raíz después de consolidar sus decisiones vigentes aquí; `HISTORIAL.md` conserva la cronología del proyecto.
 
@@ -37,11 +37,11 @@ El proyecto está listo para continuar. No hay fallos bloqueantes conocidos.
 
 Verificaciones vigentes:
 
-- Backend: `121 passed`, sin warnings de pytest.
+- Backend: `130 passed`, sin warnings de pytest.
 - Dependencias backend: `pip check` sin dependencias rotas.
 - Esquema: `alembic check` sin operaciones nuevas.
 - Frontend: TypeScript, lint con `--max-warnings 0` y build de producción correctos.
-- Frontend: `npm test` verifica 13 regresiones: estados del disponible, filtros combinados y fecha final inclusiva, calendario sin conversión horaria, categorías ordenadas, rutas compartidas y contraste AA de textos en ambos temas. Usa Vite SSR con caché independiente del servidor de desarrollo; no consulta el backend ni Gemini.
+- Frontend: `npm test` verifica 15 regresiones: estados del disponible, filtros combinados y fecha final inclusiva, calendario sin conversión horaria, categorías ordenadas, rutas compartidas, formatos temporales de gráficos, errores de importación y contraste AA de textos en ambos temas. Usa Vite SSR con caché independiente del servidor de desarrollo; no consulta el backend ni Gemini.
 - Runtime: `/health` devuelve `healthy` y la base devuelve `healthy`.
 - Integridad local revisada: 197 transacciones, 0 fingerprints nulos y 0 fingerprints duplicados.
 
@@ -144,4 +144,12 @@ No hay pendientes bloqueantes. Quedan como trabajo futuro o decisiones explícit
 
 ## Dirección de escritorio vigente
 
-El usuario confirmó que el producto es web de escritorio. Se priorizan ventanas desde 980 px; no se desarrolla una experiencia móvil. Configuración queda fija al pie del lateral, con navegación desplazable si falta altura. El modo claro se adopta por defecto mediante una migración de preferencia única; después se conserva la elección explícita. El resumen editorial presenta proyección y disponible lado a lado, y pagos y movimientos en dos columnas. Validación: 121 pruebas backend, 13 frontend, Alembic, lint y build correctos.
+El usuario confirmó que el producto es web de escritorio. Se priorizan ventanas desde 980 px; no se desarrolla una experiencia móvil. Configuración queda fija al pie del lateral, con navegación desplazable si falta altura. El modo claro se adopta por defecto mediante una migración de preferencia única; después se conserva la elección explícita. El resumen editorial presenta proyección y disponible lado a lado, y pagos y movimientos en dos columnas. Validación: 130 pruebas backend, 15 frontend, Alembic, lint y build correctos.
+
+
+## Cierre de calidad del frontend — 2026-10-31
+
+- El PR #68 pasó de 494 hallazgos abiertos a 0; SonarCloud midió 94,1 % de cobertura del código nuevo y 0,0 % de duplicación, con Quality Gate aprobado. El frontend conserva la exclusión de cobertura preexistente porque sus pruebas SSR aún no generan LCOV; no se ampliaron exclusiones para resolver los hallazgos.
+- La cascada CSS se consolidó, se retiraron las prioridades forzadas y el desplazamiento suave solo se activa sin preferencia de movimiento reducido. Se compararon estilos de las once rutas en claro y cuatro rutas en oscuro.
+- Modal usa dialog nativo para foco, fondo inerte y apilado. ActionMenu conserva Escape; FormActions, FormModalFrame e ImportResult comparten controles de formularios e importaciones. Los gráficos comparten chartFormatters.
+- La suite backend incluye nueve regresiones financieras nuevas con SQLite aislado; no se consultó Gemini durante la revisión. Las validaciones vigentes son 130 pruebas backend, 15 frontend, Alembic, lint y build.
