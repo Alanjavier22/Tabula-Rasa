@@ -1,3 +1,4 @@
+import ActionMenu from '../components/common/ActionMenu';
 import { Link } from "react-router-dom";
 import Modal from "../components/common/Modal";
 import {
@@ -528,7 +529,150 @@ const Dashboard = () => {
     [transactions],
   );
 
-  return (
+
+  function renderOverviewMetrics() {
+    if (dashboardSummary && results[1].data) return (
+        <SummaryCards
+          balance={totalBalance}
+          creditCardDebt={totalCreditCardDebt}
+          income={totalIncome}
+          expenses={totalExpenses}
+        />
+      );
+    if (results[11].isError || results[1].isError) return (
+        <output className="app-inline-message">
+          No se pudieron obtener los indicadores.{" "}
+          <button
+            type="button"
+            className="app-btn"
+            onClick={() => {
+              void results[11].refetch();
+              void results[1].refetch();
+            }}
+          >
+            Reintentar indicadores
+          </button>
+        </output>
+      );
+    return (
+        <div className="app-summary-grid">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      );
+  }
+
+  function renderUpcomingPayments() {
+    if (paymentAlertsWithItems) return (
+              <PaymentAlertsPanel data={paymentAlertsWithItems} />
+            );
+    if (paymentsLoading) return (
+              <output className="app-inline-message">
+                Consultando próximos pagos…
+              </output>
+            );
+    if (paymentsError) return (
+              <output className="app-inline-message">
+                No se pudieron consultar los vencimientos.{" "}
+                <button
+                  type="button"
+                  className="app-btn"
+                  onClick={() => {
+                    void refetchPayments();
+                  }}
+                >
+                  Reintentar pagos
+                </button>
+              </output>
+            );
+    return (
+              <p className="dashboard-rail-empty">
+                Sin vencimientos registrados para los próximos 30 días.
+              </p>
+            );
+  }
+
+  function renderRecentActivity() {
+    if (recentTransactions.length) return (
+                <ul className="dashboard-recent-list">
+                  {recentTransactions.map((transaction) => {
+                    const isIncome = transaction.transaction_type === "income";
+                    const categoryName = transaction.category_id
+                      ? categoryMap.get(transaction.category_id)
+                      : undefined;
+                    return (
+                      <li key={transaction.id}>
+                        <div className="dashboard-recent-item-main">
+                          <span
+                            className={`dashboard-recent-icon ${
+                              isIncome ? "is-income" : "is-expense"
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {isIncome ? (
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            ) : (
+                              <ArrowDownRight className="w-3.5 h-3.5" />
+                            )}
+                          </span>
+                          <div>
+                            <strong>
+                              {transaction.description || "Sin descripción"}
+                            </strong>
+                            <div className="dashboard-recent-meta">
+                              <time dateTime={transaction.date}>
+                                {transaction.date.slice(0, 10)}
+                              </time>
+                              {categoryName && (
+                                <span className="dashboard-recent-cat">
+                                  {categoryName}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <span
+                          className={`dashboard-recent-amount ${
+                            isIncome ? "text-success" : "text-primary"
+                          }`}
+                        >
+                          {isIncome ? "+" : "−"}${" "}
+                          {formatMoney(transaction.amount)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              );
+    if (results[8].isPending) return (
+                <output className="app-inline-message">
+                  Cargando movimientos…
+                </output>
+              );
+    if (results[8].isError) return (
+                <output className="app-inline-message">
+                  No se pudieron cargar los movimientos.{" "}
+                  <button
+                    type="button"
+                    className="app-btn"
+                    onClick={() => {
+                      void results[8].refetch();
+                    }}
+                  >
+                    Reintentar movimientos
+                  </button>
+                </output>
+              );
+    return (
+                <p className="app-inline-message">
+                  Registra una transacción o importa movimientos para ver tu
+                  actividad reciente.
+                </p>
+              );
+  }
+return (
     <div className="app-page dashboard-page">
       <div className="app-page-heading">
         <div className="dashboard-heading-copy">
@@ -547,15 +691,7 @@ const Dashboard = () => {
             <Plus aria-hidden="true" />
             Nueva transacción
           </Link>
-          <details
-            className="app-action-menu"
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                event.currentTarget.open = false;
-                event.currentTarget.querySelector("summary")?.focus();
-              }
-            }}
+          <ActionMenu
           >
             <summary className="app-btn">
               <MoreHorizontal aria-hidden="true" />
@@ -589,39 +725,11 @@ const Dashboard = () => {
                 {creatingSnapshot ? "Cerrando…" : "Cerrar mes"}
               </button>
             </div>
-          </details>
+          </ActionMenu>
         </div>
       </div>
 
-      {dashboardSummary && results[1].data ? (
-        <SummaryCards
-          balance={totalBalance}
-          creditCardDebt={totalCreditCardDebt}
-          income={totalIncome}
-          expenses={totalExpenses}
-        />
-      ) : results[11].isError || results[1].isError ? (
-        <p role="status" className="app-inline-message">
-          No se pudieron obtener los indicadores.{" "}
-          <button
-            type="button"
-            className="app-btn"
-            onClick={() => {
-              void results[11].refetch();
-              void results[1].refetch();
-            }}
-          >
-            Reintentar indicadores
-          </button>
-        </p>
-      ) : (
-        <div className="app-summary-grid">
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-          <SkeletonCard />
-        </div>
-      )}
+      {renderOverviewMetrics()}
 
       {/* Editorial 2-Column Overview: Liquidity Forecast on the left, Safe-to-Spend + Upcoming Payments on the right */}
       <div className="dashboard-overview-grid">
@@ -656,30 +764,7 @@ const Dashboard = () => {
                 Calendario
               </Link>
             </div>
-            {paymentAlertsWithItems ? (
-              <PaymentAlertsPanel data={paymentAlertsWithItems} />
-            ) : paymentsLoading ? (
-              <p role="status" className="app-inline-message">
-                Consultando próximos pagos…
-              </p>
-            ) : paymentsError ? (
-              <p role="status" className="app-inline-message">
-                No se pudieron consultar los vencimientos.{" "}
-                <button
-                  type="button"
-                  className="app-btn"
-                  onClick={() => {
-                    void refetchPayments();
-                  }}
-                >
-                  Reintentar pagos
-                </button>
-              </p>
-            ) : (
-              <p className="dashboard-rail-empty">
-                Sin vencimientos registrados para los próximos 30 días.
-              </p>
-            )}
+            {renderUpcomingPayments()}
           </section>
         </div>
       </div>
@@ -761,79 +846,7 @@ const Dashboard = () => {
                   Ver todos
                 </Link>
               </div>
-              {recentTransactions.length ? (
-                <ul className="dashboard-recent-list">
-                  {recentTransactions.map((transaction) => {
-                    const isIncome = transaction.transaction_type === "income";
-                    const categoryName = transaction.category_id
-                      ? categoryMap.get(transaction.category_id)
-                      : undefined;
-                    return (
-                      <li key={transaction.id}>
-                        <div className="dashboard-recent-item-main">
-                          <span
-                            className={`dashboard-recent-icon ${
-                              isIncome ? "is-income" : "is-expense"
-                            }`}
-                            aria-hidden="true"
-                          >
-                            {isIncome ? (
-                              <ArrowUpRight className="w-3.5 h-3.5" />
-                            ) : (
-                              <ArrowDownRight className="w-3.5 h-3.5" />
-                            )}
-                          </span>
-                          <div>
-                            <strong>
-                              {transaction.description || "Sin descripción"}
-                            </strong>
-                            <div className="dashboard-recent-meta">
-                              <time dateTime={transaction.date}>
-                                {transaction.date.slice(0, 10)}
-                              </time>
-                              {categoryName && (
-                                <span className="dashboard-recent-cat">
-                                  {categoryName}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <span
-                          className={`dashboard-recent-amount ${
-                            isIncome ? "text-success" : "text-primary"
-                          }`}
-                        >
-                          {isIncome ? "+" : "−"}${" "}
-                          {formatMoney(transaction.amount)}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : results[8].isPending ? (
-                <p role="status" className="app-inline-message">
-                  Cargando movimientos…
-                </p>
-              ) : results[8].isError ? (
-                <p role="status" className="app-inline-message">
-                  No se pudieron cargar los movimientos.{" "}
-                  <button
-                    type="button"
-                    className="app-btn"
-                    onClick={() => {
-                      void results[8].refetch();
-                    }}
-                  >
-                    Reintentar movimientos
-                  </button>
-                </p>
-              ) : (
-                <p className="app-inline-message">
-                  Registra una transacción o importa movimientos para ver tu
-                  actividad reciente.
-                </p>
-              )}
+              {renderRecentActivity()}
             </section>
 
             <Suspense fallback={<SkeletonCard />}>
@@ -847,7 +860,7 @@ const Dashboard = () => {
 
         {activeTab === "tendencias" && (
           <div className="dashboard-trends-panel" role="tabpanel">
-            <Suspense fallback={<p role="status">Cargando gráficos…</p>}>
+            <Suspense fallback={<output>Cargando gráficos…</output>}>
               <DashboardMetricsRow
                 netBalance={netBalance}
                 totalStatementDue={totalStatementDue}

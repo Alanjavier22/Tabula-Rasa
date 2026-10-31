@@ -284,11 +284,11 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
 
   if (loading) {
     return (
-      <div className="fiscal-loading" role="status" aria-busy="true">
+      <output className="fiscal-loading" aria-busy="true">
         <span className="text-sm font-medium text-muted">
           Procesando datos fiscales y tasas de IVA del SRI…
         </span>
-      </div>
+      </output>
     );
   }
 

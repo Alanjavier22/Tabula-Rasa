@@ -1,3 +1,4 @@
+import ActionMenu from '../components/common/ActionMenu';
 import { useSearchParams } from "react-router-dom";
 import Select from "../components/common/Select";
 import { filterTransactions } from "../utils/transactionFilters";
@@ -366,7 +367,13 @@ const Transactions = () => {
     );
   }
 
-  return (
+
+  function renderDictationAction() {
+    if (processingAudio) return "Procesando…";
+    if (isRecording) return "Detener grabación";
+    return "Dictar";
+  }
+return (
     <div className="app-page transactions-page">
       <div className="app-page-heading">
         <div>
@@ -386,15 +393,7 @@ const Transactions = () => {
             <Plus aria-hidden="true" />
             Nueva transacción
           </button>
-          <details
-            className="app-action-menu"
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                event.currentTarget.open = false;
-                event.currentTarget.querySelector("summary")?.focus();
-              }
-            }}
+          <ActionMenu
           >
             <summary className="app-btn">
               <Upload aria-hidden="true" />
@@ -421,7 +420,7 @@ const Transactions = () => {
                 Escanear recibo
               </button>
             </div>
-          </details>
+          </ActionMenu>
           <button
             type="button"
             className="app-btn"
@@ -434,11 +433,7 @@ const Transactions = () => {
             ) : (
               <Mic aria-hidden="true" />
             )}
-            {processingAudio
-              ? "Procesando…"
-              : isRecording
-                ? "Detener grabación"
-                : "Dictar"}
+            {renderDictationAction()}
           </button>
         </div>
       </div>
@@ -457,9 +452,9 @@ const Transactions = () => {
         </div>
       </dl>
       {isAICategorizing && (
-        <p role="status" className="app-inline-message">
+        <output className="app-inline-message">
           Clasificación de las transacciones importadas en curso…
-        </p>
+        </output>
       )}
       <section
         className="app-surface transactions-filters"
@@ -530,10 +525,10 @@ const Transactions = () => {
           </p>
         )}
         <div className="transactions-result-count">
-          <p role="status">
+          <output>
             {filteredTransactions.length} movimientos
             {filtersActive ? " encontrados" : ""}
-          </p>
+          </output>
           {filtersActive && (
             <button
               type="button"

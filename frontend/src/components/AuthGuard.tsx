@@ -31,27 +31,28 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     setIsLocalhostConnecting(true);
     setLocalhostError(null);
 
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const attemptPairing = async (attempt: number): Promise<void> => {
       try {
         await authAPI.pairLocalhost();
         setIsAuthenticated(true);
-        setIsLocalhostConnecting(false);
-        return;
       } catch (err) {
         if ((err as AxiosError).response?.status === 403) {
           setLocalhostError('Acceso denegado: este endpoint solo está disponible desde la máquina host.');
-          setIsLocalhostConnecting(false);
           return;
         }
-
-        if (attempt < MAX_RETRIES) {
-          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        if (attempt >= MAX_RETRIES) {
+          setLocalhostError('No se pudo conectar al servidor local después de varios intentos.');
+          return;
         }
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        return attemptPairing(attempt + 1);
       }
+    };
+    try {
+      await attemptPairing(1);
+    } finally {
+      setIsLocalhostConnecting(false);
     }
-
-    setLocalhostError('No se pudo conectar al servidor local después de varios intentos.');
-    setIsLocalhostConnecting(false);
   }, []);
 
   useEffect(() => {
@@ -111,7 +112,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
       <div className="min-h-screen bg-canvas flex flex-col items-center justify-center p-6 text-primary">
         <div className="max-w-md w-full text-center">
           <div className="w-20 h-20 bg-danger-soft rounded-2xl flex items-center justify-center mx-auto mb-6 border border-line">
-            <svg className="w-10 h-10 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg aria-hidden="true" className="w-10 h-10 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
@@ -132,7 +133,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
     <div className="min-h-screen bg-canvas flex flex-col items-center justify-center p-6 text-primary">
       <div className="max-w-md w-full text-center space-y-6">
         <div className="w-20 h-20 bg-accent-soft rounded-2xl flex items-center justify-center mx-auto mb-6 border border-line">
-          <svg className="w-10 h-10 text-accent-strong" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg aria-hidden="true" className="w-10 h-10 text-accent-strong" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         </div>

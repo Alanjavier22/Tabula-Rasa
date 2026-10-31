@@ -29,7 +29,7 @@ const FiscalPage: React.FC = () => {
           <p>Datos del ejercicio fiscal {selectedYear}.</p>
         </div>
 
-        <div className="fiscal-year-switcher" role="group" aria-label="Seleccionar ejercicio fiscal">
+        <fieldset className="fiscal-year-switcher" aria-label="Seleccionar ejercicio fiscal">
           {[...availableYears].sort((a, b) => a - b).map(year => (
             <button
               type="button"
@@ -41,7 +41,7 @@ const FiscalPage: React.FC = () => {
               {year}
             </button>
           ))}
-        </div>
+        </fieldset>
       </header>
 
       <aside className="fiscal-info-note">

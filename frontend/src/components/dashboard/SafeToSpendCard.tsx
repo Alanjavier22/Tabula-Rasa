@@ -19,6 +19,13 @@ interface SafeToSpendCardProps {
   readonly onRetry?: () => void;
 }
 
+function estimateState(hasAmount: boolean, available: ReturnType<typeof toDecimal>) {
+  if (!hasAmount) return 'unknown';
+  if (available.lt(0)) return 'danger';
+  if (available.eq(0)) return 'warning';
+  return 'success';
+}
+
 export default function SafeToSpendCard({
   data,
   isLoading,
@@ -37,25 +44,14 @@ export default function SafeToSpendCard({
       (typeof rawAmount === "string" && rawAmount.trim() !== "")) &&
     Number.isFinite(Number(rawAmount));
   const available = toDecimal(hasAmount ? rawAmount : 0);
-  const state = !hasAmount
-    ? "unknown"
-    : available.lt(0)
-      ? "danger"
-      : available.eq(0)
-        ? "warning"
-        : "success";
+  const state = estimateState(hasAmount, available);
   const status = {
     unknown: "Estimación no disponible",
     danger: "Saldo proyectado negativo",
     warning: "Sin margen disponible",
     success: "Margen proyectado disponible",
   }[state];
-  const StatusIcon =
-    state === "danger" || state === "warning"
-      ? AlertTriangle
-      : state === "success"
-        ? CircleCheck
-        : Info;
+  const StatusIcon = { danger: AlertTriangle, warning: AlertTriangle, success: CircleCheck, unknown: Info }[state];
   const retry = onRetry && (
     <button
       type="button"
@@ -68,37 +64,23 @@ export default function SafeToSpendCard({
     </button>
   );
 
-  return (
-    <section
-      className={`app-safe-spend app-safe-spend-${state}`}
-      aria-labelledby={titleId}
-      aria-busy={isLoading || isFetching || false}
-    >
-      <div className="app-safe-spend-main">
-        <div className="app-safe-spend-header">
-          <h2 id={titleId} className="app-safe-spend-title">
-            Disponible para gastar
-          </h2>
-          {hasAmount && (
-            <span className="app-safe-spend-status">
-              <StatusIcon aria-hidden="true" />
-              {status}
-            </span>
-          )}
-        </div>
-        {isLoading && !data ? (
-          <p role="status">
+
+  function renderEstimate() {
+    if (isLoading && !data) return (
+          <output>
             Calculando tu disponible para los próximos 30 días…
-          </p>
-        ) : !hasAmount ? (
+          </output>
+        );
+    if (!hasAmount) return (
           <div className="app-estimate-error">
-            <p role="status">
+            <output>
               No se pudo obtener la estimación. Reintenta para consultar tu
               disponible.
-            </p>
+            </output>
             {retry}
           </div>
-        ) : (
+        );
+    return (
           <>
             <div className="app-safe-spend-value">
               <strong>
@@ -135,10 +117,10 @@ export default function SafeToSpendCard({
             </div>
             {hasError && (
               <div className="app-estimate-error">
-                <p role="status">
+                <output>
                   No se pudo actualizar. Estás viendo la última estimación
                   disponible.
-                </p>
+                </output>
                 {retry}
               </div>
             )}
@@ -202,7 +184,28 @@ export default function SafeToSpendCard({
               )}
             </AnimatePresence>
           </>
-        )}
+        );
+  }
+
+return (
+    <section
+      className={`app-safe-spend app-safe-spend-${state}`}
+      aria-labelledby={titleId}
+      aria-busy={isLoading || isFetching || false}
+    >
+      <div className="app-safe-spend-main">
+        <div className="app-safe-spend-header">
+          <h2 id={titleId} className="app-safe-spend-title">
+            Disponible para gastar
+          </h2>
+          {hasAmount && (
+            <span className="app-safe-spend-status">
+              <StatusIcon aria-hidden="true" />
+              {status}
+            </span>
+          )}
+        </div>
+        {renderEstimate()}
       </div>
     </section>
   );

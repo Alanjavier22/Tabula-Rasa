@@ -12,7 +12,7 @@ export default function ChartDataTable({
   caption,
   columns,
   rows,
-}: ChartDataTableProps) {
+}: Readonly<ChartDataTableProps>) {
   const [isOpen, setIsOpen] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
   const tableId = useId();
@@ -72,15 +72,15 @@ export default function ChartDataTable({
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleRows.map((row, index) => (
-                      <tr key={index}>
+                    {visibleRows.map((row) => (
+                      <tr key={JSON.stringify(row)}>
                         {row.map((cell, column) =>
                           column === 0 ? (
-                            <th key={column} scope="row">
+                            <th key={columns[column]} scope="row">
                               {cell}
                             </th>
                           ) : (
-                            <td key={column}>{cell}</td>
+                            <td key={columns[column]}>{cell}</td>
                           ),
                         )}
                       </tr>

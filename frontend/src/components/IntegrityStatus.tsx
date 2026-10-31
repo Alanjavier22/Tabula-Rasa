@@ -54,21 +54,15 @@ export const IntegrityStatus = ({ accounts, statements, isLoading }: IntegritySt
     };
   }, [accounts, statements, isLoading]);
 
-  const Icon = healthStatus.status === 'loading'
-    ? Loader2
-    : healthStatus.status === 'warning'
-      ? ShieldAlert
-      : ShieldCheck;
-  const tone = healthStatus.status === 'warning'
-    ? 'text-warning'
-    : healthStatus.status === 'healthy'
-      ? 'text-success'
-      : 'text-muted';
+  const icons: Record<string, typeof ShieldCheck> = { loading: Loader2, warning: ShieldAlert };
+  const tones: Record<string, string> = { warning: 'text-warning', healthy: 'text-success' };
+  const Icon = icons[healthStatus.status] ?? ShieldCheck;
+  const tone = tones[healthStatus.status] ?? 'text-muted';
 
   return (
-    <p className={`integrity-note ${tone}`} role="status" aria-live="polite" aria-atomic="true">
+    <output className={`integrity-note ${tone}`} aria-live="polite" aria-atomic="true">
       <Icon aria-hidden="true" className={healthStatus.status === 'loading' ? 'animate-spin' : ''} />
       {healthStatus.message}
-    </p>
+    </output>
   );
 };

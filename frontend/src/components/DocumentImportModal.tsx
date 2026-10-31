@@ -123,8 +123,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
 
     setSaving(true);
     try {
-      for (const txn of selectedTransactions) {
-        await transactionsAPI.create({
+      await selectedTransactions.reduce<Promise<unknown>>((previous, txn) => previous.then(() => transactionsAPI.create({
           description: txn.description,
           amount: txn.amount as Cents,
           transaction_type: txn.transaction_type as TransactionType,
@@ -133,8 +132,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
           category_id: txn.category_id || undefined,
           account_id: accountId,
           expense_type: txn.transaction_type === 'expense' ? 'variable' as ExpenseType : undefined,
-        });
-      }
+        })), Promise.resolve());
       setResult({ success: true, message: `${selectedTransactions.length} transacción(es) importada(s)` });
       setTimeout(() => {
         onSuccess();

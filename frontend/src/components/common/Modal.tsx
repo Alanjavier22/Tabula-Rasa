@@ -1,9 +1,5 @@
-import { useCallback, useEffect, useRef } from "react";
-import type { ReactNode, KeyboardEvent } from "react";
-import { createPortal } from "react-dom";
-
-const focusable =
-  'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], summary, [tabindex="0"]';
+import { useEffect, useRef, type ReactNode, type SyntheticEvent } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ModalProps {
   children: ReactNode;
@@ -12,90 +8,38 @@ interface ModalProps {
   className?: string;
 }
 
-// Mount only while open. Portals keep dialogs outside the sticky navigation;
-// inert siblings and focus restoration also work with nested import dialogs.
-export default function Modal({
-  children,
-  label,
-  onClose,
-  className = "",
-}: ModalProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const controls = useCallback(
-    () =>
-      Array.from(
-        ref.current?.querySelectorAll<HTMLElement>(focusable) ?? [],
-      ).filter(
-        (element) =>
-          element.getClientRects().length > 0 && !element.closest("[inert]"),
-      ),
-    [],
-  );
-
+// Native modal dialogs provide inert siblings, nested-dialog stacking and focus trapping.
+export default function Modal({ children, label, onClose, className = '' }: Readonly<ModalProps>) {
+  const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    const root = ref.current;
-    if (!root) return;
+    const dialog = ref.current;
+    if (!dialog) return;
     const previousFocus = document.activeElement;
     const previousOverflow = document.body.style.overflow;
-    const siblings = Array.from(document.body.children).filter(
-      (element): element is HTMLElement =>
-        element instanceof HTMLElement && element !== root,
-    );
-    const previousInert = siblings.map((element) => element.inert);
-    siblings.forEach((element) => {
-      element.inert = true;
-    });
-    document.body.style.overflow = "hidden";
-    const firstInput = root.querySelector<HTMLElement>(
+    document.body.style.overflow = 'hidden';
+    dialog.showModal();
+    const initialControl = dialog.querySelector<HTMLElement>(
       'input:not(:disabled):not([type="file"]), textarea:not(:disabled)',
-    );
-    (firstInput ?? controls()[0] ?? root).focus();
+    ) ?? dialog.querySelector<HTMLElement>('button:not(:disabled):not([tabindex="-1"])');
+    initialControl?.focus();
     return () => {
-      siblings.forEach((element, index) => {
-        element.inert = previousInert[index];
-      });
+      dialog.close();
       document.body.style.overflow = previousOverflow;
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
-        previousFocus.focus();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
-  }, [controls]);
+  }, []);
 
-  const handleKeyDown = (event: KeyboardEvent) => {
-    if (event.defaultPrevented) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-    } else if (event.key === "Tab") {
-      const items = controls();
-      const first = items[0];
-      const last = items.at(-1);
-      if (
-        !items.length ||
-        (event.shiftKey && document.activeElement === first) ||
-        (!event.shiftKey && document.activeElement === last)
-      ) {
-        event.preventDefault();
-        (event.shiftKey ? last : first)?.focus();
-      }
-    }
+  const cancel = (event: SyntheticEvent<HTMLDialogElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClose();
   };
 
   return createPortal(
-    <div
-      ref={ref}
-      role="dialog"
-      aria-modal="true"
-      aria-label={label}
-      tabIndex={-1}
-      className={`app-modal-layer ${className}`}
-      onKeyDown={handleKeyDown}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
+    <dialog ref={ref} aria-label={label} className={`app-modal-layer ${className}`} onCancel={cancel}>
+      <button type="button" tabIndex={-1} className="app-modal-dismiss" aria-label={`Cerrar ${label}`} onClick={onClose} />
       {children}
-    </div>,
+    </dialog>,
     document.body,
   );
 }

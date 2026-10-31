@@ -131,12 +131,11 @@ const Select = ({
     );
     setSearchQuery("");
     const selectedIndex = options.findIndex((option) => option.value === value);
+    const fallbackIndex = last ? Math.max(0, options.length - 1) : 0;
     setActiveIndex(
       selectedIndex >= 0
         ? selectedIndex
-        : last
-          ? Math.max(0, options.length - 1)
-          : 0,
+        : fallbackIndex,
     );
     setIsOpen(true);
   };
@@ -145,6 +144,15 @@ const Select = ({
     onChange(option.value);
     close();
     inputRef.current?.focus();
+  };
+
+  const moveSelection = (key: string) => {
+    if (!open) {
+      openOptions(key === "ArrowUp");
+      return;
+    }
+    const direction = key === "ArrowDown" ? 1 : -1;
+    setActiveIndex((index) => Math.max(0, Math.min(filteredOptions.length - 1, index + direction)));
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -156,17 +164,7 @@ const Select = ({
       close();
     } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      if (!open) openOptions(event.key === "ArrowUp");
-      else
-        setActiveIndex((index) =>
-          Math.max(
-            0,
-            Math.min(
-              filteredOptions.length - 1,
-              index + (event.key === "ArrowDown" ? 1 : -1),
-            ),
-          ),
-        );
+      moveSelection(event.key);
     } else if (event.key === "Enter" || (!searchable && event.key === " ")) {
       event.preventDefault();
       if (!open) openOptions();
@@ -243,7 +241,6 @@ const Select = ({
           <div
             ref={popupRef}
             className="app-select-popup"
-            onMouseDown={(event) => event.preventDefault()}
           >
             <div
               ref={listRef}
@@ -270,9 +267,9 @@ const Select = ({
               ))}
             </div>
             {filteredOptions.length === 0 && (
-              <p role="status" className="app-select-empty">
+              <output className="app-select-empty">
                 Sin resultados. Prueba con otro término.
-              </p>
+              </output>
             )}
           </div>,
           portalTarget,

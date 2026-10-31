@@ -114,7 +114,7 @@ const Budgets = () => {
     void Promise.resolve().then(() => Promise.all([fetchBudgets(), fetchCategories(), fetchAccounts()]));
   }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete =  (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
   };
 

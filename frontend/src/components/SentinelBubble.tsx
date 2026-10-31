@@ -29,6 +29,12 @@ interface SentinelHealth {
   ai_error?: string | null;
 }
 
+function describeScore(score: number) {
+  if (score >= 80) return { tone: 'text-success', label: 'Margen saludable' };
+  if (score >= 50) return { tone: 'text-warning', label: 'Atención moderada' };
+  return { tone: 'text-danger', label: 'Riesgo de liquidez' };
+}
+
 export const SentinelBubble = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpenedOnce, setHasOpenedOnce] = useState(false);
@@ -41,8 +47,7 @@ export const SentinelBubble = () => {
   });
 
   const score = health?.health_score ?? 0;
-  const scoreTone = score >= 80 ? 'text-success' : score >= 50 ? 'text-warning' : 'text-danger';
-  const scoreLabel = score >= 80 ? 'Margen saludable' : score >= 50 ? 'Atención moderada' : 'Riesgo de liquidez';
+  const { tone: scoreTone, label: scoreLabel } = describeScore(score);
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (Math.max(0, Math.min(100, score)) / 100) * circumference;
@@ -104,9 +109,9 @@ export const SentinelBubble = () => {
 
             <div className="sentinel-content">
               {isLoading && (
-                <div role="status" className="sentinel-loading">
+                <div className="sentinel-loading">
                   <Loader2 aria-hidden="true" />
-                  <p>Evaluando saldos, obligaciones y ritmo de gasto…</p>
+                  <output>Evaluando saldos, obligaciones y ritmo de gasto…</output>
                 </div>
               )}
 

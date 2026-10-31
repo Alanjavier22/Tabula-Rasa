@@ -36,6 +36,16 @@ const ConfirmDialog = ({
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const cancelOnBackdrop = (event: MouseEvent) => {
+      if (event.target === dialog && !submittingRef.current) onCancel();
+    };
+    dialog.addEventListener('click', cancelOnBackdrop);
+    return () => dialog.removeEventListener('click', cancelOnBackdrop);
+  }, [onCancel]);
+
   const confirm = async () => {
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -55,29 +65,9 @@ const ConfirmDialog = ({
       aria-labelledby={titleId}
       aria-describedby={messageId}
       aria-busy={submitting}
-      onKeyDown={(event) => {
-        if (event.key !== "Tab") return;
-        const buttons = Array.from(
-          event.currentTarget.querySelectorAll<HTMLButtonElement>(
-            "button:not(:disabled)",
-          ),
-        );
-        const first = buttons[0];
-        const last = buttons.at(-1);
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last?.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first?.focus();
-        }
-      }}
       onCancel={(event) => {
         event.preventDefault();
         if (!submitting) onCancel();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !submitting) onCancel();
       }}
     >
       <div className="app-confirm-content">

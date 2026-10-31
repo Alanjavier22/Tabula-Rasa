@@ -78,7 +78,7 @@ const Goals = () => {
     void Promise.resolve().then(fetchGoals);
   }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete =  (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
   };
 

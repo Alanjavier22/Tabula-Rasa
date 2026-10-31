@@ -100,7 +100,7 @@ const Categories = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete =  (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
   };
 
@@ -175,9 +175,9 @@ const Categories = () => {
   if (loading) {
     return (
       <div className="app-page">
-        <p role="status" className="app-inline-message">
+        <output className="app-inline-message">
           Cargando categorías…
-        </p>
+        </output>
       </div>
     );
   }

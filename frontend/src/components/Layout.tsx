@@ -128,7 +128,7 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
           return (
             <Link key={item.path} to={item.path} aria-current={active ? 'page' : undefined} className={`app-mobile-nav-item ${active ? 'is-active' : ''}`}>
               <Icon aria-hidden="true" />
-              <span>{item.path === '/transactions' ? 'Actividad' : item.path === '/budgets' ? 'Planificar' : item.label}</span>
+              <span>{({ '/transactions': 'Actividad', '/budgets': 'Planificar' } as Record<string, string>)[item.path] ?? item.label}</span>
             </Link>
           );
         })}

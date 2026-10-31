@@ -40,10 +40,9 @@ export const TransactionRow = memo(
     const description = transaction.description || "Sin descripción";
     const day = transaction.date.slice(0, 10);
     return (
-      <div
+      <li
         className="transaction-row"
         style={{ height: rowHeight }}
-        role="listitem"
         aria-posinset={position}
         aria-setsize={total}
       >
@@ -104,7 +103,7 @@ export const TransactionRow = memo(
             </button>
           )}
         </div>
-      </div>
+      </li>
     );
   },
 );

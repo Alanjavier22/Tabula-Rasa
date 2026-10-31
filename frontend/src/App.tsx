@@ -25,7 +25,7 @@ const Fiscal = lazy(() => import('./pages/Fiscal'));
 const PageLoader = () => (
   <div className="flex flex-col items-center justify-center min-h-[400px] w-full space-y-4">
     <div className="w-12 h-12 border-4 border-line border-t-transparent rounded-full animate-spin"></div>
-    <p role="status" className="text-sm text-muted font-medium">Cargando sección…</p>
+    <output className="text-sm text-muted font-medium">Cargando sección…</output>
   </div>
 );
 
@@ -75,7 +75,7 @@ function App() {
 
     // Run heartbeat on startup
     const heartbeatKey = 'last_integrity_heartbeat';
-    const runHeartbeat = async () => {
+    const runHeartbeat =  () => {
       const now = Date.now();
       const lastHeartbeat = localStorage.getItem(heartbeatKey);
       const heartbeatInterval = 24 * 60 * 60 * 1000; // 24 hours

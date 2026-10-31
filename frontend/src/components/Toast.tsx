@@ -20,8 +20,10 @@ const Toast = ({ message, type, onClose, duration }: ToastProps) => {
     return () => clearTimeout(timer);
   }, [onClose, autoCloseAfter, hovered, focused, message, type]);
 
-  const Icon =
-    type === "success" ? CheckCircle : type === "error" ? XCircle : AlertCircle;
+  const Icon = { success: CheckCircle, error: XCircle, warning: AlertCircle }[type];
+  const announcement = type === "error"
+    ? <p role="alert" aria-atomic="true">{message}</p>
+    : <output aria-atomic="true">{message}</output>;
 
   return (
     <div
@@ -35,9 +37,7 @@ const Toast = ({ message, type, onClose, duration }: ToastProps) => {
       }}
     >
       <Icon aria-hidden="true" />
-      <p role={type === "error" ? "alert" : "status"} aria-atomic="true">
-        {message}
-      </p>
+      {announcement}
       <button
         type="button"
         className="app-icon-button"

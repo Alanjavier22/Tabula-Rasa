@@ -38,6 +38,12 @@ import AccountStatementModal, {
 
 type ApiError = AxiosError<{ detail?: string }>;
 
+function statementDateLabel(date?: string | null, day?: number | null) {
+  if (date) return date.slice(0, 10);
+  if (day) return `Día ${day}`;
+  return '—';
+}
+
 const emptyForm: AccountFormData = {
   name: '',
   account_type: 'checking',
@@ -275,10 +281,8 @@ const Accounts = () => {
         .dividedBy(100)
         .toString(),
       user_share: toDecimal(stmt.user_share).dividedBy(100).toString(),
-      payment_due_date: stmt.payment_due_date
-        ? stmt.payment_due_date.substring(0, 10)
-        : '',
-      cut_off_date: stmt.cut_off_date ? stmt.cut_off_date.substring(0, 10) : '',
+      payment_due_date: stmt.payment_due_date?.slice(0, 10) ?? '',
+      cut_off_date: stmt.cut_off_date?.slice(0, 10) ?? '',
       amount_paid: toDecimal(stmt.amount_paid).dividedBy(100).toString(),
       status: stmt.status,
       month: stmt.month,
@@ -381,9 +385,9 @@ const Accounts = () => {
   if (isLoading) {
     return (
       <div className="app-page">
-        <p role="status" className="app-inline-message">
+        <output className="app-inline-message">
           Sincronizando cuentas…
-        </p>
+        </output>
       </div>
     );
   }
@@ -730,11 +734,7 @@ const Accounts = () => {
                                           aria-hidden="true"
                                         />
                                         Corte:{' '}
-                                        {stmt.cut_off_date
-                                          ? stmt.cut_off_date.slice(0, 10)
-                                          : account.statement_day
-                                            ? `Día ${account.statement_day}`
-                                            : '—'}
+                                        {statementDateLabel(stmt.cut_off_date, account.statement_day)}
                                       </span>
                                       <span>
                                         <Clock
@@ -742,11 +742,7 @@ const Accounts = () => {
                                           aria-hidden="true"
                                         />
                                         Vence:{' '}
-                                        {stmt.payment_due_date
-                                          ? stmt.payment_due_date.slice(0, 10)
-                                          : account.payment_day
-                                            ? `Día ${account.payment_day}`
-                                            : '—'}
+                                        {statementDateLabel(stmt.payment_due_date, account.payment_day)}
                                       </span>
                                     </div>
                                   )}

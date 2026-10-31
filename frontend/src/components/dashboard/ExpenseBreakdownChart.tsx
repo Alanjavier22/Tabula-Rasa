@@ -21,7 +21,43 @@ const ExpenseBreakdownChart = ({
   const topShare =
     topItem && total > 0 ? Math.round((topItem.amount / total) * 100) : 0;
 
-  return (
+
+  function renderRanking() {
+    if (!dashboardSummary) return (
+        <SkeletonChart height="h-56" />
+      );
+    if (items.length) return (
+        <ol className="expense-ranking">
+          {items.map((item) => (
+            <li key={item.name}>
+              <div>
+                <span>{item.name}</span>
+                <strong>$ {formatMoney(item.amount)}</strong>
+                <span className="text-muted">
+                  {total > 0 && item.amount >= 0
+                    ? `${Math.round((item.amount / total) * 100)}%`
+                    : "—"}
+                </span>
+              </div>
+              <div className="expense-bar-track" aria-hidden="true">
+                <div
+                  style={{
+                    width: `${(Math.max(0, item.amount) / largest) * 100}%`,
+                  }}
+                />
+              </div>
+            </li>
+          ))}
+        </ol>
+      );
+    return (
+        <p className="app-inline-message">
+          No hay gastos en este periodo. Los movimientos registrados aparecerán
+          aquí por categoría.
+        </p>
+      );
+  }
+return (
     <section
       className="app-surface app-chart-panel"
       aria-label="Gastos por categoría"
@@ -58,37 +94,7 @@ const ExpenseBreakdownChart = ({
         </div>
       )}
 
-      {!dashboardSummary ? (
-        <SkeletonChart height="h-56" />
-      ) : items.length ? (
-        <ol className="expense-ranking">
-          {items.map((item) => (
-            <li key={item.name}>
-              <div>
-                <span>{item.name}</span>
-                <strong>$ {formatMoney(item.amount)}</strong>
-                <span className="text-muted">
-                  {total > 0 && item.amount >= 0
-                    ? `${Math.round((item.amount / total) * 100)}%`
-                    : "—"}
-                </span>
-              </div>
-              <div className="expense-bar-track" aria-hidden="true">
-                <div
-                  style={{
-                    width: `${(Math.max(0, item.amount) / largest) * 100}%`,
-                  }}
-                />
-              </div>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="app-inline-message">
-          No hay gastos en este periodo. Los movimientos registrados aparecerán
-          aquí por categoría.
-        </p>
-      )}
+      {renderRanking()}
     </section>
   );
 };

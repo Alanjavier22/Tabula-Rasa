@@ -82,9 +82,9 @@ const IOUWidget = () => {
   if (loading) {
     return (
       <div className="app-surface p-5">
-        <p role="status" className="app-inline-message">
+        <output className="app-inline-message">
           Cargando préstamos personales…
-        </p>
+        </output>
       </div>
     );
   }

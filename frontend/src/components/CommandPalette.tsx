@@ -329,7 +329,7 @@ const CommandPalette = () => {
           ) : (
             <>
               {filteredItems.length > 0 ? (
-                <ul
+                <div
                   id="command-routes"
                   role="listbox"
                   aria-label="Rutas disponibles"
@@ -342,8 +342,8 @@ const CommandPalette = () => {
                       item.path && item.path === location.pathname;
 
                     return (
-                      <li role="presentation" key={item.id}>
-                        <button
+
+                        <button key={item.id}
                           type="button"
                           id={`command-route-${idx}`}
                           role="option"
@@ -382,10 +382,10 @@ const CommandPalette = () => {
                             <CornerDownLeft className="w-3.5 h-3.5" />
                           </span>
                         </button>
-                      </li>
+
                     );
                   })}
-                </ul>
+                </div>
               ) : (
                 <div className="command-palette-empty">
                   <p className="command-palette-empty-title">

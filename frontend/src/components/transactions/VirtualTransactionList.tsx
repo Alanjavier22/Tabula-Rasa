@@ -59,16 +59,12 @@ export const VirtualTransactionList = ({
       className="transactions-scroll"
     >
       <div
-        role="list"
-        aria-label="Transacciones"
         style={{
           height: transactions.length * rowHeight,
           position: "relative",
         }}
       >
-        <div
-          style={{
-            position: "absolute",
+        <ul aria-label="Transacciones" style={{ position: "absolute",
             inset: "0 0 auto",
             transform: `translateY(${start * rowHeight}px)`,
           }}
@@ -84,7 +80,7 @@ export const VirtualTransactionList = ({
               onDelete={onDelete}
             />
           ))}
-        </div>
+        </ul>
       </div>
     </div>
   );

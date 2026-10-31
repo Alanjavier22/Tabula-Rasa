@@ -99,7 +99,7 @@ const NetWorthChart = ({ netWorth }: NetWorthChartProps) => {
   const evolutionSeries = (netWorth.history ?? []).reduce<EvolutionPoint[]>(
     (acc, item) => {
       const previousCumulative =
-        acc.length > 0 ? acc[acc.length - 1].cumulativeCents : 0;
+        acc.at(-1)?.cumulativeCents ?? 0;
       const incomeCents = Number(item.income || 0);
       const expenseCents = Number(item.expense || 0);
       const netCents = incomeCents - expenseCents;

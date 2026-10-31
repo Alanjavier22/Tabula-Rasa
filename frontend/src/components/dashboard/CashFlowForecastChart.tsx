@@ -69,11 +69,10 @@ const CashFlowForecastChart = ({
     forecast.length > 0
       ? forecast[0].projected_balance
       : cashFlowForecast.current_balance;
-  const endBalance =
-    forecast.length > 0
-      ? forecast[forecast.length - 1].projected_balance
-      : cashFlowForecast.current_balance;
+  const endBalance = forecast.at(-1)?.projected_balance ?? cashFlowForecast.current_balance;
   const netDelta = endBalance - startBalance;
+  const deltaTone = new Map([[1, 'text-success'], [-1, 'text-danger']]).get(Math.sign(netDelta)) ?? '';
+  const deltaSign = new Map([[1, '+'], [-1, '−']]).get(Math.sign(netDelta)) ?? '';
   const lowestFutureBalance = forecast
     .slice(1)
     .reduce<(typeof forecast)[number] | undefined>(
@@ -111,9 +110,8 @@ const CashFlowForecastChart = ({
               Riesgo de liquidez
             </span>
           )}
-          <div
+          <fieldset
             className="forecast-horizon-group"
-            role="group"
             aria-label="Horizonte de proyección"
           >
             {[30, 60, 90].map((days) => (
@@ -129,7 +127,7 @@ const CashFlowForecastChart = ({
                 {days}d
               </button>
             ))}
-          </div>
+          </fieldset>
         </div>
       </div>
 
@@ -157,15 +155,9 @@ const CashFlowForecastChart = ({
           <div className="chart-kpi-item">
             <span>Variación neta ({forecastDays}d)</span>
             <strong
-              className={
-                netDelta > 0
-                  ? 'text-success'
-                  : netDelta < 0
-                    ? 'text-danger'
-                    : ''
-              }
+              className={deltaTone}
             >
-              {netDelta > 0 ? '+' : netDelta < 0 ? '−' : ''}${' '}
+              {deltaSign}${' '}
               {formatMoney(Math.abs(netDelta))}
             </strong>
           </div>

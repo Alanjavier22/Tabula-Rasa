@@ -80,7 +80,7 @@ const Subscriptions = () => {
     void Promise.resolve().then(fetchAll);
   }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete =  (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
   };
 

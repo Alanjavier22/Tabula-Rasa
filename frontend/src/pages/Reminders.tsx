@@ -78,7 +78,7 @@ const Reminders = () => {
     void Promise.resolve().then(fetchReminders);
   }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete =  (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
   };
 

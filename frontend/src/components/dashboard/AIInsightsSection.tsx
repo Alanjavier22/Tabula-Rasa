@@ -9,6 +9,30 @@ interface AIInsightsSectionProps {
   onRefresh: () => void;
 }
 
+function analysisAction(isPending: boolean, hasAnalysis: boolean) {
+  if (isPending) return { Icon: Loader2, label: 'Analizando…', spinning: true };
+  if (hasAnalysis) return { Icon: RefreshCw, label: 'Actualizar análisis', spinning: false };
+  return { Icon: Sparkles, label: 'Generar análisis', spinning: false };
+}
+
+function AnalysisEmptyState({ isPending, hasAnalysis }: Readonly<{ isPending: boolean; hasAnalysis: boolean }>) {
+  if (isPending) return (
+    <div className="ai-insights-empty">
+      <Loader2 className="w-5 h-5 animate-spin text-accent-strong" aria-hidden="true" />
+      <output className="text-muted text-sm">Preparando una lectura de tus datos financieros…</output>
+    </div>
+  );
+  return (
+    <div className="ai-insights-empty">
+      <div className="ai-insights-empty-icon"><Sparkles className="w-5 h-5 text-accent-strong" aria-hidden="true" /></div>
+      <h3 className="text-primary font-semibold">{hasAnalysis ? 'Sin hallazgos para destacar' : 'Análisis bajo demanda'}</h3>
+      <p className="text-muted text-sm text-center max-w-md">{hasAnalysis
+        ? 'La última lectura no encontró recomendaciones o alertas relevantes.'
+        : 'Genera una lectura asistida cuando quieras revisar patrones de gasto, anomalías y recomendaciones sobre tu flujo mensual.'}</p>
+    </div>
+  );
+}
+
 const AIInsightsSection = ({
   insights,
   aiAlerts,
@@ -21,6 +45,7 @@ const AIInsightsSection = ({
   const hasResults = Boolean(
     visibleInsights.length || aiAlerts.length || aiPatterns.length,
   );
+  const action = analysisAction(isPending, hasAnalysis);
 
   return (
     <div className="ai-insights-panel">
@@ -35,18 +60,8 @@ const AIInsightsSection = ({
           disabled={isPending}
           className={`app-btn ${!hasAnalysis ? 'app-btn-primary' : ''}`}
         >
-          {isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-          ) : hasAnalysis ? (
-            <RefreshCw className="w-4 h-4" aria-hidden="true" />
-          ) : (
-            <Sparkles className="w-4 h-4" aria-hidden="true" />
-          )}
-          {isPending
-            ? 'Analizando…'
-            : hasAnalysis
-              ? 'Actualizar análisis'
-              : 'Generar análisis'}
+          <action.Icon className={`w-4 h-4 ${action.spinning ? 'animate-spin' : ''}`} aria-hidden="true" />
+          {action.label}
         </button>
       </div>
 
@@ -99,30 +114,8 @@ const AIInsightsSection = ({
             </motion.article>
           ))}
         </div>
-      ) : isPending ? (
-        <div role="status" className="ai-insights-empty">
-          <Loader2
-            className="w-5 h-5 animate-spin text-accent-strong"
-            aria-hidden="true"
-          />
-          <p className="text-muted text-sm">
-            Preparando una lectura de tus datos financieros…
-          </p>
-        </div>
       ) : (
-        <div className="ai-insights-empty">
-          <div className="ai-insights-empty-icon">
-            <Sparkles className="w-5 h-5 text-accent-strong" aria-hidden="true" />
-          </div>
-          <h3 className="text-primary font-semibold">
-            {hasAnalysis ? 'Sin hallazgos para destacar' : 'Análisis bajo demanda'}
-          </h3>
-          <p className="text-muted text-sm text-center max-w-md">
-            {hasAnalysis
-              ? 'La última lectura no encontró recomendaciones o alertas relevantes.'
-              : 'Genera una lectura asistida cuando quieras revisar patrones de gasto, anomalías y recomendaciones sobre tu flujo mensual.'}
-          </p>
-        </div>
+        <AnalysisEmptyState isPending={isPending} hasAnalysis={hasAnalysis} />
       )}
     </div>
   );
