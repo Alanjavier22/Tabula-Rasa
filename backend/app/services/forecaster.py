@@ -30,7 +30,8 @@ def calculate_historical_averages(db: Session, months_back: int = 3):
     txns = db.query(Transaction).filter(
         Transaction.date >= start_date,
         Transaction.date <= end_date,
-        Transaction.is_deleted == False
+        Transaction.is_deleted == False,
+        Transaction.is_internal == False,
     ).all()
     
     total_income = 0
@@ -56,6 +57,7 @@ def get_current_liquidity(db: Session) -> int:
     """Returns the sum of all checking and savings accounts."""
     accounts = db.query(Account).filter(
         Account.is_active == 1,
+        Account.is_deleted == False,
         Account.account_type.in_(["checking", "savings"])
     ).all()
     return int(cast(Any, sum((acc.balance for acc in accounts), 0)))
@@ -84,8 +86,7 @@ def get_financial_projection(
     total_monthly_burn = avg_fixed + avg_var
     runway_months = 0.0
     if total_monthly_burn > 0:
-        # FASE 7: Use integer division for money (cents) to avoid float precision issues
-        runway_months = liquidity // total_monthly_burn if total_monthly_burn > 0 else 0
+        runway_months = round(liquidity / total_monthly_burn, 1)
         
     # 3. Projection Loop
     timeline = []

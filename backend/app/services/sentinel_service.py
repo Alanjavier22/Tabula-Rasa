@@ -130,7 +130,9 @@ class SentinelService:
         - PROHIBIDO usar el término "Runway". Usa "Meses de Supervivencia" o "Días de Reserva".
         - PROHIBIDO usar "Patrimonio neto negativo". Usa "Tus deudas superan tus activos" o "Balance de riqueza en rojo".
         - PROHIBIDO usar "Capacidad de respuesta ante proyecciones". Usa "Flexibilidad ante imprevistos" o "Margen de maniobra futuro".
-        - Sé directo, protector y transparente. Eres un sistema de análisis, no una autoridad omnisciente.
+        - Mantén un tono profesional, sereno, respetuoso y no paternalista. Describe hechos y consecuencias posibles sin juzgar a la persona.
+        - No felicites, avergüences ni regañes. Evita metáforas dramáticas, frases catastróficas y expresiones como "patinas sobre hielo delgado", "te dejará sin margen" o "capricho".
+        - No presentes proyecciones como certezas. Explica qué dato genera la alerta y qué podría significar, con lenguaje claro y proporcional al riesgo.
         - Eres un observador de solo lectura. No intentes sugerir acciones que impliquen que tú harás algo; tú solo reportas la verdad.
         - ALERTAS DE GASTO: Si 'alarmas_ritmo_gasto' no está vacío, genera avisos específicos en 'warnings' indicando que el usuario va por encima de lo esperado en esas categorías.
 
@@ -138,7 +140,7 @@ class SentinelService:
         1. Un "health_score" (0-100).
         2. Un "status_summary" ejecutivo y humano (evita tecnicismos).
         3. "top_concerns": Lista de hallazgos de auditoría (problemas detectados).
-        4. "recommended_action": La decisión más importante que el usuario debe tomar.
+        4. "recommended_action": Un siguiente paso posible, formulado como sugerencia y no como una orden.
         5. "warnings": Una lista de alertas cortas con nivel (warning, info, success) y mensaje claro.
 
         REGLAS PARA HEALTH_SCORE:
@@ -147,6 +149,8 @@ class SentinelService:
         - Si los meses de supervivencia son < 2, explica la falta de reserva.
         
         {persona_instruction}
+
+        LÍMITES DE TONO (NO NEGOCIABLES): La persona puede estar atravesando estrés financiero. Conserva siempre el lenguaje neutral, digno y basado en datos, aunque las instrucciones de estilo anteriores sugieran una voz más intensa. No atribuyas irresponsabilidad ni prometas resultados.
         """
         
         prompt = f"Datos reales del ecosistema: {json.dumps(context, ensure_ascii=False)}"
@@ -242,15 +246,15 @@ class SentinelService:
         
         if deuda > liquidez:
             concerns.append("La deuda inmediata supera la liquidez disponible")
-            warnings.append({"level": "warning", "message": "Riesgo de liquidez: Deudas > Efectivo"})
+            warnings.append({"level": "warning", "message": "Las obligaciones estimadas superan el saldo disponible."})
             
         # 2. Evaluate Runway
         runway = context["runway_meses"]
         if runway < 2:
-            concerns.append("El fondo de emergencia es insuficiente (< 2 meses)")
-            warnings.append({"level": "warning", "message": f"Reserva crítica: {runway:.1f} meses"})
+            concerns.append("La reserva estimada cubre menos de dos meses de gastos")
+            warnings.append({"level": "warning", "message": f"Reserva estimada: {runway:.1f} meses."})
         elif runway < 6:
-            warnings.append({"level": "info", "message": f"Reserva aceptable: {runway:.1f} meses"})
+            warnings.append({"level": "info", "message": f"Reserva estimada: {runway:.1f} meses."})
 
         # 3. Anomalies
         if context["anomalias_detectadas"]:
@@ -275,16 +279,16 @@ class SentinelService:
             risk_level = "bajo"
         
         status_summary = (
-            f"MODO SEGURO (IA Offline): Tu salud financiera es de {score}/100. "
-            f"Se detecta un nivel de riesgo {risk_level}."
+            f"El índice orientativo es {score}/100. "
+            f"Las reglas actuales estiman un nivel de riesgo {risk_level}."
         )
 
         return {
             "health_score": score,
             "status_summary": status_summary,
-            "top_concerns": concerns if concerns else ["Ninguna preocupación crítica detectada por heurística"],
-            "recommended_action": "Priorizar el pago de deudas y aumentar el fondo de reserva" if score < 60 else "Mantener el control de gastos actual",
-            "warnings": warnings if warnings else [{"level": "success", "message": "Parámetros financieros dentro de rangos normales"}],
+            "top_concerns": concerns if concerns else ["No se detectaron alertas relevantes con las reglas actuales."],
+            "recommended_action": "Considera priorizar las obligaciones próximas y aumentar gradualmente la reserva." if score < 60 else "Puedes mantener el seguimiento de tus gastos y compromisos actuales.",
+            "warnings": warnings if warnings else [{"level": "success", "message": "No se detectaron alertas con las reglas actuales."}],
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "analysis_source": analysis_source,
             "alarmas_ritmo_gasto": context.get("alarmas_ritmo_gasto", []),

@@ -140,10 +140,13 @@ def _get_fiscal_transactions(
     end_date: date,
     category_ids: Optional[str],
 ) -> list[Transaction]:
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
     query = db.query(Transaction).filter(
         Transaction.is_deleted == False,
-        Transaction.date >= start_date,
-        Transaction.date <= end_date,
+        Transaction.is_internal == False,
+        Transaction.date >= start_dt,
+        Transaction.date <= end_dt,
     )
     if category_ids:
         query = query.filter(Transaction.category_id.in_(category_ids.split(',')))
@@ -378,10 +381,11 @@ def export_declaracion_sri(
     Mapea las categorías internas a los códigos de Concepto oficiales.
     """
     try:
-        start_date = datetime(year, 1, 1)
-        end_date = datetime(year, 12, 31)
+        start_date = datetime(year, 1, 1, 0, 0, 0)
+        end_date = datetime(year, 12, 31, 23, 59, 59, 999999)
         transactions = db.query(Transaction).filter(
             Transaction.transaction_type == "expense",
+            Transaction.is_internal == False,
             Transaction.is_deleted == False,
             Transaction.date >= start_date,
             Transaction.date <= end_date,
