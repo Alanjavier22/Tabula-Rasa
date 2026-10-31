@@ -11,7 +11,9 @@ const RETRY_DELAY_MS = 2000;
 
 export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [isLocalhostConnecting, setIsLocalhostConnecting] = useState<boolean>(false);
+  const [isLocalhostConnecting, setIsLocalhostConnecting] = useState<boolean>(
+    LOCALHOST_HOSTS.has(window.location.hostname),
+  );
   const [localhostError, setLocalhostError] = useState<string | null>(null);
   const attemptedRef = useRef(false);
 
@@ -81,6 +83,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
       } catch (err) {
         console.error('Error during authentication initialization:', err);
         setLocalhostError('Error al iniciar la sesión local.');
+        setIsLocalhostConnecting(false);
       }
     })();
 
@@ -100,7 +103,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children })
         <div className="max-w-md w-full text-center">
           <div className="w-16 h-16 border-4 border-line border-t-transparent rounded-full animate-spin mx-auto mb-6" />
           <h1 className="text-2xl font-bold mb-2">Conectando al servidor local…</h1>
-          <p className="text-muted">Vinculando automáticamente la máquina host.</p>
+          <p className="text-muted">Comprobando la sesión de esta máquina.</p>
         </div>
       </div>
     );
