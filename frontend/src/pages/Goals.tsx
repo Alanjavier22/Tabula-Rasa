@@ -201,7 +201,7 @@ const Goals = () => {
         <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <motion.div initial={false} animate={{ opacity: 1, x: 0 }}>
 
-            <h1 className="text-4xl lg:text-5xl font-black text-primary tracking-tight">Metas</h1>
+            <h1 className="app-page-title text-4xl lg:text-5xl font-black text-primary tracking-tight">Metas</h1>
             <p className="text-muted text-sm lg:text-base font-medium mt-2 max-w-md">
               Visualiza tu crecimiento y acelera el camino hacia tus metas con asistencia de IA.
             </p>
@@ -215,21 +215,21 @@ const Goals = () => {
             <button
               onClick={handleFetchRecommendations}
               disabled={loadingRecommendations}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-surface-soft hover:bg-surface-soft border border-line text-primary transition-all group disabled:opacity-50"
+              className="app-btn disabled:opacity-50"
             >
               {loadingRecommendations ? (
                 <Loader2 className="w-4 h-4 animate-spin text-success" />
               ) : (
                 <Sparkles className="w-4 h-4 text-success group-hover:scale-125 transition-transform" />
               )}
-              <span className="text-xs font-black uppercase tracking-widest">Consejero IA</span>
+              <span className="text-sm font-semibold">Consejero IA</span>
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="app-btn app-btn-primary"
             >
               <Plus className="w-5 h-5" />
-              <span className="text-xs font-black uppercase tracking-widest">Nueva Meta</span>
+              <span className="text-sm font-semibold">Nueva meta</span>
             </button>
           </motion.div>
         </div>

@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
-import { Menu, X, ChevronLeft, ChevronRight, Moon, Search, Sun } from 'lucide-react';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { Menu, X, ChevronLeft, ChevronRight, Moon, Search, Sun, Settings } from 'lucide-react';
 import Modal from './common/Modal';
 import { navigationGroups, navigationItems, mobileItems } from '../utils/navigation';
 import CommandPalette from './CommandPalette';
@@ -31,18 +31,19 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
 
   const themeLabel = theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Each route owns its own page position. Without this reset, navigating
     // from a long screen leaves the next screen halfway down the document.
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+      mainRef.current.scrollLeft = 0;
+    }
   }, [location.pathname]);
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'app-shell-collapsed' : ''}`}>
       <a className="app-skip-link" href="#main-content">Saltar al contenido</a>
       <CommandPalette />
-      <SentinelBubble />
 
       <aside className="app-sidebar" aria-label="Navegación principal">
         <div className="app-brand">
@@ -68,10 +69,10 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
         </div>
 
         <nav className="app-nav">
-          {navigationGroups.map(group => (
+          {navigationGroups.filter(group => group.items.some(item => item.path !== '/settings')).map(group => (
             <div className="app-nav-group" key={group.label}>
               <p className="app-nav-group-label">{group.label}</p>
-              {group.items.map(item => {
+              {group.items.filter(item => item.path !== '/settings').map(item => {
                 const Icon = item.icon;
                 return <Link key={item.path} to={item.path} title={item.label} aria-label={item.label}
                   aria-current={isActive(item.path) ? 'page' : undefined}
@@ -84,6 +85,9 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
         </nav>
 
         <div className="app-sidebar-bottom">
+          <Link to="/settings" title="Configuración" aria-label="Configuración" aria-current={isActive('/settings') ? 'page' : undefined} className={`app-nav-item ${isActive('/settings') ? 'is-active' : ''}`}>
+            <Settings aria-hidden="true" />{!sidebarCollapsed && <span>Configuración</span>}
+          </Link>
           <button type="button" className="app-nav-item app-theme-nav" onClick={onToggleTheme} title={themeLabel}>
             {theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
             {!sidebarCollapsed && <span>{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>}
@@ -91,10 +95,15 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
         </div>
       </aside>
 
-      <div ref={mainRef} className="app-main">
+      <div className="app-main">
         <header className="app-topbar">
           <div className="app-breadcrumb"><span>Finanzas</span><span aria-hidden="true">/</span><strong>{currentPage.label}</strong></div>
+          <div className="app-brand app-brand-mobile app-header-brand"><div className="app-brand-mark" aria-hidden="true">TR</div><div className="app-brand-copy"><strong>Tabula Rasa</strong><span>Finanzas privadas</span></div></div>
           <div className="app-topbar-actions">
+            <SentinelBubble />
+            <button type="button" className="app-icon-button app-header-theme" onClick={onToggleTheme} aria-label={themeLabel} title={themeLabel}>
+              {theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+            </button>
             <button
               type="button"
               className="app-icon-button"
@@ -104,21 +113,12 @@ const Layout = ({ children, theme, onToggleTheme }: LayoutProps) => {
             >
               <Search aria-hidden="true" />
             </button>
-
           </div>
         </header>
 
-        <header className="app-mobile-header">
-          <div className="app-brand app-brand-mobile">
-            <div className="app-brand-mark" aria-hidden="true">TR</div>
-            <div className="app-brand-copy"><strong>Tabula Rasa</strong><span>Finanzas privadas</span></div>
-          </div>
-          <button type="button" className="app-icon-button" onClick={onToggleTheme} aria-label={themeLabel} title={themeLabel}>
-            {theme === 'dark' ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-          </button>
-        </header>
-
-        <main id="main-content" tabIndex={-1} className="app-content">{children}</main>
+        <div ref={mainRef} className="app-main-scroll">
+          <main id="main-content" tabIndex={-1} className="app-content">{children}</main>
+        </div>
       </div>
 
       <nav className="app-mobile-nav" aria-label="Navegación móvil">

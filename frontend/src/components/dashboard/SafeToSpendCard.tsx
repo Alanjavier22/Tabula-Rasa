@@ -2,11 +2,12 @@ import { useId, useState } from "react";
 import {
   AlertTriangle,
   ChevronDown,
-  ChevronUp,
   CircleCheck,
   Info,
   RefreshCw,
+  SlidersHorizontal,
 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { SafeToSpendResponse } from "../../types";
 import { formatMoney, toDecimal } from "../../utils/money";
 
@@ -74,9 +75,17 @@ export default function SafeToSpendCard({
       aria-busy={isLoading || isFetching || false}
     >
       <div className="app-safe-spend-main">
-        <h2 id={titleId} className="app-safe-spend-title">
-          Disponible para gastar
-        </h2>
+        <div className="app-safe-spend-header">
+          <h2 id={titleId} className="app-safe-spend-title">
+            Disponible para gastar
+          </h2>
+          {hasAmount && (
+            <span className="app-safe-spend-status">
+              <StatusIcon aria-hidden="true" />
+              {status}
+            </span>
+          )}
+        </div>
         {isLoading && !data ? (
           <p role="status">
             Calculando tu disponible para los próximos 30 días…
@@ -95,10 +104,6 @@ export default function SafeToSpendCard({
               <strong>
                 {available.lt(0) ? "−" : ""}$ {formatMoney(available.abs())}
               </strong>
-              <span className="app-safe-spend-status">
-                <StatusIcon aria-hidden="true" />
-                {status}
-              </span>
             </div>
             <p>
               Proyección a 30 días después de pagos previstos, impuestos,
@@ -112,17 +117,20 @@ export default function SafeToSpendCard({
               </p>
               <button
                 type="button"
-                className="app-btn"
+                className={`app-disclosure-chip ${
+                  showBreakdown ? "is-open" : ""
+                }`}
                 onClick={() => setShowBreakdown((current) => !current)}
                 aria-expanded={showBreakdown}
                 aria-controls={breakdownId}
               >
-                {showBreakdown ? (
-                  <ChevronUp aria-hidden="true" />
-                ) : (
-                  <ChevronDown aria-hidden="true" />
-                )}
-                {showBreakdown ? "Ocultar desglose" : "Ver desglose"}
+                <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>
+                  {showBreakdown ? "Ocultar desglose" : "Ver desglose"}
+                </span>
+                <span className="app-disclosure-chevron" aria-hidden="true">
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </span>
               </button>
             </div>
             {hasError && (
@@ -134,50 +142,65 @@ export default function SafeToSpendCard({
                 {retry}
               </div>
             )}
-            {showBreakdown && data && (
-              <dl id={breakdownId} className="app-safe-spend-breakdown">
-                <div>
-                  <dt>Saldo líquido actual</dt>
-                  <dd>$ {formatMoney(data.current_balance)}</dd>
-                </div>
-                <div>
-                  <dt>Ingresos previstos</dt>
-                  <dd>$ {formatMoney(data.monthly_income)}</dd>
-                </div>
-                <div>
-                  <dt>Suscripciones</dt>
-                  <dd>$ {formatMoney(data.breakdown?.subscriptions)}</dd>
-                </div>
-                <div>
-                  <dt>Pagos de tarjetas</dt>
-                  <dd>$ {formatMoney(data.breakdown?.credit_cards)}</dd>
-                </div>
-                <div>
-                  <dt>Deudas personales netas</dt>
-                  <dd>$ {formatMoney(data.breakdown?.ious)}</dd>
-                </div>
-                <div>
-                  <dt>Cobros compartidos previstos</dt>
-                  <dd>$ {formatMoney(data.breakdown?.debt_shares)}</dd>
-                </div>
-                <div>
-                  <dt>Ajuste estacional</dt>
-                  <dd>$ {formatMoney(data.breakdown?.seasonal)}</dd>
-                </div>
-                <div>
-                  <dt>Reserva de seguridad</dt>
-                  <dd>$ {formatMoney(data.safe_to_spend_buffer)}</dd>
-                </div>
-                <div>
-                  <dt>Impuestos previstos</dt>
-                  <dd>$ {formatMoney(data.projected_taxes)}</dd>
-                </div>
-                <div>
-                  <dt>Ajuste por gastos atípicos</dt>
-                  <dd>$ {formatMoney(data.anomaly_leaks)}</dd>
-                </div>
-              </dl>
-            )}
+            <AnimatePresence initial={false}>
+              {showBreakdown && data && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                  className="app-disclosure-body"
+                >
+                  <div className="app-safe-spend-drawer">
+                    <span className="app-safe-spend-drawer-kicker">
+                      Composición del cálculo a 30 días
+                    </span>
+                    <dl id={breakdownId} className="app-safe-spend-breakdown">
+                      <div className="is-positive">
+                        <dt>Saldo líquido actual</dt>
+                        <dd>$ {formatMoney(data.current_balance)}</dd>
+                      </div>
+                      <div className="is-positive">
+                        <dt>Ingresos previstos</dt>
+                        <dd>$ {formatMoney(data.monthly_income)}</dd>
+                      </div>
+                      <div>
+                        <dt>Suscripciones</dt>
+                        <dd>$ {formatMoney(data.breakdown?.subscriptions)}</dd>
+                      </div>
+                      <div>
+                        <dt>Pagos de tarjetas</dt>
+                        <dd>$ {formatMoney(data.breakdown?.credit_cards)}</dd>
+                      </div>
+                      <div>
+                        <dt>Deudas personales netas</dt>
+                        <dd>$ {formatMoney(data.breakdown?.ious)}</dd>
+                      </div>
+                      <div>
+                        <dt>Cobros compartidos previstos</dt>
+                        <dd>$ {formatMoney(data.breakdown?.debt_shares)}</dd>
+                      </div>
+                      <div>
+                        <dt>Ajuste estacional</dt>
+                        <dd>$ {formatMoney(data.breakdown?.seasonal)}</dd>
+                      </div>
+                      <div>
+                        <dt>Reserva de seguridad</dt>
+                        <dd>$ {formatMoney(data.safe_to_spend_buffer)}</dd>
+                      </div>
+                      <div>
+                        <dt>Impuestos previstos</dt>
+                        <dd>$ {formatMoney(data.projected_taxes)}</dd>
+                      </div>
+                      <div>
+                        <dt>Ajuste por gastos atípicos</dt>
+                        <dd>$ {formatMoney(data.anomaly_leaks)}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
       </div>

@@ -1,18 +1,40 @@
-import { type CSSProperties, useState, useEffect } from 'react';
+import { type CSSProperties, useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Decimal from 'decimal.js-light';
 import { motion, AnimatePresence } from 'framer-motion';
 import { accountsAPI, statementsAPI } from '../services/api';
-import type { Account, CreditCardStatement, AccountPayload, StatementPayload } from '../types';
+import type {
+  Account,
+  CreditCardStatement,
+  AccountPayload,
+  StatementPayload,
+} from '../types';
 import type { AxiosError } from 'axios';
 import { formatMoney, toDecimal, toCents, clampZero } from '../utils/money';
-import { Plus, Trash2, Edit, ChevronDown, ChevronUp, Clock, CheckCircle2, Link } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Edit,
+  ChevronDown,
+  Clock,
+  CheckCircle2,
+  Link,
+  FileText,
+  Calendar,
+} from 'lucide-react';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { type AccountFormData, getAccountAccent, getAccountTypeLabel, getAccountIcon } from '../components/accounts/shared';
+import {
+  type AccountFormData,
+  getAccountAccent,
+  getAccountTypeLabel,
+  getAccountIcon,
+} from '../components/accounts/shared';
 import CreateAccountModal from '../components/accounts/CreateAccountModal';
 import EditAccountModal from '../components/accounts/EditAccountModal';
-import AccountStatementModal, { type StatementFormData } from '../components/accounts/AccountStatementModal';
+import AccountStatementModal, {
+  type StatementFormData,
+} from '../components/accounts/AccountStatementModal';
 
 type ApiError = AxiosError<{ detail?: string }>;
 
@@ -43,18 +65,23 @@ const emptyStatementForm: StatementFormData = {
   notes: '',
 };
 
-const getAccountColumnCount = () => {
-  if (typeof window === 'undefined') return 3;
-  if (window.innerWidth <= 720) return 1;
-  if (window.innerWidth <= 1100) return 2;
-  return 3;
-};
-
-
+const MONTH_SHORT = [
+  'Ene',
+  'Feb',
+  'Mar',
+  'Abr',
+  'May',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dic',
+];
 
 const Accounts = () => {
   const queryClient = useQueryClient();
-  const [accountColumnCount, setAccountColumnCount] = useState(getAccountColumnCount);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -62,35 +89,41 @@ const Accounts = () => {
   const [form, setForm] = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyForm);
   const [statementForm, setStatementForm] = useState(emptyStatementForm);
-  const [editingStatement, setEditingStatement] = useState<CreditCardStatement | null>(null);
+  const [editingStatement, setEditingStatement] =
+    useState<CreditCardStatement | null>(null);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
+  const [toast, setToast] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'warning';
+  } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    id: string | null;
+  }>({ isOpen: false, id: null });
 
-  // Bloquear scroll del body cuando el modal está activo
-
-
-  useEffect(() => {
-    const handleResize = () => setAccountColumnCount(getAccountColumnCount());
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // --- React Query: Data Fetching ---
-  const { data: accounts = [], isLoading: accountsLoading, isError: accountsError, refetch: refetchAccounts } = useQuery<Account[]>({
+  const {
+    data: accounts = [],
+    isLoading: accountsLoading,
+    isError: accountsError,
+    refetch: refetchAccounts,
+  } = useQuery<Account[]>({
     queryKey: ['accounts'],
-    queryFn: () => accountsAPI.getAll().then(res => res.data ?? []),
+    queryFn: () => accountsAPI.getAll().then((res) => res.data ?? []),
   });
 
-  const { data: statements = [], isLoading: statementsLoading, isError: statementsError, refetch: refetchStatements } = useQuery<CreditCardStatement[]>({
+  const {
+    data: statements = [],
+    isLoading: statementsLoading,
+    isError: statementsError,
+    refetch: refetchStatements,
+  } = useQuery<CreditCardStatement[]>({
     queryKey: ['statements'],
-    queryFn: () => statementsAPI.getAll().then(res => res.data ?? []),
+    queryFn: () => statementsAPI.getAll().then((res) => res.data ?? []),
   });
 
   const isLoading = accountsLoading || statementsLoading;
   const isError = accountsError || statementsError;
 
-  // --- Mutations ---
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['accounts'] });
     queryClient.invalidateQueries({ queryKey: ['statements'] });
@@ -105,11 +138,16 @@ const Accounts = () => {
       setForm(emptyForm);
       setToast({ message: 'Cuenta creada', type: 'success' });
     },
-    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al crear cuenta', type: 'error' }),
+    onError: (error: ApiError) =>
+      setToast({
+        message: error.response?.data?.detail || 'Error al crear cuenta',
+        type: 'error',
+      }),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: AccountPayload }) => accountsAPI.update(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: AccountPayload }) =>
+      accountsAPI.update(id, payload),
     onSuccess: () => {
       invalidateAll();
       setShowEditModal(false);
@@ -117,7 +155,11 @@ const Accounts = () => {
       setEditForm(emptyForm);
       setToast({ message: 'Cuenta actualizada', type: 'success' });
     },
-    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al actualizar cuenta', type: 'error' }),
+    onError: (error: ApiError) =>
+      setToast({
+        message: error.response?.data?.detail || 'Error al actualizar cuenta',
+        type: 'error',
+      }),
   });
 
   const deleteMutation = useMutation({
@@ -126,7 +168,11 @@ const Accounts = () => {
       invalidateAll();
       setToast({ message: 'Cuenta eliminada', type: 'success' });
     },
-    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al eliminar cuenta', type: 'error' }),
+    onError: (error: ApiError) =>
+      setToast({
+        message: error.response?.data?.detail || 'Error al eliminar cuenta',
+        type: 'error',
+      }),
     onSettled: () => setDeleteConfirm({ isOpen: false, id: null }),
   });
 
@@ -139,11 +185,22 @@ const Accounts = () => {
       setEditingStatement(null);
       setToast({ message: 'Estado de cuenta creado', type: 'success' });
     },
-    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al crear estado de cuenta', type: 'error' }),
+    onError: (error: ApiError) =>
+      setToast({
+        message:
+          error.response?.data?.detail || 'Error al crear estado de cuenta',
+        type: 'error',
+      }),
   });
 
   const updateStatementMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: StatementPayload }) => statementsAPI.update(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: StatementPayload;
+    }) => statementsAPI.update(id, payload),
     onSuccess: () => {
       invalidateAll();
       setShowStatementModal(false);
@@ -151,22 +208,58 @@ const Accounts = () => {
       setEditingStatement(null);
       setToast({ message: 'Estado de cuenta actualizado', type: 'success' });
     },
-    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al actualizar estado de cuenta', type: 'error' }),
+    onError: (error: ApiError) =>
+      setToast({
+        message:
+          error.response?.data?.detail ||
+          'Error al actualizar estado de cuenta',
+        type: 'error',
+      }),
   });
 
   const deleteStatementMutation = useMutation({
     mutationFn: (id: string) => statementsAPI.delete(id),
     onSuccess: () => invalidateAll(),
-    onError: (error: ApiError) => setToast({ message: error.response?.data?.detail || 'Error al eliminar estado de cuenta', type: 'error' }),
+    onError: (error: ApiError) =>
+      setToast({
+        message:
+          error.response?.data?.detail || 'Error al eliminar estado de cuenta',
+        type: 'error',
+      }),
   });
 
-  const saving = createMutation.isPending || updateMutation.isPending || createStatementMutation.isPending || updateStatementMutation.isPending;
+  const saving =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    createStatementMutation.isPending ||
+    updateStatementMutation.isPending;
 
-  const getStatementForAccount = (accountId: string) => statements.find(s => s.account_id === accountId);
-  const accountColumns = Array.from({ length: accountColumnCount }, () => [] as Account[]);
-  accounts.forEach((account, index) => {
-    accountColumns[index % accountColumnCount].push(account);
-  });
+  const getStatementForAccount = (accountId: string) =>
+    statements.find((s) => s.account_id === accountId);
+
+  const summaryMetrics = useMemo(() => {
+    const liquidBalance = accounts
+      .filter(
+        (acc) =>
+          acc.account_type === 'checking' || acc.account_type === 'savings',
+      )
+      .reduce((sum, acc) => sum.plus(toDecimal(acc.balance)), new Decimal(0));
+
+    const creditDebt = accounts
+      .filter((acc) => acc.account_type === 'credit_card')
+      .reduce((sum, acc) => {
+        const stmt = statements.find((s) => s.account_id === acc.id);
+        const bal = toDecimal(acc.balance).abs();
+        const stmtBal = stmt
+          ? toDecimal(stmt.statement_balance)
+          : new Decimal(0);
+        return sum.plus(bal.lt(stmtBal) ? stmtBal : bal);
+      }, new Decimal(0));
+
+    const activeCount = accounts.filter((acc) => acc.is_active).length;
+
+    return { liquidBalance, creditDebt, activeCount };
+  }, [accounts, statements]);
 
   const handleCreateStatement = (accountId: string) => {
     setStatementForm({ ...emptyStatementForm, account_id: accountId });
@@ -178,9 +271,13 @@ const Accounts = () => {
     setEditingStatement(stmt);
     setStatementForm({
       account_id: stmt.account_id,
-      statement_balance: toDecimal(stmt.statement_balance).dividedBy(100).toString(),
+      statement_balance: toDecimal(stmt.statement_balance)
+        .dividedBy(100)
+        .toString(),
       user_share: toDecimal(stmt.user_share).dividedBy(100).toString(),
-      payment_due_date: stmt.payment_due_date ? stmt.payment_due_date.substring(0, 10) : '',
+      payment_due_date: stmt.payment_due_date
+        ? stmt.payment_due_date.substring(0, 10)
+        : '',
       cut_off_date: stmt.cut_off_date ? stmt.cut_off_date.substring(0, 10) : '',
       amount_paid: toDecimal(stmt.amount_paid).dividedBy(100).toString(),
       status: stmt.status,
@@ -203,22 +300,27 @@ const Accounts = () => {
       account_id: statementForm.account_id,
       statement_balance: toCents(statementForm.statement_balance || 0),
       user_share: toCents(statementForm.user_share || 0),
-      payment_due_date: statementForm.payment_due_date ? statementForm.payment_due_date + 'T00:00:00' : null,
-      cut_off_date: statementForm.cut_off_date ? statementForm.cut_off_date + 'T00:00:00' : null,
+      payment_due_date: statementForm.payment_due_date
+        ? statementForm.payment_due_date + 'T00:00:00'
+        : null,
+      cut_off_date: statementForm.cut_off_date
+        ? statementForm.cut_off_date + 'T00:00:00'
+        : null,
       amount_paid: toCents(statementForm.amount_paid || 0),
       status: statementForm.status,
       month: Number.parseInt(statementForm.month.toString()),
       year: Number.parseInt(statementForm.year.toString()),
       notes: statementForm.notes || null,
     };
-    if (editingStatement) updateStatementMutation.mutate({ id: editingStatement.id, payload });
+    if (editingStatement)
+      updateStatementMutation.mutate({ id: editingStatement.id, payload });
     else createStatementMutation.mutate(payload);
   };
 
-
-
   const handleDelete = (id: string) => setDeleteConfirm({ isOpen: true, id });
-  const confirmDelete = () => { if (deleteConfirm.id) deleteMutation.mutate(deleteConfirm.id); };
+  const confirmDelete = () => {
+    if (deleteConfirm.id) deleteMutation.mutate(deleteConfirm.id);
+  };
 
   const handleEdit = (account: Account) => {
     setEditingAccount(account);
@@ -227,7 +329,9 @@ const Accounts = () => {
       account_type: account.account_type,
       balance: toDecimal(account.balance).dividedBy(100).toString(),
       currency: account.currency || 'USD',
-      credit_limit: account.credit_limit ? toDecimal(account.credit_limit).dividedBy(100).toString() : '',
+      credit_limit: account.credit_limit
+        ? toDecimal(account.credit_limit).dividedBy(100).toString()
+        : '',
       bank_name: account.bank_name || '',
       description: account.description || '',
       is_active: account.is_active,
@@ -242,12 +346,12 @@ const Accounts = () => {
     e.preventDefault();
     createMutation.mutate({
       ...form,
-      // El Select de tipo de cuenta es un componente genérico (value: string);
-      // el cast es seguro porque sus `options` sólo listan valores de AccountType.
       account_type: form.account_type as Account['account_type'],
       balance: toCents(form.balance || 0),
       credit_limit: form.credit_limit ? toCents(form.credit_limit) : null,
-      statement_day: form.statement_day ? Number.parseInt(form.statement_day) : null,
+      statement_day: form.statement_day
+        ? Number.parseInt(form.statement_day)
+        : null,
       payment_day: form.payment_day ? Number.parseInt(form.payment_day) : null,
     });
   };
@@ -261,293 +365,509 @@ const Accounts = () => {
         ...editForm,
         account_type: editForm.account_type as Account['account_type'],
         balance: toCents(editForm.balance || 0),
-        credit_limit: editForm.credit_limit ? toCents(editForm.credit_limit) : null,
-        statement_day: editForm.statement_day ? Number.parseInt(editForm.statement_day) : null,
-        payment_day: editForm.payment_day ? Number.parseInt(editForm.payment_day) : null,
+        credit_limit: editForm.credit_limit
+          ? toCents(editForm.credit_limit)
+          : null,
+        statement_day: editForm.statement_day
+          ? Number.parseInt(editForm.statement_day)
+          : null,
+        payment_day: editForm.payment_day
+          ? Number.parseInt(editForm.payment_day)
+          : null,
       },
     });
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64 text-primary font-medium">Sincronizando cuentas...</div>;
+    return (
+      <div className="app-page">
+        <p role="status" className="app-inline-message">
+          Sincronizando cuentas…
+        </p>
+      </div>
+    );
   }
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
-        <p className="text-primary font-medium">No se pudieron cargar las cuentas.</p>
-        <button
-          onClick={() => { refetchAccounts(); refetchStatements(); }}
-          className="px-4 py-2 rounded-lg bg-accent-strong hover:bg-accent-strong text-on-color text-sm font-semibold transition-colors"
-        >
-          Reintentar
-        </button>
+      <div className="app-page">
+        <div className="app-empty-state">
+          <h2>No se pudieron cargar las cuentas</h2>
+          <p>Verifica la conexión con el servidor e inténtalo de nuevo.</p>
+          <button
+            type="button"
+            onClick={() => {
+              void refetchAccounts();
+              void refetchStatements();
+            }}
+            className="app-btn app-btn-primary"
+          >
+            Reintentar
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="accounts-page w-full relative min-h-screen pb-20">
-      {/* Background Glows */}
+    <div className="app-page accounts-page">
+      <div className="app-page-heading">
+        <div>
+          <h1 className="app-page-title">Cuentas</h1>
+          <p>Saldos bancarios, tarjetas de crédito y estados de cuenta.</p>
+        </div>
 
+        <button
+          type="button"
+          onClick={() => setShowCreateModal(true)}
+          className="app-btn app-btn-primary"
+        >
+          <Plus className="w-4 h-4" aria-hidden="true" />
+          <span>Nueva cuenta</span>
+        </button>
+      </div>
 
-      <div className="accounts-content relative z-10">
-        <div className="accounts-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
-          <motion.div className="accounts-page-heading" initial={false} animate={{ opacity: 1, x: 0 }}>
+      {accounts.length > 0 && (
+        <section className="app-summary-grid" aria-label="Resumen de cuentas">
+          <article className="app-summary-card">
+            <span>Liquidez en cuentas</span>
+            <strong className="text-success">
+              $ {formatMoney(summaryMetrics.liquidBalance)}
+            </strong>
+          </article>
+          <article className="app-summary-card">
+            <span>Deuda total en tarjetas</span>
+            <strong className="text-danger">
+              $ {formatMoney(summaryMetrics.creditDebt)}
+            </strong>
+          </article>
+          <article className="app-summary-card">
+            <span>Cuentas activas</span>
+            <strong>
+              {summaryMetrics.activeCount} de {accounts.length}
+            </strong>
+          </article>
+        </section>
+      )}
 
-            <h1 className="text-3xl lg:text-4xl font-black text-primary tracking-tight">Cuentas</h1>
-            <p className="text-muted text-sm lg:text-base font-medium">Saldos, tarjetas y compromisos en un solo lugar.</p>
-          </motion.div>
-
+      {accounts.length === 0 ? (
+        <div className="app-empty-state">
+          <h2>Aún no hay cuentas registradas</h2>
+          <p>
+            Registra tus cuentas bancarias o tarjetas para hacer seguimiento de
+            saldos y vencimientos.
+          </p>
           <button
+            type="button"
             onClick={() => setShowCreateModal(true)}
             className="app-btn app-btn-primary"
           >
-            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-            <span>Nueva Cuenta</span>
+            Registrar primera cuenta
           </button>
         </div>
-
+      ) : (
         <div className="accounts-grid">
-          {accounts.length === 0 ? (
-            <div className="col-span-full text-center py-20 bg-surface rounded-3xl border-2 border-dashed border-line">
-              <p className="text-muted text-lg font-medium">Aún no hay cuentas registradas</p>
-              <button onClick={() => setShowCreateModal(true)} className="app-btn app-btn-primary">
-                Registra tu primera cuenta aquí
-              </button>
-            </div>
-          ) : (
-            accountColumns.map((column, columnIndex) => (
-              <div className="accounts-column" key={`account-column-${columnIndex}`}>
-                <AnimatePresence mode="popLayout">
-                  {column.map((account, index) => {
-                const stmt = account.account_type === 'credit_card' ? getStatementForAccount(account.id) : null;
-                const isExpanded = expandedCard === account.id;
-                const accountAccent = getAccountAccent(account.account_type);
+          <AnimatePresence mode="popLayout">
+            {accounts.map((account, index) => {
+              const isCredit = account.account_type === 'credit_card';
+              const stmt = isCredit ? getStatementForAccount(account.id) : null;
+              const isExpanded = expandedCard === account.id;
+              const accountAccent = getAccountAccent(account.account_type);
 
-                return (
-                  <motion.article
-                    key={account.id}
-                    layout
-                    initial={false}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="account-card"
-                    style={{ '--account-color': accountAccent } as CSSProperties}
-                  >
+              const bal = toDecimal(account.balance).abs();
+              const stmtBal = stmt
+                ? toDecimal(stmt.statement_balance)
+                : new Decimal(0);
+              const displayBal =
+                isCredit && bal.lt(stmtBal) ? stmtBal : bal;
 
+              const accountStatements = isCredit
+                ? statements.filter((s) => s.account_id === account.id)
+                : [];
+              const totalOthersDebtCents = accountStatements.reduce(
+                (acc, s) =>
+                  acc.plus(
+                    toDecimal(s.statement_balance).minus(
+                      toDecimal(s.user_share),
+                    ),
+                  ),
+                new Decimal(0),
+              );
+              const totalUserDebtCents = clampZero(
+                displayBal.minus(totalOthersDebtCents),
+              );
 
-                    <div className="account-card-top">
-                      <div className="account-card-identity">
-                        <div className="account-card-icon">
-                          {getAccountIcon(account.account_type)}
-                        </div>
-                        <div className="account-card-title">
+              const remainingToPay = stmt
+                ? clampZero(
+                    toDecimal(stmt.statement_balance).minus(
+                      toDecimal(stmt.amount_paid),
+                    ),
+                  )
+                : new Decimal(0);
+              const paidPct = stmt
+                ? Math.min(
+                    100,
+                    (Number.parseFloat(toDecimal(stmt.amount_paid).toString()) /
+                      Math.max(
+                        1,
+                        Number.parseFloat(
+                          toDecimal(stmt.statement_balance).toString(),
+                        ),
+                      )) *
+                      100,
+                  )
+                : 0;
+
+              return (
+                <motion.article
+                  key={account.id}
+                  layout
+                  initial={false}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                  className="account-card"
+                  style={{ '--account-color': accountAccent } as CSSProperties}
+                >
+                  {/* Compact Header Row */}
+                  <div className="account-card-top">
+                    <div className="account-card-identity">
+                      <div className="account-card-icon" aria-hidden="true">
+                        {getAccountIcon(account.account_type)}
+                      </div>
+                      <div className="account-card-title">
+                        <div className="account-card-meta-row">
                           <span>{getAccountTypeLabel(account.account_type)}</span>
-                          <h3>{account.name}</h3>
-                          <div className="account-card-bank">
-                            <span>{account.bank_name || 'Cuenta privada'}</span>
-                            {account.linked_account_id && (
-                              <span className="account-card-linked">
-                                <Link className="w-2.5 h-2.5" />
-                                <span>Vinculada</span>
-                              </span>
-                            )}
-                          </div>
+                          <span className="account-card-dot">·</span>
+                          <span>{account.bank_name || 'Personal'}</span>
+                          {account.linked_account_id && (
+                            <span className="account-card-linked">
+                              <Link className="w-2.5 h-2.5" aria-hidden="true" />
+                              <span>Vinculada</span>
+                            </span>
+                          )}
                         </div>
-                      </div>
-                      <div className="account-card-actions">
-                        <button aria-label={`Editar ${account.name}`} title="Editar cuenta" onClick={() => handleEdit(account)} className="account-card-action account-card-action-edit">
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button aria-label={`Eliminar ${account.name}`} title="Eliminar cuenta" onClick={() => handleDelete(account.id)} className="account-card-action account-card-action-delete">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <h3>{account.name}</h3>
                       </div>
                     </div>
 
-                    <div className="account-card-balance">
-                      <span className="account-card-balance-label">
-                        {account.account_type === 'credit_card' ? 'Utilizado · deuda total' : 'Saldo disponible'}
+                    <div className="account-card-actions">
+                      <span
+                        className={`account-card-status ${
+                          account.is_active ? 'is-active' : 'is-inactive'
+                        }`}
+                      >
+                        <i aria-hidden="true" />
+                        {account.is_active ? 'Activa' : 'Inactiva'}
                       </span>
-                      <div className="account-card-balance-row">
-                        <strong>
-                          ${(() => {
-                            const bal = toDecimal(account.balance).abs();
-                            const stmtBal = stmt ? toDecimal(stmt.statement_balance) : new Decimal(0);
-                            const displayBal = (account.account_type === 'credit_card' && bal.lt(stmtBal)) ? stmtBal : bal;
-                            return formatMoney(account.account_type === 'credit_card' ? displayBal : account.balance);
-                          })()}
-                        </strong>
-                        <span className={`account-card-status ${account.is_active ? 'is-active' : 'is-inactive'}`}>
-                          <i></i>
-                          {account.is_active ? 'Activa' : 'Inactiva'}
-                        </span>
-                      </div>
+                      <button
+                        type="button"
+                        aria-label={`Editar ${account.name}`}
+                        title="Editar cuenta"
+                        onClick={() => handleEdit(account)}
+                        className="account-card-action account-card-action-edit"
+                      >
+                        <Edit className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Eliminar ${account.name}`}
+                        title="Eliminar cuenta"
+                        onClick={() => handleDelete(account.id)}
+                        className="account-card-action account-card-action-delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
 
-                      {/* Global Debt Breakdown for Credit Cards */}
-                      {account.account_type === 'credit_card' && (() => {
-                        const accountStatements = statements.filter(s => s.account_id === account.id);
-                        const totalOthersDebtCents = accountStatements.reduce((acc, s) => {
-                          const statementOthers = toDecimal(s.statement_balance).minus(toDecimal(s.user_share));
-                          return acc.plus(statementOthers);
-                        }, new Decimal(0));
-
-                        // Treat balance as debt magnitude for credit cards
-                        const bal = toDecimal(account.balance).abs();
-                        const stmtBal = stmt ? toDecimal(stmt.statement_balance) : new Decimal(0);
-                        const bankDebtCents = bal.gt(stmtBal) ? bal : stmtBal;
-
-                        const totalUserDebtCents = clampZero(bankDebtCents.minus(totalOthersDebtCents));
-
-                        return (
-                          <div className="account-card-breakdown">
-                            <div>
-                              <span>Tu deuda real</span>
-                              <strong>${formatMoney(totalUserDebtCents)}</strong>
-                            </div>
-                            <div className="account-card-breakdown-divider"></div>
-                            <div>
-                              <span>De otras personas</span>
-                              <strong>${formatMoney(totalOthersDebtCents)}</strong>
-                            </div>
-                          </div>
-                        );
-                      })()}
+                  {/* Compact Balance Strip */}
+                  <div className="account-card-balance">
+                    <div className="account-card-balance-main">
+                      <span className="account-card-balance-label">
+                        {isCredit ? 'Deuda utilizada' : 'Saldo disponible'}
+                      </span>
+                      <strong className="account-card-balance-figure">
+                        $ {formatMoney(isCredit ? displayBal : account.balance)}
+                      </strong>
                     </div>
 
-                    {account.account_type === 'credit_card' && (
-                      <div className="account-card-statement">
-                        {stmt ? (
-                          <div className="space-y-4">
-                            <div className="account-statement-heading">
-                              <button
-                                onClick={() => setExpandedCard(isExpanded ? null : account.id)}
-                                className="account-statement-toggle"
-                              >
-                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                ESTADO DE CUENTA
-                              </button>
-                              <div className="account-statement-actions">
-                                <button aria-label="Editar estado de cuenta" title="Editar estado de cuenta" onClick={() => handleEditStatement(stmt)}><Edit className="w-3.5 h-3.5" /></button>
-                                <button aria-label="Eliminar estado de cuenta" title="Eliminar estado de cuenta" onClick={() => handleDeleteStatement(stmt.id)}><Trash2 className="w-3.5 h-3.5" /></button>
-                              </div>
-                            </div>
+                    {isCredit ? (
+                      <div className="account-card-inline-split">
+                        <span>
+                          Tu parte: <strong>$ {formatMoney(totalUserDebtCents)}</strong>
+                        </span>
+                        <span className="account-card-dot">·</span>
+                        <span>
+                          Terceros: <strong>$ {formatMoney(totalOthersDebtCents)}</strong>
+                        </span>
+                        {account.credit_limit ? (
+                          <>
+                            <span className="account-card-dot">·</span>
+                            <span>
+                              Cupo: <strong>$ {formatMoney(account.credit_limit)}</strong>
+                            </span>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : (
+                      (account.description ||
+                        account.statement_day ||
+                        account.payment_day) && (
+                        <div className="account-card-inline-split">
+                          {account.description && (
+                            <span>{account.description}</span>
+                          )}
+                        </div>
+                      )
+                    )}
+                  </div>
 
-                            <div className="account-statement-panel space-y-4">
-                              {/* Calculation Header */}
-                              <div className="space-y-2">
-                                <div className="flex justify-between items-center text-xs font-black text-muted uppercase tracking-widest">
-                                  <span>Consumo Total (Banco)</span>
-                                  <span className="text-primary font-black">${formatMoney(stmt.statement_balance)}</span>
-                                </div>
-
-                                {(stmt.debt_shares ?? []).length > 0 && (
-                                  <div className="flex justify-between items-center text-xs font-black text-danger uppercase tracking-widest">
-                                    <span>(-) Consumo de Otros</span>
-                                    <span className="font-black">-${formatMoney(toDecimal(stmt.statement_balance).minus(toDecimal(stmt.user_share)))}</span>
-                                  </div>
-                                )}
-
-                                <div className="h-[1px] bg-surface-soft my-2"></div>
-
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs font-black text-accent-strong uppercase tracking-widest">Tu Gasto Real</span>
-                                  <span className="text-2xl font-black text-accent-strong tracking-tight">${formatMoney(stmt.user_share)}</span>
-                                </div>
-                              </div>
-
-                              {/* Progress Bar & Status */}
-                              <div className="pt-2 space-y-3">
-                                <div className="bg-surface-soft h-2 rounded-full overflow-hidden p-[1px] border border-line">
-                                  <div
-                                    className="h-full bg-accent-strong   rounded-full transition-all duration-1000 "
-                                    style={{ width: `${Math.min(100, (Number.parseFloat(toDecimal(stmt.amount_paid).toString()) / Number.parseFloat(toDecimal(stmt.statement_balance).toString())) * 100)}%` }}
-                                  ></div>
-                                </div>
-
-                                <div className="flex justify-between items-end">
-                                  <div className="flex flex-col">
-                                    <span className="text-xs font-black text-muted uppercase tracking-widest">Abonado</span>
-                                    <span className="text-xs font-bold text-muted">${formatMoney(stmt.amount_paid)}</span>
-                                  </div>
-                                  <div className="flex flex-col text-right">
-                                    <span className="text-xs font-black text-muted uppercase tracking-widest">Falta por Pagar</span>
-                                    <span className={`text-sm font-black tracking-tight ${toDecimal(stmt.statement_balance).minus(toDecimal(stmt.amount_paid)).lte(0) ? 'text-success' : 'text-danger'}`}>
-                                      ${formatMoney(clampZero(toDecimal(stmt.statement_balance).minus(toDecimal(stmt.amount_paid))))}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            <AnimatePresence>
-                              {isExpanded && (stmt.debt_shares ?? []).length > 0 && (
-                                <motion.div
-                                  initial={false}
-                                  animate={{ opacity: 1, height: 'auto' }}
-                                  exit={{ opacity: 0, height: 0 }}
-                                  className="overflow-hidden space-y-2 pt-2"
+                  {/* Credit Card Collapsible Statement Section */}
+                  {isCredit && (
+                    <div className="account-card-statement">
+                      {stmt ? (
+                        <div className="account-statement-block">
+                          <div className="account-statement-bar">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedCard(
+                                  isExpanded ? null : account.id,
+                                )
+                              }
+                              className={`account-statement-trigger ${
+                                isExpanded ? 'is-open' : ''
+                              }`}
+                              aria-expanded={isExpanded}
+                            >
+                              <div className="account-statement-trigger-left">
+                                <FileText
+                                  className="w-3.5 h-3.5 text-accent-strong"
+                                  aria-hidden="true"
+                                />
+                                <span className="account-statement-trigger-label">
+                                  Estado de cuenta ·{' '}
+                                  {MONTH_SHORT[(stmt.month ?? 1) - 1] ??
+                                    stmt.month}{' '}
+                                  {stmt.year}
+                                </span>
+                                <span
+                                  className={`account-statement-pill ${
+                                    remainingToPay.lte(0)
+                                      ? 'is-paid'
+                                      : 'is-pending'
+                                  }`}
                                 >
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <div className="h-[1px] flex-1 bg-surface-soft"></div>
-                                    <span className="text-xs font-black text-muted uppercase tracking-wide">Pendientes de Cobro</span>
-                                    <div className="h-[1px] flex-1 bg-surface-soft"></div>
-                                  </div>
-                                  {(stmt.debt_shares ?? []).map((share) => (
-                                    <div key={share.id} className="flex items-center justify-between bg-surface-soft rounded-2xl px-4 py-3 border border-line group/share">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-xl bg-surface-soft flex items-center justify-center text-xs font-black text-muted border border-line group-hover/share:border-line transition-all">
-                                          {share.person_name.charAt(0)}
-                                        </div>
-                                        <span className="text-sm font-bold text-primary group-hover/share:text-primary transition-colors">{share.person_name}</span>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-sm font-black text-warning">${formatMoney(share.amount)}</span>
-                                        {share.status === 'paid' ? (
-                                          <CheckCircle2 className="w-4 h-4 text-success" />
-                                        ) : (
-                                          <Clock className="w-4 h-4 text-warning animate-pulse" />
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => handleCreateStatement(account.id)}
-                            className="account-statement-empty w-full flex items-center justify-center gap-2 py-4 text-xs font-black uppercase tracking-widest transition-all"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Agregar Estado de Cuenta
-                          </button>
-                        )}
-                      </div>
-                    )}
+                                  {remainingToPay.lte(0)
+                                    ? 'Al día'
+                                    : `Falta $ ${formatMoney(remainingToPay)}`}
+                                </span>
+                              </div>
+                              <span
+                                className="app-disclosure-chevron"
+                                aria-hidden="true"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </span>
+                            </button>
 
-                    {!stmt && account.account_type !== 'credit_card' && (account.credit_limit !== undefined || account.description) && (
-                      <div className="account-card-footer">
-                        {account.credit_limit && (
-                          <div>
-                            <span>Límite de crédito</span>
-                            <strong>${formatMoney(account.credit_limit)}</strong>
+                            <div className="account-statement-actions">
+                              <button
+                                type="button"
+                                aria-label={`Editar estado de cuenta de ${account.name}`}
+                                title="Editar estado de cuenta"
+                                onClick={() => handleEditStatement(stmt)}
+                              >
+                                <Edit
+                                  className="w-3.5 h-3.5"
+                                  aria-hidden="true"
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Eliminar estado de cuenta de ${account.name}`}
+                                title="Eliminar estado de cuenta"
+                                onClick={() => handleDeleteStatement(stmt.id)}
+                              >
+                                <Trash2
+                                  className="w-3.5 h-3.5"
+                                  aria-hidden="true"
+                                />
+                              </button>
+                            </div>
                           </div>
-                        )}
-                        {account.description && <p>{account.description}</p>}
-                      </div>
-                    )}
-                  </motion.article>
-                  );
-                })}
-                </AnimatePresence>
-              </div>
-            ))
-          )}
+
+                          {/* Thin progress indicator always visible */}
+                          <div
+                            className="account-statement-mini-progress"
+                            title={`Abonado: ${paidPct.toFixed(0)}%`}
+                          >
+                            <div style={{ width: `${paidPct}%` }} />
+                          </div>
+
+                          {/* Expandable Drawer */}
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{
+                                  duration: 0.22,
+                                  ease: [0.22, 1, 0.36, 1],
+                                }}
+                                className="app-disclosure-body"
+                              >
+                                <div className="account-statement-drawer">
+                                  {(stmt.cut_off_date ||
+                                    stmt.payment_due_date ||
+                                    account.statement_day ||
+                                    account.payment_day) && (
+                                    <div className="account-statement-dates">
+                                      <span>
+                                        <Calendar
+                                          className="w-3 h-3"
+                                          aria-hidden="true"
+                                        />
+                                        Corte:{' '}
+                                        {stmt.cut_off_date
+                                          ? stmt.cut_off_date.slice(0, 10)
+                                          : account.statement_day
+                                            ? `Día ${account.statement_day}`
+                                            : '—'}
+                                      </span>
+                                      <span>
+                                        <Clock
+                                          className="w-3 h-3"
+                                          aria-hidden="true"
+                                        />
+                                        Vence:{' '}
+                                        {stmt.payment_due_date
+                                          ? stmt.payment_due_date.slice(0, 10)
+                                          : account.payment_day
+                                            ? `Día ${account.payment_day}`
+                                            : '—'}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  <div className="account-statement-rows">
+                                    <div className="account-statement-row">
+                                      <span>Consumo del corte (banco)</span>
+                                      <strong>
+                                        $ {formatMoney(stmt.statement_balance)}
+                                      </strong>
+                                    </div>
+
+                                    {toDecimal(stmt.statement_balance)
+                                      .minus(toDecimal(stmt.user_share))
+                                      .gt(0) && (
+                                      <div className="account-statement-row text-danger">
+                                        <span>(−) Consumo de terceros</span>
+                                        <strong>
+                                          −${' '}
+                                          {formatMoney(
+                                            toDecimal(
+                                              stmt.statement_balance,
+                                            ).minus(toDecimal(stmt.user_share)),
+                                          )}
+                                        </strong>
+                                      </div>
+                                    )}
+
+                                    <div className="account-statement-row is-highlight">
+                                      <span>Tu gasto del corte</span>
+                                      <strong>
+                                        $ {formatMoney(stmt.user_share)}
+                                      </strong>
+                                    </div>
+
+                                    <div className="account-statement-row">
+                                      <span>Abonado a la fecha</span>
+                                      <strong className="text-success">
+                                        $ {formatMoney(stmt.amount_paid)}
+                                      </strong>
+                                    </div>
+
+                                    <div className="account-statement-row">
+                                      <span>Pendiente por pagar</span>
+                                      <strong
+                                        className={
+                                          remainingToPay.lte(0)
+                                            ? 'text-success'
+                                            : 'text-danger'
+                                        }
+                                      >
+                                        $ {formatMoney(remainingToPay)}
+                                      </strong>
+                                    </div>
+                                  </div>
+
+                                  {(stmt.debt_shares ?? []).length > 0 ? (
+                                    <div className="account-shares-list">
+                                      <span className="account-shares-title">
+                                        Cobros compartidos del corte
+                                      </span>
+                                      {(stmt.debt_shares ?? []).map((share) => (
+                                        <div
+                                          key={share.id}
+                                          className="account-share-item"
+                                        >
+                                          <div className="account-share-person">
+                                            <span className="account-share-avatar">
+                                              {share.person_name.charAt(0)}
+                                            </span>
+                                            <span>{share.person_name}</span>
+                                          </div>
+                                          <div className="account-share-amount">
+                                            <strong>
+                                              $ {formatMoney(share.amount)}
+                                            </strong>
+                                            {share.status === 'paid' ? (
+                                              <CheckCircle2
+                                                className="w-3.5 h-3.5 text-success"
+                                                aria-hidden="true"
+                                              />
+                                            ) : (
+                                              <Clock
+                                                className="w-3.5 h-3.5 text-warning"
+                                                aria-hidden="true"
+                                              />
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    stmt.notes && (
+                                      <p className="account-statement-note">
+                                        {stmt.notes}
+                                      </p>
+                                    )
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleCreateStatement(account.id)}
+                          className="account-statement-empty"
+                        >
+                          <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                          Agregar estado de cuenta
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </motion.article>
+              );
+            })}
+          </AnimatePresence>
         </div>
-      </div>
+      )}
 
       <CreateAccountModal
         isOpen={showCreateModal}

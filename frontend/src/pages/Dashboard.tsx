@@ -53,6 +53,8 @@ import {
   RefreshCw,
   Plus,
   MoreHorizontal,
+  ArrowUpRight,
+  ArrowDownRight, ChevronDown,
 } from "lucide-react";
 
 import SafeToSpendCard from "../components/dashboard/SafeToSpendCard";
@@ -67,6 +69,7 @@ import { IntegrityStatus } from "../components/IntegrityStatus";
 import AIInsightsSection from "../components/dashboard/AIInsightsSection";
 import PaymentAlertsPanel from "../components/dashboard/PaymentAlertsPanel";
 import DashboardMetricsRow from "../components/dashboard/DashboardMetricsRow";
+
 const ExpenseBreakdownChart = lazy(
   () => import("../components/dashboard/ExpenseBreakdownChart"),
 );
@@ -88,6 +91,8 @@ const CashFlowForecastChart = lazy(
 // de solo cuando cambian los datos reales).
 const EMPTY_ARRAY: never[] = [];
 
+type DashboardSectionTab = "actividad" | "tendencias" | "compromisos" | "ia";
+
 const Dashboard = () => {
   const [insights, setInsights] = useState<string[] | null>(null);
   const [aiAlerts, setAiAlerts] = useState<string[]>([]);
@@ -100,8 +105,7 @@ const Dashboard = () => {
   const [forecastDays, setForecastDays] = useState(30);
   const [showWhatIfModal, setShowWhatIfModal] = useState(false);
   const [showAnomalyScanner, setShowAnomalyScanner] = useState(false);
-  const [showTrends, setShowTrends] = useState(false);
-  const [showCommitments, setShowCommitments] = useState(false);
+  const [activeTab, setActiveTab] = useState<DashboardSectionTab>("actividad");
 
   // Guards to prevent infinite loops and concurrent operations
   const isRefetchingRef = useRef(false);
@@ -264,24 +268,29 @@ const Dashboard = () => {
   const accounts = (results[1].data as Account[]) || EMPTY_ARRAY;
   const statements = (results[2].data as CreditCardStatement[]) || EMPTY_ARRAY;
   const safeToSpend = results[3].data as unknown as
-    SafeToSpendResponse | undefined;
+    | SafeToSpendResponse
+    | undefined;
   const netWorth = results[4].data as NetWorthResponse | undefined;
   const vehicleTelemetry = results[5].data as
-    VehicleTelemetryResponse | undefined;
+    | VehicleTelemetryResponse
+    | undefined;
   const cashFlowForecast = results[7].data as
-    CashFlowForecastResponse | undefined;
+    | CashFlowForecastResponse
+    | undefined;
   const transactions = (results[8].data as Transaction[]) || EMPTY_ARRAY;
   const subscriptions = (results[9].data as Subscription[]) || EMPTY_ARRAY;
   const categories = (results[10].data as Category[]) || EMPTY_ARRAY;
   const goals = (results[13].data as Goal[]) || EMPTY_ARRAY;
   const dashboardSummary = results[11].data as
-    DashboardSummaryResponse | undefined;
+    | DashboardSummaryResponse
+    | undefined;
 
-  // Widgets already degrade gracefully with `|| []`/undefined fallbacks when a
-  // query is still loading, so a full-page error blocker would be a step back.
-  // Instead, surface a single non-blocking toast if any of the core queries
-  // (accounts, transactions, summary) actually fails, so a silent empty
-  // dashboard doesn't get mistaken for "no data".
+  const categoryMap = useMemo(() => {
+    const map = new Map<string, string>();
+    categories.forEach((c) => map.set(c.id, c.name));
+    return map;
+  }, [categories]);
+
   const coreDataError =
     results[1].isError || results[8].isError || results[11].isError;
   const coreErrorNotifiedRef = useRef(false);
@@ -328,7 +337,6 @@ const Dashboard = () => {
         message: "Balances sincronizados con éxito",
         type: "success",
       });
-      // Refetch relevant data
       results[1].refetch(); // accounts
       results[11].refetch(); // summary
     },
@@ -339,16 +347,14 @@ const Dashboard = () => {
 
   const handleCreateSnapshot = useCallback(async () => {
     if (creatingSnapshot || isRefetchingRef.current) {
-      return; // Guard: prevent concurrent calls
+      return;
     }
 
-    // Prudence: We usually want to close the PREVIOUS month, not the one in progress.
     const now = new Date();
-    let month = now.getMonth(); // getMonth() is 0-indexed (Jan=0), so this is the previous month index.
+    let month = now.getMonth();
     let year = now.getFullYear();
 
     if (month === 0) {
-      // If it's January, previous month was December of last year
       month = 12;
       year -= 1;
     }
@@ -364,16 +370,14 @@ const Dashboard = () => {
     isRefetchingRef.current = true;
 
     try {
-      // Use the newly implemented lock: true to protect this historical record
       await snapshotsAPI.create({ month, year, lock: true });
       setToast({
         message: `Mes de ${monthName} cerrado y bloqueado exitosamente`,
         type: "success",
       });
 
-      // Refresh snapshots list if it exists in results
-      results[11].refetch(); // dashboardSummary
-      results[13].refetch(); // goals (might be affected by net worth)
+      results[11].refetch();
+      results[13].refetch();
     } catch (error) {
       console.error("Error creating snapshot:", error);
       setToast({ message: "Error al cerrar mes contable", type: "error" });
@@ -383,7 +387,6 @@ const Dashboard = () => {
     }
   }, [creatingSnapshot, results]);
 
-  // Reducciones Decimal-safe memoizadas: solo se recalculan cuando accounts/statements/dashboardSummary cambian
   const totalBalance = useMemo(
     () =>
       accounts
@@ -395,7 +398,6 @@ const Dashboard = () => {
     [accounts],
   );
 
-  // FASE 9: Obtener solo el último estado de cuenta por tarjeta para evitar duplicación histórica
   const latestStatements = useMemo(() => {
     const latestMap = new Map<string, CreditCardStatement>();
     statements.forEach((s) => {
@@ -445,7 +447,6 @@ const Dashboard = () => {
     [latestStatements],
   );
 
-  // La deuda neta es lo que debo pagar menos lo que me deben terceros
   const totalIOUsTheyOwe = useMemo(() => {
     return (pendingIOUs || [])
       .filter((iou: IOU) => {
@@ -473,21 +474,18 @@ const Dashboard = () => {
     return debtSharesSum.plus(totalIOUsTheyOwe);
   }, [latestStatements, totalIOUsTheyOwe]);
 
-  // La deuda de tarjetas "tuya" ya está calculada en user_share (que excluye lo que deben terceros en el estado de cuenta).
-  // No restamos totalThirdPartyDebt aquí porque causaría una doble resta.
   const totalStatementDue = useMemo(
     () => totalStatementGross,
     [totalStatementGross],
   );
 
   const expenseBreakdown = useMemo(
-    () => dashboardSummary?.expense_breakdown ?? [],
+    () => (dashboardSummary?.expense_breakdown ?? []).filter((item) => !/transferencia|ajuste|meta/i.test(item.name || "")),
     [dashboardSummary],
   );
 
   const dailySpending = useMemo(() => {
     const data = dashboardSummary?.daily_spending ?? [];
-    // Convert from cents (strings) to dollars (numbers) for chart scaling
     return data.map((item) => ({
       ...item,
       gasto:
@@ -497,10 +495,8 @@ const Dashboard = () => {
     }));
   }, [dashboardSummary]);
 
-  // Income vs Expense by month - ALWAYS use live dashboard summary for the bar chart to ensure accuracy
   const monthlyComparison = useMemo(() => {
     const dashboardData = dashboardSummary?.monthly_comparison ?? [];
-    // Convert from cents to dollars and strings to numbers
     return dashboardData.map((item) => ({
       ...item,
       Ingresos:
@@ -514,7 +510,6 @@ const Dashboard = () => {
     }));
   }, [dashboardSummary]);
 
-  // Credit cards summary
   const creditCards = useMemo(
     () => accounts.filter((a) => a.account_type === "credit_card"),
     [accounts],
@@ -525,12 +520,20 @@ const Dashboard = () => {
     [dashboardSummary],
   );
 
+  const recentTransactions = useMemo(
+    () =>
+      [...transactions]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 6),
+    [transactions],
+  );
+
   return (
     <div className="app-page dashboard-page">
       <div className="app-page-heading">
         <div className="dashboard-heading-copy">
-          <h1>Resumen financiero</h1>
-          <p>Tu disponible y los compromisos que requieren atención.</p>
+          <h1 className="app-page-title">Resumen financiero</h1>
+          <p>Tu disponible, horizonte de liquidez y compromisos inmediatos.</p>
           <div className="dashboard-integrity">
             <IntegrityStatus
               accounts={accounts}
@@ -544,16 +547,19 @@ const Dashboard = () => {
             <Plus aria-hidden="true" />
             Nueva transacción
           </Link>
-          <details className="app-action-menu" onKeyDown={event => {
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              event.currentTarget.open = false;
-              event.currentTarget.querySelector('summary')?.focus();
-            }
-          }}>
+          <details
+            className="app-action-menu"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector("summary")?.focus();
+              }
+            }}
+          >
             <summary className="app-btn">
               <MoreHorizontal aria-hidden="true" />
-              Más acciones
+              <span>Más acciones</span><ChevronDown className="w-3.5 h-3.5 app-menu-chevron" aria-hidden="true" />
             </summary>
             <div className="app-action-menu-content">
               <button
@@ -586,15 +592,7 @@ const Dashboard = () => {
           </details>
         </div>
       </div>
-      <SafeToSpendCard
-        data={safeToSpend}
-        isLoading={results[3].isPending}
-        hasError={results[3].isError}
-        isFetching={results[3].isFetching}
-        onRetry={() => {
-          void results[3].refetch();
-        }}
-      />
+
       {dashboardSummary && results[1].data ? (
         <SummaryCards
           balance={totalBalance}
@@ -624,130 +622,231 @@ const Dashboard = () => {
           <SkeletonCard />
         </div>
       )}
+
+      {/* Editorial 2-Column Overview: Liquidity Forecast on the left, Safe-to-Spend + Upcoming Payments on the right */}
+      <div className="dashboard-overview-grid">
+        <Suspense fallback={<SkeletonCard />}>
+          <CashFlowForecastChart
+            cashFlowForecast={cashFlowForecast}
+            forecastDays={forecastDays}
+            setForecastDays={setForecastDays}
+          />
+        </Suspense>
+
+        <div className="dashboard-overview-rail">
+          <SafeToSpendCard
+            data={safeToSpend}
+            isLoading={results[3].isPending}
+            hasError={results[3].isError}
+            isFetching={results[3].isFetching}
+            onRetry={() => {
+              void results[3].refetch();
+            }}
+          />
+
+          <section
+            className="dashboard-rail-payments"
+            aria-labelledby="payments-heading"
+          >
+            <div className="app-section-heading">
+              <h2 id="payments-heading" className="app-section-title">
+                Próximos pagos (30 días)
+              </h2>
+              <Link to="/reminders" className="app-text-link">
+                Calendario
+              </Link>
+            </div>
+            {paymentAlertsWithItems ? (
+              <PaymentAlertsPanel data={paymentAlertsWithItems} />
+            ) : paymentsLoading ? (
+              <p role="status" className="app-inline-message">
+                Consultando próximos pagos…
+              </p>
+            ) : paymentsError ? (
+              <p role="status" className="app-inline-message">
+                No se pudieron consultar los vencimientos.{" "}
+                <button
+                  type="button"
+                  className="app-btn"
+                  onClick={() => {
+                    void refetchPayments();
+                  }}
+                >
+                  Reintentar pagos
+                </button>
+              </p>
+            ) : (
+              <p className="dashboard-rail-empty">
+                Sin vencimientos registrados para los próximos 30 días.
+              </p>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {/* Editorial Segmented Section Navigation (replaces ugly <details> disclosure accordions) */}
       <section
-        className="dashboard-daily-section"
-        aria-labelledby="payments-heading"
+        className="dashboard-editorial-workspace"
+        aria-label="Secciones de análisis detallado"
       >
-        <h2 id="payments-heading" className="app-section-title">
-          Próximos pagos
-        </h2>
-        {paymentAlertsWithItems ? (
-          <PaymentAlertsPanel data={paymentAlertsWithItems} />
-        ) : paymentsLoading ? (
-          <p role="status" className="app-inline-message">
-            Consultando próximos pagos…
-          </p>
-        ) : paymentsError ? (
-          <p role="status" className="app-inline-message">
-            No se pudieron consultar los vencimientos.{" "}
+        <div className="dashboard-section-bar">
+          <div
+            className="dashboard-view-tabs"
+            role="tablist"
+            aria-label="Vistas del resumen financiero"
+          >
             <button
               type="button"
-              className="app-btn"
-              onClick={() => {
-                void refetchPayments();
-              }}
+              role="tab"
+              aria-selected={activeTab === "actividad"}
+              className={`dashboard-view-tab ${
+                activeTab === "actividad" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("actividad")}
             >
-              Reintentar pagos
+              Actividad y categorías
             </button>
-          </p>
-        ) : (
-          <p className="app-inline-message">
-            No hay pagos pendientes registrados para los próximos 30 días.
-          </p>
-        )}
-      </section>
-      <section
-        className="app-surface dashboard-recent"
-        aria-labelledby="recent-heading"
-      >
-        <div className="app-section-heading">
-          <h2 id="recent-heading" className="app-section-title">
-            Últimos movimientos
-          </h2>
-          <Link to="/transactions" className="app-text-link">
-            Ver todos
-          </Link>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "tendencias"}
+              className={`dashboard-view-tab ${
+                activeTab === "tendencias" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("tendencias")}
+            >
+              Tendencias y patrimonio
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "compromisos"}
+              className={`dashboard-view-tab ${
+                activeTab === "compromisos" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("compromisos")}
+            >
+              Tarjetas y deudas compartidas
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "ia"}
+              className={`dashboard-view-tab ${
+                activeTab === "ia" ? "is-active" : ""
+              }`}
+              onClick={() => setActiveTab("ia")}
+            >
+              Lectura con IA
+            </button>
+          </div>
         </div>
-        {transactions.length ? (
-          <ul className="dashboard-recent-list">
-            {[...transactions]
-              .sort((a, b) => b.date.localeCompare(a.date))
-              .slice(0, 5)
-              .map((transaction) => (
-                <li key={transaction.id}>
-                  <div>
-                    <strong>
-                      {transaction.description || "Sin descripción"}
-                    </strong>
-                    <time dateTime={transaction.date}>
-                      {transaction.date.slice(0, 10)}
-                    </time>
-                  </div>
-                  <span
-                    className={
-                      transaction.transaction_type === "income"
-                        ? "text-success"
-                        : "text-primary"
-                    }
-                  >
-                    {transaction.transaction_type === "income" ? "+" : "−"}${" "}
-                    {formatMoney(transaction.amount)}
+
+        {activeTab === "actividad" && (
+          <div className="dashboard-activity-grid" role="tabpanel">
+            <section
+              className="app-surface dashboard-recent"
+              aria-labelledby="recent-heading"
+            >
+              <div className="app-section-heading">
+                <div>
+                  <span className="dashboard-panel-kicker">
+                    Registro reciente
                   </span>
-                </li>
-              ))}
-          </ul>
-        ) : results[8].isPending ? (
-          <p role="status" className="app-inline-message">
-            Cargando movimientos…
-          </p>
-        ) : results[8].isError ? (
-          <p role="status" className="app-inline-message">
-            No se pudieron cargar los movimientos.{" "}
-            <button
-              type="button"
-              className="app-btn"
-              onClick={() => {
-                void results[8].refetch();
-              }}
-            >
-              Reintentar movimientos
-            </button>
-          </p>
-        ) : (
-          <p className="app-inline-message">
-            Registra una transacción o importa movimientos para ver tu actividad
-            reciente.
-          </p>
+                  <h2 id="recent-heading" className="app-section-title">
+                    Últimos movimientos
+                  </h2>
+                </div>
+                <Link to="/transactions" className="app-text-link">
+                  Ver todos
+                </Link>
+              </div>
+              {recentTransactions.length ? (
+                <ul className="dashboard-recent-list">
+                  {recentTransactions.map((transaction) => {
+                    const isIncome = transaction.transaction_type === "income";
+                    const categoryName = transaction.category_id
+                      ? categoryMap.get(transaction.category_id)
+                      : undefined;
+                    return (
+                      <li key={transaction.id}>
+                        <div className="dashboard-recent-item-main">
+                          <span
+                            className={`dashboard-recent-icon ${
+                              isIncome ? "is-income" : "is-expense"
+                            }`}
+                            aria-hidden="true"
+                          >
+                            {isIncome ? (
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            ) : (
+                              <ArrowDownRight className="w-3.5 h-3.5" />
+                            )}
+                          </span>
+                          <div>
+                            <strong>
+                              {transaction.description || "Sin descripción"}
+                            </strong>
+                            <div className="dashboard-recent-meta">
+                              <time dateTime={transaction.date}>
+                                {transaction.date.slice(0, 10)}
+                              </time>
+                              {categoryName && (
+                                <span className="dashboard-recent-cat">
+                                  {categoryName}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <span
+                          className={`dashboard-recent-amount ${
+                            isIncome ? "text-success" : "text-primary"
+                          }`}
+                        >
+                          {isIncome ? "+" : "−"}${" "}
+                          {formatMoney(transaction.amount)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : results[8].isPending ? (
+                <p role="status" className="app-inline-message">
+                  Cargando movimientos…
+                </p>
+              ) : results[8].isError ? (
+                <p role="status" className="app-inline-message">
+                  No se pudieron cargar los movimientos.{" "}
+                  <button
+                    type="button"
+                    className="app-btn"
+                    onClick={() => {
+                      void results[8].refetch();
+                    }}
+                  >
+                    Reintentar movimientos
+                  </button>
+                </p>
+              ) : (
+                <p className="app-inline-message">
+                  Registra una transacción o importa movimientos para ver tu
+                  actividad reciente.
+                </p>
+              )}
+            </section>
+
+            <Suspense fallback={<SkeletonCard />}>
+              <ExpenseBreakdownChart
+                dashboardSummary={dashboardSummary}
+                expenseBreakdown={expenseBreakdown}
+              />
+            </Suspense>
+          </div>
         )}
-      </section>
-      <details
-        className="app-disclosure"
-        onToggle={(event) => setShowCommitments(event.currentTarget.open)}
-      >
-        <summary>
-          Tarjetas y deudas compartidas
-          <span>Consultar saldos y cobros pendientes</span>
-        </summary>
-        <div className="app-disclosure-content">
-          {showCommitments && (
-            <>
-              <CreditCardSummary statements={statements} cards={creditCards} />
-              <IOUWidget />
-              <DebtSharesWidget statements={statements} />
-            </>
-          )}
-        </div>
-      </details>
-      <details
-        className="app-disclosure"
-        onToggle={(event) => setShowTrends(event.currentTarget.open)}
-      >
-        <summary>
-          Análisis y tendencias
-          <span>Gastos por categoría, evolución y proyecciones</span>
-        </summary>
-        <div className="app-disclosure-content">
-          {showTrends && (
+
+        {activeTab === "tendencias" && (
+          <div className="dashboard-trends-panel" role="tabpanel">
             <Suspense fallback={<p role="status">Cargando gráficos…</p>}>
               <DashboardMetricsRow
                 netBalance={netBalance}
@@ -757,46 +856,43 @@ const Dashboard = () => {
                 vehicleTelemetry={vehicleTelemetry}
               />
               <div className="dashboard-chart-grid">
-                <ExpenseBreakdownChart
-                  dashboardSummary={dashboardSummary}
-                  expenseBreakdown={expenseBreakdown}
-                />
                 <IncomeExpenseBarChart
                   hasData={!!dashboardSummary}
                   monthlyComparison={monthlyComparison}
                 />
+                <DailySpendingChart
+                  dashboardSummary={dashboardSummary}
+                  dailySpending={dailySpending}
+                />
               </div>
-              <DailySpendingChart
-                dashboardSummary={dashboardSummary}
-                dailySpending={dailySpending}
-              />
               <NetWorthChart netWorth={netWorth} />
-              <CashFlowForecastChart
-                cashFlowForecast={cashFlowForecast}
-                forecastDays={forecastDays}
-                setForecastDays={setForecastDays}
-              />
             </Suspense>
-          )}
-        </div>
-      </details>
-      <details className="app-disclosure">
-        <summary>
-          Análisis con IA
-          <span>
-            Revisar recomendaciones y generar un análisis cuando lo necesites
-          </span>
-        </summary>
-        <div className="app-disclosure-content">
-          <AIInsightsSection
-            insights={insights}
-            aiAlerts={aiAlerts}
-            aiPatterns={aiPatterns}
-            isPending={insightsMutation.isPending}
-            onRefresh={() => insightsMutation.mutate()}
-          />
-        </div>
-      </details>
+          </div>
+        )}
+
+        {activeTab === "compromisos" && (
+          <div className="dashboard-commitments-panel" role="tabpanel">
+            <CreditCardSummary statements={statements} cards={creditCards} />
+            <div className="dashboard-commitments-grid">
+              <IOUWidget />
+              <DebtSharesWidget statements={statements} />
+            </div>
+          </div>
+        )}
+
+        {activeTab === "ia" && (
+          <div className="dashboard-ai-panel" role="tabpanel">
+            <AIInsightsSection
+              insights={insights}
+              aiAlerts={aiAlerts}
+              aiPatterns={aiPatterns}
+              isPending={insightsMutation.isPending}
+              onRefresh={() => insightsMutation.mutate()}
+            />
+          </div>
+        )}
+      </section>
+
       {toast && (
         <Toast
           message={toast.message}

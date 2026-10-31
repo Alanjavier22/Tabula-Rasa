@@ -17,12 +17,47 @@ const ExpenseBreakdownChart = ({
     .sort((a, b) => b.amount - a.amount);
   const largest = Math.max(1, ...items.map((item) => item.amount));
   const total = items.reduce((sum, item) => sum + Math.max(0, item.amount), 0);
+  const topItem = items[0];
+  const topShare =
+    topItem && total > 0 ? Math.round((topItem.amount / total) * 100) : 0;
+
   return (
     <section
       className="app-surface app-chart-panel"
       aria-label="Gastos por categoría"
     >
-      <h3>Gastos por categoría</h3>
+      <div className="chart-panel-head">
+        <div>
+          <span className="dashboard-panel-kicker">Distribución del mes</span>
+          <h3>Gastos por categoría</h3>
+        </div>
+        {items.length > 0 && (
+          <div className="chart-panel-head-stat">
+            <span>Total categorizado</span>
+            <strong>$ {formatMoney(total)}</strong>
+          </div>
+        )}
+      </div>
+
+      {items.length > 0 && (
+        <div className="chart-kpi-strip">
+          <div className="chart-kpi-item">
+            <span>Mayor rubro</span>
+            <strong>
+              {topItem.name} ({topShare}%)
+            </strong>
+          </div>
+          <div className="chart-kpi-item">
+            <span>Categorías activas</span>
+            <strong>{items.length}</strong>
+          </div>
+          <div className="chart-kpi-item">
+            <span>Promedio por rubro</span>
+            <strong>$ {formatMoney(Math.round(total / items.length))}</strong>
+          </div>
+        </div>
+      )}
+
       {!dashboardSummary ? (
         <SkeletonChart height="h-56" />
       ) : items.length ? (

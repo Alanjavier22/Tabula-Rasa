@@ -93,7 +93,7 @@ const Snapshots = () => {
         <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-12 gap-6">
           <motion.div initial={false} animate={{ opacity: 1, x: 0 }}>
 
-            <h1 className="text-4xl lg:text-5xl font-black text-primary tracking-tight">Cierres mensuales</h1>
+            <h1 className="app-page-title text-4xl lg:text-5xl font-black text-primary tracking-tight">Cierres mensuales</h1>
             <p className="text-muted text-sm lg:text-base font-medium mt-2 max-w-md">
               Visualiza la evolución de tu patrimonio neto a través de cierres contables mensuales precisos.
             </p>
@@ -155,7 +155,7 @@ const Snapshots = () => {
 
                     <div className="compact-card bg-surface  border border-line rounded-2xl p-8 lg:p-10 transition-all hover:border-line relative overflow-hidden">
                       {/* Subdued Glow Background */}
-                      <div className={`absolute top-0 right-0 w-[40%] h-full  opacity-10 transition-all group-hover:opacity-15 ${isPositive ? 'bg-success' : 'bg-danger'}`}></div>
+                      <div className="hidden" aria-hidden="true" />
 
                       <div className="snapshot-layout relative z-10 flex flex-col lg:flex-row gap-10">
                         {/* Left: Date & Main Info */}
@@ -191,14 +191,14 @@ const Snapshots = () => {
                           <button
                             onClick={() => handleAnalyze(snapshot.id)}
                             disabled={analyzing}
-                            className="w-full mt-8 flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-surface-soft border border-line text-on-color text-xs font-black uppercase tracking-widest hover:bg-info transition-all group/btn"
+                            className="app-btn snapshots-analyze-button w-full mt-8 group/btn"
                           >
                             {analyzing && analysis?.snapshotId === snapshot.id ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
                             ) : (
                               <>
                                 <Sparkles className="w-4 h-4 text-info group-hover/btn:text-primary transition-colors" />
-                                <span>Analizar Auditoría</span>
+                                <span>Analizar auditoría</span>
                               </>
                             )}
                           </button>

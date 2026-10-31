@@ -279,7 +279,7 @@ const Budgets = () => {
         <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <motion.div initial={false} animate={{ opacity: 1, x: 0 }}>
 
-            <h1 className="text-4xl lg:text-5xl font-black text-primary tracking-tight">Presupuestos</h1>
+            <h1 className="app-page-title text-4xl lg:text-5xl font-black text-primary tracking-tight">Presupuestos</h1>
             <p className="text-muted text-sm lg:text-base font-medium mt-2 max-w-md">
               Gestiona tus techos de gasto y mantén tu salud financiera bajo control este mes.
             </p>
@@ -292,17 +292,17 @@ const Budgets = () => {
           >
             <button
               onClick={() => setShowRecurringModal(true)}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-surface-soft hover:bg-surface-soft border border-line text-primary transition-all group"
+              className="app-btn"
             >
               <RefreshCw className="w-4 h-4 text-success group-hover:rotate-180 transition-transform duration-700" />
-              <span className="text-xs font-black uppercase tracking-widest">Sincronizar Mes</span>
+              <span className="text-sm font-semibold">Sincronizar mes</span>
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="app-btn app-btn-primary"
             >
               <Plus className="w-5 h-5" />
-              <span className="text-xs font-black uppercase tracking-widest">Nuevo presupuesto</span>
+              <span className="text-sm font-semibold">Nuevo presupuesto</span>
             </button>
           </motion.div>
         </div>
@@ -387,7 +387,7 @@ const Budgets = () => {
                     className="compact-card group bg-surface  rounded-2xl border border-line hover:border-line transition-all p-8 relative overflow-hidden"
                   >
                     {/* Background Visual Decor */}
-                    <div className={`absolute top-0 right-0 w-32 h-32  opacity-10 transition-all group-hover:opacity-20 ${getBudgetGlowClass(isOverBudget, percentage)}`}></div>
+                    <div className={`hidden ${getBudgetGlowClass(isOverBudget, percentage)}`} aria-hidden="true" />
 
                     <div className="flex items-start justify-between mb-8 relative z-10">
                       <div className="flex items-center gap-4">

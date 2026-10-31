@@ -27,7 +27,7 @@ interface GoalFormModalProps {
 }
 
 const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm, saving, onClose, onSubmit }: GoalFormModalProps) => {
-  const submitLabel = isCreate ? 'Establecer Objetivo' : 'Actualizar Misión';
+  const submitLabel = isCreate ? 'Establecer Objetivo' : 'Actualizar Meta';
 
   return (
     <AnimatePresence>
@@ -35,60 +35,57 @@ const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm,
         <Modal onClose={onClose} label={'Meta financiera'}>
           <motion.div
             initial={false}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-overlay "
-          />
-
-          <motion.div
-            initial={false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-lg bg-canvas rounded-2xl border border-line shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            className="relative w-full max-w-lg bg-canvas rounded-2xl border border-line shadow-2xl overflow-hidden flex flex-col max-h-[88dvh]"
             onClick={e => e.stopPropagation()}
           >
-            <div className="p-6 md:p-10 border-b border-line flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-success-soft flex items-center justify-center border border-line text-success">
-                  <Target className="w-5 h-5 md:w-6 md:h-6" />
+            <div className="px-6 py-4 border-b border-line flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-success-soft flex items-center justify-center border border-line text-success">
+                  <Target className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-xl md:text-2xl font-black text-primary tracking-tight">
+                  <h2 className="text-lg font-bold text-primary tracking-tight">
                     {isCreate ? 'Nuevo Objetivo' : 'Ajustar Meta'}
                   </h2>
-                  <p className="text-xs text-muted font-bold tracking-widest uppercase">Parámetros de Crecimiento</p>
+                  <p className="text-[11px] text-muted font-bold tracking-wider uppercase">Parámetros de Crecimiento</p>
                 </div>
               </div>
-              <button aria-label="Cerrar diálogo"
+              <button
+                aria-label="Cerrar diálogo"
                 onClick={onClose}
-                className="w-10 h-10 md:w-12 md:h-12 rounded-2xl hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all"
+                className="w-9 h-9 rounded-lg hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all"
               >
-                <X className="w-6 h-6 md:w-8 md:h-8" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <form
               onSubmit={onSubmit}
-              className="p-6 md:p-10 space-y-6 md:space-y-8 overflow-y-auto custom-scrollbar overscroll-contain"
+              className="p-6 space-y-5 overflow-y-auto custom-scrollbar overscroll-contain"
             >
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <div>
-                  <label htmlFor="goal-name" className="block text-xs font-black text-muted uppercase tracking-widest mb-3 ml-1">Nombre de la Meta</label>
+                  <label htmlFor="goal-name" className="block text-[11px] font-bold text-muted uppercase tracking-wider mb-1.5 ml-0.5">
+                    Nombre de la Meta
+                  </label>
                   <input
                     id="goal-name"
                     type="text"
                     required
                     value={isCreate ? form.name : editForm.name}
-                    onChange={e => isCreate ? setForm({...form, name: e.target.value}) : setEditForm({...editForm, name: e.target.value})}
-                    className="w-full bg-surface-soft border border-line rounded-2xl px-6 py-5 text-primary font-bold focus:outline-none focus:border-line transition-all text-lg"
+                    onChange={e => isCreate ? setForm({ ...form, name: e.target.value }) : setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full bg-surface-soft border border-line rounded-xl px-4 py-3 text-primary font-semibold focus:outline-none focus:border-line transition-all text-sm"
                     placeholder="Ej: Nuevo Auto, Fondo de Emergencia..."
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="goal-target-amount" className="block text-xs font-black text-muted uppercase tracking-widest mb-3 ml-1">Capital Objetivo ($)</label>
+                    <label htmlFor="goal-target-amount" className="block text-[11px] font-bold text-muted uppercase tracking-wider mb-1.5 ml-0.5">
+                      Capital Objetivo ($)
+                    </label>
                     <input
                       id="goal-target-amount"
                       type="number"
@@ -96,28 +93,32 @@ const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm,
                       min="0.01"
                       required
                       value={isCreate ? form.target_amount : editForm.target_amount}
-                      onChange={e => isCreate ? setForm({...form, target_amount: e.target.value}) : setEditForm({...editForm, target_amount: e.target.value})}
-                      className="w-full bg-surface-soft border border-line rounded-2xl px-6 py-5 text-primary font-black focus:outline-none focus:border-line transition-all text-2xl"
+                      onChange={e => isCreate ? setForm({ ...form, target_amount: e.target.value }) : setEditForm({ ...editForm, target_amount: e.target.value })}
+                      className="w-full bg-surface-soft border border-line rounded-xl px-4 py-3 text-primary font-bold tabular-nums focus:outline-none focus:border-line transition-all text-base"
                       placeholder="0.00"
                     />
                   </div>
                   <div>
-                    <label htmlFor="goal-target-date" className="block text-xs font-black text-muted uppercase tracking-widest mb-3 ml-1">Fecha Límite</label>
+                    <label htmlFor="goal-target-date" className="block text-[11px] font-bold text-muted uppercase tracking-wider mb-1.5 ml-0.5">
+                      Fecha Límite
+                    </label>
                     <DatePicker
                       id="goal-target-date"
                       value={isCreate ? form.target_date : editForm.target_date}
-                      onChange={(value) => isCreate ? setForm({...form, target_date: value}) : setEditForm({...editForm, target_date: value})}
+                      onChange={(value) => isCreate ? setForm({ ...form, target_date: value }) : setEditForm({ ...editForm, target_date: value })}
                       placeholder="Elegir fecha"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="goal-status" className="block text-xs font-black text-muted uppercase tracking-widest mb-3 ml-1">Estado de la Misión</label>
+                  <label htmlFor="goal-status" className="block text-[11px] font-bold text-muted uppercase tracking-wider mb-1.5 ml-0.5">
+                    Estado de la Meta
+                  </label>
                   <Select
                     id="goal-status"
                     value={isCreate ? form.status : editForm.status}
-                    onChange={(value) => isCreate ? setForm({...form, status: value as GoalStatus}) : setEditForm({...editForm, status: value as GoalStatus})}
+                    onChange={(value) => isCreate ? setForm({ ...form, status: value as GoalStatus }) : setEditForm({ ...editForm, status: value as GoalStatus })}
                     options={[
                       { value: 'active', label: 'Activa' },
                       { value: 'completed', label: 'Completada' },
@@ -127,30 +128,32 @@ const GoalFormModal = ({ isCreate, isOpen, form, setForm, editForm, setEditForm,
                 </div>
 
                 <div>
-                  <label htmlFor="goal-description" className="block text-xs font-black text-muted uppercase tracking-widest mb-3 ml-1">Propósito / Descripción</label>
+                  <label htmlFor="goal-description" className="block text-[11px] font-bold text-muted uppercase tracking-wider mb-1.5 ml-0.5">
+                    Propósito / Descripción
+                  </label>
                   <textarea
                     id="goal-description"
                     value={isCreate ? form.description : editForm.description}
-                    onChange={e => isCreate ? setForm({...form, description: e.target.value}) : setEditForm({...editForm, description: e.target.value})}
-                    className="w-full bg-surface-soft border border-line rounded-2xl px-6 py-5 text-primary font-medium focus:outline-none focus:border-line transition-all text-sm"
-                    rows={3}
+                    onChange={e => isCreate ? setForm({ ...form, description: e.target.value }) : setEditForm({ ...editForm, description: e.target.value })}
+                    className="w-full bg-surface-soft border border-line rounded-xl px-4 py-3 text-primary font-medium focus:outline-none focus:border-line transition-all text-sm"
+                    rows={2}
                     placeholder="Describe por qué es importante esta meta..."
                   />
                 </div>
               </div>
 
-              <div className="pt-4 flex gap-4">
+              <div className="pt-2 flex justify-end gap-3 border-t border-line">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 px-8 py-5 rounded-2xl bg-surface-soft border border-line text-primary text-xs font-black uppercase tracking-widest hover:bg-surface-soft transition-all"
+                  className="app-btn app-btn-ghost"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-[2] px-8 py-5 rounded-2xl bg-surface-soft   text-primary text-xs font-black uppercase tracking-widest hover:shadow-xl  transition-all disabled:opacity-50"
+                  className="app-btn app-btn-primary disabled:opacity-50"
                 >
                   {saving ? 'Procesando...' : submitLabel}
                 </button>

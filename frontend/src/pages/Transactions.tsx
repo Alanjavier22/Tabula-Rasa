@@ -25,6 +25,7 @@ import {
   FileImage,
   Search,
   CreditCard,
+  ChevronDown,
 } from "lucide-react";
 import AccountImportModal from "../components/AccountImportModal";
 import DocumentImportModal from "../components/DocumentImportModal";
@@ -369,7 +370,7 @@ const Transactions = () => {
     <div className="app-page transactions-page">
       <div className="app-page-heading">
         <div>
-          <h1>Transacciones</h1>
+          <h1 className="app-page-title">Transacciones</h1>
           <p>Registra movimientos y consulta tu actividad.</p>
         </div>
         <div className="transactions-actions">
@@ -385,16 +386,23 @@ const Transactions = () => {
             <Plus aria-hidden="true" />
             Nueva transacción
           </button>
-          <details className="app-action-menu" onKeyDown={event => {
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              event.currentTarget.open = false;
-              event.currentTarget.querySelector('summary')?.focus();
-            }
-          }}>
+          <details
+            className="app-action-menu"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector("summary")?.focus();
+              }
+            }}
+          >
             <summary className="app-btn">
               <Upload aria-hidden="true" />
-              Importar
+              <span>Importar</span>
+              <ChevronDown
+                className="w-3.5 h-3.5 app-menu-chevron"
+                aria-hidden="true"
+              />
             </summary>
             <div className="app-action-menu-content">
               <button type="button" onClick={() => setShowImportModal(true)}>
@@ -486,41 +494,36 @@ const Transactions = () => {
             onChange={setEndDate}
           />
         </div>
-        <details className="transactions-extra-filters">
-          <summary>Más filtros</summary>
-          <div className="transactions-filter-options">
-            <div>
-              <label htmlFor="transactions-category">Categoría</label>
-              <Select
-                id="transactions-category"
-                value={categoryFilter}
-                onChange={setCategoryFilter}
-                options={[
-                  { value: "", label: "Todas las categorías" },
-                  ...(categories ?? []).map((category) => ({
-                    value: category.id,
-                    label: category.name,
-                  })),
-                ]}
-              />
-            </div>
-            <div>
-              <label htmlFor="transactions-account">Cuenta</label>
-              <Select
-                id="transactions-account"
-                value={accountFilter}
-                onChange={setAccountFilter}
-                options={[
-                  { value: "", label: "Todas las cuentas" },
-                  ...(accounts ?? []).map((account) => ({
-                    value: account.id,
-                    label: account.name,
-                  })),
-                ]}
-              />
-            </div>
-          </div>
-        </details>
+        <div>
+          <label htmlFor="transactions-category">Categoría</label>
+          <Select
+            id="transactions-category"
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+            options={[
+              { value: "", label: "Todas las categorías" },
+              ...(categories ?? []).map((category) => ({
+                value: category.id,
+                label: category.name,
+              })),
+            ]}
+          />
+        </div>
+        <div>
+          <label htmlFor="transactions-account">Cuenta</label>
+          <Select
+            id="transactions-account"
+            value={accountFilter}
+            onChange={setAccountFilter}
+            options={[
+              { value: "", label: "Todas las cuentas" },
+              ...(accounts ?? []).map((account) => ({
+                value: account.id,
+                label: account.name,
+              })),
+            ]}
+          />
+        </div>
         {startDate && endDate && startDate > endDate && (
           <p role="alert" className="text-danger">
             La fecha inicial debe ser anterior o igual a la final.

@@ -24,6 +24,16 @@ import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SubscriptionFormModal, { type SubscriptionFormData } from '../components/subscriptions/SubscriptionFormModal';
 
+const parseLocalDate = (raw: string): Date => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+  const fallback = new Date(raw);
+  fallback.setHours(0, 0, 0, 0);
+  return fallback;
+};
+
 const emptyForm: SubscriptionFormData = {
   name: '',
   amount: '',
@@ -47,9 +57,6 @@ const Subscriptions = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
   const [payingId, setPayingId] = useState<string | null>(null);
-
-  // Bloquear scroll del body cuando el modal está abierto
-
 
   const fetchAll = async () => {
     try {
@@ -110,7 +117,7 @@ const Subscriptions = () => {
     try {
       const res = await subscriptionsAPI.pay(subscription.id);
       setToast({
-        message: `✅ Pago registrado. Próximo ciclo: ${res.data.next_billing_date ? new Date(res.data.next_billing_date).toLocaleDateString('es-ES') : 'N/A'}`,
+        message: `Pago registrado. Próximo ciclo: ${res.data.next_billing_date ? parseLocalDate(res.data.next_billing_date).toLocaleDateString('es-ES') : 'N/A'}`,
         type: 'success'
       });
       void fetchAll();
@@ -126,10 +133,9 @@ const Subscriptions = () => {
 
   const getUrgencyConfig = (nextDate?: string | null) => {
     if (!nextDate) return { label: null, color: 'text-muted', glow: '' };
-    const billing = new Date(nextDate);
+    const billing = parseLocalDate(nextDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    billing.setHours(0, 0, 0, 0);
     const diffDays = Math.ceil((billing.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) return { label: 'VENCIDA', color: 'text-danger', glow: ' border-line' };
@@ -213,15 +219,11 @@ const Subscriptions = () => {
 
   return (
     <div className="subscriptions-page compact-page w-full relative min-h-screen pb-20">
-      {/* Background Decor */}
-
-
       <div className="compact-page-content relative z-10 max-w-7xl mx-auto">
         {/* Header Section */}
         <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
           <motion.div initial={false} animate={{ opacity: 1, x: 0 }}>
-
-            <h1 className="text-4xl lg:text-5xl font-black text-primary tracking-tight">Suscripciones</h1>
+            <h1 className="app-page-title text-4xl lg:text-5xl font-black text-primary tracking-tight">Suscripciones</h1>
             <p className="text-muted text-sm lg:text-base font-medium mt-2 max-w-md">
               Monitorea tus servicios digitales y optimiza tus gastos automáticos cada mes.
             </p>
@@ -237,7 +239,7 @@ const Subscriptions = () => {
               className="app-btn app-btn-primary"
             >
               <Plus className="w-5 h-5" />
-              <span className="text-xs font-black uppercase tracking-widest">Nueva Suscripción</span>
+              <span className="text-sm font-semibold">Nueva suscripción</span>
             </button>
           </motion.div>
         </div>
@@ -248,7 +250,7 @@ const Subscriptions = () => {
           animate={{ opacity: 1, y: 0 }}
           className="compact-summary grid grid-cols-1 md:grid-cols-3 gap-6 mb-12"
         >
-          <div className="compact-summary-card bg-surface  p-8 rounded-2xl border border-line flex flex-col justify-between relative overflow-hidden group">
+          <div className="compact-summary-card bg-surface p-8 rounded-2xl border border-line flex flex-col justify-between relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               <Clock className="w-16 h-16 text-accent-strong" />
             </div>
@@ -262,7 +264,7 @@ const Subscriptions = () => {
             </div>
           </div>
 
-          <div className="compact-summary-card bg-surface  p-8 rounded-2xl border border-line flex flex-col justify-between relative overflow-hidden group">
+          <div className="compact-summary-card bg-surface p-8 rounded-2xl border border-line flex flex-col justify-between relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               <CreditCard className="w-16 h-16 text-accent-strong" />
             </div>
@@ -276,7 +278,7 @@ const Subscriptions = () => {
             </div>
           </div>
 
-          <div className="compact-summary-card bg-surface  p-8 rounded-2xl border border-line flex items-center gap-6">
+          <div className="compact-summary-card bg-surface p-8 rounded-2xl border border-line flex items-center gap-6">
             <div className="w-16 h-16 rounded-[1.5rem] bg-success-soft flex items-center justify-center border border-line text-success">
               <ShieldCheck className="w-8 h-8" />
             </div>
@@ -318,20 +320,20 @@ const Subscriptions = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: index * 0.05 }}
-                    className={`compact-card group relative bg-surface  rounded-2xl border p-8 transition-all hover:-translate-y-1 ${
+                    className={`compact-card group relative bg-surface rounded-2xl border p-8 transition-all hover:-translate-y-1 ${
                       isInactive ? 'opacity-50 grayscale border-line' : `${urgency.glow} border-line hover:border-line`
                     }`}
                   >
                     {/* Header: Name & Urgency */}
-                    <div className="flex items-start gap-4 relative z-10 pr-10">
+                    <div className="flex items-start gap-3 relative z-10">
                       <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-surface-soft flex items-center justify-center border border-line text-muted group-hover:text-accent-strong transition-all">
                         <Smartphone className="w-6 h-6" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="text-lg font-black text-primary tracking-tight leading-tight group-hover:text-primary     transition-all break-words" title={subscription.name}>
+                        <h3 className="text-lg font-black text-primary tracking-tight leading-tight group-hover:text-primary transition-all break-words" title={subscription.name}>
                           {subscription.name}
                         </h3>
-                        <div className="flex items-center justify-end gap-2 mt-3 flex-wrap">
+                        <div className="flex items-center justify-start gap-2 mt-2 flex-wrap">
                           {urgency.label && (
                             <span className={`px-2 py-1 rounded-lg text-xs font-black uppercase tracking-[0.1em] border bg-surface-soft ${urgency.color}`}>
                               {urgency.label}
@@ -344,12 +346,11 @@ const Subscriptions = () => {
                         </div>
                       </div>
 
-                      {/* Absolute Action Buttons */}
-                      <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-1 group-hover:translate-x-0">
-                        <button onClick={() => handleEdit(subscription)} className="w-8 h-8 rounded-lg bg-surface  border border-line flex items-center justify-center text-muted hover:text-primary hover:border-line transition-all shadow-xl" title="Editar">
+                      <div className="subscription-card-actions">
+                        <button type="button" onClick={() => handleEdit(subscription)} className="subscription-card-action" aria-label={`Editar suscripción ${subscription.name}`} title="Editar suscripción">
                           <Edit className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => handleDelete(subscription.id)} className="w-8 h-8 rounded-lg bg-surface  border border-line flex items-center justify-center text-muted hover:text-danger hover:border-line transition-all shadow-xl" title="Eliminar">
+                        <button type="button" onClick={() => handleDelete(subscription.id)} className="subscription-card-action subscription-card-action-delete" aria-label={`Eliminar suscripción ${subscription.name}`} title="Eliminar suscripción">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -365,7 +366,7 @@ const Subscriptions = () => {
                         <div className="text-right">
                           <p className="text-xs font-black text-muted uppercase tracking-widest mb-1">Próximo Cobro</p>
                           <p className={`text-sm font-black tracking-tight ${urgency.color}`}>
-                            {subscription.next_billing_date ? new Date(subscription.next_billing_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : 'Pendiente'}
+                            {subscription.next_billing_date ? parseLocalDate(subscription.next_billing_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : 'Pendiente'}
                           </p>
                         </div>
                       </div>
@@ -395,10 +396,10 @@ const Subscriptions = () => {
                         <button
                           onClick={() => handlePay(subscription)}
                           disabled={payingId === subscription.id}
-                          className={`w-full group/btn flex items-center justify-center gap-3 py-5 rounded-[1.5rem] text-xs font-black uppercase tracking-wide transition-all relative overflow-hidden ${
+                          className={`w-full group/btn flex items-center justify-center gap-3 py-3 rounded-xl text-xs font-black uppercase tracking-wide transition-all relative overflow-hidden ${
                             payingId === subscription.id
                               ? 'bg-success-soft text-success opacity-70 cursor-not-allowed'
-                              : 'bg-surface-soft text-success hover:bg-success-soft border border-line hover:border-line shadow-lg '
+                              : 'bg-surface-soft text-success hover:bg-success-soft border border-line'
                           }`}
                         >
                           {payingId === subscription.id ? (

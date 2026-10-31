@@ -319,7 +319,7 @@ const Settings = () => {
         <div className="settings-page-heading">
           <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
 
-            <h1 className="text-3xl lg:text-4xl font-black text-primary tracking-tight">Configuración</h1>
+            <h1 className="app-page-title text-3xl lg:text-4xl font-black text-primary tracking-tight">Configuración</h1>
             <p className="text-muted text-sm lg:text-base font-medium">Personaliza el comportamiento y seguridad de Tabula Rasa</p>
           </motion.div>
         </div>

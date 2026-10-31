@@ -1,6 +1,16 @@
 import ChartDataTable from './ChartDataTable';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from 'recharts';
 import { AlertCircle } from 'lucide-react';
+import { useReducedMotion } from 'framer-motion';
 import type { CashFlowForecastResponse } from '../../types';
 import { formatMoney } from '../../utils/money';
 import SkeletonChart from './SkeletonChart';
@@ -11,95 +21,268 @@ interface CashFlowForecastChartProps {
   setForecastDays: (days: number) => void;
 }
 
-const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const MONTH_NAMES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
 
-const CashFlowForecastChart = ({ cashFlowForecast, forecastDays, setForecastDays }: CashFlowForecastChartProps) => {
+const formatForecastDate = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Intl.DateTimeFormat('es-EC', {
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(year, month - 1, day));
+};
+
+const formatForecastTableDate = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Intl.DateTimeFormat('es-EC', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, day));
+};
+
+const CashFlowForecastChart = ({
+  cashFlowForecast,
+  forecastDays,
+  setForecastDays,
+}: CashFlowForecastChartProps) => {
+  const prefersReducedMotion = useReducedMotion();
+
   if (!cashFlowForecast) {
     return <SkeletonChart height="h-64" />;
   }
 
+  const forecast = cashFlowForecast.forecast ?? [];
+  const startBalance =
+    forecast.length > 0
+      ? forecast[0].projected_balance
+      : cashFlowForecast.current_balance;
+  const endBalance =
+    forecast.length > 0
+      ? forecast[forecast.length - 1].projected_balance
+      : cashFlowForecast.current_balance;
+  const netDelta = endBalance - startBalance;
+  const lowestFutureBalance = forecast
+    .slice(1)
+    .reduce<(typeof forecast)[number] | undefined>(
+      (lowest, point) =>
+        !lowest || point.projected_balance < lowest.projected_balance
+          ? point
+          : lowest,
+      undefined,
+    );
+  const lowestIsNegative = (lowestFutureBalance?.projected_balance ?? 0) < 0;
+
   return (
-    <div className="bg-surface  rounded-2xl border border-line p-4 lg:p-6 mb-6">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <h3 className="text-lg font-semibold text-primary">Proyección de Liquidez</h3>
-        <div className="flex items-center gap-2">
-          {[30, 60, 90].map(days => (
-            <button
-              key={days}
-              onClick={() => setForecastDays(days)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${
-                forecastDays === days
-                  ? 'bg-accent-strong text-on-color shadow-lg '
-                  : 'bg-surface text-muted hover:bg-surface-strong hover:text-primary'
-              }`}
-            >
-              {days}d
-            </button>
-          ))}
+    <section
+      className="app-chart-panel cash-flow-forecast-panel"
+      aria-label="Proyección de liquidez"
+    >
+      <div className="cash-flow-forecast-head">
+        <div>
+          <span className="cash-flow-kicker">
+            Proyección de liquidez · {forecastDays} días
+          </span>
+          <div className="cash-flow-headline-row">
+            <h2 className="cash-flow-title">
+              {endBalance < 0 ? '−' : ''}$ {formatMoney(Math.abs(endBalance))}
+            </h2>
+            <span className="cash-flow-subtitle">
+              saldo estimado al cierre del horizonte
+            </span>
+          </div>
+        </div>
+        <div className="cash-flow-controls">
           {cashFlowForecast.has_negative_balance && (
-            <div className="flex items-center gap-2 text-danger text-sm font-bold ml-2">
-              <AlertCircle className="w-5 h-5" />
-              <span className="hidden sm:inline">Riesgo de Liquidez</span>
-            </div>
+            <span className="cash-flow-risk-pill">
+              <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+              Riesgo de liquidez
+            </span>
           )}
+          <div
+            className="forecast-horizon-group"
+            role="group"
+            aria-label="Horizonte de proyección"
+          >
+            {[30, 60, 90].map((days) => (
+              <button
+                key={days}
+                type="button"
+                onClick={() => setForecastDays(days)}
+                aria-pressed={forecastDays === days}
+                className={`forecast-horizon-btn ${
+                  forecastDays === days ? 'is-active' : ''
+                }`}
+              >
+                {days}d
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-      {cashFlowForecast.forecast && cashFlowForecast.forecast.length > 0 ? (
-        <ResponsiveContainer width="100%" height={250}>
-          <AreaChart data={cashFlowForecast.forecast}>
-            <defs>
-              <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--app-accent-strong)" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="var(--app-accent-strong)" stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--app-border)" />
-            <XAxis
-              dataKey="date"
-              stroke="var(--app-muted)"
-              fontSize={12}
-              tickFormatter={(value: string) => {
-                const parts = value.split('-');
-                const month = parts[1];
-                const day = parts[2];
-                return `${day}-${month}`;
-              }}
-            />
-            <YAxis
-              stroke="var(--app-muted)"
-              fontSize={12}
-              tickFormatter={(value) => `$${(value / 100).toLocaleString()}`}
-            />
-            <Tooltip
-              contentStyle={{ backgroundColor: 'var(--app-surface)', border: '1px solid var(--app-border)', borderRadius: '8px' }}
-              labelStyle={{ color: 'var(--app-text)' }}
-              itemStyle={{ color: 'var(--app-text)' }}
-              labelFormatter={(label) => {
-                if (typeof label !== 'string') return '';
-                const [year, month, day] = label.split('-');
-                const monthIndex = Number.parseInt(month) - 1;
-                const dayNum = Number.parseInt(day);
-                return `${dayNum} de ${MONTH_NAMES[monthIndex].toLowerCase()} de ${year}`;
-              }}
-              formatter={(value) => [`$${formatMoney(value)}`, 'Balance Proyectado']}
-            />
-            <ReferenceLine y={0} stroke="var(--app-danger)" strokeWidth={2} strokeDasharray="5 5" />
-            <Area isAnimationActive={false}
-              type="monotone"
-              dataKey="projected_balance"
-              name="Balance Proyectado"
-              stroke="var(--app-accent-strong)"
-              strokeWidth={2}
-              fillOpacity={1}
-              fill="url(#colorBalance)"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      ) : (
-        <p className="text-muted text-center py-8">La proyección aparecerá cuando existan datos suficientes.</p>
+
+      {/* Operational Treasury Strip */}
+      {forecast.length > 0 && (
+        <div className="chart-kpi-strip" aria-label="Indicadores de proyección">
+          <div className="chart-kpi-item">
+            <span>Saldo actual</span>
+            <strong>
+              {startBalance < 0 ? '−' : ''}${' '}
+              {formatMoney(Math.abs(startBalance))}
+            </strong>
+          </div>
+          {lowestFutureBalance && (
+            <div className="chart-kpi-item">
+              <span>
+                Punto mínimo ({formatForecastDate(lowestFutureBalance.date)})
+              </span>
+              <strong className={lowestIsNegative ? 'text-danger' : ''}>
+                {lowestIsNegative ? '−' : ''}${' '}
+                {formatMoney(Math.abs(lowestFutureBalance.projected_balance))}
+              </strong>
+            </div>
+          )}
+          <div className="chart-kpi-item">
+            <span>Variación neta ({forecastDays}d)</span>
+            <strong
+              className={
+                netDelta > 0
+                  ? 'text-success'
+                  : netDelta < 0
+                    ? 'text-danger'
+                    : ''
+              }
+            >
+              {netDelta > 0 ? '+' : netDelta < 0 ? '−' : ''}${' '}
+              {formatMoney(Math.abs(netDelta))}
+            </strong>
+          </div>
+        </div>
       )}
-      <ChartDataTable caption="Proyección de liquidez" columns={['Fecha', 'Saldo proyectado']} rows={(cashFlowForecast.forecast ?? []).map(item => [item.date, `$ ${formatMoney(item.projected_balance)}`])} />
-    </div>
+
+      {forecast.length > 0 ? (
+        <div className="cash-flow-chart-wrap">
+          <ResponsiveContainer width="100%" height={230}>
+            <AreaChart
+              data={forecast}
+              margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor="var(--app-accent-strong)"
+                    stopOpacity={0.18}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--app-accent-strong)"
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                strokeDasharray="2 5"
+                stroke="var(--app-border)"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="date"
+                stroke="var(--app-muted)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={{ stroke: 'var(--app-border)' }}
+                tickFormatter={(value: string) => {
+                  const parts = value.split('-');
+                  return `${parts[2]}/${parts[1]}`;
+                }}
+              />
+              <YAxis
+                stroke="var(--app-muted)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                width={64}
+                tickFormatter={(value) => `$${(value / 100).toLocaleString()}`}
+              />
+              <Tooltip
+                cursor={{
+                  stroke: 'var(--app-border-strong)',
+                  strokeDasharray: '3 3',
+                }}
+                contentStyle={{
+                  backgroundColor: 'var(--app-surface)',
+                  border: '1px solid var(--app-border-strong)',
+                  borderRadius: '4px',
+                  boxShadow: '0 8px 20px rgba(37, 34, 30, 0.12)',
+                  fontSize: '12px',
+                }}
+                labelStyle={{
+                  color: 'var(--app-muted)',
+                  fontWeight: 600,
+                  marginBottom: '4px',
+                }}
+                itemStyle={{ color: 'var(--app-text)', fontWeight: 600 }}
+                labelFormatter={(label) => {
+                  if (typeof label !== 'string') return '';
+                  const [year, month, day] = label.split('-');
+                  const monthIndex = Number.parseInt(month, 10) - 1;
+                  const dayNum = Number.parseInt(day, 10);
+                  return `${dayNum} de ${MONTH_NAMES[monthIndex]?.toLowerCase() ?? month} de ${year}`;
+                }}
+                formatter={(value) => [
+                  `$ ${formatMoney(value as number)}`,
+                  'Saldo proyectado',
+                ]}
+              />
+              <ReferenceLine
+                y={0}
+                stroke="var(--app-danger)"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+              />
+              <Area
+                isAnimationActive={!prefersReducedMotion}
+                animationDuration={420}
+                animationEasing="ease-out"
+                type="monotone"
+                dataKey="projected_balance"
+                name="Saldo proyectado"
+                stroke="var(--app-accent-strong)"
+                strokeWidth={2}
+                fillOpacity={1}
+                fill="url(#colorBalance)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="text-muted text-center py-8">
+          La proyección aparecerá cuando existan datos suficientes.
+        </p>
+      )}
+
+      <ChartDataTable
+        caption="Proyección de liquidez"
+        columns={['Fecha', 'Saldo proyectado']}
+        rows={forecast.map((item) => [
+          formatForecastTableDate(item.date),
+          `$ ${formatMoney(item.projected_balance)}`,
+        ])}
+      />
+    </section>
   );
 };
 

@@ -32,7 +32,9 @@ const PageLoader = () => (
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = localStorage.getItem('ui_theme') as 'light' | 'dark' | null;
-    return savedTheme ?? 'light';
+    // Adopt the chosen light default once, including installations with the old dark preference.
+    return localStorage.getItem('ui_theme_default_version') === 'editorial-light-v1'
+      && savedTheme === 'dark' ? 'dark' : 'light';
   });
 
   // FASE 8: Integrity Heartbeat - Runs every 24 hours or on startup
@@ -103,6 +105,7 @@ function App() {
       document.body.classList.remove('dark');
     }
     localStorage.setItem('ui_theme', theme);
+    localStorage.setItem('ui_theme_default_version', 'editorial-light-v1');
   }, [theme]);
 
   return (

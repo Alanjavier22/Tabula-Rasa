@@ -1,22 +1,10 @@
-import { Bell, AlertCircle, CreditCard, Calendar } from 'lucide-react';
+import { AlertCircle, CreditCard, Calendar } from 'lucide-react';
 import type { AlertsResponse } from '../../types';
 import { formatMoney } from '../../utils/money';
 
 interface PaymentAlertsPanelProps {
   data: AlertsResponse;
 }
-
-const getAlertContainerClass = (severity: string) => {
-  if (severity === 'critical') return 'bg-danger-soft border border-line';
-  if (severity === 'warning') return 'bg-warning-soft border border-line';
-  return 'bg-surface border border-line';
-};
-
-const getAlertIconClass = (severity: string) => {
-  if (severity === 'critical') return 'bg-danger-soft';
-  if (severity === 'warning') return 'bg-warning-soft';
-  return 'bg-info-soft';
-};
 
 const getAlertTextClass = (severity: string) => {
   if (severity === 'critical') return 'text-danger';
@@ -38,23 +26,17 @@ const getPaymentDueMessage = (daysRemaining: number) => {
 
 const PaymentAlertsPanel = ({ data }: PaymentAlertsPanelProps) => {
   return (
-    <div className="mb-6">
-      <div className="bg-surface-soft    rounded-2xl border border-line p-4 lg:p-6">
-        <h3 className="text-lg font-semibold text-primary mb-3 flex items-center gap-2">
-          <Bell className="w-5 h-5 text-warning" />
-          Alertas de Pago
-          <span className="ml-auto text-sm font-normal text-warning">
-            Pendiente total: ${formatMoney(data.total_pending)}
-          </span>
-        </h3>
+    <div className="payment-reading">
+      <div>
+        <p className="payment-reading-total">Pendiente total <strong>$ {formatMoney(data.total_pending)}</strong></p>
         <div className="space-y-2">
           {data.alerts.map((alert, idx) => (
             <div
               key={`${alert.account_id}-${alert.alert_type}-${idx}`}
-              className={`flex items-center justify-between p-3 rounded-xl ${getAlertContainerClass(alert.severity)}`}
+              className="payment-reading-row"
             >
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${getAlertIconClass(alert.severity)}`}>
+                <div className="payment-reading-icon">
                   {getAlertIcon(alert.alert_type)}
                 </div>
                 <div>
