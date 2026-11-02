@@ -16,21 +16,21 @@ export interface AccountFormData {
 
 export const getAccountStyle = (type: string) => {
   switch (type) {
-    case 'checking': return 'from-blue-600/20 to-indigo-600/20 border-blue-500/30 text-blue-400';
-    case 'savings': return 'from-emerald-600/20 to-teal-600/20 border-emerald-500/30 text-emerald-400';
-    case 'credit_card': return 'from-purple-600/20 to-rose-600/20 border-purple-500/30 text-purple-400';
-    case 'investment': return 'from-amber-600/20 to-orange-600/20 border-amber-500/30 text-amber-400';
-    default: return 'from-slate-600/20 to-slate-800/20 border-slate-500/30 text-slate-400';
+    case 'checking': return '  border-line text-info';
+    case 'savings': return '  border-line text-success';
+    case 'credit_card': return '  border-line text-accent-strong';
+    case 'investment': return '  border-line text-warning';
+    default: return '  border-line text-muted';
   }
 };
 
 export const getAccountAccent = (type: string) => {
   switch (type) {
-    case 'checking': return '#70b7ff';
-    case 'savings': return '#45d39a';
-    case 'credit_card': return '#b5a2ff';
-    case 'investment': return '#f5bd5e';
-    default: return '#94a4b8';
+    case 'checking': return 'var(--app-info)';
+    case 'savings': return 'var(--app-success)';
+    case 'credit_card': return 'var(--app-accent-strong)';
+    case 'investment': return 'var(--app-warning)';
+    default: return 'var(--app-muted)';
   }
 };
 

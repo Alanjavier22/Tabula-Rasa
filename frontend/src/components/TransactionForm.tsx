@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import Modal from './common/Modal';
+import { useState, useEffect, useId, useRef } from 'react';
 import { X, Plus, Trash2, DollarSign, Calendar, Tag, CreditCard, Layers, Target, Info, TrendingUp, CheckCircle, RefreshCw, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Category, Account, TransactionType, PaymentMethod, ExpenseType, TransactionSplit as TransactionSplitType, Goal } from '../types';
@@ -55,17 +56,13 @@ const TransactionForm = ({
   saving,
   title
 }: TransactionFormProps) => {
+  const formId = useId();
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [form, setForm] = useState<TransactionFormData>(initialData);
   const [isSplitEnabled, setIsSplitEnabled] = useState(false);
   const [splits, setSplits] = useState<TransactionSplit[]>(() => [createEmptySplit()]);
-
-  // Bloquear scroll del body cuando el modal está activo
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
 
   useEffect(() => {
     void Promise.resolve().then(() => setForm(initialData));
@@ -89,22 +86,31 @@ const TransactionForm = ({
     });
   }, [initialSplits]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate splits if enabled
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (saving || submittingRef.current) return;
+    const amount = form.amount.trim().replace(',', '.');
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+      setSubmitError('Ingresa un monto mayor que cero, con hasta dos decimales.');
+      return;
+    }
     if (isSplitEnabled) {
-      const splitTotal = splits.reduce((sum, s) => sum + Number.parseFloat(s.amount || '0'), 0);
-      const transactionAmount = Number.parseFloat(form.amount);
-      
-      if (Math.abs(splitTotal - transactionAmount) > 0.01) {
-        alert(`La suma de los splits (${splitTotal.toFixed(2)}) debe ser igual al monto de la transacción (${transactionAmount.toFixed(2)})`);
+      const splitTotal = splits.reduce((sum, split) => sum + Math.round(Number(split.amount.replace(',', '.')) * 100), 0);
+      if (!Number.isFinite(splitTotal) || splitTotal !== Math.round(Number(amount) * 100)) {
+        setSubmitError('La suma de los conceptos debe coincidir con el monto de la transacción. Revisa los importes.');
         return;
       }
-      
-      await onSubmit(form, splits);
-    } else {
-      await onSubmit(form);
+    }
+    submittingRef.current = true;
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      await onSubmit({ ...form, amount }, isSplitEnabled ? splits : undefined);
+    } catch {
+      setSubmitError('No se pudo guardar. Tus datos se conservan; vuelve a intentarlo.');
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -129,55 +135,50 @@ const TransactionForm = ({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2, ease: "easeInOut" }}
-      style={{ willChange: 'opacity, backdrop-filter' }}
-      className="fixed inset-0 bg-slate-950/40 backdrop-blur-md flex items-center justify-center z-50 p-4 lg:p-6 overflow-hidden"
-    >
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.98, y: 15 }}
+    <Modal onClose={() => { if (!saving && !submitting) onCancel(); }} label={title}>
+      <motion.div
+        initial={false}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: 15 }}
         transition={{ duration: 0.25, ease: "easeInOut" }}
-        className="bg-slate-900/90 border border-white/10 rounded-[2.5rem] w-full max-w-xl max-h-[90vh] flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+        className="bg-surface border border-line rounded-2xl w-full max-w-xl max-h-[90vh] flex flex-col  relative overflow-hidden"
       >
         {/* Header con estilo Glass */}
-        <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-white/5 shrink-0">
-          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-blue-500/5 to-purple-500/5 pointer-events-none"></div>
+        <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-line shrink-0">
+
           <div>
-            <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
-                <Layers className="w-5 h-5 text-indigo-400" />
+            <h2 className="text-xl font-black text-primary tracking-tight flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-accent-soft flex items-center justify-center border border-line">
+                <Layers className="w-5 h-5 text-accent-strong" />
               </div>
               {title}
             </h2>
           </div>
-          <button 
-            onClick={onCancel} 
-            className="w-10 h-10 rounded-full hover:bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all border border-transparent hover:border-white/10"
+          <button aria-label="Cerrar diálogo" disabled={saving || submitting}
+            onClick={onCancel}
+            className="w-10 h-10 rounded-full hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all border border-transparent hover:border-line"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
-          
+        <form id={formId} onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
+
           {/* SECCIÓN HERO: MONTO */}
           <div className="relative group">
-            <div className={`absolute -inset-1 bg-gradient-to-r ${form.transaction_type === 'income' ? 'from-emerald-500/20 to-teal-500/20' : 'from-rose-500/20 to-orange-500/20'} rounded-3xl blur opacity-25 group-focus-within:opacity-100 transition duration-1000 group-focus-within:duration-200`}></div>
-            <div className="relative bg-black/20 rounded-3xl p-6 border border-white/5">
-              <label className="flex items-center gap-2 text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4">
+
+            <div className="relative bg-surface-soft rounded-3xl p-6 border border-line">
+              <label htmlFor="transaction-amount" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-4">
                 <DollarSign className="w-3 h-3" />
                 Monto de la Transacción
               </label>
               <div className="flex items-center">
-                <span className={`text-4xl font-black mr-2 ${form.transaction_type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>$</span>
+                <span className={`text-4xl font-black mr-2 ${form.transaction_type === 'income' ? 'text-success' : 'text-danger'}`}>$</span>
                 <input
                   type="text"
+                  id="transaction-amount"
                   inputMode="decimal"
+                  pattern="[0-9]+([.,][0-9]{1,2})?"
                   required
                   value={form.amount}
                   onChange={e => {
@@ -185,7 +186,7 @@ const TransactionForm = ({
                     const val = e.target.value.replace(/[^0-9.,]/g, '');
                     setForm({ ...form, amount: val });
                   }}
-                  className={`w-full bg-transparent border-none text-5xl font-black focus:ring-0 placeholder-white/5 ${form.transaction_type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}
+                  className={`w-full bg-transparent border-none text-5xl font-black focus:ring-0 placeholder-muted ${form.transaction_type === 'income' ? 'text-success' : 'text-danger'}`}
                   placeholder="0.00"
                 />
               </div>
@@ -195,16 +196,16 @@ const TransactionForm = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Descripción */}
             <div className="col-span-full">
-              <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+              <label htmlFor="transactionform-field-1" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                 <Info className="w-3 h-3" />
                 Descripción
               </label>
-              <input
+              <input id="transactionform-field-1"
                 type="text"
                 required
                 value={form.description}
                 onChange={e => setForm({ ...form, description: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all font-medium"
+                className="w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line focus:bg-surface-soft transition-all font-medium"
                 placeholder="¿En qué se usó el dinero?"
               />
             </div>
@@ -212,11 +213,11 @@ const TransactionForm = ({
             {/* Beneficiario (solo si existe — importaciones bancarias) */}
             {form.beneficiary && (
               <div className="col-span-full">
-                <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                <label className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                   <User className="w-3 h-3" />
                   Beneficiario
                 </label>
-                <div className="w-full bg-white/3 border border-white/5 rounded-2xl px-5 py-3 text-slate-400 text-xs font-mono">
+                <div className="w-full bg-surface-soft border border-line rounded-2xl px-5 py-3 text-muted text-xs font-mono">
                   {form.beneficiary}
                 </div>
               </div>
@@ -224,26 +225,14 @@ const TransactionForm = ({
 
             {/* Fecha */}
             <div>
-              <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+              <label htmlFor="transaction-date" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                 <Calendar className="w-3 h-3" />
                 Fecha
               </label>
               <div className="relative">
-                <DatePicker
+                <DatePicker id="transaction-date" required
                   value={form.date ? form.date.substring(0, 10) : ''}
-                  onChange={(value) => {
-                    const now = new Date();
-                    const selectedDate = new Date(value);
-                    const combinedDateTime = new Date(
-                      selectedDate.getFullYear(),
-                      selectedDate.getMonth(),
-                      selectedDate.getDate(),
-                      now.getHours(),
-                      now.getMinutes(),
-                      now.getSeconds()
-                    );
-                    setForm({ ...form, date: combinedDateTime.toISOString() });
-                  }}
+                  onChange={value => setForm({ ...form, date: value })}
                   placeholder="Seleccionar fecha"
                 />
               </div>
@@ -251,11 +240,12 @@ const TransactionForm = ({
 
             {/* Método de Pago */}
             <div>
-              <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+              <label htmlFor="transactionform-field-2" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                 <CreditCard className="w-3 h-3" />
                 Método de Pago
               </label>
-              <Select
+              <Select id="transactionform-field-2"
+                aria-label="Método de pago"
                 value={form.payment_method}
                 onChange={(value) => setForm({ ...form, payment_method: value as PaymentMethod })}
                 options={[
@@ -270,11 +260,12 @@ const TransactionForm = ({
 
             {/* Tipo */}
             <div>
-              <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+              <label htmlFor="transactionform-field-3" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                 <Layers className="w-3 h-3" />
                 Tipo de Flujo
               </label>
-              <Select
+              <Select id="transactionform-field-3"
+                aria-label="Tipo de flujo"
                 value={form.transaction_type}
                 onChange={(value) => setForm({ ...form, transaction_type: value as TransactionType })}
                 options={[
@@ -287,11 +278,12 @@ const TransactionForm = ({
             {/* Tipo de Gasto (Solo si es gasto) */}
             {form.transaction_type === 'expense' && (
               <div>
-                <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+                <label htmlFor="transactionform-field-4" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                   <TrendingUp className="w-3 h-3" />
                   Naturaleza
                 </label>
-                <Select
+                <Select id="transactionform-field-4"
+                  aria-label="Naturaleza del gasto"
                   value={form.expense_type}
                   onChange={(value) => setForm({ ...form, expense_type: value as ExpenseType })}
                   options={[
@@ -307,11 +299,12 @@ const TransactionForm = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
             {/* Categoría */}
             <div>
-              <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+              <label htmlFor="transactionform-field-5" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                 <Tag className="w-3 h-3" />
                 Categoría
               </label>
-              <Select
+              <Select id="transactionform-field-5"
+                aria-label="Categoría"
                 value={form.category_id}
                 onChange={(value) => setForm({ ...form, category_id: value })}
                 options={[
@@ -323,11 +316,12 @@ const TransactionForm = ({
 
             {/* Cuenta */}
             <div>
-              <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+              <label htmlFor="transactionform-field-6" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
                 <CreditCard className="w-3 h-3" />
                 Cuenta / Billetera
               </label>
-              <Select
+              <Select id="transactionform-field-6"
+                aria-label="Cuenta o billetera"
                 value={form.account_id}
                 onChange={(value) => setForm({ ...form, account_id: value })}
                 options={[
@@ -340,11 +334,12 @@ const TransactionForm = ({
 
           {/* Meta */}
           <div>
-            <label className="flex items-center gap-2 text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-3 ml-1">
+            <label htmlFor="transactionform-field-7" className="flex items-center gap-2 text-xs font-black text-muted uppercase tracking-wide mb-3 ml-1">
               <Target className="w-3 h-3" />
               Meta Vinculada
             </label>
-            <Select
+            <Select id="transactionform-field-7"
+              aria-label="Meta vinculada"
               value={form.goal_id || ''}
               onChange={(value) => setForm({ ...form, goal_id: value || undefined })}
               options={[
@@ -353,77 +348,78 @@ const TransactionForm = ({
               ]}
             />
           </div>
-          
+
           {/* Split Transaction Toggle */}
           <button
             type="button"
             aria-pressed={isSplitEnabled}
             onClick={() => setIsSplitEnabled(!isSplitEnabled)}
             className={`w-full flex items-center justify-between p-5 rounded-3xl border cursor-pointer transition-all text-left ${
-              isSplitEnabled 
-                ? 'bg-indigo-500/10 border-indigo-500/30' 
-                : 'bg-white/5 border-white/5 hover:border-white/10'
+              isSplitEnabled
+                ? 'bg-accent-soft border-line'
+                : 'bg-surface-soft border-line hover:border-line'
             }`}
           >
             <div className="flex items-center gap-4">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
-                isSplitEnabled ? 'bg-indigo-500/20 border-indigo-500/30' : 'bg-white/5 border-white/10'
+                isSplitEnabled ? 'bg-accent-soft border-line' : 'bg-surface-soft border-line'
               }`}>
-                <Plus className={`w-5 h-5 ${isSplitEnabled ? 'text-indigo-400' : 'text-slate-500'}`} />
+                <Plus className={`w-5 h-5 ${isSplitEnabled ? 'text-accent-strong' : 'text-muted'}`} />
               </div>
               <div>
-                <p className="text-sm font-bold text-white">Dividir Transacción</p>
-                <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Múltiples categorías</p>
+                <p className="text-sm font-bold text-primary">Dividir Transacción</p>
+                <p className="text-xs text-muted font-medium uppercase tracking-wider">Múltiples categorías</p>
               </div>
             </div>
             <div className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all ${
-              isSplitEnabled ? 'bg-indigo-500 border-indigo-400' : 'border-white/20'
+              isSplitEnabled ? 'bg-accent-strong border-line' : 'border-line'
             }`}>
-              {isSplitEnabled && <CheckCircle className="w-4 h-4 text-white" />}
+              {isSplitEnabled && <CheckCircle className="w-4 h-4 text-primary" />}
             </div>
           </button>
 
           {/* Split Rows */}
           <AnimatePresence>
             {isSplitEnabled && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
+              <motion.div
+                initial={false}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="space-y-4 p-6 bg-black/20 rounded-[2rem] border border-white/5"
+                className="space-y-4 p-6 bg-surface-soft rounded-2xl border border-line"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-black text-white/40 uppercase tracking-widest">Divisiones</span>
-                  <div className="px-3 py-1 bg-white/5 rounded-full border border-white/5">
-                    <span className={`text-[10px] font-bold ${Math.abs(getSplitTotal() - Number.parseFloat(form.amount || '0')) < 0.01 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  <span className="text-xs font-black text-muted uppercase tracking-widest">Divisiones</span>
+                  <div className="px-3 py-1 bg-surface-soft rounded-full border border-line">
+                    <span className={`text-xs font-bold ${Math.abs(getSplitTotal() - Number.parseFloat(form.amount || '0')) < 0.01 ? 'text-success' : 'text-warning'}`}>
                       ${getSplitTotal().toFixed(2)} / ${Number.parseFloat(form.amount || '0').toFixed(2)}
                     </span>
                   </div>
                 </div>
 
                 {splits.map((split, index) => (
-                  <div key={split.id} className="space-y-3 p-4 bg-white/5 rounded-2xl border border-white/5 relative">
+                  <div key={split.id} className="space-y-3 p-4 bg-surface-soft rounded-2xl border border-line relative">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label htmlFor={`split-amount-${index}`} className="text-[10px] font-bold text-white/20 uppercase mb-2 block">Monto</label>
+                        <label htmlFor={`split-amount-${index}`} className="text-xs font-bold text-muted uppercase mb-2 block">Monto</label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">$</span>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-xs">$</span>
                           <input
                             id={`split-amount-${index}`}
                             type="text"
                             inputMode="decimal"
+                            pattern="[0-9]+([.,][0-9]{1,2})?"
                             value={split.amount}
                             onChange={(e) => {
                               const val = e.target.value.replace(/[^0-9.,]/g, '');
                               updateSplit(index, 'amount', val);
                             }}
-                            className="w-full bg-slate-900/50 border border-white/10 rounded-xl pl-6 pr-4 py-2 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all"
+                            className="w-full bg-canvas border border-line rounded-xl pl-6 pr-4 py-2 text-primary text-sm focus:outline-none focus:border-line transition-all"
                             placeholder="0.00"
                           />
                         </div>
                       </div>
                       <div>
-                        <label htmlFor={`split-category-${index}`} className="text-[10px] font-bold text-white/20 uppercase mb-2 block">Categoría</label>
+                        <label htmlFor={`split-category-${index}`} className="text-xs font-bold text-muted uppercase mb-2 block">Categoría</label>
                         <Select
                           id={`split-category-${index}`}
                           value={split.category_id}
@@ -436,13 +432,13 @@ const TransactionForm = ({
                       </div>
                     </div>
                     <div>
-                      <label htmlFor={`split-description-${index}`} className="text-[10px] font-bold text-white/20 uppercase mb-2 block">Descripción opcional</label>
+                      <label htmlFor={`split-description-${index}`} className="text-xs font-bold text-muted uppercase mb-2 block">Descripción opcional</label>
                       <input
                         id={`split-description-${index}`}
                         type="text"
                         value={split.description}
                         onChange={(e) => updateSplit(index, 'description', e.target.value)}
-                        className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-indigo-500/50 transition-all"
+                        className="w-full bg-canvas border border-line rounded-xl px-4 py-2 text-primary text-sm focus:outline-none focus:border-line transition-all"
                         placeholder="Detalle de este split"
                       />
                     </div>
@@ -450,18 +446,18 @@ const TransactionForm = ({
                       <button
                         type="button"
                         onClick={() => removeSplitRow(index)}
-                        className="absolute -top-2 -right-2 w-7 h-7 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                        className="absolute -top-2 -right-2 w-7 h-7 bg-danger text-on-color rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
                 ))}
-                
+
                 <button
                   type="button"
                   onClick={addSplitRow}
-                  className="w-full py-3 bg-white/5 hover:bg-white/10 border border-dashed border-white/10 rounded-2xl text-xs font-bold text-indigo-400 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-surface-soft hover:bg-surface-soft border border-dashed border-line rounded-2xl text-xs font-bold text-accent-strong transition-all flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   Añadir otro Concepto
@@ -471,22 +467,23 @@ const TransactionForm = ({
           </AnimatePresence>
         </form>
 
+        {submitError && <p role="alert" className="text-danger px-6 py-3 text-sm">{submitError}</p>}
         {/* Footer con botones prominentes */}
-        <div className="p-7 border-t border-white/5 bg-slate-900/50 flex items-center gap-4">
+        <div className="p-7 border-t border-line bg-canvas flex items-center gap-4">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 py-4 rounded-2xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/5 transition-all text-xs font-black uppercase tracking-widest"
+            className="flex-1 py-4 rounded-2xl border border-line text-muted hover:text-primary hover:bg-surface-soft transition-all text-xs font-black uppercase tracking-widest"
           >
             Cancelar
           </button>
           <button
             type="submit"
-            onClick={handleSubmit}
-            disabled={saving}
-            className={`flex-[2] py-4 rounded-2xl bg-gradient-to-r ${form.transaction_type === 'income' ? 'from-emerald-600 to-teal-600 shadow-emerald-900/20' : 'from-indigo-600 to-blue-600 shadow-indigo-900/20'} text-white transition-all text-xs font-black uppercase tracking-widest shadow-xl disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]`}
+            form={formId}
+            disabled={saving || submitting}
+            className="app-btn app-btn-primary flex-[2]"
           >
-            {saving ? (
+            {saving || submitting ? (
               <div className="flex items-center justify-center gap-2">
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 Procesando...
@@ -497,7 +494,7 @@ const TransactionForm = ({
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </Modal>
   );
 };
 

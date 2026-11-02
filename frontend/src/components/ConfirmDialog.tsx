@@ -1,50 +1,100 @@
-import { AlertTriangle } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 
 interface ConfirmDialogProps {
   isOpen: boolean;
   title: string;
   message: string;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
-const ConfirmDialog = ({ isOpen, title, message, onConfirm, onCancel }: ConfirmDialogProps) => {
-  if (!isOpen) return null;
+const ConfirmDialog = ({
+  isOpen,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+}: ConfirmDialogProps) => {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const titleId = useId();
+  const messageId = useId();
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!isOpen || !dialog) return;
+    const previousFocus = document.activeElement;
+    dialog.showModal();
+    cancelRef.current?.focus();
+    return () => {
+      dialog.close();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
+        previousFocus.focus();
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const cancelOnBackdrop = (event: MouseEvent) => {
+      if (event.target === dialog && !submittingRef.current) onCancel();
+    };
+    dialog.addEventListener('click', cancelOnBackdrop);
+    return () => dialog.removeEventListener('click', cancelOnBackdrop);
+  }, [onCancel]);
+
+  const confirm = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      await onConfirm();
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <button
-        type="button"
-        aria-label="Cerrar diálogo"
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-        onClick={onCancel}
-      />
-      <div className="relative bg-slate-800 border border-red-500/50 rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex-shrink-0">
-            <AlertTriangle className="w-6 h-6 text-red-400" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-            <p className="text-slate-300 text-sm mb-6">{message}</p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={onCancel}
-                className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={onConfirm}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-              >
-                Eliminar
-              </button>
-            </div>
-          </div>
+    <dialog
+      ref={dialogRef}
+      className="app-confirm-dialog"
+      aria-labelledby={titleId}
+      aria-describedby={messageId}
+      aria-busy={submitting}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!submitting) onCancel();
+      }}
+    >
+      <div className="app-confirm-content">
+        <AlertTriangle className="app-confirm-icon" aria-hidden="true" />
+        <h2 id={titleId}>{title}</h2>
+        <p id={messageId}>{message}</p>
+        <div className="app-confirm-actions">
+          <button
+            ref={cancelRef}
+            type="button"
+            className="app-btn"
+            disabled={submitting}
+            onClick={onCancel}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="app-btn app-btn-danger"
+            disabled={submitting}
+            onClick={() => void confirm()}
+          >
+            {submitting ? "Eliminando…" : "Eliminar"}
+          </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };
 

@@ -9,102 +9,113 @@ interface AIInsightsSectionProps {
   onRefresh: () => void;
 }
 
-const AIInsightsSection = ({ insights, aiAlerts, aiPatterns, isPending, onRefresh }: AIInsightsSectionProps) => {
+function analysisAction(isPending: boolean, hasAnalysis: boolean) {
+  if (isPending) return { Icon: Loader2, label: 'Analizando…', spinning: true };
+  if (hasAnalysis) return { Icon: RefreshCw, label: 'Actualizar análisis', spinning: false };
+  return { Icon: Sparkles, label: 'Generar análisis', spinning: false };
+}
+
+function AnalysisEmptyState({ isPending, hasAnalysis }: Readonly<{ isPending: boolean; hasAnalysis: boolean }>) {
+  if (isPending) return (
+    <div className="ai-insights-empty">
+      <Loader2 className="w-5 h-5 animate-spin text-accent-strong" aria-hidden="true" />
+      <output className="text-muted text-sm">Preparando una lectura de tus datos financieros…</output>
+    </div>
+  );
   return (
-    <div className="mb-10">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-purple-500/20">
-            <Sparkles className="w-5 h-5 text-purple-400" />
-          </div>
-          Insights Estratégicos
-        </h2>
+    <div className="ai-insights-empty">
+      <div className="ai-insights-empty-icon"><Sparkles className="w-5 h-5 text-accent-strong" aria-hidden="true" /></div>
+      <h3 className="text-primary font-semibold">{hasAnalysis ? 'Sin hallazgos para destacar' : 'Análisis bajo demanda'}</h3>
+      <p className="text-muted text-sm text-center max-w-md">{hasAnalysis
+        ? 'La última lectura no encontró recomendaciones o alertas relevantes.'
+        : 'Genera una lectura asistida cuando quieras revisar patrones de gasto, anomalías y recomendaciones sobre tu flujo mensual.'}</p>
+    </div>
+  );
+}
+
+const AIInsightsSection = ({
+  insights,
+  aiAlerts,
+  aiPatterns,
+  isPending,
+  onRefresh,
+}: AIInsightsSectionProps) => {
+  const hasAnalysis = insights !== null;
+  const visibleInsights = insights ?? [];
+  const hasResults = Boolean(
+    visibleInsights.length || aiAlerts.length || aiPatterns.length,
+  );
+  const action = analysisAction(isPending, hasAnalysis);
+
+  return (
+    <div className="ai-insights-panel">
+      <div className="ai-insights-head">
+        <div>
+          <span className="ai-insights-kicker">Lectura asistida</span>
+          <h2 className="app-section-title">Análisis financiero con IA</h2>
+        </div>
         <button
+          type="button"
           onClick={onRefresh}
           disabled={isPending}
-          className={`flex items-center gap-2 px-5 py-2 rounded-full text-white text-sm font-bold transition-all border ${
-            isPending
-              ? 'bg-slate-800 border-slate-700 opacity-70 animate-pulse'
-              : 'bg-slate-900/50 border-purple-500/50 hover:bg-purple-500/10 hover:border-purple-400'
-          }`}
+          className={`app-btn ${!hasAnalysis ? 'app-btn-primary' : ''}`}
         >
-          {isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
-          ) : (
-            <RefreshCw className="w-4 h-4 text-purple-400" />
-          )}
-          {isPending ? 'Consultando IA...' : 'Refrescar Análisis'}
+          <action.Icon className={`w-4 h-4 ${action.spinning ? 'animate-spin' : ''}`} aria-hidden="true" />
+          {action.label}
         </button>
       </div>
 
-      {insights ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {hasResults ? (
+        <div className="ai-insights-grid">
           <AnimatePresence>
-            {insights.map((insight, index) => (
-              <motion.div
+            {visibleInsights.map((insight, index) => (
+              <motion.article
                 key={insight}
-                initial={{ opacity: 0, y: 10 }}
+                initial={false}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="group bg-slate-800/30 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-5 hover:border-purple-500/30 transition-all hover:bg-slate-800/50 shadow-lg"
+                transition={{ delay: index * 0.06 }}
+                className="ai-insight-card"
               >
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 text-sm font-bold border border-purple-500/20 group-hover:bg-purple-500/20 transition-all">
-                    {index + 1}
-                  </div>
-                  <p className="text-slate-200 text-sm leading-relaxed">{insight}</p>
-                </div>
-              </motion.div>
+                <span className="ai-insight-index">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <p>{insight}</p>
+              </motion.article>
             ))}
           </AnimatePresence>
 
-          {/* Anomaly & Patterns merged as cards */}
           {aiAlerts.map((alert) => (
-            <motion.div
+            <motion.article
               key={`alert-${alert}`}
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={false}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-red-500/5 backdrop-blur-xl rounded-2xl border border-red-500/20 p-5"
+              className="ai-insight-card ai-insight-card-danger"
             >
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
-                  <AlertCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">Riesgo Detectado</h4>
-                  <p className="text-red-200 text-sm leading-relaxed">{alert}</p>
-                </div>
-              </div>
-            </motion.div>
+              <span className="ai-insight-badge">
+                <AlertCircle className="w-4 h-4" aria-hidden="true" />
+                Riesgo detectado
+              </span>
+              <p>{alert}</p>
+            </motion.article>
           ))}
 
           {aiPatterns.map((pattern) => (
-            <motion.div
+            <motion.article
               key={`pattern-${pattern}`}
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={false}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-amber-500/5 backdrop-blur-xl rounded-2xl border border-amber-500/20 p-5"
+              className="ai-insight-card ai-insight-card-warning"
             >
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-amber-400 text-xs font-bold uppercase tracking-wider mb-1">Patrón de Gasto</h4>
-                  <p className="text-amber-200 text-sm leading-relaxed">{pattern}</p>
-                </div>
-              </div>
-            </motion.div>
+              <span className="ai-insight-badge">
+                <TrendingUp className="w-4 h-4" aria-hidden="true" />
+                Patrón de gasto
+              </span>
+              <p>{pattern}</p>
+            </motion.article>
           ))}
         </div>
-      ) : !isPending && (
-        <div className="flex flex-col items-center justify-center py-12 px-4 bg-slate-800/20 rounded-3xl border border-dashed border-slate-700">
-          <div className="w-16 h-16 bg-purple-500/10 rounded-full flex items-center justify-center mb-4">
-            <Sparkles className="w-8 h-8 text-purple-400/50" />
-          </div>
-          <h3 className="text-white font-semibold mb-1">Análisis IA Pendiente</h3>
-          <p className="text-slate-400 text-sm text-center max-w-xs">Haz clic en el botón para que la IA escanee tu situación actual y genere estrategias personalizadas.</p>
-        </div>
+      ) : (
+        <AnalysisEmptyState isPending={isPending} hasAnalysis={hasAnalysis} />
       )}
     </div>
   );

@@ -85,5 +85,8 @@ jobs:
       - name: Ejecutar lint estricto
         run: npm run lint -- --max-warnings 0
 
+      - name: Comprobar estados de la interfaz financiera
+        run: npm test
+
       - name: Compilar frontend
         run: npm run build

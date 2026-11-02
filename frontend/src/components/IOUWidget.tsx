@@ -1,14 +1,23 @@
+import Modal from './common/Modal';
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { iousAPI, accountsAPI } from '../services/api';
 import type { IOU, Account } from '../types';
+import { formatMoney } from '../utils/money';
 import { DollarSign, CheckCircle, User, Clock, X } from 'lucide-react';
 
 const IOUWidget = () => {
+  const queryClient = useQueryClient();
   const [ious, setIous] = useState<IOU[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
-  const [settleModal, setSettleModal] = useState<{ isOpen: boolean; iouId: string | null }>({ isOpen: false, iouId: null });
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [settleModal, setSettleModal] = useState<{
+    isOpen: boolean;
+    iouId: string | null;
+  }>({ isOpen: false, iouId: null });
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
+    null,
+  );
   const [settling, setSettling] = useState(false);
 
   const fetchPendingIous = async () => {
@@ -32,7 +41,9 @@ const IOUWidget = () => {
   };
 
   useEffect(() => {
-    void Promise.resolve().then(() => Promise.all([fetchPendingIous(), fetchAccounts()]));
+    void Promise.resolve().then(() =>
+      Promise.all([fetchPendingIous(), fetchAccounts()]),
+    );
   }, []);
 
   const handleSettleClick = (iouId: string) => {
@@ -42,13 +53,18 @@ const IOUWidget = () => {
 
   const handleSettle = async () => {
     if (!settleModal.iouId || !selectedAccountId) return;
-    
+
     setSettling(true);
     try {
-      await iousAPI.settle(settleModal.iouId, { account_id: selectedAccountId });
-      setIous(ious.filter(iou => iou.id !== settleModal.iouId));
+      await iousAPI.settle(settleModal.iouId, {
+        account_id: selectedAccountId,
+      });
+      setIous(ious.filter((iou) => iou.id !== settleModal.iouId));
       setSettleModal({ isOpen: false, iouId: null });
       setSelectedAccountId(null);
+      void queryClient.invalidateQueries({ queryKey: ['pendingIOUs'] });
+      void queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
     } catch (error) {
       console.error('Error settling IOU:', error);
     } finally {
@@ -56,131 +72,161 @@ const IOUWidget = () => {
     }
   };
 
-  const theyOweTotal = ious.filter(iou => iou.iou_type === 'they_owe').reduce((sum, iou) => sum + iou.amount, 0);
-  const iOweTotal = ious.filter(iou => iou.iou_type === 'i_owe').reduce((sum, iou) => sum + iou.amount, 0);
+  const theyOweTotal = ious
+    .filter((iou) => iou.iou_type === 'they_owe')
+    .reduce((sum, iou) => sum + iou.amount, 0);
+  const iOweTotal = ious
+    .filter((iou) => iou.iou_type === 'i_owe')
+    .reduce((sum, iou) => sum + iou.amount, 0);
 
   if (loading) {
-    return <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">Cargando...</div>;
-  }
-
-  if (ious.length === 0) {
-    return null;
+    return (
+      <div className="app-surface p-5">
+        <output className="app-inline-message">
+          Cargando préstamos personales…
+        </output>
+      </div>
+    );
   }
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-amber-400" />
-          <h3 className="text-lg font-semibold text-white">Dinero Flotante</h3>
+    <section className="app-surface p-5" aria-label="Dinero flotante y préstamos">
+      <div className="app-section-heading mb-3">
+        <div>
+          <span className="dashboard-panel-kicker">Cuentas personales</span>
+          <h3 className="app-section-title">Dinero flotante (IOUs)</h3>
         </div>
-        <span className="text-xs text-slate-400">{ious.length} pendiente(s)</span>
+        <span className="text-xs text-muted">{ious.length} pendiente(s)</span>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-2 text-center">
-          <p className="text-xs text-green-400 mb-1">Me deben</p>
-          <p className="text-lg font-bold text-green-300">${(theyOweTotal / 100).toFixed(2)}</p>
+      <div className="chart-kpi-strip mb-3">
+        <div className="chart-kpi-item">
+          <span>Me deben</span>
+          <strong className="text-success">
+            $ {formatMoney(theyOweTotal)}
+          </strong>
         </div>
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2 text-center">
-          <p className="text-xs text-red-400 mb-1">Debo</p>
-          <p className="text-lg font-bold text-red-300">${(iOweTotal / 100).toFixed(2)}</p>
+        <div className="chart-kpi-item">
+          <span>Debo</span>
+          <strong className="text-danger">$ {formatMoney(iOweTotal)}</strong>
         </div>
       </div>
 
-      {/* List */}
-      <div className="space-y-2 max-h-48 overflow-y-auto">
-        {ious.map(iou => (
-          <div key={iou.id} className="flex items-center justify-between p-2 bg-slate-700/30 rounded-lg">
-            <div className="flex items-center gap-2 flex-1">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                iou.iou_type === 'they_owe' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-              }`}>
-                <User className="w-4 h-4" />
+      {ious.length === 0 ? (
+        <p className="dashboard-rail-empty">
+          No hay préstamos personales pendientes por saldar.
+        </p>
+      ) : (
+        <div className="space-y-2 max-h-56 overflow-y-auto">
+          {ious.map((iou) => (
+            <div key={iou.id} className="account-share-item">
+              <div className="account-share-person">
+                <span
+                  className={`account-share-avatar ${
+                    iou.iou_type === 'they_owe' ? 'text-success' : 'text-danger'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" aria-hidden="true" />
+                </span>
+                <div>
+                  <span className="block">{iou.person_name}</span>
+                  {iou.description && (
+                    <span className="block text-xs text-muted font-normal">
+                      {iou.description}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{iou.person_name}</p>
-                {iou.description && (
-                  <p className="text-xs text-slate-400 truncate">{iou.description}</p>
-                )}
+              <div className="account-share-amount">
+                <div className="text-right">
+                  <strong
+                    className={
+                      iou.iou_type === 'they_owe'
+                        ? 'text-success'
+                        : 'text-danger'
+                    }
+                  >
+                    {iou.iou_type === 'they_owe' ? '+' : '−'}${' '}
+                    {formatMoney(iou.amount)}
+                  </strong>
+                  {iou.due_date && (
+                    <span className="flex items-center gap-1 text-xs text-muted">
+                      <Clock className="w-3 h-3" aria-hidden="true" />
+                      {new Date(iou.due_date).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleSettleClick(iou.id)}
+                  className="account-card-action"
+                  title="Marcar como saldado"
+                  aria-label={`Marcar como saldado préstamo de ${iou.person_name}`}
+                >
+                  <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="text-right">
-                <p className={`text-sm font-semibold ${
-                  iou.iou_type === 'they_owe' ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {iou.iou_type === 'they_owe' ? '+' : '-'}${(iou.amount / 100).toFixed(2)}
-                </p>
-                {iou.due_date && (
-                  <div className="flex items-center gap-1 text-xs text-slate-400">
-                    <Clock className="w-3 h-3" />
-                    {new Date(iou.due_date).toLocaleDateString()}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => handleSettleClick(iou.id)}
-                className="p-1.5 text-slate-400 hover:text-green-400 hover:bg-green-500/20 rounded transition-colors"
-                title="Marcar como saldado"
-              >
-                <CheckCircle className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {/* Account Selection Modal */}
       {settleModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <button
-            type="button"
-            aria-label="Cerrar modal de saldar cuenta"
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setSettleModal({ isOpen: false, iouId: null })}
-          />
-          <div className="relative bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md">
+        <Modal
+          label="Saldar deuda"
+          onClose={() => setSettleModal({ isOpen: false, iouId: null })}
+        >
+          <div className="relative bg-surface border border-line p-6 w-full max-w-md">
             <button
+              type="button"
               onClick={() => setSettleModal({ isOpen: false, iouId: null })}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+              className="absolute top-4 right-4 text-muted hover:text-primary"
+              aria-label="Cerrar"
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-lg font-semibold text-white mb-2">Saldar IOU</h3>
-            <p className="text-sm text-slate-400 mb-4">¿En qué cuenta recibiste el dinero?</p>
-            
+            <h3 className="text-lg font-semibold text-primary mb-2 flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-accent-strong" />
+              Saldar préstamo
+            </h3>
+            <p className="text-sm text-muted mb-4">
+              Selecciona la cuenta donde se registró el movimiento:
+            </p>
+
             <div className="space-y-2 mb-4">
-              {accounts.map(account => (
+              {accounts.map((account) => (
                 <button
+                  type="button"
                   key={account.id}
                   onClick={() => setSelectedAccountId(account.id)}
-                  className={`w-full p-3 rounded-lg text-left transition-colors ${
+                  className={`w-full p-3 rounded text-left transition-colors ${
                     selectedAccountId === account.id
-                      ? 'bg-purple-600/20 border border-purple-500 text-white'
-                      : 'bg-slate-700/50 border border-slate-600 text-slate-300 hover:bg-slate-700'
+                      ? 'bg-accent-soft border border-line text-primary'
+                      : 'bg-surface-soft border border-line text-muted hover:bg-surface'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{account.name}</span>
-                    <span className="text-sm">${account.balance.toFixed(2)}</span>
+                    <span className="text-sm font-mono">
+                      $ {formatMoney(account.balance)}
+                    </span>
                   </div>
                 </button>
               ))}
             </div>
-            
+
             <button
+              type="button"
               onClick={handleSettle}
               disabled={!selectedAccountId || settling}
-              className="w-full py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="app-btn app-btn-primary w-full justify-center disabled:opacity-50"
             >
-              {settling ? 'Saldando...' : 'Confirmar Saldado'}
+              {settling ? 'Saldando…' : 'Confirmar saldado'}
             </button>
           </div>
-        </div>
+        </Modal>
       )}
-    </div>
+    </section>
   );
 };
 

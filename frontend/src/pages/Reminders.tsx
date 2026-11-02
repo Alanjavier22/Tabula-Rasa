@@ -23,21 +23,32 @@ import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ReminderFormModal, { type ReminderFormData } from '../components/reminders/ReminderFormModal';
 
+const getLocalTodayIso = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseLocalDate = (raw: string): Date => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+  const fallback = new Date(raw);
+  fallback.setHours(0, 0, 0, 0);
+  return fallback;
+};
+
 const emptyForm: ReminderFormData = {
   name: '',
   amount: '',
-  due_date: new Date().toISOString().split('T')[0],
+  due_date: getLocalTodayIso(),
   frequency: 'once' as ReminderFrequency,
   description: '',
   status: 'pending' as ReminderStatus,
   is_active: true,
-};
-
-const getReminderGlowClass = (isCompleted: boolean, urgency: string) => {
-  if (isCompleted) return 'bg-emerald-600';
-  if (urgency === 'critical') return 'bg-rose-600';
-  if (urgency === 'high') return 'bg-amber-600';
-  return 'bg-blue-600';
 };
 
 const Reminders = () => {
@@ -51,18 +62,6 @@ const Reminders = () => {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
-
-  // Bloquear scroll del body cuando el modal está abierto
-  useEffect(() => {
-    if (showCreateModal || showEditModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [showCreateModal, showEditModal]);
 
   const fetchReminders = async () => {
     try {
@@ -79,7 +78,7 @@ const Reminders = () => {
     void Promise.resolve().then(fetchReminders);
   }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete =  (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
   };
 
@@ -88,7 +87,7 @@ const Reminders = () => {
     try {
       await remindersAPI.delete(deleteConfirm.id);
       setToast({ message: 'Alerta eliminada del sistema', type: 'success' });
-      fetchReminders();
+      void fetchReminders();
     } catch (error) {
       console.error('Error deleting reminder:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
@@ -129,9 +128,9 @@ const Reminders = () => {
         is_active: form.is_active,
       });
       setShowCreateModal(false);
-      setForm(emptyForm);
+      setForm({ ...emptyForm, due_date: getLocalTodayIso() });
       setToast({ message: 'Nueva alerta programada', type: 'success' });
-      fetchReminders();
+      void fetchReminders();
     } catch (error) {
       console.error('Error creating reminder:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
@@ -160,9 +159,9 @@ const Reminders = () => {
       });
       setShowEditModal(false);
       setEditingReminder(null);
-      setEditForm(emptyForm);
+      setEditForm({ ...emptyForm, due_date: getLocalTodayIso() });
       setToast({ message: 'Configuración de alerta actualizada', type: 'success' });
-      fetchReminders();
+      void fetchReminders();
     } catch (error) {
       console.error('Error updating reminder:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
@@ -178,8 +177,8 @@ const Reminders = () => {
   const handleMarkComplete = async (id: string) => {
     try {
       await remindersAPI.update(id, { status: 'completed' });
-      setToast({ message: 'Misión cumplida', type: 'success' });
-      fetchReminders();
+      setToast({ message: 'Recordatorio marcado como completado', type: 'success' });
+      void fetchReminders();
     } catch (error) {
       console.error('Error marking reminder as complete:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
@@ -194,9 +193,8 @@ const Reminders = () => {
     if (status === 'completed') return 'low';
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const due = new Date(dueDate);
-    due.setHours(0, 0, 0, 0);
-    
+    const due = parseLocalDate(dueDate);
+
     if (due < today) return 'critical';
     if (due.getTime() === today.getTime() || (due.getTime() - today.getTime()) <= 86400000 * 2) return 'high';
     return 'normal';
@@ -204,39 +202,35 @@ const Reminders = () => {
 
   const getStatusConfig = (urgency: string, status: string) => {
     if (status === 'completed') {
-      return { 
-        color: 'text-emerald-400', 
-        bg: 'bg-emerald-500/10', 
-        border: 'border-emerald-500/20',
+      return {
+        color: 'text-success',
+        bg: 'bg-success-soft',
+        border: 'border-line',
         label: 'Completado',
-        glow: 'shadow-[0_0_15px_rgba(16,185,129,0.1)]'
       };
     }
-    
+
     switch (urgency) {
       case 'critical':
-        return { 
-          color: 'text-rose-400', 
-          bg: 'bg-rose-500/10', 
-          border: 'border-rose-500/20',
+        return {
+          color: 'text-danger',
+          bg: 'bg-danger-soft',
+          border: 'border-line',
           label: 'Vencido',
-          glow: 'shadow-[0_0_20px_rgba(244,63,94,0.3)]'
         };
       case 'high':
-        return { 
-          color: 'text-amber-400', 
-          bg: 'bg-amber-500/10', 
-          border: 'border-amber-500/20',
+        return {
+          color: 'text-warning',
+          bg: 'bg-warning-soft',
+          border: 'border-line',
           label: 'Próximo',
-          glow: 'shadow-[0_0_15px_rgba(245,158,11,0.2)]'
         };
       default:
-        return { 
-          color: 'text-blue-400', 
-          bg: 'bg-blue-500/10', 
-          border: 'border-blue-500/20',
+        return {
+          color: 'text-info',
+          bg: 'bg-info-soft',
+          border: 'border-line',
           label: 'Pendiente',
-          glow: ''
         };
     }
   };
@@ -251,213 +245,211 @@ const Reminders = () => {
     }
   };
 
-  // Stats for summary
   const pendingCount = reminders.filter(r => r.status === 'pending' && r.is_active).length;
   const criticalCount = reminders.filter(r => getUrgencyLevel(r.due_date, r.status) === 'critical' && r.status !== 'completed').length;
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-white">
-        <RefreshCw className="w-10 h-10 animate-spin text-orange-500 mb-4" />
-        <p className="text-slate-400 font-medium animate-pulse">Sincronizando calendario de alertas...</p>
+      <div className="flex flex-col items-center justify-center h-[60vh] text-primary">
+        <RefreshCw className="w-8 h-8 animate-spin text-warning mb-3" />
+        <p className="text-muted text-sm font-medium">Sincronizando calendario de alertas...</p>
       </div>
     );
   }
 
   return (
     <div className="reminders-page compact-page w-full relative min-h-screen pb-20">
-      {/* Background Decor */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute top-[15%] -left-[10%] w-[50%] h-[50%] bg-orange-600/10 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[25%] -right-[10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px]"></div>
-      </div>
-
       <div className="compact-page-content relative z-10 max-w-7xl mx-auto">
         {/* Header Section */}
-        <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-            <div className="flex items-center gap-2 text-orange-400 text-xs font-bold tracking-[0.2em] uppercase mb-1">
-              <div className="w-8 h-[1px] bg-orange-500/50"></div>
-              <span>Timeline de Alertas</span>
-            </div>
-            <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tight">
-              Tus <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-400">Recordatorios</span>
-            </h1>
-            <p className="text-slate-400 text-sm lg:text-base font-medium mt-2 max-w-md">
-              Mantente al tanto de tus compromisos y evita recargos innecesarios.
+        <div className="compact-page-header flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-6">
+          <motion.div initial={false} animate={{ opacity: 1, x: 0 }}>
+            <h1 className="app-page-title text-3xl lg:text-4xl font-black text-primary tracking-tight">Recordatorios</h1>
+            <p className="text-muted text-sm font-medium mt-1.5 max-w-md">
+              Mantente al tanto de tus compromisos financieros y evita recargos por mora.
             </p>
           </motion.div>
 
           <motion.div
             className="compact-page-actions"
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={false}
             animate={{ opacity: 1, scale: 1 }}
           >
-            <button 
-              onClick={() => setShowCreateModal(true)} 
-              className="flex items-center gap-2 px-6 py-4 rounded-2xl bg-gradient-to-r from-orange-600 to-rose-600 text-white hover:shadow-[0_0_30px_rgba(249,115,22,0.3)] transition-all transform hover:-translate-y-1"
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="app-btn app-btn-primary"
             >
-              <Plus className="w-5 h-5" />
-              <span className="text-xs font-black uppercase tracking-widest">Nueva Alerta</span>
+              <Plus className="w-4 h-4" />
+              <span className="text-sm font-semibold">Nuevo recordatorio</span>
             </button>
           </motion.div>
         </div>
 
         {/* Quick Stats Summary */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+        <motion.div
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
-          className="compact-summary flex flex-wrap gap-4 mb-12"
+          className="compact-summary grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"
         >
-          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20 text-orange-400">
-              <Bell className="w-5 h-5" />
+          <div className="compact-summary-card bg-surface px-5 py-4 rounded-xl border border-line flex items-center gap-3.5">
+            <div className="w-9 h-9 rounded-lg bg-warning-soft flex items-center justify-center border border-line text-warning shrink-0">
+              <Bell className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pendientes</p>
-              <p className="text-lg font-black text-white">{pendingCount}</p>
+              <p className="text-[11px] font-bold text-muted uppercase tracking-wider">Pendientes activos</p>
+              <p className="text-xl font-bold text-primary tabular-nums">{pendingCount}</p>
             </div>
           </div>
 
-          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20 text-rose-400">
-              <AlertCircle className="w-5 h-5" />
+          <div className="compact-summary-card bg-surface px-5 py-4 rounded-xl border border-line flex items-center gap-3.5">
+            <div className="w-9 h-9 rounded-lg bg-danger-soft flex items-center justify-center border border-line text-danger shrink-0">
+              <AlertCircle className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Críticos</p>
-              <p className="text-lg font-black text-white">{criticalCount}</p>
+              <p className="text-[11px] font-bold text-muted uppercase tracking-wider">Vencidos / críticos</p>
+              <p className="text-xl font-bold text-primary tabular-nums">{criticalCount}</p>
             </div>
           </div>
 
-          <div className="compact-summary-card bg-slate-800/40 backdrop-blur-2xl px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-4 ml-auto">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 text-blue-400">
-              <CalendarDays className="w-5 h-5" />
+          <div className="compact-summary-card bg-surface px-5 py-4 rounded-xl border border-line flex items-center gap-3.5">
+            <div className="w-9 h-9 rounded-lg bg-info-soft flex items-center justify-center border border-line text-info shrink-0">
+              <CalendarDays className="w-4 h-4" />
             </div>
-            <p className="text-xs font-bold text-slate-300">
-              Hoy: <span className="text-white ml-1">{new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
-            </p>
+            <div>
+              <p className="text-[11px] font-bold text-muted uppercase tracking-wider">Fecha actual</p>
+              <p className="text-sm font-semibold text-primary capitalize">
+                {new Date().toLocaleDateString('es-EC', { weekday: 'short', day: 'numeric', month: 'short' })}
+              </p>
+            </div>
           </div>
         </motion.div>
 
         {/* Reminders Grid */}
-        <div className="compact-page-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="compact-page-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <AnimatePresence mode="popLayout">
             {reminders.length === 0 ? (
-              <motion.div 
-                className="compact-empty col-span-full py-32 flex flex-col items-center text-center bg-white/5 rounded-[3rem] border border-dashed border-white/10"
-                initial={{ opacity: 0 }}
+              <motion.div
+                className="compact-empty col-span-full py-20 flex flex-col items-center text-center bg-surface-soft rounded-xl border border-dashed border-line"
+                initial={false}
                 animate={{ opacity: 1 }}
               >
-                <div className="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center mb-8">
-                  <Bell className="w-12 h-12 text-slate-600" />
+                <div className="w-14 h-14 rounded-full bg-surface border border-line flex items-center justify-center mb-4">
+                  <Bell className="w-6 h-6 text-muted" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-3">No tienes alertas pendientes</h3>
-                <p className="text-slate-500 max-w-sm leading-relaxed font-medium">
+                <h3 className="text-lg font-bold text-primary mb-1.5">No tienes alertas pendientes</h3>
+                <p className="text-muted text-sm max-w-sm leading-relaxed">
                   Configura recordatorios para que nunca se te pase un pago o una fecha importante.
                 </p>
+                <button type="button" className="app-btn app-btn-primary mt-5" onClick={() => setShowCreateModal(true)}>
+                  Crear recordatorio
+                </button>
               </motion.div>
             ) : (
-              reminders
-                .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+              [...reminders]
+                .sort((a, b) => parseLocalDate(a.due_date).getTime() - parseLocalDate(b.due_date).getTime())
                 .map((reminder, index) => {
                   const urgency = getUrgencyLevel(reminder.due_date, reminder.status);
                   const config = getStatusConfig(urgency, reminder.status);
                   const isCompleted = reminder.status === 'completed';
-                  
+
                   return (
                     <motion.div
                       key={reminder.id}
-                      initial={{ opacity: 0, y: 20 }}
+                      initial={false}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ delay: index * 0.05 }}
-                      className={`compact-card group bg-slate-800/30 backdrop-blur-3xl rounded-[2.5rem] border border-white/5 hover:border-white/10 transition-all p-8 relative overflow-hidden ${
-                        !reminder.is_active ? 'opacity-50 grayscale' : ''
-                      } ${config.glow}`}
+                      transition={{ delay: index * 0.03 }}
+                      className={`compact-card group bg-surface rounded-xl border border-line p-5 relative flex flex-col justify-between transition-all ${
+                        !reminder.is_active ? 'opacity-55 grayscale' : ''
+                      }`}
                     >
-                      {/* Background Status Indicator */}
-                      <div className={`absolute top-0 right-0 w-32 h-32 blur-[60px] opacity-10 transition-all group-hover:opacity-20 ${getReminderGlowClass(isCompleted, urgency)}`}></div>
-
-                      <div className="flex items-start justify-between mb-8 relative z-10">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all ${config.bg} ${config.border} ${config.color}`}>
-                            {isCompleted ? <CheckCircle2 className="w-8 h-8" /> : <Bell className="w-8 h-8" />}
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-black text-white tracking-tight leading-tight group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-slate-400 transition-all">
-                              {reminder.name}
-                            </h3>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${config.bg} ${config.border} ${config.color}`}>
-                                {config.label}
-                              </span>
-                              {!reminder.is_active && (
-                                <span className="px-2 py-0.5 rounded-lg bg-slate-900 border border-white/5 text-slate-500 text-[9px] font-black uppercase tracking-widest">
-                                  Inactivo
+                      <div>
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center border shrink-0 ${config.bg} ${config.border} ${config.color}`}>
+                              {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="text-base font-bold text-primary leading-snug truncate" title={reminder.name}>
+                                {reminder.name}
+                              </h3>
+                              <div className="flex items-center flex-wrap gap-1.5 mt-1">
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${config.bg} ${config.border} ${config.color}`}>
+                                  {config.label}
                                 </span>
-                              )}
+                                {!reminder.is_active && (
+                                  <span className="px-2 py-0.5 rounded-md bg-canvas border border-line text-muted text-[10px] font-bold uppercase tracking-wider">
+                                    Inactivo
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex gap-1">
-                          {reminder.status === 'pending' && reminder.is_active && (
-                            <button 
-                              onClick={() => handleMarkComplete(reminder.id)} 
-                              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-400 transition-all"
-                              title="Completar"
+                          <div className="subscription-card-actions shrink-0">
+                            {reminder.status === 'pending' && reminder.is_active && (
+                              <button
+                                type="button"
+                                onClick={() => handleMarkComplete(reminder.id)}
+                                className="subscription-card-action text-success hover:bg-success-soft"
+                                title="Marcar como completado"
+                                aria-label={`Completar recordatorio ${reminder.name}`}
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(reminder)}
+                              className="subscription-card-action"
+                              title="Editar recordatorio"
+                              aria-label={`Editar recordatorio ${reminder.name}`}
                             >
-                              <Check className="w-5 h-5" />
+                              <Edit className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                          <button 
-                            onClick={() => handleEdit(reminder)} 
-                            className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/10 text-slate-500 hover:text-white transition-all"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(reminder.id)} 
-                            className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-all"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(reminder.id)}
+                              className="subscription-card-action subscription-card-action-delete"
+                              title="Eliminar recordatorio"
+                              aria-label={`Eliminar recordatorio ${reminder.name}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="space-y-6 relative z-10">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                        <div className="grid grid-cols-2 gap-2.5 mb-3">
+                          <div className="bg-surface-soft rounded-lg px-3 py-2 border border-line">
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5 flex items-center gap-1">
                               <Calendar className="w-3 h-3" /> Vencimiento
                             </p>
-                            <p className="text-sm font-black text-white">
-                              {new Date(reminder.due_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                            <p className="text-xs font-semibold text-primary">
+                              {parseLocalDate(reminder.due_date).toLocaleDateString('es-EC', { day: 'numeric', month: 'short', year: 'numeric' })}
                             </p>
                           </div>
-                          <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                          <div className="bg-surface-soft rounded-lg px-3 py-2 border border-line">
+                            <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-0.5 flex items-center gap-1">
                               <Zap className="w-3 h-3" /> Frecuencia
                             </p>
-                            <p className="text-sm font-black text-white">
+                            <p className="text-xs font-semibold text-primary">
                               {getFrequencyLabel(reminder.frequency)}
                             </p>
                           </div>
                         </div>
+                      </div>
 
-                        {reminder.amount && (
-                          <div className="flex justify-between items-center px-4 py-3 bg-white/5 rounded-2xl border border-white/5">
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Monto Estimado</span>
-                            <span className="text-lg font-black text-white tracking-tight">${formatMoney(reminder.amount)}</span>
+                      <div className="space-y-2.5">
+                        {reminder.amount ? (
+                          <div className="flex justify-between items-center px-3 py-2 bg-surface-soft rounded-lg border border-line">
+                            <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Monto estimado</span>
+                            <span className="text-sm font-bold text-primary tabular-nums">${formatMoney(reminder.amount)}</span>
                           </div>
-                        )}
+                        ) : null}
 
                         {reminder.description && (
-                          <div className="pt-4 border-t border-white/5">
-                            <p className="text-xs font-medium text-slate-400 leading-relaxed italic line-clamp-2">
-                              "{reminder.description}"
-                            </p>
-                          </div>
+                          <p className="text-xs text-muted leading-relaxed line-clamp-2 pt-2 border-t border-line">
+                            {reminder.description}
+                          </p>
                         )}
                       </div>
                     </motion.div>

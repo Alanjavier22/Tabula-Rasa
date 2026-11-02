@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useEffect, useState, lazy, Suspense } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, MotionConfig } from 'framer-motion';
 import Layout from './components/Layout';
 import { AuthGuard } from './components/AuthGuard';
 import { GlobalErrorBoundary } from './components/common/GlobalErrorBoundary';
@@ -24,15 +24,17 @@ const Fiscal = lazy(() => import('./pages/Fiscal'));
 // Premium, elegant page loader spinner
 const PageLoader = () => (
   <div className="flex flex-col items-center justify-center min-h-[400px] w-full space-y-4">
-    <div className="w-12 h-12 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
-    <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse font-medium">Cargando...</p>
+    <div className="w-12 h-12 border-4 border-line border-t-transparent rounded-full animate-spin"></div>
+    <output className="text-sm text-muted font-medium">Cargando sección…</output>
   </div>
 );
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = localStorage.getItem('ui_theme') as 'light' | 'dark' | null;
-    return savedTheme ?? 'light';
+    // Adopt the chosen light default once, including installations with the old dark preference.
+    return localStorage.getItem('ui_theme_default_version') === 'editorial-light-v1'
+      && savedTheme === 'dark' ? 'dark' : 'light';
   });
 
   // FASE 8: Integrity Heartbeat - Runs every 24 hours or on startup
@@ -40,15 +42,15 @@ function App() {
     const runIntegrityHeartbeat = async () => {
       try {
         console.log('🛡️ Pulso de Integridad: Iniciando...');
-        
+
         // 1. Validate AI cache integrity
         const integrityResult = await validateCacheIntegrity();
         console.log(`🧠 Integridad de caché de IA: ${integrityResult.deleted} entradas huérfanas eliminadas`);
-        
+
         // 2. Check storage health
         const storage = await checkStorageQuota();
         console.log(`💾 Salud del almacenamiento: ${storage.usagePercent.toFixed(2)}% (${storage.status === 'healthy' ? 'Saludable' : storage.status})`);
-        
+
         // 3. Check stale snapshots and reconcile if >5
         // Thin Client: Use backend API instead of IndexedDB
         try {
@@ -64,7 +66,7 @@ function App() {
         } catch (error) {
           console.warn('⚠️ No se pudo verificar la integridad de snapshots vía API:', error);
         }
-        
+
         console.log('🏁 Pulso de Integridad: Completado');
       } catch (error) {
         console.error('❌ Pulso de Integridad: Error:', error);
@@ -73,11 +75,11 @@ function App() {
 
     // Run heartbeat on startup
     const heartbeatKey = 'last_integrity_heartbeat';
-    const runHeartbeat = async () => {
+    const runHeartbeat =  () => {
       const now = Date.now();
       const lastHeartbeat = localStorage.getItem(heartbeatKey);
       const heartbeatInterval = 24 * 60 * 60 * 1000; // 24 hours
-      
+
       if (!lastHeartbeat || now - Number.parseInt(lastHeartbeat) > heartbeatInterval) {
         // Use requestIdleCallback if available, otherwise run immediately
         if ('requestIdleCallback' in window) {
@@ -88,7 +90,7 @@ function App() {
         localStorage.setItem(heartbeatKey, now.toString());
       }
     };
-    
+
     runHeartbeat();
   }, []);
 
@@ -103,9 +105,11 @@ function App() {
       document.body.classList.remove('dark');
     }
     localStorage.setItem('ui_theme', theme);
+    localStorage.setItem('ui_theme_default_version', 'editorial-light-v1');
   }, [theme]);
 
   return (
+    <MotionConfig reducedMotion="user">
     <GlobalErrorBoundary>
       <Router>
         <AuthGuard>
@@ -134,6 +138,7 @@ function App() {
         </AuthGuard>
       </Router>
     </GlobalErrorBoundary>
+    </MotionConfig>
   );
 }
 

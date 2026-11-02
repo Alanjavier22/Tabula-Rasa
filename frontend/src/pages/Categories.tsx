@@ -5,14 +5,15 @@ import type { Category } from '../types';
 import { Plus, Trash2, Edit, Download, Upload, Tag } from 'lucide-react';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
-import CategoryFormModal, { type CategoryFormData } from '../components/categories/CategoryFormModal';
+import CategoryFormModal, {
+  type CategoryFormData,
+} from '../components/categories/CategoryFormModal';
 
 const emptyForm: CategoryFormData = {
   name: '',
   description: '',
-  color: '#8b5cf6',
+  color: '#ae3a2e',
 };
-
 
 const Categories = () => {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -21,23 +22,19 @@ const Categories = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyForm);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(
+    null,
+  );
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
+  const [toast, setToast] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'warning';
+  } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    id: string | null;
+  }>({ isOpen: false, id: null });
   const [importing, setImporting] = useState(false);
-
-  // Bloquear scroll del body cuando el modal está activo
-  useEffect(() => {
-    if (showCreateModal || showEditModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [showCreateModal, showEditModal]);
 
   const fetchCategories = async () => {
     try {
@@ -57,9 +54,11 @@ const Categories = () => {
   const handleExport = async () => {
     try {
       const response = await categoriesAPI.export();
-      const categories = response.data;
-      const dataStr = JSON.stringify(categories, null, 2);
-      const dataBlob = new Blob(['\ufeff' + dataStr], { type: 'application/json;charset=utf-8' });
+      const exportedCategories = response.data;
+      const dataStr = JSON.stringify(exportedCategories, null, 2);
+      const dataBlob = new Blob(['\ufeff' + dataStr], {
+        type: 'application/json;charset=utf-8',
+      });
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
       link.href = url;
@@ -68,7 +67,10 @@ const Categories = () => {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      setToast({ message: 'Categorías exportadas correctamente', type: 'success' });
+      setToast({
+        message: 'Categorías exportadas correctamente',
+        type: 'success',
+      });
     } catch (error) {
       console.error('Error exporting categories:', error);
       setToast({ message: 'Error al exportar categorías', type: 'error' });
@@ -82,13 +84,13 @@ const Categories = () => {
     setImporting(true);
     try {
       const text = await file.text();
-      const categories = JSON.parse(text);
-      const response = await categoriesAPI.import(categories);
-      setToast({ 
-        message: `Importación completada: ${response.data.imported_count} nuevas, ${response.data.skipped_count} omitidas (duplicados)`, 
-        type: 'success' 
+      const parsedCategories = JSON.parse(text);
+      const response = await categoriesAPI.import(parsedCategories);
+      setToast({
+        message: `Importación completada: ${response.data.imported_count} nuevas, ${response.data.skipped_count} omitidas (duplicados)`,
+        type: 'success',
       });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error importing categories:', error);
       setToast({ message: 'Error al importar categorías', type: 'error' });
@@ -98,7 +100,7 @@ const Categories = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete =  (id: string) => {
     setDeleteConfirm({ isOpen: true, id });
   };
 
@@ -107,7 +109,7 @@ const Categories = () => {
     try {
       await categoriesAPI.delete(deleteConfirm.id);
       setToast({ message: 'Categoría eliminada', type: 'success' });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error deleting category:', error);
       setToast({ message: 'Error al eliminar categoría', type: 'error' });
@@ -121,7 +123,7 @@ const Categories = () => {
     setEditForm({
       name: category.name,
       description: category.description || '',
-      color: category.color || '#8b5cf6',
+      color: category.color || '#ae3a2e',
     });
     setShowEditModal(true);
   };
@@ -138,7 +140,7 @@ const Categories = () => {
       setShowCreateModal(false);
       setForm(emptyForm);
       setToast({ message: 'Categoría creada', type: 'success' });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error creating category:', error);
       setToast({ message: 'Error al crear categoría', type: 'error' });
@@ -161,7 +163,7 @@ const Categories = () => {
       setEditingCategory(null);
       setEditForm(emptyForm);
       setToast({ message: 'Categoría actualizada', type: 'success' });
-      fetchCategories();
+      void fetchCategories();
     } catch (error) {
       console.error('Error updating category:', error);
       setToast({ message: 'Error al actualizar categoría', type: 'error' });
@@ -171,85 +173,96 @@ const Categories = () => {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64 text-white font-medium">Cargando ecosistema...</div>;
+    return (
+      <div className="app-page">
+        <output className="app-inline-message">
+          Cargando categorías…
+        </output>
+      </div>
+    );
   }
 
   return (
-    <div className="categories-page w-full relative min-h-screen pb-20">
-      {/* Background Glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[10%] -right-[5%] w-[30%] h-[30%] bg-blue-600/10 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[20%] -left-[5%] w-[30%] h-[30%] bg-purple-600/10 rounded-full blur-[120px]"></div>
-      </div>
-
-      <div className="categories-content relative z-10">
-        <div className="categories-page-heading flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
-            <div className="flex items-center gap-2 text-blue-400 text-xs font-bold tracking-widest uppercase mb-1">
-              <div className="w-8 h-[1px] bg-blue-500/50"></div>
-              <span>Tabula Rasa</span>
-            </div>
-            <h1 className="text-3xl lg:text-4xl font-black text-white tracking-tight">
-              Libro de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Categorías</span>
-            </h1>
-            <p className="text-slate-400 text-sm lg:text-base font-medium">Organiza y segmenta tu flujo financiero</p>
-          </motion.div>
-
-          <div className="categories-actions flex flex-wrap gap-2">
-            <div className="flex bg-slate-800/50 backdrop-blur-md p-1 rounded-2xl border border-slate-700/50 shadow-xl">
-              <button
-                onClick={handleExport}
-                className="p-2 lg:px-4 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all flex items-center gap-2 text-sm font-semibold"
-                title="Exportar JSON"
-              >
-                <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Exportar</span>
-              </button>
-              <label className="p-2 lg:px-4 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-700/50 transition-all flex items-center gap-2 text-sm font-semibold cursor-pointer">
-                <Upload className="w-4 h-4" />
-                <span className="hidden sm:inline">Importar</span>
-                <input type="file" accept=".json" onChange={handleImport} disabled={importing} className="hidden" />
-              </label>
-            </div>
-            
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-2xl hover:shadow-lg hover:shadow-blue-500/20 transition-all font-bold group"
-            >
-              <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-              <span>Nueva Categoría</span>
-            </button>
-          </div>
+    <div className="app-page categories-page">
+      <div className="app-page-heading">
+        <div>
+          <h1 className="app-page-title">Categorías</h1>
+          <p>
+            Organiza y segmenta tus movimientos por rubro de ingreso o gasto.
+          </p>
         </div>
 
-        <div className="categories-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="categories-actions">
+          <button
+            type="button"
+            onClick={handleExport}
+            className="app-btn"
+            title="Exportar categorías en JSON"
+          >
+            <Download className="w-4 h-4" aria-hidden="true" />
+            <span>Exportar</span>
+          </button>
+          <label className="app-btn cursor-pointer" title="Importar categorías desde JSON">
+            <Upload className="w-4 h-4" aria-hidden="true" />
+            <span>{importing ? 'Importando…' : 'Importar'}</span>
+            <input
+              type="file"
+              aria-label="Importar categorías desde JSON"
+              accept=".json"
+              onChange={handleImport}
+              disabled={importing}
+              className="sr-only"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="app-btn app-btn-primary"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            <span>Nueva categoría</span>
+          </button>
+        </div>
+      </div>
+
+      {categories.length === 0 ? (
+        <div className="app-empty-state">
+          <h2>Organiza tus movimientos</h2>
+          <p>Crea una categoría para distinguir tus ingresos y gastos.</p>
+          <button
+            type="button"
+            className="app-btn app-btn-primary"
+            onClick={() => setShowCreateModal(true)}
+          >
+            Crear primera categoría
+          </button>
+        </div>
+      ) : (
+        <div className="categories-grid">
           <AnimatePresence mode="popLayout">
             {categories.map((category, index) => {
-              const categoryColor = category.color || '#8b5cf6';
+              const categoryColor = category.color || '#ae3a2e';
 
               return (
-                <motion.div
+                <motion.article
                   key={category.id}
                   layout
-                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  initial={false}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.2, delay: index * 0.05 }}
-                  className="category-card group"
-                  style={{ '--category-color': categoryColor } as CSSProperties}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.18, delay: index * 0.03 }}
+                  className="category-card"
+                  style={
+                    { '--category-color': categoryColor } as CSSProperties
+                  }
                 >
-                  <div className="category-card-glow" aria-hidden="true" />
-
                   <div className="category-card-top">
                     <div className="category-card-identity">
                       <div className="category-card-icon" aria-hidden="true">
-                        <Tag />
+                        <Tag className="w-4 h-4" />
                       </div>
                       <div className="category-card-title">
-                        <span>Categoría</span>
+                        <span>Rubro contable</span>
                         <h3>{category.name}</h3>
                       </div>
                     </div>
@@ -262,7 +275,7 @@ const Categories = () => {
                         aria-label={`Editar categoría ${category.name}`}
                         title="Editar categoría"
                       >
-                        <Edit aria-hidden="true" />
+                        <Edit className="w-4 h-4" aria-hidden="true" />
                       </button>
                       <button
                         type="button"
@@ -271,41 +284,28 @@ const Categories = () => {
                         aria-label={`Eliminar categoría ${category.name}`}
                         title="Eliminar categoría"
                       >
-                        <Trash2 aria-hidden="true" />
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
 
                   <p className="category-card-description">
-                    {category.description || 'Sin descripción añadida todavía.'}
+                    {category.description || 'Sin descripción registrada.'}
                   </p>
 
                   <div className="category-card-footer">
-                    <div className="category-card-id">
-                      <span>Identificador</span>
-                      <code>{category.id.substring(0, 8)}</code>
-                    </div>
+                    <span className="category-card-meta">Color asignado</span>
                     <span className="category-card-color">
                       <i aria-hidden="true" />
-                      {categoryColor}
+                      {categoryColor.toUpperCase()}
                     </span>
                   </div>
-                </motion.div>
+                </motion.article>
               );
             })}
           </AnimatePresence>
-
-          {categories.length === 0 && (
-            <div className="col-span-full text-center py-20 bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-700/30">
-              <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700">
-                <Tag className="w-8 h-8 text-slate-600" />
-              </div>
-              <p className="text-slate-400 text-lg font-medium">Tu libro de categorías está vacío</p>
-              <p className="text-slate-600 text-sm mt-2">Crea categorías para organizar tu flujo financiero</p>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
       <CategoryFormModal
         isOpen={showCreateModal}

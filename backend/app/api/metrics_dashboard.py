@@ -371,19 +371,6 @@ def _build_sankey_data(total_income: int, expense_categories: dict[str, int]) ->
     return {"nodes": nodes, "links": links}
 
 
-def _get_vehicle_category_ids(db: Session) -> list[str]:
-    config_entry = db.query(Config).filter(Config.key == "vehicle_categories").first()
-    if config_entry and config_entry.value:
-        try:
-            return json.loads(cast(str, config_entry.value))
-        except json.JSONDecodeError:
-            pass
-    categories = db.query(Category).filter(
-        Category.name.in_(["Combustible", "Mantenimiento Vehiculo"])
-    ).all()
-    return [category.id for category in categories]
-
-
 def _get_vehicle_cost(db: Session, current_year: int, current_month: int, end_date: datetime) -> float:
     vehicle_category_ids = _get_vehicle_category_ids(db)
     result = db.query(

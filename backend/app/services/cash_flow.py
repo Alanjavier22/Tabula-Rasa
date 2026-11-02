@@ -194,7 +194,7 @@ def _get_iou_totals(db: Session) -> tuple[int, int]:
 def _get_credit_card_debt(db: Session, future_date: datetime) -> int:
     statements = db.query(CreditCardStatement).filter(
         CreditCardStatement.is_deleted == False,
-        CreditCardStatement.status.in_(["PENDING", "PARTIAL"]),
+        CreditCardStatement.status.in_(["PENDING", "PARTIAL", "pending", "partial"]),
         CreditCardStatement.payment_due_date <= future_date,
     ).all()
     return sum(max(0, statement.user_share - statement.amount_paid) for statement in statements)

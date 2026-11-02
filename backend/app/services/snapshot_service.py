@@ -187,6 +187,7 @@ class SnapshotService:
         is_past_month = target_end_date < datetime.now(timezone.utc)
         assets_accounts = db.query(Account).filter(
             Account.is_active == 1,
+            Account.is_deleted == False,
             Account.account_type.in_(["checking", "savings", "investment", "cash"])
         ).all()
         total_assets = _calculate_assets(db, assets_accounts, target_end_date, is_past_month)
@@ -197,6 +198,7 @@ class SnapshotService:
 
         liabilities_accounts = db.query(Account).filter(
             Account.is_active == 1,
+            Account.is_deleted == False,
             Account.account_type == "credit_card"
         ).all()
         total_liabilities = _calculate_liabilities(
@@ -218,7 +220,9 @@ class SnapshotService:
     @staticmethod
     def get_historical_trends(db: Session, limit: int = 6) -> list:
         """Fetch the last N snapshots for trend analysis"""
-        snapshots = db.query(NetWorthSnapshot).order_by(
+        snapshots = db.query(NetWorthSnapshot).filter(
+            NetWorthSnapshot.is_deleted == False
+        ).order_by(
             NetWorthSnapshot.year.desc(), 
             NetWorthSnapshot.month.desc()
         ).limit(limit).all()

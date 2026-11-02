@@ -1,52 +1,75 @@
+import Modal from './common/Modal';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { statementsAPI } from '../services/api';
 import type { CreditCardStatement, DebtShare, Cents } from '../types';
 import type { AxiosError } from 'axios';
+import { formatMoney } from '../utils/money';
 import { Users, DollarSign, CheckCircle, X, Plus } from 'lucide-react';
 import Toast from './Toast';
 
 const getDebtShareStatusClass = (status: string) => {
-  if (status === 'paid_to_card') return 'bg-green-500/20 text-green-400';
-  if (status === 'received') return 'bg-blue-500/20 text-blue-400';
-  return 'bg-orange-500/20 text-orange-400';
+  if (status === 'paid_to_card') return 'is-good';
+  if (status === 'received') return 'is-warning';
+  return 'is-danger';
 };
 
 const getDebtShareStatusLabel = (status: string) => {
-  if (status === 'paid_to_card') return 'A Tarjeta';
+  if (status === 'paid_to_card') return 'A tarjeta';
   if (status === 'received') return 'Recibido';
   return 'Pendiente';
 };
 
-const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] }) => {
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [showAddModal, setShowAddModal] = useState<{ isOpen: boolean; statementId: string | null }>({ isOpen: false, statementId: null });
-  const [formData, setFormData] = useState({ person_name: '', amount: '', description: '', status: 'pending' });
+const DebtSharesWidget = ({
+  statements,
+}: {
+  statements: CreditCardStatement[];
+}) => {
+  const queryClient = useQueryClient();
+  const [toast, setToast] = useState<{
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
+  const [showAddModal, setShowAddModal] = useState<{
+    isOpen: boolean;
+    statementId: string | null;
+  }>({ isOpen: false, statementId: null });
+  const [formData, setFormData] = useState({
+    person_name: '',
+    amount: '',
+    description: '',
+    status: 'pending',
+  });
   const [adding, setAdding] = useState(false);
 
-  // Collect all debt shares from all statements
-  const allDebtShares: Array<DebtShare & { statement: CreditCardStatement }> = [];
-  statements.forEach(stmt => {
+  const allDebtShares: Array<DebtShare & { statement: CreditCardStatement }> =
+    [];
+  statements.forEach((stmt) => {
     if (stmt.debt_shares && stmt.debt_shares.length > 0) {
-      stmt.debt_shares.forEach(ds => {
+      stmt.debt_shares.forEach((ds) => {
         allDebtShares.push({ ...ds, statement: stmt });
       });
     }
   });
 
-  const pendingShares = allDebtShares.filter(ds => ds.status === 'pending');
+  const pendingShares = allDebtShares.filter((ds) => ds.status === 'pending');
   const totalPending = pendingShares.reduce((sum, ds) => sum + ds.amount, 0);
 
-  // Show widget only if there are debt shares to display
-  if (allDebtShares.length === 0) {
-    return null;
-  }
+  const invalidateStatements = () => {
+    void queryClient.invalidateQueries({ queryKey: ['statements'] });
+    void queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+  };
 
   const handleAddDebtShare = () => {
     if (statements.length === 0) {
-      setToast({ message: 'Primero crea un estado de cuenta para tu tarjeta de crédito', type: 'error' });
+      setToast({
+        message:
+          'Primero crea un estado de cuenta para tu tarjeta de crédito en Cuentas',
+        type: 'error',
+      });
       return;
     }
-    // Open modal for first statement
     setShowAddModal({ isOpen: true, statementId: statements[0].id });
   };
 
@@ -58,18 +81,29 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
     try {
       await statementsAPI.addDebtShare(showAddModal.statementId, {
         person_name: formData.person_name,
-        amount: Math.round(Number.parseFloat(formData.amount) * 100) as Cents, // Convert to cents safely
+        amount: Math.round(
+          Number.parseFloat(formData.amount) * 100,
+        ) as Cents,
         description: formData.description || undefined,
         status: formData.status,
       });
       setToast({ message: 'Deuda compartida agregada', type: 'success' });
       setShowAddModal({ isOpen: false, statementId: null });
-      setFormData({ person_name: '', amount: '', description: '', status: 'pending' });
-      // Refresh statements
-      window.location.reload();
+      setFormData({
+        person_name: '',
+        amount: '',
+        description: '',
+        status: 'pending',
+      });
+      invalidateStatements();
     } catch (error) {
       console.error('Error adding debt share:', error);
-      setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al agregar deuda compartida', type: 'error' });
+      setToast({
+        message:
+          (error as AxiosError<{ detail?: string }>).response?.data?.detail ||
+          'Error al agregar deuda compartida',
+        type: 'error',
+      });
     } finally {
       setAdding(false);
     }
@@ -79,10 +113,15 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
     try {
       await statementsAPI.updateDebtShare(shareId, { status: newStatus });
       setToast({ message: 'Estado actualizado', type: 'success' });
-      window.location.reload();
+      invalidateStatements();
     } catch (error) {
       console.error('Error updating debt share:', error);
-      setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al actualizar estado', type: 'error' });
+      setToast({
+        message:
+          (error as AxiosError<{ detail?: string }>).response?.data?.detail ||
+          'Error al actualizar estado',
+        type: 'error',
+      });
     }
   };
 
@@ -91,97 +130,131 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
     try {
       await statementsAPI.deleteDebtShare(shareId);
       setToast({ message: 'Deuda compartida eliminada', type: 'success' });
-      window.location.reload();
+      invalidateStatements();
     } catch (error) {
       console.error('Error deleting debt share:', error);
-      setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al eliminar deuda compartida', type: 'error' });
+      setToast({
+        message:
+          (error as AxiosError<{ detail?: string }>).response?.data?.detail ||
+          'Error al eliminar deuda compartida',
+        type: 'error',
+      });
     }
   };
 
-
-
   return (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Users className="w-5 h-5 text-purple-400" />
-          <h3 className="text-lg font-semibold text-white">Deudas Compartidas</h3>
+    <section className="app-surface p-5" aria-label="Deudas compartidas">
+      <div className="app-section-heading mb-3">
+        <div>
+          <span className="dashboard-panel-kicker">Consumos en tarjeta</span>
+          <h3 className="app-section-title">Deudas compartidas</h3>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">{allDebtShares.length} deuda(s)</span>
-          <button 
+          <span className="text-xs text-muted">
+            {allDebtShares.length} registro(s)
+          </span>
+          <button
+            type="button"
             onClick={handleAddDebtShare}
-            className="p-1 hover:bg-purple-500/20 rounded-lg text-purple-400 transition-colors"
-            title="Agregar deuda manual"
+            className="account-card-action"
+            title="Agregar deuda compartida"
+            aria-label="Agregar deuda compartida"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>
 
-      {/* Summary */}
-      <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 mb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-purple-400 mb-1">Pendiente Total</p>
-            <p className="text-lg font-bold text-purple-300">${(totalPending / 100).toFixed(2)}</p>
-          </div>
-          <DollarSign className="w-6 h-6 text-purple-400" />
+      <div className="chart-kpi-strip mb-3">
+        <div className="chart-kpi-item">
+          <span>Pendiente por cobrar</span>
+          <strong className="text-accent-strong">
+            $ {formatMoney(totalPending)}
+          </strong>
+        </div>
+        <div className="chart-kpi-item">
+          <span>Cuotas pendientes</span>
+          <strong>{pendingShares.length}</strong>
         </div>
       </div>
 
-      {/* List */}
-      <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-        {allDebtShares.map(ds => (
-          <div key={ds.id} className="flex items-center justify-between p-3 bg-slate-700/30 rounded-xl border border-white/5">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-white truncate">{ds.person_name}</p>
-                <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">Mensual</span>
-              </div>
-              <p className="text-[10px] text-slate-400">{ds.statement.account_name || 'Visa Platinum'}</p>
-              {ds.description && (
-                <p className="text-[10px] text-slate-500 italic truncate">"{ds.description}"</p>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-sm font-black text-purple-400">${(ds.amount / 100).toFixed(2)}</p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getDebtShareStatusClass(ds.status)}`}>
-                  {getDebtShareStatusLabel(ds.status)}
+      {allDebtShares.length === 0 ? (
+        <p className="dashboard-rail-empty">
+          No hay consumos compartidos registrados en tus estados de cuenta.
+        </p>
+      ) : (
+        <div className="space-y-2 max-h-56 overflow-y-auto">
+          {allDebtShares.map((ds) => (
+            <div key={ds.id} className="account-share-item">
+              <div className="account-share-person">
+                <span className="account-share-avatar">
+                  <Users className="w-3.5 h-3.5" aria-hidden="true" />
                 </span>
+                <div>
+                  <span className="block">{ds.person_name}</span>
+                  <span className="block text-xs text-muted font-normal">
+                    {ds.statement.account_name || 'Tarjeta'}
+                    {ds.description ? ` · ${ds.description}` : ''}
+                  </span>
+                </div>
               </div>
-              <div className="flex gap-1">
-                {ds.status === 'pending' && (
-                  <>
-                    <button
-                      onClick={() => handleUpdateStatus(ds.id, 'received')}
-                      className="p-1 text-slate-400 hover:text-blue-400 hover:bg-blue-500/20 rounded transition-colors"
-                      title="Marcar como recibido"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleUpdateStatus(ds.id, 'paid_to_card')}
-                      className="p-1 text-slate-400 hover:text-green-400 hover:bg-green-500/20 rounded transition-colors"
-                      title="Marcar como pagado a tarjeta"
-                    >
-                      <DollarSign className="w-4 h-4" />
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={() => handleDeleteShare(ds.id)}
-                  className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded transition-colors"
-                  title="Eliminar"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+              <div className="account-share-amount">
+                <div className="text-right">
+                  <strong className="block">$ {formatMoney(ds.amount)}</strong>
+                  <span
+                    className={`sentinel-status-badge ${getDebtShareStatusClass(
+                      ds.status,
+                    )}`}
+                  >
+                    {getDebtShareStatusLabel(ds.status)}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  {ds.status === 'pending' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateStatus(ds.id, 'received')}
+                        className="account-card-action"
+                        title="Marcar como recibido"
+                        aria-label={`Marcar cobro de ${ds.person_name} como recibido`}
+                      >
+                        <CheckCircle
+                          className="w-3.5 h-3.5"
+                          aria-hidden="true"
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleUpdateStatus(ds.id, 'paid_to_card')
+                        }
+                        className="account-card-action"
+                        title="Marcar como abonado a tarjeta"
+                        aria-label={`Marcar cobro de ${ds.person_name} como abonado a tarjeta`}
+                      >
+                        <DollarSign
+                          className="w-3.5 h-3.5"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteShare(ds.id)}
+                    className="account-card-action account-card-action-delete"
+                    title="Eliminar"
+                    aria-label={`Eliminar deuda compartida de ${ds.person_name}`}
+                  >
+                    <X className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {toast && (
         <Toast
@@ -191,93 +264,105 @@ const DebtSharesWidget = ({ statements }: { statements: CreditCardStatement[] })
         />
       )}
 
-      {/* Add Debt Share Modal */}
       {showAddModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <button
-            type="button"
-            aria-label="Cerrar modal de deuda"
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowAddModal({ isOpen: false, statementId: null })}
-          />
-          <div className="relative bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md">
+        <Modal
+          onClose={() => setShowAddModal({ isOpen: false, statementId: null })}
+          label={'Agregar deuda compartida'}
+        >
+          <div className="relative bg-surface border border-line p-6 w-full max-w-md">
             <button
-              onClick={() => setShowAddModal({ isOpen: false, statementId: null })}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+              type="button"
+              onClick={() =>
+                setShowAddModal({ isOpen: false, statementId: null })
+              }
+              className="absolute top-4 right-4 text-muted hover:text-primary"
+              aria-label="Cerrar"
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-lg font-semibold text-white mb-4">Agregar Deuda Compartida</h3>
+            <h3 className="text-lg font-semibold text-primary mb-4">
+              Agregar deuda compartida
+            </h3>
             <form onSubmit={handleAddShare}>
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="debt-share-person" className="block text-sm font-medium text-slate-300 mb-2">Persona</label>
+                  <label
+                    htmlFor="debt-share-person"
+                    className="block text-sm font-medium text-muted mb-1"
+                  >
+                    Persona
+                  </label>
                   <input
                     id="debt-share-person"
                     type="text"
                     value={formData.person_name}
-                    onChange={(e) => setFormData({ ...formData, person_name: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    onChange={(e) =>
+                      setFormData({ ...formData, person_name: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-surface border border-line rounded text-primary"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="debt-share-amount" className="block text-sm font-medium text-slate-300 mb-2">Monto</label>
+                  <label
+                    htmlFor="debt-share-amount"
+                    className="block text-sm font-medium text-muted mb-1"
+                  >
+                    Monto (USD)
+                  </label>
                   <input
                     id="debt-share-amount"
                     type="number"
                     step="0.01"
                     value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    onChange={(e) =>
+                      setFormData({ ...formData, amount: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-surface border border-line rounded text-primary"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="debt-share-description" className="block text-sm font-medium text-slate-300 mb-2">Descripción (opcional)</label>
+                  <label
+                    htmlFor="debt-share-description"
+                    className="block text-sm font-medium text-muted mb-1"
+                  >
+                    Descripción (opcional)
+                  </label>
                   <input
                     id="debt-share-description"
                     type="text"
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-surface border border-line rounded text-primary"
                   />
-                </div>
-                <div>
-                  <label htmlFor="debt-share-status" className="block text-sm font-medium text-slate-300 mb-2">Estado</label>
-                  <select
-                    id="debt-share-status"
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="pending">Pendiente</option>
-                    <option value="received">Recibido</option>
-                    <option value="paid_to_card">Pagado a tarjeta</option>
-                  </select>
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal({ isOpen: false, statementId: null })}
-                  className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                  onClick={() =>
+                    setShowAddModal({ isOpen: false, statementId: null })
+                  }
+                  className="app-btn flex-1 justify-center"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={adding}
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                  className="app-btn app-btn-primary flex-1 justify-center"
                 >
-                  {adding ? 'Agregando...' : 'Agregar'}
+                  {adding ? 'Agregando…' : 'Agregar'}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
-    </div>
+    </section>
   );
 };
 

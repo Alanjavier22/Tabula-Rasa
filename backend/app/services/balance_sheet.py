@@ -7,6 +7,7 @@ Source of truth: net_worth_snapshots for aggregates
 from datetime import datetime, timezone
 from typing import List, Optional, Any, cast
 import json
+import logging
 from sqlalchemy.orm import Session
 from app.models.account import Account
 from app.models.iou import IOU
@@ -14,8 +15,6 @@ from app.models.credit_card_statement import CreditCardStatement
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.services.asset_depreciation import asset_depreciation_service
 from app.utils.date_parser import parse_date_robustly
-import json
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +61,7 @@ class BalanceSheetService:
         """Calculate cash accounts value (checking + savings)"""
         accounts = (
             db.query(Account)
-            .filter(Account.is_deleted == False)
+            .filter(Account.is_deleted == False, Account.is_active == 1)
             .filter(Account.account_type.in_(["checking", "savings"]))
             .all()
         )
@@ -82,25 +81,45 @@ class BalanceSheetService:
 
     @staticmethod
     def get_credit_card_balances(db: Session) -> int:
-        """Calculate credit card balances (unpaid statements + live unbilled debt)"""
+        """Calculate credit card balances (unpaid statements vs live debt)"""
         statements = (
             db.query(CreditCardStatement)
             .filter(CreditCardStatement.is_deleted == False)
-            .filter(CreditCardStatement.status != "paid")
+            .filter(CreditCardStatement.status.notin_(["paid", "PAID"]))
             .all()
         )
-        
-        # 1. Unpaid statements (formal debt)
-        stmt_balance = sum(
-            max((stmt.user_share or 0) - (stmt.amount_paid or 0), 0)
-            for stmt in statements
+
+        stmt_by_account: dict[str, int] = {}
+        orphan_stmt_debt = 0
+        for stmt in statements:
+            base_due = stmt.user_share if stmt.user_share is not None else (stmt.statement_balance or 0)
+            unpaid = max(base_due - (stmt.amount_paid or 0), 0)
+            if stmt.account_id:
+                acc_key = str(stmt.account_id)
+                stmt_by_account[acc_key] = stmt_by_account.get(acc_key, 0) + unpaid
+            else:
+                orphan_stmt_debt += unpaid
+
+        cc_accounts = (
+            db.query(Account)
+            .filter(
+                Account.account_type == "credit_card",
+                Account.is_deleted == False,
+                Account.is_active == 1,
+            )
+            .all()
         )
-        
-        # 2. Live balance from CC accounts (unbilled debt)
-        cc_accounts = db.query(Account).filter(Account.account_type == "credit_card", Account.is_deleted == False).all()
-        live_cc_balance = sum(acc.balance or 0 for acc in cc_accounts)
-        
-        return cast(int, stmt_balance + live_cc_balance)
+        active_cc_ids = {str(acc.id) for acc in cc_accounts}
+        total_cc_debt = orphan_stmt_debt + sum(
+            debt for acc_id, debt in stmt_by_account.items() if acc_id not in active_cc_ids
+        )
+        for acc in cc_accounts:
+            raw_balance = cast(int, acc.balance or 0)
+            live_debt = abs(raw_balance) if raw_balance < 0 else 0
+            stmt_debt = stmt_by_account.get(str(acc.id), 0)
+            total_cc_debt += max(live_debt, stmt_debt)
+
+        return cast(int, total_cc_debt)
 
     @staticmethod
     def get_balance_sheet(db: Session, month: int, year: int) -> Optional[dict]:

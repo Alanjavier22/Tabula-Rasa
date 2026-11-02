@@ -1,12 +1,6 @@
-/**
- * VirtualTransactionList - FASE 5: Windowing for 50k+ transactions
- * Only renders visible rows in viewport (max 20 DOM nodes)
- * Uses IntersectionObserver for efficient virtualization
- */
-
-import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { TransactionRow } from './TransactionRow';
-import type { Transaction } from '../../types';
+import { useRef, useState, useEffect } from "react";
+import { TransactionRow } from "./TransactionRow";
+import type { Transaction } from "../../types";
 
 interface VirtualTransactionListProps {
   transactions: Transaction[];
@@ -16,68 +10,77 @@ interface VirtualTransactionListProps {
   onDelete?: (id: string) => void;
 }
 
-export const VirtualTransactionList: React.FC<VirtualTransactionListProps> = ({
+export const VirtualTransactionList = ({
   transactions,
   onEdit,
   onDelete,
-  rowHeight = 50,
-  visibleRowCount = 20,
-}) => {
-  const [visibleRange, setVisibleRange] = useState({ start: 0, end: visibleRowCount });
-  const [scrollTop, setScrollTop] = useState(0);
+  rowHeight,
+  visibleRowCount = 8,
+}: VirtualTransactionListProps) => {
+  const [viewport, setViewport] = useState({ offset: 0, height: 800 });
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Calculate visible range based on scroll position
-  const updateVisibleRange = useCallback(() => {
-    if (!containerRef.current) return;
-    
-    const containerHeight = containerRef.current.clientHeight;
-    const newStart = Math.floor(scrollTop / rowHeight);
-    const newEnd = Math.min(
-      newStart + Math.ceil(containerHeight / rowHeight) + 5,
-      transactions.length
-    );
-    
-    setVisibleRange({ start: Math.max(0, newStart - 5), end: newEnd });
-  }, [scrollTop, rowHeight, transactions.length]);
-
-  // Handle scroll
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const main = container.closest<HTMLElement>('.app-main');
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const rect = container.getBoundingClientRect();
+        const mainIsScroller = main && getComputedStyle(main).overflowY === 'auto';
+        const viewportTop = mainIsScroller ? main.getBoundingClientRect().top : 0;
+        const viewportHeight = mainIsScroller ? main.clientHeight : window.innerHeight;
+        setViewport({ offset: Math.max(0, viewportTop - rect.top), height: viewportHeight });
+      });
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    if (main) observer.observe(main);
+    const content = container.closest<HTMLElement>('.app-content');
+    if (content) observer.observe(content);
+    window.addEventListener('scroll', measure, true);
+    window.addEventListener('resize', measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', measure, true);
+      window.removeEventListener('resize', measure);
+      cancelAnimationFrame(frame);
+    };
   }, []);
-
-  // Update visible range on scroll change
-  useEffect(() => {
-    const timeoutId = setTimeout(updateVisibleRange, 16); // 60fps throttling
-    return () => clearTimeout(timeoutId);
-  }, [updateVisibleRange]);
-
-  // Initial range
-  useEffect(() => {
-    updateVisibleRange();
-  }, [updateVisibleRange]);
-
-  const visibleTransactions = transactions.slice(visibleRange.start, visibleRange.end);
-  const totalHeight = transactions.length * rowHeight;
-  const offsetY = visibleRange.start * rowHeight;
-
+  const count = Math.max(visibleRowCount, Math.ceil(viewport.height / rowHeight));
+  const first = Math.min(Math.floor(viewport.offset / rowHeight), Math.max(0, transactions.length - count));
+  const start = Math.max(0, first - 3);
+  const end = Math.min(first + count + 3, transactions.length);
   return (
     <div
       ref={containerRef}
-      onScroll={handleScroll}
-      style={{ height: '500px', overflow: 'auto', position: 'relative' }}
+      className="transactions-scroll"
     >
-      <div style={{ height: totalHeight, position: 'relative' }}>
-        <div style={{ transform: `translateY(${offsetY}px)` }}>
-          {visibleTransactions.map((txn) => (
+      <div
+        style={{
+          height: transactions.length * rowHeight,
+          position: "relative",
+        }}
+      >
+        <ul aria-label="Transacciones" style={{ position: "absolute",
+            inset: "0 0 auto",
+            transform: `translateY(${start * rowHeight}px)`,
+          }}
+        >
+          {transactions.slice(start, end).map((transaction, index) => (
             <TransactionRow
-              key={txn.id}
-              transaction={txn}
+              key={transaction.id}
+              transaction={transaction}
+              rowHeight={rowHeight}
+              position={start + index + 1}
+              total={transactions.length}
               onEdit={onEdit}
               onDelete={onDelete}
             />
           ))}
-        </div>
+        </ul>
       </div>
     </div>
   );
