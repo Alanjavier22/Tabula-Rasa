@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.18](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.17...v0.1.18) (2026-11-02)
+
+
+### Nuevas funcionalidades
+
+* **frontend:** renueva la lectura financiera y corrige la interfaz ([d1c440f](https://github.com/Alanjavier22/Tabula-Rasa/commit/d1c440f79e6c2e95a266a2f7870da6a8d06faf2e))
+* **frontend:** simplifica las finanzas diarias y unifica la interfaz accesible ([bf78535](https://github.com/Alanjavier22/Tabula-Rasa/commit/bf78535e256aa57b5a68079652f89a58a11a4ef9))
+
+
+### Correcciones
+
+* **backend:** ajusta cálculos fiscales y proyecciones financieras ([5e74db0](https://github.com/Alanjavier22/Tabula-Rasa/commit/5e74db017da7f68dcdfda10b987347aa74d5c501))
+* **frontend:** corrige hallazgos de fiabilidad y selección accesible ([47eecee](https://github.com/Alanjavier22/Tabula-Rasa/commit/47eecee4426fef2871f2c77e9ac9e5966d0e3b81))
+* **frontend:** evita el aviso de acceso restringido durante el arranque local ([05e011c](https://github.com/Alanjavier22/Tabula-Rasa/commit/05e011cd83ec3774127a4250894bc84836672b77))
+* **frontend:** mejora semántica, diálogos y estados de interfaz ([a2c0bfe](https://github.com/Alanjavier22/Tabula-Rasa/commit/a2c0bfedd9c93b92dfbc81971dae504aaede0be5))
+* **frontend:** resuelve las últimas reglas de estilos y complejidad ([9040951](https://github.com/Alanjavier22/Tabula-Rasa/commit/90409513a7ec0252fe8f111ff622f2bc4679450a))
+
+
+### Documentación y mantenimiento
+
+* **calidad:** registra el cierre de hallazgos y las validaciones actuales ([be3cde1](https://github.com/Alanjavier22/Tabula-Rasa/commit/be3cde18ec69c18e8aa2a24e7706dcf5f47b7755))
+* **diseño:** registra la dirección visual y sus prototipos ([9120df7](https://github.com/Alanjavier22/Tabula-Rasa/commit/9120df7fe8260a4bdb43e680cbd3040324373fce))
+* **frontend:** clasifica las regresiones SSR como pruebas en SonarCloud ([59d56db](https://github.com/Alanjavier22/Tabula-Rasa/commit/59d56dba742320815d5ca885cb6cb247139074b2))
+* **frontend:** comparte formatos y acciones de formularios ([ff39995](https://github.com/Alanjavier22/Tabula-Rasa/commit/ff39995ac5a9724c8f17afbbee6256446c7d5918))
+* **frontend:** consolida la cascada y elimina prioridades forzadas ([03ef89f](https://github.com/Alanjavier22/Tabula-Rasa/commit/03ef89f5f7473eaf4b4647ef499b0552a6130a70))
+* **frontend:** ejecuta las regresiones de interfaz en cada pull request ([898c040](https://github.com/Alanjavier22/Tabula-Rasa/commit/898c040e090d4a3199cf4e284775da16d7c6a255))
+* **frontend:** registra el sistema visual y las validaciones de continuidad ([c891cba](https://github.com/Alanjavier22/Tabula-Rasa/commit/c891cba52c81f9aad186dc2cea5afa95fa597483))
+
 ## [0.1.17](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.16...v0.1.17) (2026-09-26)
 
 
