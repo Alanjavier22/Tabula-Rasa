@@ -204,6 +204,20 @@ input[type=number] {
   box-shadow: none;
 }
 
+.app-btn-ghost {
+  border-color: var(--app-border);
+  color: var(--app-muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-btn-ghost:hover {
+  color: var(--app-text);
+  border-color: var(--app-border-strong);
+  background: var(--app-surface-soft);
+  box-shadow: none;
+}
+
 .app-summary-card-head {
   display: flex;
   align-items: flex-start;
@@ -2327,6 +2341,7 @@ body {
 
 
 /* Desktop workspace: navigation remains labelled and the footer stays reachable. */
+@media (min-width: 980px) {
 body, html { min-width: 980px; }
 .app-shell {
   min-height: 100vh;
@@ -2401,6 +2416,7 @@ body, html { min-width: 980px; }
   font-size: 12px;
   letter-spacing: 0.035em; display: flex; }
 .app-header-brand, .app-header-theme, .app-mobile-header, .app-mobile-nav { display: none; }
+}
 .app-page {
   margin: 0 auto;
   color: var(--app-text); width: 100%; }
@@ -3029,7 +3045,7 @@ h1.app-page-title {
   min-width: 0;
   height: 100dvh;
   overflow: hidden;
-  background: var(--app-canvas);
+  background: var(--app-bg);
 }
 
 .app-topbar {
@@ -3527,7 +3543,7 @@ h1.app-page-title {
 
 .forecast-horizon-btn.is-active {
   background: var(--app-accent-strong);
-  color: var(--app-on-color);
+  color: var(--app-on-accent);
 }
 
 .cash-flow-chart-wrap {
@@ -5034,7 +5050,7 @@ summary::-webkit-details-marker {
   background: var(--app-surface);
   border: 1px solid var(--app-border-strong);
   border-radius: var(--app-radius-md);
-  box-shadow: var(--app-shadow);
+  box-shadow: var(--app-shadow-md);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -5102,7 +5118,7 @@ summary::-webkit-details-marker {
   border: 1px solid var(--app-border-strong);
   border-radius: 4px;
   color: var(--app-muted);
-  font-family: var(--font-sans);
+  font-family: system-ui, -apple-system, sans-serif;
   font-size: 10.5px;
   font-weight: 600;
   line-height: 1;
@@ -5588,24 +5604,12 @@ input.command-palette-input::placeholder {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root *, :root *::after, :root *::before {
+  html {
     scroll-behavior: auto;
-    animation: none;
-    transition: none;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .app-btn, .app-nav-item {
-    transition-duration: 0.01ms;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root *, :root *::after, :root *::before {
-    scroll-behavior: auto;
-    animation-duration: 0.01ms;
-    animation-iteration-count: 1;
+  .app-btn,
+  .app-nav-item {
     transition-duration: 0.01ms;
   }
 }

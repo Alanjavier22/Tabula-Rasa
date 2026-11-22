@@ -54,8 +54,9 @@ const CloudTab = ({ backups, loadingBackups, creatingBackup, onCreateBackup, onR
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => onRestoreBackup(backup.id)}
-                  className="px-4 py-2 rounded-xl bg-surface-soft hover:bg-success text-on-color text-xs font-black uppercase tracking-widest transition-all border border-line opacity-0 group-hover:opacity-100"
+                  className="px-4 py-2 rounded-xl bg-surface-soft hover:bg-success text-primary hover:text-on-color text-xs font-black uppercase tracking-widest transition-all border border-line opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
                 >
                   Restaurar
                 </button>
