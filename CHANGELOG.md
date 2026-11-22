@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.20](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.19...v0.1.20) (2026-11-22)
+
+
+### Correcciones
+
+* **calidad:** resolver hallazgos de SonarCloud en pruebas y clientes frontend ([8742d8c](https://github.com/Alanjavier22/Tabula-Rasa/commit/8742d8c82d4a8d710caa52bb7be794314be4e622))
+
+
+### Documentación y mantenimiento
+
+* **calidad:** resolver hallazgos y duplicación en SonarCloud ([9633f11](https://github.com/Alanjavier22/Tabula-Rasa/commit/9633f1112484e5d548959c3b9e17bd7b112f9968))
+* **frontend:** eliminar bloques duplicados en proxy, importación, cuentas y páginas CRUD ([7b05f30](https://github.com/Alanjavier22/Tabula-Rasa/commit/7b05f30ae4b6ab673f732e867bee35fa122fd117))
+
 ## [0.1.19](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.18...v0.1.19) (2026-11-22)
 
 
