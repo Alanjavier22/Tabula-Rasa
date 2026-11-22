@@ -22,7 +22,7 @@ export const VirtualTransactionList = ({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const main = container.closest<HTMLElement>('.app-main');
+    const main = container.closest<HTMLElement>('.app-main-scroll, .app-main');
     let frame = 0;
     const measure = () => {
       cancelAnimationFrame(frame);

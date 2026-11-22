@@ -20,6 +20,7 @@ import AITab from '../components/Settings/AITab';
 import LabsTab from '../components/Settings/LabsTab';
 import CloudTab from '../components/Settings/CloudTab';
 import Toast from '../components/Toast';
+import ConfirmDialog from '../components/ConfirmDialog';
 import type { Category, BackupFile, Config } from '../types';
 import type { AxiosError } from 'axios';
 import type { ConfigData, GoogleDriveCredentials, GoogleDriveStatus } from '../components/Settings/types';
@@ -32,6 +33,10 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
+  const [restoreConfirm, setRestoreConfirm] = useState<{
+    isOpen: boolean;
+    backupId: string | null;
+  }>({ isOpen: false, backupId: null });
   const [config, setConfig] = useState<ConfigData>({
     vehicle_categories: [],
     safe_to_spend_buffer: 0,
@@ -287,12 +292,14 @@ const Settings = () => {
 
 
 
-  const handleRestoreBackup = async (backupId: string) => {
-    if (!window.confirm('¿Estás seguro de que quieres restaurar este backup? El servidor necesitará reiniciarse.')) {
-      return;
-    }
+  const handleRestoreBackup = (backupId: string) => {
+    setRestoreConfirm({ isOpen: true, backupId });
+  };
+
+  const confirmRestoreBackup = async () => {
+    if (!restoreConfirm.backupId) return;
     try {
-      const res = await backupAPI.restoreBackup(backupId);
+      const res = await backupAPI.restoreBackup(restoreConfirm.backupId);
       if (res.data.success) {
         setToast({ message: res.data.message, type: 'success' });
       } else {
@@ -301,6 +308,8 @@ const Settings = () => {
     } catch (e) {
       console.error('Error restoring backup:', e);
       setToast({ message: 'Error al restaurar backup', type: 'error' });
+    } finally {
+      setRestoreConfirm({ isOpen: false, backupId: null });
     }
   };
 
@@ -438,6 +447,16 @@ const Settings = () => {
           onClose={() => setToast(null)}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={restoreConfirm.isOpen}
+        title="Restaurar respaldo"
+        message="¿Estás seguro de que quieres restaurar este respaldo? El servidor necesitará reiniciarse."
+        confirmLabel="Restaurar"
+        submittingLabel="Restaurando…"
+        onConfirm={confirmRestoreBackup}
+        onCancel={() => setRestoreConfirm({ isOpen: false, backupId: null })}
+      />
     </div>
   );
 };

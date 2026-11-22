@@ -1,4 +1,5 @@
 import Modal from '../common/Modal';
+import Toast from '../Toast';
 /**
  * FiscalDashboard - FASE 3: Analytics Layer for Tabula Rasa
  * FASE 4: Added SRI Annex export with progress tracking
@@ -174,6 +175,10 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
 
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<'xml' | 'json'>('xml');
+  const [toast, setToast] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'warning';
+  } | null>(null);
 
   const handleExportSRI = async () => {
     const year = new Date(endDate).getFullYear();
@@ -194,7 +199,10 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
       setShowExportModal(false);
     } catch (error) {
       console.error('[FiscalDashboard] Error exporting SRI declaration:', error);
-      alert('Error al generar la declaración fiscal');
+      setToast({
+        message: 'Error al generar la declaración fiscal.',
+        type: 'error',
+      });
     } finally {
       setExporting(false);
     }
@@ -562,6 +570,14 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
           )}
         </section>
       </div>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };

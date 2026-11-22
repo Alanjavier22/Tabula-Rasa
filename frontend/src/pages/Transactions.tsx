@@ -54,15 +54,16 @@ const emptyForm: TransactionFormData = {
 
 const Transactions = () => {
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "warning";
   } | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [showModal, setShowModal] = useState(
-    () => searchParams.get("new") === "1",
-  );
+  const wantsNewModal =
+    searchParams.get("new") === "1" || searchParams.get("action") === "new";
+  const [showModal, setShowModal] = useState(false);
+  const isModalOpen = showModal || wantsNewModal;
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -186,6 +187,18 @@ const Transactions = () => {
     setShowModal(true);
   };
 
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingTransaction(null);
+    setForm(emptyForm);
+    if (wantsNewModal) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("new");
+      nextParams.delete("action");
+      setSearchParams(nextParams, { replace: true });
+    }
+  };
+
   const handleSubmit = async (formData: TransactionFormData) => {
     try {
       if (editingTransaction) {
@@ -222,9 +235,7 @@ const Transactions = () => {
         setToast({ message: "Transacción creada", type: "success" });
       }
 
-      setShowModal(false);
-      setEditingTransaction(null);
-      setForm(emptyForm);
+      closeModal();
       refetchTransactions();
 
       // Invalidate dashboard queries
@@ -644,16 +655,12 @@ return (
       />
 
       <AnimatePresence>
-        {showModal && (
+        {isModalOpen && (
           <TransactionForm
-            initialData={form}
+            initialData={wantsNewModal && !editingTransaction ? emptyForm : form}
             initialSplits={editingTransaction?.splits}
             onSubmit={handleSubmit}
-            onCancel={() => {
-              setShowModal(false);
-              setEditingTransaction(null);
-              setForm(emptyForm);
-            }}
+            onCancel={closeModal}
             saving={false}
             title={
               editingTransaction ? "Editar Transacción" : "Nueva Transacción"

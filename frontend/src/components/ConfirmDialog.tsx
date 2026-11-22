@@ -7,6 +7,9 @@ interface ConfirmDialogProps {
   message: string;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
+  confirmLabel?: string;
+  submittingLabel?: string;
+  variant?: "danger" | "primary";
 }
 
 const ConfirmDialog = ({
@@ -15,6 +18,9 @@ const ConfirmDialog = ({
   message,
   onConfirm,
   onCancel,
+  confirmLabel = "Eliminar",
+  submittingLabel = "Eliminando…",
+  variant = "danger",
 }: ConfirmDialogProps) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -65,6 +71,7 @@ const ConfirmDialog = ({
       aria-labelledby={titleId}
       aria-describedby={messageId}
       aria-busy={submitting}
+      {...({ closedby: "any" } as Record<string, string>)}
       onCancel={(event) => {
         event.preventDefault();
         if (!submitting) onCancel();
@@ -86,11 +93,11 @@ const ConfirmDialog = ({
           </button>
           <button
             type="button"
-            className="app-btn app-btn-danger"
+            className={`app-btn ${variant === "primary" ? "app-btn-primary" : "app-btn-danger"}`}
             disabled={submitting}
             onClick={() => void confirm()}
           >
-            {submitting ? "Eliminando…" : "Eliminar"}
+            {submitting ? submittingLabel : confirmLabel}
           </button>
         </div>
       </div>

@@ -108,7 +108,7 @@ const CommandPalette = () => {
         id: 'action-new-txn',
         name: 'Registrar nuevo movimiento',
         subtitle: 'Abrir el libro de movimientos para anotar un ingreso o gasto',
-        path: '/transactions?action=new',
+        path: '/transactions?new=1',
         icon: PlusCircle,
         kind: 'action',
       },
