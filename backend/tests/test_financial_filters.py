@@ -600,9 +600,13 @@ def test_auth_last_sync_throttling_and_health_security_headers(client, db_sessio
 def test_google_oauth_callback_and_drive_backup_helpers(client, db_session, tmp_path, monkeypatch):
     from types import SimpleNamespace
     from unittest.mock import MagicMock
+    from cryptography.fernet import Fernet
+    from app import security_config
     from app.models.config import Config
     from app.utils import backup_gdrive
     from app.utils.crypto import encrypt_value
+
+    monkeypatch.setattr(security_config, "ENCRYPTION_KEY", Fernet.generate_key().decode())
 
     db_session.add_all([
         Config(key="GOOGLE_DRIVE_CLIENT_ID", value="cid-oauth", value_type="string", is_public=False),
