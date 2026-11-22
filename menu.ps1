@@ -12,7 +12,8 @@ if (-not $script:scriptPath) { $script:scriptPath = "." } # Fallback al director
 
 $script:backendPath = Join-Path $script:scriptPath "backend"
 $script:frontendPath = Join-Path $script:scriptPath "frontend"
-$script:backendLog = Join-Path $script:scriptPath "backend.log"
+$script:backendLog = Join-Path $script:backendPath "backend.log"
+$script:backendStdoutLog = Join-Path $script:scriptPath "uvicorn_stdout.log"
 $script:frontendLog = Join-Path $script:scriptPath "frontend.log"
 $script:backendErrorLog = Join-Path $script:scriptPath "backend_error.log"
 $script:frontendErrorLog = Join-Path $script:scriptPath "frontend_error.log"
@@ -499,7 +500,7 @@ function Start-ApplicationCore {
     # 2. Rotación de Logs (Limpieza en frío)
     Write-Host "[2/5] Limpiando archivos de log anteriores..." -ForegroundColor Yellow
     try {
-        Reset-LogFile $script:backendLog
+        Reset-LogFile $script:backendStdoutLog
         Reset-LogFile $script:frontendLog
         Reset-LogFile $script:backendErrorLog
         Reset-LogFile $script:frontendErrorLog
@@ -621,6 +622,18 @@ function Start-ApplicationCore {
     # 4. Iniciar Backend
     Write-Host "[4/5] Iniciando Backend..."  -ForegroundColor Yellow
 
+    if (Test-Path (Join-Path $script:backendPath "alembic.ini")) {
+        Push-Location $script:backendPath
+        try {
+            & $script:venvPython -m alembic upgrade head 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  ADVERTENCIA: alembic upgrade head devolvió código $LASTEXITCODE. Revisa el esquema si es una base antigua." -ForegroundColor Yellow
+            }
+        } finally {
+            Pop-Location
+        }
+    }
+
     $backendArguments = @(
         "-m", "uvicorn", "main:app",
         "--host", $script:uvicornHost,
@@ -633,7 +646,7 @@ function Start-ApplicationCore {
 
     # Inicia como proceso oculto, enrutando StdOut y StdErr al Log.
     try {
-        $backendProcess = Start-Process -FilePath $script:venvPython -ArgumentList $backendArguments -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendLog -RedirectStandardError $script:backendErrorLog -PassThru
+        $backendProcess = Start-Process -FilePath $script:venvPython -ArgumentList $backendArguments -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendStdoutLog -RedirectStandardError $script:backendErrorLog -PassThru
         $backendProcess.Id | Set-Content -Path $script:backendPidFile -Encoding ascii
     } catch {
         Write-Host "  ERROR: No se pudo iniciar el backend: $($_.Exception.Message)" -ForegroundColor Red

@@ -5,6 +5,7 @@ Generates self-signed certificates for local HTTPS
 """
 import sys
 import os
+import ipaddress
 from datetime import datetime, timedelta, timezone
 from cryptography import x509
 from cryptography.x509.oid import NameOID
@@ -77,7 +78,6 @@ def generate_self_signed_cert():
 
 if __name__ == "__main__":
     try:
-        import ipaddress
         generate_self_signed_cert()
     except ImportError as e:
         print(f"[FASE-8] Error: Missing required library - {e}")

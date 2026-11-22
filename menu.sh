@@ -219,6 +219,17 @@ install_backend_dependencies() {
 }
 
 ensure_backend() {
+    local req_file="$BACKEND_PATH/requirements.txt"
+    local hash_file="$BACKEND_PATH/venv/.venv_hash"
+    local current_hash=""
+    local saved_hash=""
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        current_hash="$(sha256sum "$req_file" | awk '{print $1}')"
+    elif command -v shasum >/dev/null 2>&1; then
+        current_hash="$(shasum -a 256 "$req_file" | awk '{print $1}')"
+    fi
+
     if [[ ! -x "$VENV_PYTHON" ]]; then
         echo -e "$CYAN📦 Creando entorno virtual Python...$NC"
         if ! "$PYTHON_BIN" -m venv "$BACKEND_PATH/venv"; then
@@ -226,9 +237,18 @@ ensure_backend() {
             return 1
         fi
         install_backend_dependencies || return 1
-    elif ! (cd "$BACKEND_PATH" && "$VENV_PYTHON" -c 'import fastapi, sqlalchemy, pydantic, cryptography, jwt'); then
-        echo -e "$YELLOW⚠️  El entorno virtual no tiene todas las dependencias. Reparando...$NC"
-        install_backend_dependencies || return 1
+        [[ -n "$current_hash" ]] && printf '%s' "$current_hash" > "$hash_file"
+    else
+        [[ -f "$hash_file" ]] && saved_hash="$(cat "$hash_file" 2>/dev/null || true)"
+        if [[ -n "$current_hash" && "$current_hash" != "$saved_hash" ]]; then
+            echo -e "$YELLOW⚠️  requirements.txt cambió. Actualizando entorno virtual...$NC"
+            install_backend_dependencies || return 1
+            printf '%s' "$current_hash" > "$hash_file"
+        elif ! (cd "$BACKEND_PATH" && "$VENV_PYTHON" -c 'import fastapi, sqlalchemy, pydantic, cryptography, jwt'); then
+            echo -e "$YELLOW⚠️  El entorno virtual no tiene todas las dependencias. Reparando...$NC"
+            install_backend_dependencies || return 1
+            [[ -n "$current_hash" ]] && printf '%s' "$current_hash" > "$hash_file"
+        fi
     fi
 
     if ! (cd "$BACKEND_PATH" && "$VENV_PYTHON" -c 'from main import app'); then
