@@ -439,8 +439,8 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
               <p>Comparativa mensual de ingresos y gastos deducibles.</p>
             </div>
           </div>
-          <div className="h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[280px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <BarChart data={trendData} {...barChartConfig}>
                 <CartesianGrid
                   strokeDasharray="2 4"
@@ -527,7 +527,7 @@ export const FiscalDashboard: React.FC<FiscalDashboardProps> = ({
                   <span>IVA 15%</span>
                   <strong>$ {formatMoney(report.totals.iva_pagado_15)}</strong>
                 </div>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={240} minWidth={0}>
                   <PieChart>
                     <Pie
                       data={taxBreakdown}

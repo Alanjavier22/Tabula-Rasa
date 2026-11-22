@@ -4237,6 +4237,8 @@ h1.app-page-title {
 
 .fiscal-donut-stage {
   position: relative;
+  width: 100%;
+  min-width: 0;
   height: 240px;
   display: flex;
   align-items: center;
