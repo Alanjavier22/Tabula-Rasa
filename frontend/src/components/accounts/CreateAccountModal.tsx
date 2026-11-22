@@ -1,10 +1,9 @@
-import FormActions from '../common/FormActions';
-import Modal from '../common/Modal';
-import { useId, type Dispatch, type SetStateAction } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Wallet, PiggyBank, DollarSign, Building2, Link, Info, CheckCircle2, X } from 'lucide-react';
+import { type Dispatch, type SetStateAction } from 'react';
+import { motion } from 'framer-motion';
+import { Wallet, PiggyBank, DollarSign, Building2, Link, Info, CheckCircle2 } from 'lucide-react';
 import type { Account } from '../../types';
 import Select from '../common/Select';
+import AccountModalShell from './AccountModalShell';
 import { type AccountFormData, getAccountStyle, getAccountIcon } from './shared';
 
 interface CreateAccountModalProps {
@@ -18,32 +17,17 @@ interface CreateAccountModalProps {
 }
 
 const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, onSubmit }: CreateAccountModalProps) => {
-  const formId = useId();
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <Modal onClose={onClose} preventClose={saving} label={'Nueva cuenta'}>
-          <motion.div
-            initial={false}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-surface border border-line rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col "
-          >
-            {/* Header */}
-            <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-line shrink-0">
-
-              <h2 className="text-xl font-black text-primary tracking-tight flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-accent-soft flex items-center justify-center border border-line">
-                  <Wallet className="w-5 h-5 text-accent-strong" />
-                </div>
-                Nueva Cuenta
-              </h2>
-              <button aria-label="Cerrar diálogo" disabled={saving} onClick={onClose} className="w-10 h-10 rounded-full hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all border border-transparent hover:border-line disabled:opacity-50">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form id={formId} onSubmit={onSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
+    <AccountModalShell
+      isOpen={isOpen}
+      label="Nueva cuenta"
+      title="Nueva Cuenta"
+      icon={<Wallet className="w-5 h-5 text-accent-strong" />}
+      saving={saving}
+      submitLabel="Confirmar Apertura"
+      onClose={onClose}
+      onSubmit={onSubmit}
+    >
 
               {/* VISTA PREVIA DE TARJETA VIRTUAL */}
               <div className="space-y-3">
@@ -255,14 +239,7 @@ const CreateAccountModal = ({ isOpen, form, setForm, accounts, saving, onClose, 
                   </div>
                 </button>
               </div>
-            </form>
-
-            {/* Footer */}
-            <FormActions saving={saving} onClose={onClose} formId={formId} submitLabel={'Confirmar Apertura'} />
-          </motion.div>
-        </Modal>
-      )}
-    </AnimatePresence>
+    </AccountModalShell>
   );
 };
 

@@ -22,6 +22,7 @@ import TransactionForm from '../components/TransactionForm';
 import type { TransactionFormData } from '../components/TransactionForm';
 import type { AxiosError } from 'axios';
 import BudgetFormModal, { type BudgetFormData } from '../components/budgets/BudgetFormModal';
+import { CORE_FINANCIAL_KEYS, invalidateFinancialQueries } from '../utils/queryInvalidation';
 
 const emptyForm: BudgetFormData = {
   name: '',
@@ -114,17 +115,10 @@ const Budgets = () => {
   };
 
   const invalidateBudgetQueries = (includeTransactions = false) => {
-    void queryClient.invalidateQueries({ queryKey: ['budgets'] });
-    void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
-    void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-    void queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
-    void queryClient.invalidateQueries({ queryKey: ['netWorth'] });
-    if (includeTransactions) {
-      void queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      void queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      void queryClient.invalidateQueries({ queryKey: ['vehicleTelemetry'] });
-      void queryClient.invalidateQueries({ queryKey: ['goals'] });
-    }
+    const extraKeys = includeTransactions
+      ? ['transactions', 'accounts', 'vehicleTelemetry', 'goals']
+      : [];
+    invalidateFinancialQueries(queryClient, ['budgets', ...CORE_FINANCIAL_KEYS, ...extraKeys]);
   };
 
   const confirmDelete = async () => {

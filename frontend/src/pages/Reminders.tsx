@@ -21,8 +21,7 @@ import {
   Zap,
   Check
 } from 'lucide-react';
-import Toast from '../components/Toast';
-import ConfirmDialog from '../components/ConfirmDialog';
+import CrudPageFeedback from '../components/common/CrudPageFeedback';
 import ReminderFormModal, { type ReminderFormData } from '../components/reminders/ReminderFormModal';
 
 const emptyForm: ReminderFormData = {
@@ -470,20 +469,14 @@ const Reminders = () => {
         }}
         onSubmit={showCreateModal ? handleCreateSubmit : handleEditSubmit}
       />
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-
-      <ConfirmDialog
-        isOpen={deleteConfirm.isOpen}
-        title="Eliminar Alerta"
-        message="¿Estás seguro de que quieres eliminar este recordatorio? Esta acción es irreversible y podrías olvidar el compromiso."
-        onConfirm={confirmDelete}
-        onCancel={() => setDeleteConfirm({ isOpen: false, id: null })}
+      <CrudPageFeedback
+        toast={toast}
+        onCloseToast={() => setToast(null)}
+        deleteConfirmOpen={deleteConfirm.isOpen}
+        deleteTitle="Eliminar Alerta"
+        deleteMessage="¿Estás seguro de que quieres eliminar este recordatorio? Esta acción es irreversible y podrías olvidar el compromiso."
+        onConfirmDelete={confirmDelete}
+        onCancelDelete={() => setDeleteConfirm({ isOpen: false, id: null })}
       />
     </div>
   );

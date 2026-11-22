@@ -19,9 +19,9 @@ import {
   Zap,
   Info
 } from 'lucide-react';
-import Toast from '../components/Toast';
-import ConfirmDialog from '../components/ConfirmDialog';
+import CrudPageFeedback from '../components/common/CrudPageFeedback';
 import GoalFormModal, { type GoalFormData } from '../components/goals/GoalFormModal';
+import { CORE_FINANCIAL_KEYS, invalidateFinancialQueries } from '../utils/queryInvalidation';
 
 const emptyForm: GoalFormData = {
   name: '',
@@ -130,6 +130,12 @@ const Goals = () => {
     setShowEditModal(true);
   };
 
+  const notifyGoalSaved = (message: string) => {
+    setToast({ message, type: 'success' });
+    void fetchGoals();
+    invalidateFinancialQueries(queryClient, ['goals', ...CORE_FINANCIAL_KEYS]);
+  };
+
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -143,13 +149,7 @@ const Goals = () => {
       });
       setShowCreateModal(false);
       setForm(emptyForm);
-      setToast({ message: 'Nueva meta establecida con éxito', type: 'success' });
-      void fetchGoals();
-      queryClient.invalidateQueries({ queryKey: ['goals'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
-      queryClient.invalidateQueries({ queryKey: ['netWorth'] });
-      queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
+      notifyGoalSaved('Nueva meta establecida con éxito');
     } catch (error) {
       console.error('Error creating goal:', error);
       setToast({ message: 'Error al establecer meta', type: 'error' });
@@ -173,13 +173,7 @@ const Goals = () => {
       setShowEditModal(false);
       setEditingGoal(null);
       setEditForm(emptyForm);
-      setToast({ message: 'Meta actualizada correctamente', type: 'success' });
-      void fetchGoals();
-      queryClient.invalidateQueries({ queryKey: ['goals'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
-      queryClient.invalidateQueries({ queryKey: ['netWorth'] });
-      queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
+      notifyGoalSaved('Meta actualizada correctamente');
     } catch (error) {
       console.error('Error updating goal:', error);
       setToast({ message: 'Error al actualizar meta', type: 'error' });
@@ -520,20 +514,14 @@ const Goals = () => {
         }}
         onSubmit={showCreateModal ? handleCreateSubmit : handleEditSubmit}
       />
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-
-      <ConfirmDialog
-        isOpen={deleteConfirm.isOpen}
-        title="Eliminar Meta Financiera"
-        message="¿Estás seguro de que quieres eliminar esta meta? Perderás el registro de progreso acumulado hacia este objetivo."
-        onConfirm={confirmDelete}
-        onCancel={() => setDeleteConfirm({ isOpen: false, id: null })}
+      <CrudPageFeedback
+        toast={toast}
+        onCloseToast={() => setToast(null)}
+        deleteConfirmOpen={deleteConfirm.isOpen}
+        deleteTitle="Eliminar Meta Financiera"
+        deleteMessage="¿Estás seguro de que quieres eliminar esta meta? Perderás el registro de progreso acumulado hacia este objetivo."
+        onConfirmDelete={confirmDelete}
+        onCancelDelete={() => setDeleteConfirm({ isOpen: false, id: null })}
       />
     </div>
   );

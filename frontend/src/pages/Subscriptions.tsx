@@ -24,6 +24,7 @@ import {
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SubscriptionFormModal, { type SubscriptionFormData } from '../components/subscriptions/SubscriptionFormModal';
+import { CORE_FINANCIAL_KEYS, invalidateFinancialQueries } from '../utils/queryInvalidation';
 
 const emptyForm: SubscriptionFormData = {
   name: '',
@@ -76,16 +77,13 @@ const Subscriptions = () => {
   };
 
   const invalidateSubscriptionQueries = (includeTransactions = false) => {
-    void queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
-    void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
-    void queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
-    void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-    void queryClient.invalidateQueries({ queryKey: ['paymentAlerts'] });
-    if (includeTransactions) {
-      void queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      void queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      void queryClient.invalidateQueries({ queryKey: ['netWorth'] });
-    }
+    const extraKeys = includeTransactions ? ['transactions', 'accounts'] : [];
+    invalidateFinancialQueries(queryClient, [
+      'subscriptions',
+      'paymentAlerts',
+      ...CORE_FINANCIAL_KEYS,
+      ...extraKeys,
+    ]);
   };
 
   const confirmDelete = async () => {

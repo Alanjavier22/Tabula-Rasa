@@ -7,9 +7,9 @@ import App from './App.tsx'
 // Unregister any existing service workers
 if ('serviceWorker' in navigator) {
   const registrations = await navigator.serviceWorker.getRegistrations()
-  registrations.forEach((registration) => {
-    registration.unregister()
-  })
+  await Promise.allSettled(
+    registrations.map((registration) => registration.unregister()),
+  )
 }
 
 const queryClient = new QueryClient({

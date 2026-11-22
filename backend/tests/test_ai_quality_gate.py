@@ -192,20 +192,24 @@ def test_component_check_and_assistant_document_validation(monkeypatch):
     assert response.text == "respuesta"
     assert isinstance(chat.payload, list)
 
+    invalid_chat = FakeChat()
+    invalid_request = ai_assistant.ChatRequest(message="resume", document_base64="%%%")
     with pytest.raises(HTTPException) as invalid:
         anyio.run(
             ai_assistant._send_initial_message,
-            FakeChat(),
-            ai_assistant.ChatRequest(message="resume", document_base64="%%%"),
+            invalid_chat,
+            invalid_request,
         )
     assert invalid.value.status_code == 400
 
     monkeypatch.setattr(ai_assistant, "MAX_DOCUMENT_BYTES", 1)
+    oversized_chat = FakeChat()
+    oversized_request = ai_assistant.ChatRequest(message="resume", document_base64=document)
     with pytest.raises(HTTPException) as oversized:
         anyio.run(
             ai_assistant._send_initial_message,
-            FakeChat(),
-            ai_assistant.ChatRequest(message="resume", document_base64=document),
+            oversized_chat,
+            oversized_request,
         )
     assert oversized.value.status_code == 413
 

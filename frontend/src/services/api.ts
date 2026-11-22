@@ -74,7 +74,7 @@ const api = axios.create({
 // 401 Interceptor - Auto-logout on auth failure
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
+  (error) => {
     // /auth/me puede fallar durante el arranque antes de que AuthGuard cree
     // la sesión local; ese caso lo maneja AuthGuard.
     const url: string = error.config?.url || '';
@@ -98,7 +98,7 @@ api.interceptors.response.use(
         window.location.href = '/?msg=Sesión reiniciada';
       }
     }
-    throw error;
+    return Promise.reject(error);
   }
 );
 

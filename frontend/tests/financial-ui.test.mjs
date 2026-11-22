@@ -288,3 +288,61 @@ test("los textos de ambos temas conservan contraste AA en las superficies princi
     }
   }
 });
+
+test("las utilidades de importación preseleccionan no duplicados y validan selección vacía", async () => {
+  const {
+    markNonDuplicateSelected,
+    getSelectedTransactionsOrOutcome,
+  } = await server.ssrLoadModule("/src/utils/importOutcome.ts");
+  const rows = markNonDuplicateSelected([
+    { id: "1", is_duplicate: false },
+    { id: "2", is_duplicate: true },
+  ]);
+  assert.deepEqual(
+    rows.map((r) => r.selected),
+    [true, false],
+  );
+  const valid = getSelectedTransactionsOrOutcome(rows);
+  assert.equal(valid.error, null);
+  assert.equal(valid.selected.length, 1);
+
+  const empty = getSelectedTransactionsOrOutcome([{ id: "2", selected: false }]);
+  assert.equal(empty.selected.length, 0);
+  assert.equal(empty.error?.success, false);
+  assert.match(empty.error?.message || "", /Selecciona al menos una/);
+});
+
+test("invalidateFinancialQueries invalida cada clave solicitada y CrudPageFeedback renderiza avisos", async () => {
+  const { CORE_FINANCIAL_KEYS, invalidateFinancialQueries } =
+    await server.ssrLoadModule("/src/utils/queryInvalidation.ts");
+  const { default: CrudPageFeedback } = await server.ssrLoadModule(
+    "/src/components/common/CrudPageFeedback.tsx",
+  );
+  const invalidated = [];
+  const fakeClient = {
+    invalidateQueries: async ({ queryKey }) => {
+      invalidated.push(queryKey[0]);
+    },
+  };
+  invalidateFinancialQueries(fakeClient, ["goals", ...CORE_FINANCIAL_KEYS]);
+  assert.deepEqual(invalidated, [
+    "goals",
+    "safeToSpend",
+    "dashboardSummary",
+    "cashFlowForecast",
+    "netWorth",
+  ]);
+
+  const html = renderToStaticMarkup(
+    createElement(CrudPageFeedback, {
+      toast: { message: "Meta guardada", type: "success" },
+      onCloseToast: () => {},
+      deleteConfirmOpen: false,
+      deleteTitle: "Eliminar",
+      deleteMessage: "¿Confirmas?",
+      onConfirmDelete: () => {},
+      onCancelDelete: () => {},
+    }),
+  );
+  assert.match(html, /Meta guardada/);
+});
