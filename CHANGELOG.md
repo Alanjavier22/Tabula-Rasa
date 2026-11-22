@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.1.19](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.18...v0.1.19) (2026-11-22)
+
+
+### Correcciones
+
+* **arranque:** evitar NativeCommandError por stderr de Alembic en menu.ps1 ([2b85e8d](https://github.com/Alanjavier22/Tabula-Rasa/commit/2b85e8d90003ac82125b5295caee94aea8d74efd))
+* **arranque:** sincronizar logs, migraciones y hashes de entorno en menu y main ([7c5b07d](https://github.com/Alanjavier22/Tabula-Rasa/commit/7c5b07da53315ea965d43a9e48836197b7fdb128))
+* **backend:** corregir cálculos financieros, deduplicación, soft-delete y herramientas IA ([0cfbe5a](https://github.com/Alanjavier22/Tabula-Rasa/commit/0cfbe5a7cd05d84661a1555d3a2981d54ecd5694))
+* **backend:** excluye movimientos internos en métricas del dashboard ([85a923a](https://github.com/Alanjavier22/Tabula-Rasa/commit/85a923ae15c2fa400ed8c22b02ad902e23b24c29))
+* **calidad:** resolver hallazgos S6466 y S9073 de SonarCloud ([302db8c](https://github.com/Alanjavier22/Tabula-Rasa/commit/302db8c8cfdeb8928a96eab1ca67265cfb5081e3))
+* **frontend:** conectar splits, validación HTML5 en modales, unidades What-If e invalidación React Query ([8d5ce17](https://github.com/Alanjavier22/Tabula-Rasa/commit/8d5ce17763cea9e638f61b999f62b7eef2e78e24))
+* **frontend:** corrige virtualización, menús, diálogos y accesos rápidos ([8543afb](https://github.com/Alanjavier22/Tabula-Rasa/commit/8543afbe847f510db86de529f1029c8ce8ceeefb))
+* **frontend:** fijar dimensiones de ResponsiveContainer en FiscalDashboard ([e9b18f8](https://github.com/Alanjavier22/Tabula-Rasa/commit/e9b18f890fac24fb8112b863b751f0cb02e14350))
+* **frontend:** mueve listeners de cierre de ActionMenu y Modal al DOM ([9e63359](https://github.com/Alanjavier22/Tabula-Rasa/commit/9e63359fee329293b293a933eee4b289cb37ecf0))
+* **ia:** agregar fallback de modelos y análisis local en /ai/insights ante errores 503 ([e8c3ead](https://github.com/Alanjavier22/Tabula-Rasa/commit/e8c3ead9d37cb138c2a0c5002a61a0b37dd19a83))
+* **test:** inyectar clave Fernet válida en prueba OAuth de respaldo ([9893133](https://github.com/Alanjavier22/Tabula-Rasa/commit/9893133b3ec8f93e473142ee90e71043580cd102))
+
+
+### Seguridad y datos
+
+* **respaldo:** blindar descifrado Fernet, rotación en Drive, rutas pre-restore y OAuth ([8bc8c38](https://github.com/Alanjavier22/Tabula-Rasa/commit/8bc8c38363f03a77fdde25b80423f64950f6efc2))
+
+
+### Documentación y mantenimiento
+
+* **calidad:** registra correcciones y referencia de modern-web-guidance ([d670a6c](https://github.com/Alanjavier22/Tabula-Rasa/commit/d670a6cc9372c1f7104a7d7e350cef6df7bee72f))
+* **contexto:** actualizar recuento de pruebas backend a 141 ([9792ef3](https://github.com/Alanjavier22/Tabula-Rasa/commit/9792ef32b1e7d03181a22275613fd18bc2d95f8b))
+* **contexto:** actualizar recuento de pruebas backend a 144 ([302d813](https://github.com/Alanjavier22/Tabula-Rasa/commit/302d81381492c7f540a4faf6f3b34ceb59722fce))
+* **contexto:** actualizar recuento de pruebas backend a 145 ([32d033c](https://github.com/Alanjavier22/Tabula-Rasa/commit/32d033c4fc4a0c3d87d4b5053fb9e2bc9543fe59))
+* **contexto:** actualizar resumen operativo tras auditoría integral ([0128a0f](https://github.com/Alanjavier22/Tabula-Rasa/commit/0128a0fd2ed8be2249521f6ff45e8ae8dc5720c6))
+* **frontend:** eliminar código muerto, reparar tokens CSS y consolidar accesibilidad ([28361c5](https://github.com/Alanjavier22/Tabula-Rasa/commit/28361c53382ea3e10b48625219d13f0f8dac77a6))
+* **frontend:** unifica cálculos de liquidez y deuda de tarjetas ([ad14488](https://github.com/Alanjavier22/Tabula-Rasa/commit/ad14488b1b4697e8edd7413b73c8edeced8826b6))
+
 ## [0.1.18](https://github.com/Alanjavier22/Tabula-Rasa/compare/v0.1.17...v0.1.18) (2026-11-02)
 
 
