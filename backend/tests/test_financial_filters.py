@@ -721,3 +721,56 @@ def test_goal_progress_and_subscription_payment_fingerprints(client, db_session)
     assert recalc_res.status_code == 200
     db_session.refresh(goal)
     assert goal.current_amount == 5000
+
+
+def test_get_insights_falls_back_across_models_and_to_local_summary(monkeypatch):
+    from types import SimpleNamespace
+    from google.genai import errors
+    from app.api import ai_insights
+    from app.services import ai_models
+
+    monkeypatch.setattr(ai_models.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(ai_insights, "get_gemini_key", lambda _db: "k-test")
+    sample_data = {
+        "txn_summary": {"total_expenses": 50000, "atypical_transactions": []},
+        "budget_summary": [{"category": "Comida", "spent": 12000, "limit": 10000, "exceeded": True}],
+        "cc_summary": {"pending_amount": 25000, "open_statements": 1, "statements_due_within_7_days": 1},
+        "liquidity": {"liquid_balance": 40000, "ious_receivable": 0, "credit_card_debt": 25000, "net_liquid": 15000},
+        "debt_summary": {"total_pending_debt_shares": 0, "pending_debt_count": 0, "upcoming_cutoffs_within_7_days": 0, "debts_by_person": {}},
+        "goals_summary": {"active_count": 0, "total_target": 0, "total_current": 0, "total_remaining": 0, "overall_progress_pct": 0.0, "goals": []},
+        "historical": {"avg_monthly_income": 100000, "avg_monthly_expense": 50000},
+        "rolling": {"rolling_30d_income": 100000, "rolling_30d_expenses": 70000, "rolling_30d_balance": 30000, "rolling_30d_expense_by_category": {}},
+        "recurring_small": [{"name": "Café", "occurrences": 4, "total_amount": 1600}],
+        "day_of_month": 15,
+        "days_in_month": 30,
+        "percentage_elapsed": 50.0,
+        "current_daily_burn": 3000.0,
+        "historical_daily_burn": 1666.0,
+        "burn_rate_ratio": 1.8,
+        "safe_to_spend": -500,
+    }
+    monkeypatch.setattr(ai_insights, "_collect_insight_data", lambda *_a: sample_data)
+    monkeypatch.setattr(ai_insights, "_build_financial_snapshot", lambda *_a: "RESUMEN")
+    monkeypatch.setattr(ai_insights, "_build_insights_prompt", lambda *_a: "PROMPT")
+
+    seen_models = []
+
+    def partial_fail_generate(model, **_kwargs):
+        seen_models.append(model)
+        if model == ai_insights.REASONING_MODEL:
+            raise errors.ServerError(503, {"error": {"code": 503, "message": "high demand"}})
+        return SimpleNamespace(text='{"insights":["ok"],"alerts":[],"patterns":[]}')
+
+    monkeypatch.setattr(ai_insights, "create_gemini_client", lambda _k: SimpleNamespace(models=SimpleNamespace(generate_content=partial_fail_generate)))
+    res_fallback_model = ai_insights.get_insights(db=SimpleNamespace())
+    assert res_fallback_model["insights"] == ["ok"]
+    assert len(set(seen_models)) >= 2
+
+    def all_503_generate(**_kwargs):
+        raise errors.ServerError(503, {"error": {"code": 503, "message": "UNAVAILABLE"}})
+
+    monkeypatch.setattr(ai_insights, "create_gemini_client", lambda _k: SimpleNamespace(models=SimpleNamespace(generate_content=all_503_generate)))
+    res_local = ai_insights.get_insights(db=SimpleNamespace())
+    assert len(res_local["insights"]) == 3
+    assert any("Comida" in a for a in res_local["alerts"])
+    assert any("Café" in p for p in res_local["patterns"])

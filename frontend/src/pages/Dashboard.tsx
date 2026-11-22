@@ -300,7 +300,10 @@ const Dashboard = () => {
           type: "warning",
         });
       } else {
-        setToast({ message: "Error generando análisis", type: "error" });
+        setToast({
+          message: detail || "Error generando análisis",
+          type: "error",
+        });
       }
     },
   });

@@ -4,10 +4,15 @@ from database import get_db
 from app.models.config import Config
 from datetime import datetime, timezone
 from google.genai import errors, types
-from app.services.ai_models import REASONING_MODEL, with_gemini_retry
+from app.services.ai_models import (
+    LITE_MODEL,
+    REASONING_MODEL,
+    is_transient_gemini_error,
+    with_gemini_retry,
+)
 import json
 from pydantic import BaseModel
-from typing import Annotated, List, Any, cast
+from typing import Annotated, List, Any, Optional, cast
 import logging
 from app.services.ai_prompts import get_current_time_context, CORE_RULES, get_persona_prompt
 from app.api.ai_shared import get_gemini_key
@@ -203,6 +208,93 @@ def _normalize_insights(result: dict) -> dict:
     return {"insights": insights, "alerts": alerts, "patterns": patterns}
 
 
+_INSIGHTS_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "insights": {"type": "array", "items": {"type": "string"}},
+        "alerts": {"type": "array", "items": {"type": "string"}},
+        "patterns": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["insights", "alerts", "patterns"],
+}
+
+
+def _build_local_insights_fallback(data: dict) -> dict:
+    """Generate deterministic Spanish financial insights when Gemini is temporarily unavailable."""
+    liquidity = data.get("liquidity", {})
+    rolling = data.get("rolling", {})
+    cc_summary = data.get("cc_summary", {})
+    budget_summary = data.get("budget_summary", [])
+    recurring_small = data.get("recurring_small", [])
+
+    safe_to_spend = float(data.get("safe_to_spend", 0) or 0)
+    net_liquid = float(liquidity.get("net_liquid", 0) or 0)
+    income_30d = float(rolling.get("rolling_30d_income", 0) or 0)
+    expenses_30d = float(rolling.get("rolling_30d_expenses", 0) or 0)
+    balance_30d = float(rolling.get("rolling_30d_balance", 0) or 0)
+    burn_rate_ratio = float(data.get("burn_rate_ratio", 1.0) or 1.0)
+
+    insights = [
+        f"Tu margen disponible actual es de ${safe_to_spend / 100:.2f} con una liquidez neta de ${net_liquid / 100:.2f} (análisis local por alta demanda en IA).",
+        f"En los últimos 30 días registras ingresos por ${income_30d / 100:.2f} y gastos por ${expenses_30d / 100:.2f} (flujo neto de ${balance_30d / 100:.2f}).",
+        f"Tu ritmo de gasto diario está en {burn_rate_ratio:.2f}x respecto al promedio histórico de los últimos 3 meses.",
+    ]
+
+    alerts: List[str] = []
+    if safe_to_spend <= 0:
+        alerts.append(f"Tu margen seguro para gastar está en ${safe_to_spend / 100:.2f}; prioriza cubrir compromisos fijos antes de nuevos egresos.")
+    exceeded = [b.get("category", "Categoría") for b in budget_summary if b.get("exceeded")]
+    if exceeded:
+        alerts.append(f"Presupuestos excedidos este mes: {', '.join(exceeded[:3])}.")
+    due_soon = int(cc_summary.get("statements_due_within_7_days", 0) or 0)
+    if due_soon > 0:
+        alerts.append(f"Tienes {due_soon} estado(s) de tarjeta por vencer en los próximos 7 días.")
+
+    patterns: List[str] = []
+    if recurring_small:
+        top_small = recurring_small[0]
+        patterns.append(
+            f"Gasto hormiga frecuente en {top_small.get('name', 'consumos menores')}: {top_small.get('occurrences', 0)} veces (${float(top_small.get('total_amount', 0)) / 100:.2f})."
+        )
+    if burn_rate_ratio > 1.3:
+        patterns.append("Tu velocidad de gasto actual supera en más de 30% tu promedio mensual habitual.")
+
+    return {"insights": insights[:3], "alerts": alerts[:3], "patterns": patterns[:2]}
+
+
+def _is_model_fallback_error(error: Exception) -> bool:
+    code = getattr(error, "code", None)
+    return is_transient_gemini_error(error) or code == 404 or "not found" in str(error).lower()
+
+
+def _generate_insights_with_model_fallback(client: Any, user_prompt: str) -> Any:
+    candidates = list(dict.fromkeys([REASONING_MODEL, LITE_MODEL, "gemini-2.5-flash", "gemini-2.5-flash-lite"]))
+    config = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        response_schema=_INSIGHTS_RESPONSE_SCHEMA,
+    )
+    last_error: Optional[errors.APIError] = None
+    for index, model_name in enumerate(candidates):
+        retries = 2 if index == 0 else 1
+        try:
+            return with_gemini_retry(
+                lambda m=model_name: client.models.generate_content(
+                    model=m,
+                    contents=cast(Any, [types.Part.from_text(text=user_prompt)]),
+                    config=config,
+                ),
+                max_retries=retries,
+            )
+        except errors.APIError as err:
+            last_error = err
+            if not _is_model_fallback_error(err):
+                raise
+            logger.warning("Insights fallback after %s failed (%s)", model_name, getattr(err, "code", type(err).__name__))
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("No insight model candidates configured")
+
+
 def _raise_insights_api_error(error: errors.APIError) -> None:
     error_msg = str(error)
     logger.error(
@@ -230,28 +322,14 @@ def get_insights(db: Annotated[Session, Depends(get_db)]):
     user_prompt = _build_insights_prompt(db, financial_snapshot)
 
     try:
-        response = with_gemini_retry(lambda: client.models.generate_content(
-            model=REASONING_MODEL,
-            contents=cast(Any, [types.Part.from_text(text=user_prompt)]),
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema={
-                    "type": "object",
-                    "properties": {
-                        "insights": {"type": "array", "items": {"type": "string"}},
-                        "alerts": {"type": "array", "items": {"type": "string"}},
-                        "patterns": {"type": "array", "items": {"type": "string"}}
-                    },
-                    "required": ["insights", "alerts", "patterns"]
-                }
-            ),
-        ))
-
+        response = _generate_insights_with_model_fallback(client, user_prompt)
         result = json.loads((response.text or "{}").strip())
-
         return _normalize_insights(result)
 
     except errors.APIError as e:
+        if is_transient_gemini_error(e) or getattr(e, "code", None) in {429, 500, 502, 503, 504}:
+            logger.warning("Returning deterministic local insights fallback after Gemini error: %s", getattr(e, "code", e))
+            return _build_local_insights_fallback(data)
         _raise_insights_api_error(e)
     except json.JSONDecodeError:
         raise HTTPException(
