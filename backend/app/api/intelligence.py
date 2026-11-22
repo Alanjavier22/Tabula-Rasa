@@ -15,7 +15,7 @@ from app.models.account import Account
 from app.services.statement_intelligence import StatementIntelligenceService
 from app.services.account_intelligence import AccountIntelligenceService
 from app.services.account_import_finalizer import finalize_account_import
-from app.services.snapshot_service import recalculate_stale_snapshots
+from app.services.snapshot_service import recalculate_stale_snapshots_background
 from app.services.ai_background import categorize_import_log_background
 
 router = APIRouter(
@@ -123,8 +123,8 @@ async def confirm_import(
         count = service.finalize_import(import_log_id, payload.confirmed_transactions, payload.statement_metadata)
         
         background_tasks.add_task(categorize_import_log_background, import_log_id)
-        # Ejecutamos la sanación de snapshots en segundo plano para no bloquear la UI
-        background_tasks.add_task(recalculate_stale_snapshots, db)
+        # Ejecutamos la sanación de snapshots en segundo plano con su propia sesión
+        background_tasks.add_task(recalculate_stale_snapshots_background)
         
         return {"status": "success", "imported_count": count, "message": "Snapshots marcados para sanación automática."}
     except Exception as error:
@@ -199,7 +199,7 @@ async def confirm_account_import(
     try:
         count = finalize_account_import(db, import_log_id, payload.confirmed_transactions)
         background_tasks.add_task(categorize_import_log_background, import_log_id)
-        background_tasks.add_task(recalculate_stale_snapshots, db)
+        background_tasks.add_task(recalculate_stale_snapshots_background)
         return {"status": "success", "imported_count": count, "message": "Movimientos importados correctamente."}
     except Exception as error:
         logger.exception("Account import confirmation failed")
@@ -208,5 +208,8 @@ async def confirm_account_import(
 @router.get("/snapshot-health")
 async def check_snapshot_health(db: Session = Depends(get_db)):
     from app.models.net_worth_snapshot import NetWorthSnapshot
-    stale_count = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.is_stale == True).count()
+    stale_count = db.query(NetWorthSnapshot).filter(
+        NetWorthSnapshot.is_stale == True,
+        NetWorthSnapshot.is_deleted == False,
+    ).count()
     return {"stale_snapshots": stale_count, "needs_healing": stale_count > 0}

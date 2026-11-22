@@ -117,7 +117,7 @@ def get_budgets(
         budgets = query.offset(skip).limit(limit).all()
 
         now = datetime.now(timezone.utc)
-        return [enrich_budget_response(b, now) for b in budgets]
+        return [enrich_budget_response(b, now, db=db) for b in budgets]
 
     except Exception as e:
         logger.exception("ERROR in budgets endpoint: %s", e)
@@ -126,10 +126,10 @@ def get_budgets(
 
 @router.get("/{budget_id}", response_model=BudgetResponse, responses=NOT_FOUND_RESPONSE)
 def get_budget(budget_id: str, db: Session = Depends(get_db)):
-    budget = db.query(Budget).filter(Budget.id == budget_id).first()
+    budget = db.query(Budget).filter(Budget.id == budget_id, Budget.is_deleted == False).first()
     if not budget:
         raise HTTPException(status_code=404, detail=BUDGET_NOT_FOUND)
-    return enrich_budget_response(budget)
+    return enrich_budget_response(budget, db=db)
 
 
 @router.put("/update-recurring", response_model=List[BudgetResponse], responses=BUDGET_ERROR_RESPONSES)
@@ -173,7 +173,7 @@ def update_recurring_budgets_endpoint(
 # incluyendo esos paths literales, dejándolos inalcanzables si se registran antes.
 @router.put("/{budget_id}", response_model=BudgetResponse, responses=NOT_FOUND_RESPONSE)
 def update_budget(budget_id: str, budget: BudgetUpdate, db: Session = Depends(get_db)):
-    db_budget = db.query(Budget).filter(Budget.id == budget_id).first()
+    db_budget = db.query(Budget).filter(Budget.id == budget_id, Budget.is_deleted == False).first()
     if not db_budget:
         raise HTTPException(status_code=404, detail=BUDGET_NOT_FOUND)
 
@@ -183,16 +183,16 @@ def update_budget(budget_id: str, budget: BudgetUpdate, db: Session = Depends(ge
 
     db.commit()
     db.refresh(db_budget)
-    return enrich_budget_response(db_budget)
+    return enrich_budget_response(db_budget, db=db)
 
 
 @router.delete("/{budget_id}", responses=NOT_FOUND_RESPONSE)
 def delete_budget(budget_id: str, db: Session = Depends(get_db)):
-    db_budget = db.query(Budget).filter(Budget.id == budget_id).first()
+    db_budget = db.query(Budget).filter(Budget.id == budget_id, Budget.is_deleted == False).first()
     if not db_budget:
         raise HTTPException(status_code=404, detail=BUDGET_NOT_FOUND)
 
-    db.delete(db_budget)
+    db_budget.is_deleted = True
     db.commit()
     return {"message": "Budget deleted successfully"}
 

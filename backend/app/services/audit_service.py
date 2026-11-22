@@ -61,7 +61,9 @@ class AuditService:
 
     def _is_semantic_duplicate(self, group: list) -> bool:
         """Usa Gemini para decidir si un grupo de transacciones son duplicados."""
-        descriptions = [t.description for t in group]
+        from app.services.privacy import mask_description
+
+        descriptions = [mask_description(t.description) for t in group]
         
         prompt = f"""
         Analiza estas descripciones de transacciones ocurridas el mismo día con el mismo monto:

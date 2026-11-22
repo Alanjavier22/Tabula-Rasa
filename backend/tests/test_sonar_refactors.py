@@ -108,7 +108,7 @@ def test_cashflow_refactor_helpers_cover_subscription_frequencies_and_forecast()
     ]
     statements = [SimpleNamespace(payment_due_date=datetime(2026, 3, 2), user_share=300, amount_paid=50)]
     amounts = _get_daily_forecast_amounts(reminders, statements, date(2026, 3, 2), daily)
-    assert amounts[:2] == (Decimal("500"), Decimal("200"))
+    assert amounts[:2] == (Decimal("0"), Decimal("700"))
     forecast = _build_forecast(today, 2, Decimal("1000"), reminders, statements, daily)
     assert len(forecast) == 3
 

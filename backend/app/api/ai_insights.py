@@ -134,8 +134,8 @@ DEUDAS DE TERCEROS (Debt Shares):
 - Total pendiente: ${debt_summary['total_pending_debt_shares'] / 100:.2f}
 - Cantidad de deudas: {debt_summary['pending_debt_count']}
 - Cortes de tarjeta en 7 días: {debt_summary['upcoming_cutoffs_within_7_days']}
-- Deudas por persona:
-{chr(10).join([f"  - {person}: ${details['total_amount']/100:.2f} ({details['count']} deudas)" for person, details in debt_summary['debts_by_person'].items()]) if debt_summary['debts_by_person'] else '  - Ninguna'}
+- Deudas por tercero (anonimizado):
+{chr(10).join([f"  - Tercero {idx}: ${details['total_amount']/100:.2f} ({details['count']} deudas)" for idx, (_person, details) in enumerate(debt_summary['debts_by_person'].items(), start=1)]) if debt_summary['debts_by_person'] else '  - Ninguna'}
 
 METAS FINANCIERAS:
 - Metas activas: {goals_summary['active_count']}

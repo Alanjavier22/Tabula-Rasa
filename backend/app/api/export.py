@@ -79,7 +79,7 @@ def export_transactions(db: Session = Depends(get_db)):
 def export_accounts(db: Session = Depends(get_db)):
     """Export all accounts to CSV."""
     try:
-        accounts = db.query(Account).all()
+        accounts = db.query(Account).filter(Account.is_deleted == False).all()
 
         output = io.StringIO()
         output.write('\ufeff')
@@ -111,22 +111,27 @@ def export_accounts(db: Session = Depends(get_db)):
 def export_assets(db: Session = Depends(get_db)):
     """Export all assets to CSV."""
     try:
-        assets = db.query(Asset).all()
+        from app.services.asset_depreciation import AssetDepreciationService
+
+        assets = db.query(Asset).filter(Asset.is_deleted == False).all()
 
         output = io.StringIO()
         output.write('\ufeff')
         writer = csv.writer(output)
 
-        writer.writerow(["Nombre", "Tipo", "Valor Actual", "Valor Compra", "Fecha Compra"])
+        writer.writerow(["Nombre", "Vida Útil (meses)", "Valor Actual", "Valor Compra", "Valor Residual", "Fecha Compra"])
 
         for asset in assets:
-            current_val = float(cast(Any, asset.current_value)) / 100
-            purchase_val = float(cast(Any, asset.purchase_value)) / 100 if asset.purchase_value else 0
+            valuation = AssetDepreciationService.calculate_current_value(db, str(asset.id))
+            current_val = valuation.current_value_cents / 100
+            purchase_val = (asset.purchase_price_cents or 0) / 100
+            residual_val = (asset.residual_value_cents or 0) / 100
             writer.writerow([
                 asset.name,
-                asset.asset_type,
+                asset.estimated_life_months,
                 f"{current_val:.2f}",
                 f"{purchase_val:.2f}",
+                f"{residual_val:.2f}",
                 asset.purchase_date.strftime("%Y-%m-%d") if asset.purchase_date else ""
             ])
 
@@ -144,7 +149,12 @@ def export_assets(db: Session = Depends(get_db)):
 def export_snapshots(db: Session = Depends(get_db)):
     """Export net worth snapshots to CSV."""
     try:
-        snapshots = db.query(NetWorthSnapshot).order_by(desc(NetWorthSnapshot.snapshot_date)).all()
+        snapshots = (
+            db.query(NetWorthSnapshot)
+            .filter(NetWorthSnapshot.is_deleted == False)
+            .order_by(desc(NetWorthSnapshot.snapshot_date))
+            .all()
+        )
 
         output = io.StringIO()
         output.write('\ufeff')

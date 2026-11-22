@@ -104,9 +104,13 @@ def pay_subscription(subscription_id: str, db: Annotated[Session, Depends(get_db
     """
     from app.models.transaction import Transaction, TransactionType, PaymentMethod
     from app.services.balance import apply_transaction_to_balance
+    from app.services.transaction_identity import unique_transaction_fingerprint
     from dateutil.relativedelta import relativedelta
 
-    db_sub = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+    db_sub = db.query(Subscription).filter(
+        Subscription.id == subscription_id,
+        Subscription.is_deleted == False,
+    ).first()
     if not db_sub:
         raise HTTPException(status_code=404, detail="Subscription not found")
     if not db_sub.is_active:
@@ -114,14 +118,24 @@ def pay_subscription(subscription_id: str, db: Annotated[Session, Depends(get_db
 
     try:
         # 1. Create expense transaction from subscription data
+        now = datetime.now(timezone.utc)
+        sub_desc = f"Pago suscripción: {db_sub.name}"
         txn = Transaction(
             amount=db_sub.amount,
-            description=f"Pago suscripción: {db_sub.name}",
+            description=sub_desc,
             transaction_type=TransactionType.EXPENSE,
             payment_method=PaymentMethod.TRANSFER,
-            date=datetime.now(timezone.utc),
+            date=now,
             account_id=db_sub.account_id,
             category_id=db_sub.category_id,
+            fingerprint=unique_transaction_fingerprint(
+                db,
+                description=sub_desc,
+                amount=cast(int, db_sub.amount),
+                date_value=now,
+                transaction_type=TransactionType.EXPENSE,
+                account_id=cast(Optional[str], db_sub.account_id),
+            ),
         )
         db.add(txn)
         db.flush()

@@ -259,7 +259,7 @@ def test_document_and_audio_ai_endpoints_cover_validation_and_success(monkeypatc
     assert error.value.status_code == 413
 
     batch_db = MagicMock()
-    batch_db.query.return_value.all.return_value = categories
+    batch_db.query.return_value.filter.return_value.all.return_value = categories
     batch_response = SimpleNamespace(text=json.dumps({"mapping": {"Compra": "cat-1", "Otro": "missing"}}))
     monkeypatch.setattr(ai_audio, "create_gemini_client", lambda _key: SimpleNamespace(
         models=SimpleNamespace(generate_content=lambda **_kwargs: batch_response)
@@ -271,7 +271,7 @@ def test_document_and_audio_ai_endpoints_cover_validation_and_success(monkeypatc
     )
     assert batch.mapping == {"Compra": "cat-1"}
 
-    batch_db.query.return_value.all.return_value = []
+    batch_db.query.return_value.filter.return_value.all.return_value = []
     with pytest.raises(HTTPException) as error:
         anyio.run(
             ai_audio.batch_category_mapping,

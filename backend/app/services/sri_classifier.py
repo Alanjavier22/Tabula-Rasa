@@ -62,8 +62,10 @@ def _classify_batch_chunk(
     chunk: list[tuple[int, dict]],
     system_instruction: str,
 ) -> dict[int, str]:
+    from app.services.privacy import mask_description
+
     tx_list_str = "\n".join([
-        f"- ID:{idx} | Desc: '{tx.get('description', '')}' | Categoría interna: '{tx.get('category_name', '')}'"
+        f"- ID:{idx} | Desc: '{mask_description(tx.get('description', ''))}' | Categoría interna: '{tx.get('category_name', '')}'"
         for idx, tx in chunk
     ])
     try:
@@ -158,7 +160,8 @@ class SRIClassifier:
         - Todo lo demás -> No Deducible
         """
         
-        prompt = f"Transacción: '{description}' (Categoría interna: {category_name})"
+        from app.services.privacy import mask_description
+        prompt = f"Transacción: '{mask_description(description)}' (Categoría interna: {category_name})"
         
         try:
             response = self.client.models.generate_content(

@@ -67,7 +67,7 @@ def _add_account_balance(
     total_assets: Decimal,
     total_liabilities: Decimal,
 ) -> tuple[Decimal, Decimal]:
-    if account.account_type in ['checking', 'savings', 'investment']:
+    if account.account_type in ['checking', 'savings', 'investment', 'cash']:
         return total_assets + balance, total_liabilities
     if account.account_type == 'credit_card' and balance > 0:
         return total_assets, total_liabilities + balance
@@ -122,7 +122,8 @@ class SnapshotReconciler:
         
         # Calculate assets from accounts (using Decimal)
         accounts = db.query(Account).filter(
-            Account.is_deleted == False
+            Account.is_deleted == False,
+            Account.is_active == 1,
         ).all()
         
         total_assets_cents = Decimal('0')
@@ -133,15 +134,15 @@ class SnapshotReconciler:
                 account, balance, total_assets_cents, total_liabilities_cents
             )
         
-        # Add physical assets (depreciated value)
+        # Add physical assets (depreciated value as of month_end)
+        from app.services.asset_depreciation import AssetDepreciationService
         assets = db.query(Asset).filter(
             Asset.is_deleted == False
         ).all()
         
         for asset in assets:
-            # Simple depreciation calculation (could be enhanced)
-            purchase_price = Decimal(str(asset.purchase_price_cents))
-            total_assets_cents += purchase_price
+            valuation = AssetDepreciationService.calculate_current_value(db, str(asset.id), month_end)
+            total_assets_cents += Decimal(str(valuation.current_value_cents))
         
         net_worth_cents = total_assets_cents - total_liabilities_cents
         
@@ -162,6 +163,7 @@ class SnapshotReconciler:
         """
         stale_snapshots = db.query(NetWorthSnapshot).filter(
             NetWorthSnapshot.is_stale == True,
+            NetWorthSnapshot.is_locked == False,
             NetWorthSnapshot.is_deleted == False
         ).all()
         

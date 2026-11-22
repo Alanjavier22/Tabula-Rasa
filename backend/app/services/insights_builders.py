@@ -71,7 +71,8 @@ def _build_transaction_summary(db: Session, now: datetime) -> dict:
 
     transactions = db.query(Transaction).filter(
         Transaction.date.like(f'{current_month_str}%'),
-        Transaction.is_deleted == False
+        Transaction.is_deleted == False,
+        Transaction.is_internal == False,
     ).all()
 
     total_income = _sum_by_transaction_type(transactions, 'income')
@@ -103,7 +104,8 @@ def _build_recurring_small_expenses(db: Session, now: datetime) -> list:
     transactions = db.query(Transaction).filter(
         Transaction.date >= start_date,
         Transaction.transaction_type == 'expense',
-        Transaction.is_deleted == False
+        Transaction.is_deleted == False,
+        Transaction.is_internal == False,
     ).all()
 
     if not transactions:
@@ -138,12 +140,18 @@ def _build_recurring_small_expenses(db: Session, now: datetime) -> list:
 
 
 def _build_budget_summary(db: Session, now: datetime) -> list:
-    """Summarize budgets with over-budget detection."""
-    budgets = db.query(Budget).filter(Budget.month == now.month, Budget.year == now.year).all()
+    """Summarize budgets with over-budget detection using live spent totals."""
+    from app.services.budget_service import compute_budget_spent
+
+    budgets = db.query(Budget).filter(
+        Budget.month == now.month,
+        Budget.year == now.year,
+        Budget.is_deleted == False,
+    ).all()
     result = []
     for b in budgets:
         amount = b.amount
-        spent = b.spent
+        spent = compute_budget_spent(db, b)
         cat_name = b.category.name if b.category else UNCATEGORIZED_LABEL
         result.append({
             "category": cat_name,
@@ -172,6 +180,7 @@ def _build_credit_card_summary(db: Session, now: datetime) -> dict:
     # Get credit card accounts with limits
     cc_accounts = db.query(Account).filter(
         Account.is_deleted == False,
+        Account.is_active == 1,
         Account.account_type == 'credit_card'
     ).all()
 
@@ -232,18 +241,27 @@ def _build_liquidity_summary(db: Session) -> dict:
         Account.is_deleted == False
     ).all()
     liquid = sum((a.balance for a in accounts if a.account_type in ['checking', 'savings', 'cash']), 0)
-    credit_debt = sum((a.balance for a in accounts if a.account_type == 'credit_card'), 0)
+    # Credit card balances are stored as negative cents when debt exists; normalize
+    # to a positive obligation so net_liquid always subtracts card debt.
+    credit_debt = sum(
+        (abs(a.balance) for a in accounts if a.account_type == 'credit_card' and (a.balance or 0) < 0),
+        0,
+    )
 
     # Add IOUs that others owe (increases liquidity)
     they_owe = db.query(IOU).filter(
         IOU.iou_type == IOUType.THEY_OWE,
-        IOU.status == IOUStatus.PENDING
+        IOU.status == IOUStatus.PENDING,
+        IOU.is_deleted == False,
     ).all()
     ious_receivable = sum((i.amount for i in they_owe), 0)
     liquid += ious_receivable
 
-    # Subtract pending Debt Shares (decreases liquidity)
-    pending_debts = db.query(DebtShare).filter(DebtShare.status == 'pending').all()
+    # Subtract pending Debt Shares (tracked separately)
+    pending_debts = db.query(DebtShare).filter(
+        DebtShare.status == 'pending',
+        DebtShare.is_deleted == False,
+    ).all()
     pending_debt_total = sum((ds.amount for ds in pending_debts), 0)
 
     return {
@@ -257,7 +275,10 @@ def _build_liquidity_summary(db: Session) -> dict:
 
 def _build_debt_share_summary(db: Session, now: datetime) -> dict:
     """Summarize pending debt shares and upcoming credit card cutoff dates."""
-    pending_debts = db.query(DebtShare).filter(DebtShare.status == 'pending').all()
+    pending_debts = db.query(DebtShare).filter(
+        DebtShare.status == 'pending',
+        DebtShare.is_deleted == False,
+    ).all()
     total_pending = sum((ds.amount for ds in pending_debts), 0)
 
     # Group debt shares by person
@@ -380,10 +401,11 @@ def _build_reminder_summary(db: Session, now: datetime) -> dict:
     reminders = db.query(Reminder).filter(
         Reminder.due_date <= end_date,
         Reminder.status == ReminderStatus.PENDING,
+        Reminder.is_active == True,
         Reminder.is_deleted == False
     ).all()
 
-    total_amount = sum(r.amount for r in reminders)
+    total_amount = sum((r.amount or 0) for r in reminders)
 
     return {
         "upcoming_count": len(reminders),
@@ -403,7 +425,8 @@ def _build_historical_trends(db: Session, now: datetime) -> dict:
     current_expenses = db.query(Transaction).filter(
         Transaction.date.like(f'{current_month_str}%'),
         Transaction.transaction_type == 'expense',
-        Transaction.is_deleted == False
+        Transaction.is_deleted == False,
+        Transaction.is_internal == False,
     ).all()
     current_total = sum((t.amount for t in current_expenses), 0)
 
@@ -415,7 +438,8 @@ def _build_historical_trends(db: Session, now: datetime) -> dict:
         month_expenses = db.query(Transaction).filter(
             Transaction.date.like(f'{month_str}%'),
             Transaction.transaction_type == 'expense',
-            Transaction.is_deleted == False
+            Transaction.is_deleted == False,
+            Transaction.is_internal == False,
         ).all()
         month_total = sum((t.amount for t in month_expenses), 0)
         previous_months.append(month_total)
@@ -463,7 +487,8 @@ def _build_enhanced_historical_trends(db: Session, now: datetime) -> dict:
     for month_str, _, _ in prev_months:
         txns = db.query(Transaction).filter(
             Transaction.date.like(f'{month_str}%'),
-            Transaction.is_deleted == False
+            Transaction.is_deleted == False,
+            Transaction.is_internal == False,
         ).all()
 
         month_expenses = sum((t.amount for t in txns if t.transaction_type == 'expense'), 0)
@@ -487,7 +512,8 @@ def _build_rolling_30d_summary(db: Session, now: datetime) -> dict:
 
     transactions = db.query(Transaction).filter(
         Transaction.date >= start_date,
-        Transaction.is_deleted == False
+        Transaction.is_deleted == False,
+        Transaction.is_internal == False,
     ).all()
 
     total_income = sum((t.amount for t in transactions if t.transaction_type == 'income'), 0)

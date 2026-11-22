@@ -19,7 +19,10 @@ from app.models.import_log import ImportLog
 
 def get_budget_status(db: Session, category_name: str) -> dict:
     """Get budget status for a specific category"""
-    category = db.query(Category).filter(Category.name.ilike(f"%{category_name}%")).first()
+    category = db.query(Category).filter(
+        Category.name.ilike(f"%{category_name}%"),
+        Category.is_deleted == False,
+    ).first()
     if not category:
         return {"error": f"Categoría '{category_name}' no encontrada"}
 
@@ -30,7 +33,8 @@ def get_budget_status(db: Session, category_name: str) -> dict:
     budget = db.query(Budget).filter(
         Budget.category_id == category.id,
         Budget.month == current_month,
-        Budget.year == current_year
+        Budget.year == current_year,
+        Budget.is_deleted == False,
     ).first()
 
     if not budget:
@@ -41,6 +45,7 @@ def get_budget_status(db: Session, category_name: str) -> dict:
         Transaction.category_id == category.id,
         Transaction.transaction_type == "expense",
         Transaction.is_deleted == False,
+        Transaction.is_internal == False,
         Transaction.date >= datetime(current_year, current_month, 1, tzinfo=timezone.utc)
     ).all()
 
@@ -66,7 +71,8 @@ def get_all_budgets_status(db: Session) -> dict:
 
     budgets = db.query(Budget).filter(
         Budget.month == current_month,
-        Budget.year == current_year
+        Budget.year == current_year,
+        Budget.is_deleted == False,
     ).all()
 
     results = []
@@ -76,6 +82,7 @@ def get_all_budgets_status(db: Session) -> dict:
             Transaction.category_id == b.category_id,
             Transaction.transaction_type == "expense",
             Transaction.is_deleted == False,
+            Transaction.is_internal == False,
             Transaction.date >= datetime(current_year, current_month, 1, tzinfo=timezone.utc)
         ).all()
         actual_spent = cast(int, sum(t.amount for t in transactions))
@@ -92,7 +99,10 @@ def get_all_budgets_status(db: Session) -> dict:
 
 def get_account_balance(db: Session, account_name: str) -> dict:
     """Get current balance for a specific account"""
-    account = db.query(Account).filter(Account.name.ilike(f"%{account_name}%")).first()
+    account = db.query(Account).filter(
+        Account.name.ilike(f"%{account_name}%"),
+        Account.is_deleted == False,
+    ).first()
     if not account:
         return {"error": f"Cuenta '{account_name}' no encontrada"}
 
@@ -105,10 +115,11 @@ def get_account_balance(db: Session, account_name: str) -> dict:
 
 
 def get_total_balance(db: Session) -> dict:
-    """Get total balance across all active checking and savings accounts"""
+    """Get total balance across all active checking, savings and cash accounts"""
     accounts = db.query(Account).filter(
         Account.is_active == 1,
-        Account.account_type.in_(["checking", "savings"])
+        Account.is_deleted == False,
+        Account.account_type.in_(["checking", "savings", "cash"])
     ).all()
 
     total_balance = cast(int, sum(acc.balance for acc in accounts))
@@ -122,7 +133,10 @@ def get_total_balance(db: Session) -> dict:
 def search_categories(db: Session, keyword: str) -> dict:
     """Search for categories by name to get their IDs"""
     try:
-        categories = db.query(Category).filter(Category.name.ilike(f"%{keyword}%")).all()
+        categories = db.query(Category).filter(
+            Category.name.ilike(f"%{keyword}%"),
+            Category.is_deleted == False,
+        ).all()
         if not categories:
             return {"error": f"No se encontraron categorías coincidiendo con '{keyword}'"}
         return {"results": [{"id": cat.id, "name": cat.name} for cat in categories]}
@@ -133,7 +147,10 @@ def search_categories(db: Session, keyword: str) -> dict:
 def search_accounts(db: Session, keyword: str) -> dict:
     """Search for accounts by name to get their IDs"""
     try:
-        accounts = db.query(Account).filter(Account.name.ilike(f"%{keyword}%")).all()
+        accounts = db.query(Account).filter(
+            Account.name.ilike(f"%{keyword}%"),
+            Account.is_deleted == False,
+        ).all()
         if not accounts:
             return {"error": f"No se encontraron cuentas coincidiendo con '{keyword}'"}
         return {"results": [{"id": acc.id, "name": acc.name, "type": acc.account_type} for acc in accounts]}
@@ -173,17 +190,22 @@ def get_assets_context(assets_data: dict) -> dict:
 def get_import_history(db: Session, limit: int = 10) -> List[dict]:
     """Get the recent history of imported files and statements"""
     logs = db.query(ImportLog).order_by(ImportLog.created_at.desc()).limit(limit).all()
-    return [
-        {
+    results = []
+    for log in logs:
+        imported_count = db.query(Transaction).filter(
+            Transaction.import_log_id == log.id,
+            Transaction.is_deleted == False,
+        ).count()
+        results.append({
             "id": log.id,
             "filename": log.filename,
             "account_id": log.account_id,
-            "imported_count": log.imported_count,
+            "account_type": getattr(log, "account_type", None),
+            "status": log.status,
+            "imported_count": imported_count,
             "created_at": log.created_at.isoformat() if log.created_at else None,
-            "issuer_identity": log.issuer_identity
-        }
-        for log in logs
-    ]
+        })
+    return results
 
 
 def get_monthly_summary(db: Session, month: int, year: int) -> dict:
@@ -192,7 +214,8 @@ def get_monthly_summary(db: Session, month: int, year: int) -> dict:
         month_str = f"{year:04d}-{month:02d}"
         transactions = db.query(Transaction).filter(
             Transaction.date.like(f"{month_str}%"),
-            Transaction.is_deleted == False
+            Transaction.is_deleted == False,
+            Transaction.is_internal == False,
         ).all()
 
         if not transactions:
@@ -287,8 +310,11 @@ def get_debt_summary(db: Session) -> dict:
     from app.models.iou import IOU, IOUStatus
     from app.models.debt_share import DebtShare
 
-    ious = db.query(IOU).filter(IOU.status == IOUStatus.PENDING).all()
-    debt_shares = db.query(DebtShare).filter(DebtShare.status == "pending").all()
+    ious = db.query(IOU).filter(IOU.status == IOUStatus.PENDING, IOU.is_deleted == False).all()
+    debt_shares = db.query(DebtShare).filter(
+        DebtShare.status == "pending",
+        DebtShare.is_deleted == False,
+    ).all()
 
     return {
         "ious": [
@@ -404,7 +430,7 @@ def get_recent_transactions(db: Session, limit: int = 15) -> dict:
                 "date": t.date.isoformat(),
                 "description": t.description,
                 "amount": t.amount,
-                "type": t.transaction_type.value,
+                "type": t.transaction_type.value if hasattr(t.transaction_type, "value") else str(t.transaction_type),
                 "category": t.category.name if t.category else "None"
             } for t in txns
         ]

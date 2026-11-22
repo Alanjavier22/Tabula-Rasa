@@ -58,11 +58,11 @@ class BalanceSheetService:
 
     @staticmethod
     def get_cash_accounts_value(db: Session) -> int:
-        """Calculate cash accounts value (checking + savings)"""
+        """Calculate cash accounts value (checking + savings + cash)"""
         accounts = (
             db.query(Account)
             .filter(Account.is_deleted == False, Account.is_active == 1)
-            .filter(Account.account_type.in_(["checking", "savings"]))
+            .filter(Account.account_type.in_(["checking", "savings", "cash"]))
             .all()
         )
         return cast(int, sum(cast(int, acc.balance or 0) for acc in accounts))
@@ -77,7 +77,13 @@ class BalanceSheetService:
             .filter(IOU.iou_type == "i_owe")
             .all()
         )
-        return cast(int, sum((cast(int, iou.amount or 0)) - (cast(int, iou.amount_paid or 0)) for iou in ious))
+        return cast(
+            int,
+            sum(
+                max(0, cast(int, iou.amount or 0) - cast(int, getattr(iou, "amount_paid", 0) or 0))
+                for iou in ious
+            ),
+        )
 
     @staticmethod
     def get_credit_card_balances(db: Session) -> int:
@@ -128,6 +134,7 @@ class BalanceSheetService:
             db.query(NetWorthSnapshot)
             .filter(NetWorthSnapshot.month == month)
             .filter(NetWorthSnapshot.year == year)
+            .filter(NetWorthSnapshot.is_deleted == False)
             .first()
         )
 

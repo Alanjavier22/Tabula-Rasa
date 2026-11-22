@@ -37,7 +37,7 @@ def get_net_worth(db: Session = Depends(get_db)):
     assets_accounts = db.query(Account).filter(
         Account.is_active == 1,
         Account.is_deleted == False,
-        Account.account_type.in_(["checking", "savings", "investment"])
+        Account.account_type.in_(["checking", "savings", "investment", "cash"])
     ).all()
     assets = Decimal(str(sum((acc.balance for acc in assets_accounts), 0)))
 
@@ -48,7 +48,10 @@ def get_net_worth(db: Session = Depends(get_db)):
     assets += Decimal(str(sum((i.amount for i in they_owe_ious), 0)))
 
     # DebtShares (Money owed to user by others for CC payments)
-    pending_debt_shares = db.query(DebtShare).filter(DebtShare.status == "pending").all()
+    pending_debt_shares = db.query(DebtShare).filter(
+        DebtShare.status == "pending",
+        DebtShare.is_deleted == False,
+    ).all()
     assets += Decimal(str(sum((ds.amount for ds in pending_debt_shares), 0)))
 
     # Physical Assets with Depreciation
@@ -86,7 +89,10 @@ def get_net_worth(db: Session = Depends(get_db)):
         func.sum(case((Transaction.transaction_type == "expense", Transaction.amount), else_=0)).label("expense")
     ).filter(
         Transaction.is_deleted == False,
-        ~Transaction.id.in_(db.query(TransactionSplit.transaction_id))
+        Transaction.is_internal == False,
+        ~Transaction.id.in_(
+            db.query(TransactionSplit.transaction_id).filter(TransactionSplit.is_deleted == False)
+        )
     ).group_by("month").all()
 
     split_monthly = db.query(
@@ -94,7 +100,9 @@ def get_net_worth(db: Session = Depends(get_db)):
         func.sum(case((Transaction.transaction_type == "income", TransactionSplit.amount), else_=0)).label("income"),
         func.sum(case((Transaction.transaction_type == "expense", TransactionSplit.amount), else_=0)).label("expense")
     ).join(TransactionSplit, Transaction.id == TransactionSplit.transaction_id).filter(
-        Transaction.is_deleted == False
+        Transaction.is_deleted == False,
+        Transaction.is_internal == False,
+        TransactionSplit.is_deleted == False,
     ).group_by("month").all()
 
     monthly_map: Dict[str, Dict[str, Decimal]] = {}

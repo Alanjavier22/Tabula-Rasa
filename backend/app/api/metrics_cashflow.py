@@ -60,16 +60,12 @@ def get_safe_to_spend(db: Session = Depends(get_db)):
         buffer_val = float(cast(Any, buffer_config.value)) if buffer_config and buffer_config.value else 0
         safe_to_spend_buffer = Decimal(str(int(buffer_val * 100)))
 
-        # Get fiscal burden (IVA/Retenciones)
-        try:
-            from app.services.ai_assistant_tools import get_fiscal_summary
-            fiscal = get_fiscal_summary(db)
-            projected_taxes = Decimal(str(fiscal["iva_projected"] + fiscal["retencion_projected"]))
-        except Exception as e:
-            logger.warning("Error calculating projected taxes, defaulting to 0: %s", e)
-            projected_taxes = Decimal("0")
+        # IVA/retention estimates come from already-paid expenses (whose amounts
+        # already deducted balances), so subtracting them again would double-count
+        # historical spending against safe-to-spend.
+        projected_taxes = Decimal("0")
 
-        # We subtract anomaly_leaks AND projected taxes AND the safety buffer from the projected balance for maximum prudence
+        # Subtract anomaly_leaks AND the safety buffer from the projected balance
         safe_to_spend = Decimal(str(projection.projected_balance)) - anomaly_leaks - projected_taxes - safe_to_spend_buffer
 
         return SafeToSpendResponse(
@@ -142,14 +138,11 @@ def _build_daily_subscriptions(subscriptions: list[Subscription], today, days: i
 
 
 def _get_daily_forecast_amounts(reminders, statements, forecast_date, daily_subscriptions):
-    daily_income = Decimal(str(sum(
-        (reminder.amount for reminder in reminders
-         if reminder.due_date.date() == forecast_date and reminder.amount and reminder.amount > 0),
-        0,
-    )))
+    # Reminders represent upcoming payment obligations (positive amount = expense).
+    daily_income = Decimal("0")
     daily_expense = Decimal(str(sum(
         (abs(cast(int, reminder.amount)) for reminder in reminders
-         if reminder.due_date.date() == forecast_date and reminder.amount and reminder.amount < 0),
+         if reminder.due_date.date() == forecast_date and reminder.amount and reminder.amount != 0),
         0,
     )))
     daily_subscription = daily_subscriptions.get(forecast_date, Decimal("0"))
@@ -197,7 +190,7 @@ def get_cash_flow_forecast(days: int = 30, db: Session = Depends(get_db)):
     accounts = db.query(Account).filter(
         Account.is_active == 1,
         Account.is_deleted == False,
-        Account.account_type.in_(["checking", "savings"])
+        Account.account_type.in_(["checking", "savings", "cash"])
     ).all()
     current_balance = Decimal(str(sum((acc.balance for acc in accounts), 0)))
 
@@ -207,12 +200,15 @@ def get_cash_flow_forecast(days: int = 30, db: Session = Depends(get_db)):
 
     reminders = db.query(Reminder).filter(
         Reminder.status == "pending",
+        Reminder.is_active == True,
+        Reminder.is_deleted == False,
         Reminder.due_date >= start_time,
         Reminder.due_date <= end_time
     ).all()
 
     statements = db.query(CreditCardStatement).filter(
         CreditCardStatement.status.in_(["pending", "partial"]),
+        CreditCardStatement.is_deleted == False,
         CreditCardStatement.payment_due_date >= start_time,
         CreditCardStatement.payment_due_date <= end_time
     ).all()

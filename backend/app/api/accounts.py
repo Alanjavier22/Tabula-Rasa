@@ -18,6 +18,7 @@ class AccountBase(BaseModel):
     is_active: bool = True
     statement_day: Optional[int] = None
     payment_day: Optional[int] = None
+    credit_limit: Optional[int] = None
 
 
 class AccountCreate(AccountBase):
@@ -35,6 +36,7 @@ class AccountUpdate(BaseModel):
     is_active: Optional[bool] = None
     statement_day: Optional[int] = None
     payment_day: Optional[int] = None
+    credit_limit: Optional[int] = None
 
 
 class AccountResponse(BaseModel):
@@ -49,6 +51,7 @@ class AccountResponse(BaseModel):
     is_active: bool
     statement_day: Optional[int] = None
     payment_day: Optional[int] = None
+    credit_limit: Optional[int] = None
     version: int  # FASE 7: OCC versioning
 
     model_config = ConfigDict(from_attributes=True)
@@ -73,7 +76,7 @@ class SetBalanceRequest(BaseModel):
 @router.post("/{account_id}/set-balance", response_model=AccountResponse, responses=ACCOUNT_NOT_FOUND_RESPONSE)
 def set_balance(account_id: str, payload: SetBalanceRequest, db: Annotated[Session, Depends(get_db)]):
     """Force-set account balance to a specific value. Use to sync with reality."""
-    db_account = db.query(Account).filter(Account.id == account_id).first()
+    db_account = db.query(Account).filter(Account.id == account_id, Account.is_deleted == False).first()
     if not db_account:
         raise HTTPException(status_code=404, detail="Account not found")
     db_account.balance = cast(Any, payload.balance)
@@ -86,7 +89,7 @@ def set_balance(account_id: str, payload: SetBalanceRequest, db: Annotated[Sessi
 def recalculate_balance(account_id: str, db: Annotated[Session, Depends(get_db)], initial_balance: int = 0):
     """Recalculate balance from initial_balance + sum of all transactions."""
     from app.services.balance import recalculate_account_balance
-    db_account = db.query(Account).filter(Account.id == account_id).first()
+    db_account = db.query(Account).filter(Account.id == account_id, Account.is_deleted == False).first()
     if not db_account:
         raise HTTPException(status_code=404, detail="Account not found")
     recalculate_account_balance(db, account_id, initial_balance)

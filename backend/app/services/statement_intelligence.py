@@ -58,10 +58,26 @@ class StatementIntelligenceService:
     def _get_api_key(self) -> Optional[str]:
         return get_configured_gemini_key(self.db)
 
-    def generate_fingerprint(self, date: str, description: str, amount_cents: int, account_id: str, deferred_info: str = "", index: int = 0) -> str:
-        """Generates a unique hash, including deferred info and index to disambiguate identical transactions."""
-        raw_str = f"{date}|{description.strip().upper()}|{amount_cents}|{account_id}|{deferred_info}|{index}"
-        return hashlib.sha256(raw_str.encode()).hexdigest()
+    def generate_fingerprint(
+        self,
+        date: str,
+        description: str,
+        amount_cents: int,
+        account_id: str,
+        deferred_info: str = "",
+        index: int = 0,
+        transaction_type: str = "",
+    ) -> str:
+        """Generates a canonical v2 hash, including deferred info and index to disambiguate identical transactions."""
+        return calculate_transaction_fingerprint(
+            description=description,
+            amount=abs(int(amount_cents)),
+            date_value=date,
+            transaction_type=transaction_type,
+            account_id=account_id,
+            occurrence_index=index,
+            extra_key=deferred_info,
+        )
 
     async def _request_parsed_data(
         self,
@@ -119,7 +135,8 @@ class StatementIntelligenceService:
             occurrence_index = seen_in_batch.get(batch_key, 0)
             seen_in_batch[batch_key] = occurrence_index + 1
             fingerprint = self.generate_fingerprint(
-                tx['date'], tx['description'], amount, account_id, deferred_key, occurrence_index
+                tx['date'], tx['description'], amount, account_id, deferred_key, occurrence_index,
+                tx.get('transaction_type', ''),
             )
             tx_dict = tx.copy()
             tx_dict['fingerprint'] = fingerprint
@@ -153,7 +170,7 @@ class StatementIntelligenceService:
             file_data = await f.read()
 
         # Obtener categorías actuales para que la IA sepa qué opciones tiene
-        categories = self.db.query(Category).all()
+        categories = self.db.query(Category).filter(Category.is_deleted == False).all()
         cat_list = [str(c.name) for c in categories]
 
         system_instruction = f"""Eres un auditor financiero experto en Ecuador. Tu tarea es extraer con PRECISIÓN ABSOLUTA las transacciones de este estado de cuenta.
@@ -189,7 +206,9 @@ class StatementIntelligenceService:
         prompt = "Analiza este documento y extrae todas las transacciones del periodo. Asegúrate de incluir pagos y consumos."
 
         # Soporte para PDF o Imágenes
-        mime_type = "application/pdf" if file_path.lower().endswith(".pdf") else "image/jpeg"
+        import mimetypes
+        guessed_mime, _ = mimetypes.guess_type(file_path)
+        mime_type = "application/pdf" if file_path.lower().endswith(".pdf") else (guessed_mime or "image/jpeg")
 
         parsed_data = await self._request_parsed_data(
             client, file_data, mime_type, system_instruction, prompt
@@ -209,7 +228,10 @@ class StatementIntelligenceService:
         ]
         
         cat_results = categorize_batch(batch_input, self.db)
-        categories_dict = {c.id: c.name for c in self.db.query(Category).all()}
+        categories_dict = {
+            c.id: c.name
+            for c in self.db.query(Category).filter(Category.is_deleted == False).all()
+        }
         enriched_transactions, calc_sum_consumos, calc_sum_pagos = self._enrich_transactions(
             parsed_data['transactions'], cat_results, categories_dict, account_id
         )
@@ -300,14 +322,19 @@ class StatementIntelligenceService:
         existing_deferred = self.db.query(DeferredPayment).filter(
             DeferredPayment.account_id == log.account_id,
             DeferredPayment.installment_amount == amount,
-            DeferredPayment.current_installment == current_installment,
             DeferredPayment.total_installments == total_installments,
-            DeferredPayment.is_active == True
+            DeferredPayment.is_active == True,
+            DeferredPayment.is_deleted == False,
         ).filter(DeferredPayment.name.ilike(f"%{tx_data['description'][:10]}%")).first()
 
         shared_with = tx_data.get('shared_with')
         shared_amount = int(tx_data['shared_amount']) if tx_data.get('shared_amount') else None
         if existing_deferred:
+            next_installment = max(cast(int, existing_deferred.current_installment or 1), current_installment)
+            existing_deferred.current_installment = cast(Any, next_installment)
+            existing_deferred.remaining_balance = cast(
+                Any, amount * max(0, total_installments - next_installment + 1)
+            )
             existing_deferred.is_shared = cast(Any, bool(shared_with))
             existing_deferred.shared_with = cast(Any, shared_with)
             existing_deferred.shared_amount = cast(Any, shared_amount)
@@ -426,10 +453,14 @@ class StatementIntelligenceService:
                 account.credit_limit = cast(Any, int(statement_metadata['credit_limit_cents']))
             self.db.flush()
 
+        debt_shares = list(statement_metadata.get('debt_shares') or [])
+        if not debt_shares and statement_metadata.get('_derived_debt_shares'):
+            debt_shares = statement_metadata['_derived_debt_shares']
+
         self._sync_debt_shares(
             existing_statement,
             statement,
-            statement_metadata.get('debt_shares', []),
+            debt_shares,
         )
 
     def _reconcile_statement_balance(self, log: ImportLog, statement_metadata: Optional[Dict]) -> None:
@@ -437,6 +468,24 @@ class StatementIntelligenceService:
             return
 
         from app.services.balance import recalculate_account_balance
+
+        stmt_month = statement_metadata.get('statement_month')
+        stmt_year = statement_metadata.get('statement_year')
+        has_newer_statement = False
+        if stmt_month and stmt_year:
+            newer_stmt = self.db.query(CreditCardStatement).filter(
+                CreditCardStatement.account_id == log.account_id,
+                CreditCardStatement.is_deleted == False,
+                (
+                    (CreditCardStatement.year > int(stmt_year))
+                    | ((CreditCardStatement.year == int(stmt_year)) & (CreditCardStatement.month > int(stmt_month)))
+                ),
+            ).first()
+            has_newer_statement = newer_stmt is not None
+
+        if has_newer_statement:
+            recalculate_account_balance(self.db, cast(str, log.account_id))
+            return
 
         account = self.db.query(Account).filter(Account.id == log.account_id).first()
         if account:
@@ -450,6 +499,21 @@ class StatementIntelligenceService:
             return
 
         try:
+            if statement_metadata is not None and not statement_metadata.get('debt_shares'):
+                derived_shares = [
+                    {
+                        "person_name": str(tx['shared_with']).strip(),
+                        "amount_cents": int(tx['shared_amount']),
+                        "description": f"Compartido de: {tx.get('description', 'Consumo')}",
+                    }
+                    for tx in confirmed_transactions
+                    if not tx.get('is_duplicate', False)
+                    and tx.get('shared_with')
+                    and int(tx.get('shared_amount') or 0) > 0
+                ]
+                if derived_shares:
+                    statement_metadata = {**statement_metadata, '_derived_debt_shares': derived_shares}
+
             new_txs_count, earliest_date = self._persist_confirmed_transactions(
                 log,
                 confirmed_transactions,

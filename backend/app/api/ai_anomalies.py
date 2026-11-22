@@ -12,6 +12,7 @@ from database import get_db
 from app.models.transaction import Transaction
 from app.services.ai_models import REASONING_MODEL
 from app.services.ai_prompts import get_current_time_context, CORE_RULES, get_persona_prompt
+from app.services.privacy import mask_description
 from app.models.config import Config
 from app.api.ai_shared import get_gemini_key, call_gemini_json, CategoryInput, TransactionInput
 
@@ -68,7 +69,7 @@ def _build_price_hikes(desc_history: dict) -> list[str]:
         previous_price, last_price = prices[-2:]
         if last_price > previous_price * 1.05:
             price_hikes.append(
-                f"- INCREMENTO DETECTADO: '{description}' subió de "
+                f"- INCREMENTO DETECTADO: '{mask_description(description)}' subió de "
                 f"${previous_price/100:,.2f} a ${last_price/100:,.2f}."
             )
     return price_hikes
@@ -87,7 +88,7 @@ def _build_audit_evidence(request: AnomalyScanRequest, cat_baselines: dict) -> l
                 f"(Promedio 6 meses: ${baseline/100:,.2f})"
             )
         evidence.append(
-            f"CHECK_SEMANTIC: Desc='{transaction.description}' "
+            f"CHECK_SEMANTIC: Desc='{mask_description(transaction.description)}' "
             f"Cat='{cat_lookup.get(safe_category_id, 'Sin Categoría')}'"
         )
     return evidence
@@ -104,7 +105,7 @@ def _build_zombie_leads(request: AnomalyScanRequest, desc_history: dict) -> list
         )
         if not is_subscription:
             zombie_leads.append(
-                f"- POSIBLE ZOMBIE: '{description}' detectado por 3 meses consecutivos "
+                f"- POSIBLE ZOMBIE: '{mask_description(description)}' detectado por 3 meses consecutivos "
                 f"(${amounts[-1]/100:,.2f})."
             )
     return zombie_leads
@@ -121,10 +122,12 @@ async def scan_anomalies(
     api_key = get_gemini_key(db)
     six_months_ago = datetime.now() - timedelta(days=180)
 
-    # FETCH DEEP HISTORY: Get 6 months of data directly from DB
+    # FETCH DEEP HISTORY: Get 6 months of operational expenses directly from DB
     all_txns = db.query(Transaction).filter(
         Transaction.date >= six_months_ago.strftime("%Y-%m-%d"),
-        Transaction.is_deleted == False
+        Transaction.is_deleted == False,
+        Transaction.is_internal == False,
+        Transaction.transaction_type == "expense",
     ).order_by(Transaction.date.asc()).all()
 
     cat_baselines, desc_history = _build_transaction_histories(all_txns)

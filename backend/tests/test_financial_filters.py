@@ -205,3 +205,88 @@ def test_dashboard_metrics_exclude_internal_transactions(db_session):
     sankey_income, sankey_expenses = _get_sankey_totals(db_session, "2026-10")
     assert sankey_income == 50000
     assert sankey_expenses == {"Comida": 12000, "Sin Categoría": 3000}
+
+
+def test_liquidity_summary_subtracts_negative_credit_card_balances(db_session):
+    from app.models.account import Account
+    from app.services.insights_builders import _build_liquidity_summary
+
+    db_session.add_all([
+        Account(name="Banco", account_type="checking", balance=61381),
+        Account(name="Tarjeta", account_type="credit_card", balance=-31476),
+    ])
+    db_session.commit()
+
+    summary = _build_liquidity_summary(db_session)
+    assert summary["liquid_balance"] == 61381
+    assert summary["credit_card_debt"] == 31476
+    assert summary["net_liquid"] == 29905
+
+
+def test_settle_iou_respects_iou_direction(client, db_session):
+    from app.models.account import Account
+    from app.models.iou import IOU, IOUStatus, IOUType
+
+    acc = Account(name="Corriente", account_type="checking", balance=10000)
+    db_session.add(acc)
+    db_session.flush()
+    i_owe = IOU(person_name="Luis", amount=2500, iou_type=IOUType.I_OWE, status=IOUStatus.PENDING)
+    they_owe = IOU(person_name="Ana", amount=1500, iou_type=IOUType.THEY_OWE, status=IOUStatus.PENDING)
+    db_session.add_all([i_owe, they_owe])
+    db_session.commit()
+
+    res_pay = client.post(f"/ious/{i_owe.id}/settle", json={"account_id": acc.id})
+    assert res_pay.status_code == 200
+    db_session.refresh(acc)
+    assert acc.balance == 7500
+
+    res_collect = client.post(f"/ious/{they_owe.id}/settle", json={"account_id": acc.id})
+    assert res_collect.status_code == 200
+    db_session.refresh(acc)
+    assert acc.balance == 9000
+
+
+def test_put_transaction_accepts_splits_payload(client, db_session):
+    from app.models.account import Account
+    from app.models.category import Category
+
+    acc = Account(name="Cuenta", account_type="checking", balance=50000)
+    cat_a = Category(name="Comida")
+    cat_b = Category(name="Hogar")
+    db_session.add_all([acc, cat_a, cat_b])
+    db_session.commit()
+
+    created = client.post("/transactions/", json={
+        "description": "Supermercado",
+        "amount": 10000,
+        "transaction_type": "expense",
+        "payment_method": "debit_card",
+        "account_id": acc.id,
+        "category_id": cat_a.id,
+    }).json()
+
+    updated = client.put(f"/transactions/{created['id']}", json={
+        "splits": [
+            {"amount": 6000, "category_id": cat_a.id, "description": "Víveres"},
+            {"amount": 4000, "category_id": cat_b.id, "description": "Limpieza"},
+        ],
+    })
+    assert updated.status_code == 200
+    body = updated.json()
+    assert len(body["splits"]) == 2
+    assert sum(item["amount"] for item in body["splits"]) == 10000
+
+
+def test_decrypt_value_with_status_never_treats_foreign_fernet_as_plaintext(monkeypatch):
+    from cryptography.fernet import Fernet
+    from app import security_config
+    from app.utils.crypto import decrypt_value_with_status
+
+    key_a = Fernet.generate_key().decode()
+    key_b = Fernet.generate_key().decode()
+    token_from_a = Fernet(key_a.encode()).encrypt(b"refresh-secret").decode()
+
+    monkeypatch.setattr(security_config, "ENCRYPTION_KEY", key_b)
+    plaintext, was_encrypted = decrypt_value_with_status(token_from_a)
+    assert plaintext == ""
+    assert was_encrypted is True

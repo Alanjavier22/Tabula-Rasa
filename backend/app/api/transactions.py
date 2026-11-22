@@ -143,7 +143,10 @@ def get_transactions(
 
 @router.get("/{transaction_id}", response_model=TransactionResponse, responses=TRANSACTION_ERROR_RESPONSES)
 def get_transaction(transaction_id: str, db: Session = Depends(get_db)):
-    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    transaction = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.is_deleted == False,
+    ).first()
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
     return transaction
@@ -155,7 +158,7 @@ def update_transaction(
     transaction: TransactionUpdate,
     db: Session = Depends(get_db)
 ):
-    update_data = transaction.model_dump(exclude_unset=True)
+    update_data = transaction.model_dump(exclude_unset=True, exclude={'splits'})
     splits_data = [split.model_dump() for split in transaction.splits] if transaction.splits is not None else None
     
     return update_transaction_with_splits(db, transaction_id, update_data, splits_data)
@@ -234,12 +237,14 @@ def cleanup_duplicate_transactions(db: Session = Depends(get_db)):
         from app.models.transaction import Transaction
         from app.services.balance import recalculate_account_balance
         
-        # Find duplicates by grouping on (amount, date, account_id, transaction_type)
+        # Find duplicates by grouping on (amount, date, account_id, transaction_type, normalized description)
+        norm_desc = func.lower(func.trim(Transaction.description))
         duplicates_query = db.query(
             Transaction.amount,
             func.date(Transaction.date).label('date'),
             Transaction.account_id,
             Transaction.transaction_type,
+            norm_desc.label('norm_desc'),
             func.count(Transaction.id).label('count')
         ).filter(
             Transaction.is_deleted == False
@@ -247,7 +252,8 @@ def cleanup_duplicate_transactions(db: Session = Depends(get_db)):
             Transaction.amount,
             func.date(Transaction.date),
             Transaction.account_id,
-            Transaction.transaction_type
+            Transaction.transaction_type,
+            norm_desc,
         ).having(
             func.count(Transaction.id) > 1
         ).all()
@@ -256,14 +262,15 @@ def cleanup_duplicate_transactions(db: Session = Depends(get_db)):
         affected_accounts = set()
         
         for dup in duplicates_query:
-            amount, date, account_id, txn_type, _ = dup
+            amount, date, account_id, txn_type, desc_key, _ = dup
             
-            # Get all transactions matching this fingerprint
+            # Get all transactions matching this duplicate key
             matching_txs = db.query(Transaction).filter(
                 Transaction.amount == amount,
                 func.date(Transaction.date) == date,
                 Transaction.account_id == account_id,
                 Transaction.transaction_type == txn_type,
+                norm_desc == desc_key,
                 Transaction.is_deleted == False
             ).order_by(Transaction.created_at).all()
             

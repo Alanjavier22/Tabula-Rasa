@@ -17,12 +17,6 @@ from app.services.privacy import mask_description
 
 logger = logging.getLogger(__name__)
 
-# Configure UTF-8 encoding for stdout to handle emojis on Windows
-if sys.platform == 'win32':
-    import codecs
-    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
-
 
 # AI bypass flag for cold load migration
 AI_ENABLED = os.getenv("AI_ENABLED", "true").lower() == "true"
@@ -249,7 +243,10 @@ def get_heuristic_category(description: str, db) -> Optional[str]:
     
     for pattern, cat_name in rules.items():
         if pattern in desc:
-            cat = db.query(Category).filter(Category.name.ilike(f"%{cat_name}%")).first()
+            cat = db.query(Category).filter(
+                Category.name.ilike(f"%{cat_name}%"),
+                Category.is_deleted == False,
+            ).first()
             return str(cat.id) if cat else None
     return None
 
@@ -424,12 +421,15 @@ def categorize_batch(transactions: list, db_session=None, throttle: bool = True)
         results, pending_ai = _categorize_locally(transactions, db)
         if not pending_ai or not AI_ENABLED:
             if not AI_ENABLED and pending_ai:
-                otros_cat = db.query(Category).filter(Category.name == "Otros (🔄)").first()
+                otros_cat = db.query(Category).filter(
+                    Category.name == "Otros (🔄)",
+                    Category.is_deleted == False,
+                ).first()
                 fallback_id = str(otros_cat.id) if otros_cat else "unknown"
                 _assign_fallback_categories(results, pending_ai, fallback_id)
             return results
 
-        categories = db.query(Category).all()
+        categories = db.query(Category).filter(Category.is_deleted == False).all()
         if not categories:
             return results
 
