@@ -1,4 +1,8 @@
-import { importFailure } from '../utils/importOutcome';
+import {
+  getSelectedTransactionsOrOutcome,
+  importFailure,
+  markNonDuplicateSelected,
+} from '../utils/importOutcome';
 import ImportResult from './common/ImportResult';
 import Modal from './common/Modal';
 import { useState, useEffect } from 'react';
@@ -85,13 +89,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
 
       const parsed = response.data.parsed_data;
       if (parsed.transactions && parsed.transactions.length > 0) {
-        // Seleccionamos por defecto las que NO son duplicadas
-        const txsWithSelection = parsed.transactions.map((tx) => ({
-          ...tx,
-          selected: !tx.is_duplicate
-        }));
-
-        setExtractedTransactions(txsWithSelection);
+        setExtractedTransactions(markNonDuplicateSelected(parsed.transactions));
 
         // Extraemos los metadatos globales
         setAccountMetadata({
@@ -113,9 +111,10 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
   const handleSave = async () => {
     if (!importLogId) return;
 
-    const selectedTransactions = extractedTransactions.filter(t => t.selected);
-    if (selectedTransactions.length === 0) {
-      setResult({ success: false, message: 'Selecciona al menos una transacción para importar.' });
+    const { selected: selectedTransactions, error: selectionError } =
+      getSelectedTransactionsOrOutcome(extractedTransactions);
+    if (selectionError) {
+      setResult(selectionError);
       return;
     }
 

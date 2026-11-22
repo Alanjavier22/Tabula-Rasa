@@ -1,10 +1,8 @@
-import FormActions from '../common/FormActions';
-import Modal from '../common/Modal';
-import { useId, type Dispatch, type SetStateAction } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, DollarSign, ShieldCheck, CheckCircle2, Calendar, AlignLeft, X } from 'lucide-react';
+import { type Dispatch, type SetStateAction } from 'react';
+import { Layers, DollarSign, ShieldCheck, CheckCircle2, Calendar, AlignLeft } from 'lucide-react';
 import type { CreditCardStatement } from '../../types';
 import Select from '../common/Select';
+import AccountModalShell from './AccountModalShell';
 
 export interface StatementFormData {
   account_id: string;
@@ -30,32 +28,17 @@ interface AccountStatementModalProps {
 }
 
 const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editingStatement, saving, onClose, onSubmit }: AccountStatementModalProps) => {
-  const formId = useId();
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <Modal onClose={onClose} preventClose={saving} label={'Estado de cuenta'}>
-          <motion.div
-            initial={false}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-surface border border-line rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col "
-          >
-            {/* Header */}
-            <div className="relative flex items-center justify-between p-6 md:p-7 border-b border-line shrink-0">
-
-              <h2 className="text-xl font-black text-primary tracking-tight flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-accent-soft flex items-center justify-center border border-line">
-                  <Layers className="w-5 h-5 text-accent-strong" />
-                </div>
-                {editingStatement ? 'Editar Estado' : 'Nuevo Estado'}
-              </h2>
-              <button aria-label="Cerrar diálogo" disabled={saving} onClick={onClose} className="w-10 h-10 rounded-full hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all border border-transparent hover:border-line disabled:opacity-50">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form id={formId} onSubmit={onSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
+    <AccountModalShell
+      isOpen={isOpen}
+      label="Estado de cuenta"
+      title={editingStatement ? 'Editar Estado' : 'Nuevo Estado'}
+      icon={<Layers className="w-5 h-5 text-accent-strong" />}
+      saving={saving}
+      submitLabel="Registrar Corte"
+      onClose={onClose}
+      onSubmit={onSubmit}
+    >
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -215,14 +198,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                   placeholder="Opcional..."
                 />
               </div>
-            </form>
-
-            {/* Footer */}
-            <FormActions saving={saving} onClose={onClose} formId={formId} submitLabel={'Registrar Corte'} />
-          </motion.div>
-        </Modal>
-      )}
-    </AnimatePresence>
+    </AccountModalShell>
   );
 };
 
