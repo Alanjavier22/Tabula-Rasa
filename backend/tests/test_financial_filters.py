@@ -554,3 +554,166 @@ def test_recalculate_stale_snapshots_background_clears_is_stale(db_session, monk
     assert updated == 1
     db_session.refresh(snap)
     assert bool(snap.is_stale) is False
+
+
+def test_auth_last_sync_throttling_and_health_security_headers(client, db_session):
+    from datetime import timedelta
+    import jwt as pyjwt
+    from starlette.requests import Request
+    from app.api.auth import get_current_device
+    from app.models.device import PairedDevice
+    from app.security_config import ALGORITHM, AUTH_COOKIE_NAME, JWT_SECRET
+
+    health_res = client.get("/health")
+    assert health_res.status_code == 200
+    assert health_res.headers.get("x-content-type-options") == "nosniff"
+    assert health_res.headers.get("x-frame-options") == "DENY"
+
+    device = PairedDevice(device_name="Test-PC", is_active=True, last_sync=None)
+    db_session.add(device)
+    db_session.commit()
+
+    token = pyjwt.encode({"sub": device.id}, JWT_SECRET, algorithm=ALGORITHM)
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/",
+        "headers": [(b"cookie", f"{AUTH_COOKIE_NAME}={token}".encode())],
+    }
+    req = Request(scope)
+
+    resolved_first = get_current_device(req, db_session)
+    assert resolved_first.id == device.id
+    first_sync = resolved_first.last_sync
+    assert first_sync is not None
+
+    resolved_second = get_current_device(req, db_session)
+    assert resolved_second.last_sync == first_sync
+
+    stale_time = datetime.now(timezone.utc) - timedelta(minutes=10)
+    device.last_sync = stale_time
+    db_session.commit()
+    resolved_third = get_current_device(req, db_session)
+    assert resolved_third.last_sync > stale_time.replace(tzinfo=None)
+
+
+def test_google_oauth_callback_and_drive_backup_helpers(client, db_session, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    from app.models.config import Config
+    from app.utils import backup_gdrive
+    from app.utils.crypto import encrypt_value
+
+    db_session.add_all([
+        Config(key="GOOGLE_DRIVE_CLIENT_ID", value="cid-oauth", value_type="string", is_public=False),
+        Config(key="GOOGLE_DRIVE_CLIENT_SECRET", value=encrypt_value("csec-oauth"), value_type="string", is_public=False),
+    ])
+    db_session.commit()
+
+    def fake_post_error(*_args, **_kwargs):
+        return SimpleNamespace(json=lambda: {"error": "access_denied", "error_description": "<script>bad</script>"})
+
+    monkeypatch.setattr("app.api.backup.requests.post", fake_post_error)
+    err_res = client.get("/backup/google/callback?code=c1")
+    assert err_res.status_code == 200
+    assert "<script>" not in err_res.text
+    assert "&lt;script&gt;bad&lt;/script&gt;" in err_res.text
+
+    def fake_post_no_rt(*_args, **_kwargs):
+        return SimpleNamespace(json=lambda: {"access_token": "at-only"})
+
+    monkeypatch.setattr("app.api.backup.requests.post", fake_post_no_rt)
+    no_rt_res = client.get("/backup/google/callback?code=c2")
+    assert no_rt_res.status_code == 200
+    assert "No se recibió" in no_rt_res.text
+
+    def fake_post_ok(*_args, **_kwargs):
+        return SimpleNamespace(json=lambda: {"refresh_token": "rt-fresh-secret"})
+
+    monkeypatch.setattr("app.api.backup.requests.post", fake_post_ok)
+    ok_res = client.get("/backup/google/callback?code=c3")
+    assert ok_res.status_code == 200
+    assert "Autorización Exitosa" in ok_res.text
+    saved = db_session.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
+    assert saved is not None and str(saved.value).startswith("gAAAAAB")
+
+    def fake_post_boom(*_args, **_kwargs):
+        raise RuntimeError("sensitive-boom-detail")
+
+    monkeypatch.setattr("app.api.backup.requests.post", fake_post_boom)
+    boom_res = client.get("/backup/google/callback?code=c4")
+    assert boom_res.status_code == 500
+    assert "sensitive-boom-detail" not in boom_res.text
+
+    db_file = tmp_path / "finance.db"
+    db_file.write_text("sqlite", encoding="utf-8")
+    monkeypatch.setattr(backup_gdrive, "_DB_PATH", str(db_file))
+    monkeypatch.setattr(backup_gdrive, "get_google_drive_credentials", lambda: ("cid", "csec", "rt"))
+    monkeypatch.setattr(backup_gdrive, "Credentials", lambda **_kw: MagicMock(refresh=MagicMock()))
+    monkeypatch.setattr("google.auth.transport.requests.Request", lambda: None)
+
+    fake_files = MagicMock()
+    fake_files.get.return_value.execute.return_value = {"name": "../../tabula_rasa_backup_test.sqlite3"}
+    fake_files.get_media.return_value = b"stream"
+    fake_files.list.return_value.execute.return_value = {
+        "files": [
+            {"id": f"id-{i}", "name": f"tabula_rasa_backup_{i}.sqlite3"}
+            for i in range(backup_gdrive.BACKUP_ROTATION_COUNT + 1)
+        ]
+    }
+    fake_drive = MagicMock()
+    fake_drive.files.return_value = fake_files
+    monkeypatch.setattr(backup_gdrive, "build", lambda *_a, **_kw: fake_drive)
+    monkeypatch.setattr(
+        backup_gdrive.googleapiclient.http,
+        "MediaIoBaseDownload",
+        lambda fh, _req: SimpleNamespace(next_chunk=lambda: (fh.write(b"sqlite") and None, True)),
+    )
+
+    downloaded = backup_gdrive.download_backup_from_drive("b-1")
+    assert downloaded is not None
+    assert "tabula_rasa_backup_test.sqlite3" in downloaded
+
+    backup_gdrive.rotate_google_drive_backups(fake_drive, "folder-1")
+    fake_files.delete.assert_called_once_with(fileId="id-0")
+
+
+def test_goal_progress_and_subscription_payment_fingerprints(client, db_session):
+    from app.models.account import Account
+    from app.models.goal import Goal
+    from app.models.subscription import Subscription, SubscriptionFrequency
+
+    acc = Account(name="Corriente Sub", account_type="checking", balance=50000)
+    cat = Category(name="Streaming")
+    goal = Goal(name="Viaje", target_amount=20000, current_amount=0)
+    db_session.add_all([acc, cat, goal])
+    db_session.flush()
+
+    sub = Subscription(
+        name="Musica",
+        amount=1200,
+        frequency=SubscriptionFrequency.MONTHLY,
+        account_id=acc.id,
+        category_id=cat.id,
+        is_active=True,
+    )
+    db_session.add(sub)
+    db_session.commit()
+
+    pay_res = client.post(f"/subscriptions/{sub.id}/pay")
+    assert pay_res.status_code == 200
+
+    txn_res = client.post("/transactions/", json={
+        "description": "Aporte Viaje",
+        "amount": 5000,
+        "transaction_type": "expense",
+        "payment_method": "transfer",
+        "account_id": acc.id,
+        "goal_id": goal.id,
+    })
+    assert txn_res.status_code == 200
+
+    recalc_res = client.post("/goals/recalculate-progress")
+    assert recalc_res.status_code == 200
+    db_session.refresh(goal)
+    assert goal.current_amount == 5000

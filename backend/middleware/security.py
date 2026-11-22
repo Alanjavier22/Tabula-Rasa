@@ -56,7 +56,7 @@ class SecurityMiddleware:
 
         # Exempt public endpoints
         if path in self.EXEMPT_PATHS:
-            return await call_next(request)
+            return _apply_security_headers(await call_next(request))
 
         # The application is intentionally local-only for now. The old
         # multi-device pairing flow has been removed, so LAN requests must not
