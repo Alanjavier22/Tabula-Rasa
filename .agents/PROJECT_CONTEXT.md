@@ -1,6 +1,6 @@
 # Tabula Rasa — contexto operativo del proyecto
 
-Última actualización: 2026-10-31
+Última actualización: 2026-11-22
 
 Este archivo es la fuente operativa única para reanudar el trabajo. Los documentos de trabajo `TECH_DEBT.md` y `PLAN_LLM.md` fueron retirados del nivel raíz después de consolidar sus decisiones vigentes aquí; `HISTORIAL.md` conserva la cronología del proyecto.
 
@@ -37,11 +37,11 @@ El proyecto está listo para continuar. No hay fallos bloqueantes conocidos.
 
 Verificaciones vigentes:
 
-- Backend: `130 passed`, sin warnings de pytest.
+- Backend: `131 passed`, sin warnings de pytest.
 - Dependencias backend: `pip check` sin dependencias rotas.
 - Esquema: `alembic check` sin operaciones nuevas.
 - Frontend: TypeScript, lint con `--max-warnings 0` y build de producción correctos.
-- Frontend: `npm test` verifica 15 regresiones: estados del disponible, filtros combinados y fecha final inclusiva, calendario sin conversión horaria, categorías ordenadas, rutas compartidas, formatos temporales de gráficos, errores de importación y contraste AA de textos en ambos temas. Usa Vite SSR con caché independiente del servidor de desarrollo; no consulta el backend ni Gemini.
+- Frontend: `npm test` verifica 16 regresiones: estados del disponible, filtros combinados y fecha final inclusiva, calendario sin conversión horaria, categorías ordenadas, rutas compartidas, formatos temporales de gráficos, errores de importación, cálculo unificado de liquidez/deuda de tarjetas y contraste AA de textos en ambos temas. Usa Vite SSR con caché independiente del servidor de desarrollo; no consulta el backend ni Gemini.
 - Runtime: `/health` devuelve `healthy` y la base devuelve `healthy`.
 - Integridad local revisada: 197 transacciones, 0 fingerprints nulos y 0 fingerprints duplicados.
 
@@ -151,5 +151,6 @@ El usuario confirmó que el producto es web de escritorio. Se priorizan ventanas
 
 - El PR #68 pasó de 494 hallazgos abiertos a 0; SonarCloud midió 94,1 % de cobertura del código nuevo y 0,0 % de duplicación, con Quality Gate aprobado. El frontend conserva la exclusión de cobertura preexistente porque sus pruebas SSR aún no generan LCOV; no se ampliaron exclusiones para resolver los hallazgos.
 - La cascada CSS se consolidó, se retiraron las prioridades forzadas y el desplazamiento suave solo se activa sin preferencia de movimiento reducido. Se compararon estilos de las once rutas en claro y cuatro rutas en oscuro.
-- Modal usa dialog nativo para foco, fondo inerte y apilado. ActionMenu conserva Escape; FormActions, FormModalFrame e ImportResult comparten controles de formularios e importaciones. Los gráficos comparten chartFormatters.
-- La suite backend incluye nueve regresiones financieras nuevas con SQLite aislado; no se consultó Gemini durante la revisión. Las validaciones vigentes son 130 pruebas backend, 15 frontend, Alembic, lint y build.
+- Modal usa dialog nativo con `closedby="any"` y contención de scroll en `::backdrop` (sin alterar `body.overflow`) para foco, fondo inerte y apilado. ActionMenu cierra con Escape, clic fuera y selección de opción; FormActions, FormModalFrame e ImportResult comparten controles de formularios e importaciones. Los gráficos comparten chartFormatters y las métricas de cuentas comparten `utils/accountMetrics.ts`.
+- La suite backend incluye regresiones financieras para filtros fiscales, anomalías, deuda y exclusión de transacciones internas en el dashboard (`131 passed`); no se consultó Gemini durante la revisión. Las validaciones vigentes son 131 pruebas backend, 16 frontend, Alembic, lint y build.
+- La skill `modern-web-guidance` quedó instalada localmente en `C:\Users\Alan\.codex\skills\modern-web-guidance` como referencia estándar para cambios de HTML, CSS y UI de cliente.

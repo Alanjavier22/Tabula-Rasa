@@ -6,6 +6,8 @@ Para contexto histórico y decisiones anteriores, consultar `HISTORIAL.md`.
 
 Para preguntas de arquitectura, relaciones entre archivos o flujo de datos, usar el grafo Graphify externo en `C:\Users\Alan\Documents\tabularasa_main\graphify-out`. Consultar primero su `graph.json`/`GRAPH_REPORT.md`; regenerarlo después de refactors estructurales con `graphify extract C:\Users\Alan\Documents\tabularasa_main\Tabula-Rasa --out C:\Users\Alan\Documents\tabularasa_main --code-only --force seguido de `graphify cluster-only C:\Users\Alan\Documents\tabularasa_main --no-label`.
 
+Para cambios de HTML, CSS o UI de cliente en el frontend, consultar la skill `modern-web-guidance` instalada en `C:\Users\Alan\.codex\skills\modern-web-guidance` antes de introducir patrones heredados o manipulación manual del DOM/scroll.
+
 Reglas de continuidad:
 
 - Preservar cambios existentes y revisar `git status` antes de editar.
