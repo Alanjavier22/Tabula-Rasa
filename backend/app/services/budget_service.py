@@ -9,6 +9,63 @@ from typing import Optional, Any, cast
 import calendar
 
 from app.models.budget import Budget
+from sqlalchemy.orm import Session
+
+
+def compute_budget_spent(db: Session, budget: Budget) -> int:
+    """Compute actual spending for a budget's category and month from active expenses and splits."""
+    if not budget.category_id:
+        return cast(int, budget.spent or 0)
+
+    from app.models.transaction import Transaction
+    from app.models.transaction_split import TransactionSplit
+    from sqlalchemy import func
+
+    budget_year = cast(int, budget.year)
+    budget_month = cast(int, budget.month)
+    start_date = datetime(budget_year, budget_month, 1, tzinfo=timezone.utc)
+    if budget_month == 12:
+        end_date = datetime(budget_year + 1, 1, 1, tzinfo=timezone.utc)
+    else:
+        end_date = datetime(budget_year, budget_month + 1, 1, tzinfo=timezone.utc)
+
+    split_tx_ids = (
+        db.query(TransactionSplit.transaction_id)
+        .filter(TransactionSplit.is_deleted == False)
+        .distinct()
+    )
+
+    direct_total = (
+        db.query(func.coalesce(func.sum(Transaction.amount), 0))
+        .filter(
+            Transaction.is_deleted == False,
+            Transaction.is_internal == False,
+            Transaction.transaction_type == "expense",
+            Transaction.category_id == budget.category_id,
+            Transaction.date >= start_date,
+            Transaction.date < end_date,
+            Transaction.id.notin_(split_tx_ids),
+        )
+        .scalar()
+        or 0
+    )
+
+    split_total = (
+        db.query(func.coalesce(func.sum(TransactionSplit.amount), 0))
+        .join(Transaction, Transaction.id == TransactionSplit.transaction_id)
+        .filter(
+            TransactionSplit.is_deleted == False,
+            Transaction.is_deleted == False,
+            Transaction.is_internal == False,
+            Transaction.transaction_type == "expense",
+            TransactionSplit.category_id == budget.category_id,
+            Transaction.date >= start_date,
+            Transaction.date < end_date,
+        )
+        .scalar()
+        or 0
+    )
+    return int(direct_total) + int(split_total)
 
 
 # ---------------------------------------------------------------------------
@@ -23,7 +80,21 @@ _OVER_PACING_THRESHOLD = Decimal("1.05")   # 5 % above expected (Decimal for fra
 # Core calculation
 # ---------------------------------------------------------------------------
 
-def compute_budget_pacing(budget: Budget, now: Optional[datetime] = None) -> dict:
+def _classify_budget_pacing(spent: int, expected_spend: int) -> tuple[bool, str]:
+    if expected_spend == 0:
+        return (True, "over_pacing") if spent > 0 else (False, "on_track")
+    if Decimal(spent) > Decimal(expected_spend) * _OVER_PACING_THRESHOLD:
+        return True, "over_pacing"
+    if Decimal(spent) < Decimal(expected_spend) * Decimal("0.95"):
+        return False, "under_pacing"
+    return False, "on_track"
+
+
+def compute_budget_pacing(
+    budget: Budget,
+    now: Optional[datetime] = None,
+    spent_override: Optional[int] = None,
+) -> dict:
     """
     Compute pacing metrics for a single budget row.
 
@@ -32,13 +103,13 @@ def compute_budget_pacing(budget: Budget, now: Optional[datetime] = None) -> dic
         expected_spend             (Decimal)
         is_over_pacing             (bool)
         pacing_status              (str: "over_pacing" | "under_pacing" | "on_track")
-        remaining                  (Decimal — budget.amount - budget.spent)
+        remaining                  (Decimal — budget.amount - spent)
     """
     if now is None:
         now = datetime.now(timezone.utc)
 
     amount = budget.amount
-    spent  = budget.spent
+    spent = spent_override if spent_override is not None else budget.spent
 
     # --- month progress ---------------------------------------------------
     budget_year  = cast(int, budget.year)
@@ -68,24 +139,7 @@ def compute_budget_pacing(budget: Budget, now: Optional[datetime] = None) -> dic
         ))
 
     # --- pacing status ----------------------------------------------------
-    if expected_spend == 0:
-        # Nothing expected yet (future month or zero-amount budget)
-        if spent > 0:
-            is_over_pacing = True
-            pacing_status = "over_pacing"
-        else:
-            is_over_pacing = False
-            pacing_status = "on_track"
-    else:
-        if Decimal(cast(Any, spent)) > Decimal(expected_spend) * _OVER_PACING_THRESHOLD:
-            is_over_pacing = True
-            pacing_status = "over_pacing"
-        elif Decimal(cast(Any, spent)) < Decimal(expected_spend) * Decimal("0.95"):
-            is_over_pacing = False
-            pacing_status = "under_pacing"
-        else:
-            is_over_pacing = False
-            pacing_status = "on_track"
+    is_over_pacing, pacing_status = _classify_budget_pacing(int(spent or 0), expected_spend)
 
     remaining = amount - spent
 
@@ -98,18 +152,23 @@ def compute_budget_pacing(budget: Budget, now: Optional[datetime] = None) -> dic
     }
 
 
-def enrich_budget_response(budget: Budget, now: Optional[datetime] = None) -> dict:
+def enrich_budget_response(
+    budget: Budget,
+    now: Optional[datetime] = None,
+    db: Optional[Session] = None,
+) -> dict:
     """
     Build a full budget response dict including pacing fields.
     This is the single source of truth that every endpoint should use.
     """
-    pacing = compute_budget_pacing(budget, now)
+    spent = compute_budget_spent(db, budget) if db is not None else budget.spent
+    pacing = compute_budget_pacing(budget, now, spent_override=spent)
 
     return {
         "id": budget.id,
         "name": budget.name,
         "amount": budget.amount,
-        "spent": budget.spent,
+        "spent": spent,
         "month": budget.month,
         "year": budget.year,
         "category_id": budget.category_id,

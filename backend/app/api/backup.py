@@ -358,7 +358,9 @@ def google_oauth_callback(code: str, db: Session = Depends(get_db)):
     """
     Callback for Google OAuth2. Exchanges authorization code for tokens manually.
     """
+    import html
     from app.models.config import Config
+    from app.utils.crypto import decrypt_value, encrypt_value
     
     client_id_cfg = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_ID").first()
     client_secret_cfg = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_SECRET").first()
@@ -367,23 +369,25 @@ def google_oauth_callback(code: str, db: Session = Depends(get_db)):
         return HTMLResponse(content="Error: Client ID o Client Secret no configurados.")
 
     redirect_uri = "http://localhost:8001/backup/google/callback"
+    client_secret_plain = decrypt_value(str(client_secret_cfg.value or ""))
     
     try:
         token_url = "https://oauth2.googleapis.com/token"
         data = {
             "code": code,
             "client_id": client_id_cfg.value,
-            "client_secret": client_secret_cfg.value,
+            "client_secret": client_secret_plain,
             "redirect_uri": redirect_uri,
             "grant_type": "authorization_code"
         }
         
-        response = requests.post(token_url, data=data)
+        response = requests.post(token_url, data=data, timeout=15)
         tokens = response.json()
         
         if "error" in tokens:
             logger.error(f"[GOOGLE_AUTH] Error from Google: {tokens}")
-            return HTMLResponse(content=f"Error de Google: {tokens.get('error_description', tokens['error'])}")
+            raw_error = str(tokens.get('error_description', tokens['error']))
+            return HTMLResponse(content=f"Error de Google: {html.escape(raw_error)}")
             
         refresh_token = tokens.get("refresh_token")
         
@@ -421,6 +425,6 @@ def google_oauth_callback(code: str, db: Session = Depends(get_db)):
                 </body>
             </html>
         """)
-    except Exception as e:
+    except Exception:
         logger.exception("[GOOGLE_AUTH] Error")  # pragma: no cover
-        return HTMLResponse(content=f"Error interno: {str(e)}")
+        return HTMLResponse(content="Error interno al procesar la autorización de Google Drive.", status_code=500)

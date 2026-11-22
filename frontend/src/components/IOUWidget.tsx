@@ -65,6 +65,10 @@ const IOUWidget = () => {
       void queryClient.invalidateQueries({ queryKey: ['pendingIOUs'] });
       void queryClient.invalidateQueries({ queryKey: ['accounts'] });
       void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+      void queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      void queryClient.invalidateQueries({ queryKey: ['netWorth'] });
+      void queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
     } catch (error) {
       console.error('Error settling IOU:', error);
     } finally {

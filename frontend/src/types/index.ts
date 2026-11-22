@@ -105,11 +105,18 @@ export type StatementPayload = Partial<Omit<CreditCardStatement, 'payment_due_da
 // El backend acepta null explícito en estos campos para desvincularlos
 // (Transaction los tipa sin null porque en lectura, si la transacción ya
 // tiene categoría/cuenta/tipo de gasto, siempre vienen presentes).
-export type TransactionPayload = Partial<Omit<Transaction, 'category_id' | 'account_id' | 'goal_id' | 'expense_type'>> & {
+export interface TransactionSplitPayload {
+  amount: Cents;
+  category_id?: string | null;
+  description?: string | null;
+}
+
+export type TransactionPayload = Partial<Omit<Transaction, 'category_id' | 'account_id' | 'goal_id' | 'expense_type' | 'splits'>> & {
   category_id?: string | null;
   account_id?: string | null;
   goal_id?: string | null;
   expense_type?: ExpenseType | null;
+  splits?: TransactionSplitPayload[];
 };
 
 export interface PaymentAlert {

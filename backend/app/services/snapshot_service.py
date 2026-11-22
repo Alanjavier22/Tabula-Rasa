@@ -143,6 +143,7 @@ def _persist_snapshot(
         existing.net_worth = cast(Any, net_worth)
         existing.snapshot_date = cast(Any, snapshot_date)
         existing.metadata_json = cast(Any, metadata_json)
+        existing.is_stale = cast(Any, False)
         if lock:
             existing.is_locked = cast(Any, True)
         db.commit()
@@ -252,7 +253,8 @@ def recalculate_stale_snapshots(db: Session):
     Finds all stale snapshots and recalculates them one by one.
     """
     stale_snapshots = db.query(NetWorthSnapshot).filter(
-        NetWorthSnapshot.is_stale == True
+        NetWorthSnapshot.is_stale == True,
+        NetWorthSnapshot.is_deleted == False,
     ).order_by(NetWorthSnapshot.year.asc(), NetWorthSnapshot.month.asc()).all()
     
     updated_count = 0
@@ -263,3 +265,14 @@ def recalculate_stale_snapshots(db: Session):
         updated_count += 1
     
     return updated_count
+
+
+def recalculate_stale_snapshots_background() -> int:
+    """Run stale snapshot recalculation with an independent SessionLocal for BackgroundTasks."""
+    from database import SessionLocal
+
+    bg_db = SessionLocal()
+    try:
+        return recalculate_stale_snapshots(bg_db)
+    finally:
+        bg_db.close()

@@ -97,10 +97,13 @@ def get_snapshot_by_month_year(month: int, year: int, db: Session = Depends(get_
 
 @router.delete("/{snapshot_id}", responses=NOT_FOUND_RESPONSE)
 def delete_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
-    snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.id == snapshot_id).first()
+    snapshot = db.query(NetWorthSnapshot).filter(
+        NetWorthSnapshot.id == snapshot_id,
+        NetWorthSnapshot.is_deleted == False,
+    ).first()
     if not snapshot:
         raise HTTPException(status_code=404, detail=SNAPSHOT_NOT_FOUND)
-    db.delete(snapshot)
+    snapshot.is_deleted = cast(Any, True)
     db.commit()
     return {"message": "Snapshot deleted successfully"}
 
@@ -108,7 +111,10 @@ def delete_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
 @router.post("/{snapshot_id}/analyze", responses=NOT_FOUND_RESPONSE)
 def analyze_month(snapshot_id: str, db: Session = Depends(get_db)):
     """Analyze a month's snapshot compared to the previous month using Gemini AI."""
-    snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.id == snapshot_id).first()
+    snapshot = db.query(NetWorthSnapshot).filter(
+        NetWorthSnapshot.id == snapshot_id,
+        NetWorthSnapshot.is_deleted == False,
+    ).first()
     if not snapshot:
         raise HTTPException(status_code=404, detail=SNAPSHOT_NOT_FOUND)
 
@@ -116,7 +122,9 @@ def analyze_month(snapshot_id: str, db: Session = Depends(get_db)):
     prev_year = snapshot.year if snapshot.month > 1 else snapshot.year - 1
 
     previous_snapshot = db.query(NetWorthSnapshot).filter(
-        NetWorthSnapshot.month == prev_month, NetWorthSnapshot.year == prev_year
+        NetWorthSnapshot.month == prev_month,
+        NetWorthSnapshot.year == prev_year,
+        NetWorthSnapshot.is_deleted == False,
     ).first()
 
     if not previous_snapshot:
@@ -225,7 +233,10 @@ def reconcile_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
 @router.post("/{snapshot_id}/lock", responses=NOT_FOUND_RESPONSE)
 def lock_snapshot(snapshot_id: str, db: Session = Depends(get_db)):
     """Manually lock a snapshot to prevent any further changes."""
-    snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.id == snapshot_id).first()
+    snapshot = db.query(NetWorthSnapshot).filter(
+        NetWorthSnapshot.id == snapshot_id,
+        NetWorthSnapshot.is_deleted == False,
+    ).first()
     if not snapshot:
         raise HTTPException(status_code=404, detail=SNAPSHOT_NOT_FOUND)
     

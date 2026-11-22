@@ -6,6 +6,7 @@ from database import get_db
 from app.api.auth import get_current_device
 from app.models.config import Config
 from app.services.gemini_gateway import GEMINI_CONFIG_KEY, encrypt_gemini_key
+from app.utils.crypto import encrypt_value
 from pydantic import BaseModel, ConfigDict
 
 CONFIG_NOT_FOUND = "Config not found"
@@ -14,7 +15,11 @@ CONFIG_ERROR_RESPONSES = {
     400: {"description": "Configuration request is invalid."},
     500: {"description": "Configuration operation failed."},
 }
-SENSITIVE_CONFIG_KEYS = {GEMINI_CONFIG_KEY}
+SENSITIVE_CONFIG_KEYS = {
+    GEMINI_CONFIG_KEY,
+    "GOOGLE_DRIVE_CLIENT_SECRET",
+    "GOOGLE_DRIVE_REFRESH_TOKEN",
+}
 MASKED_CONFIG_VALUE = "********"
 
 router = APIRouter(
@@ -70,14 +75,25 @@ def _config_response(config: Config) -> dict[str, Any]:
     }
 
 
-def _prepare_config_value(config_key: str, value: Optional[str]) -> Optional[str]:
-    if config_key != GEMINI_CONFIG_KEY or value is None:
-        return value
-    if value == MASKED_CONFIG_VALUE:
+def _prepare_config_value(
+    config_key: str,
+    value: Optional[str],
+    is_public: Optional[bool] = True,
+) -> Optional[str]:
+    if value is None:
         return None
-    if not value.strip():
-        raise HTTPException(status_code=400, detail="Gemini API Key no puede estar vacía")
-    return encrypt_gemini_key(value)
+    is_sensitive = config_key in SENSITIVE_CONFIG_KEYS or is_public is False
+    if is_sensitive and value == MASKED_CONFIG_VALUE:
+        return None
+    if config_key == GEMINI_CONFIG_KEY:
+        if not value.strip():
+            raise HTTPException(status_code=400, detail="Gemini API Key no puede estar vacía")
+        return encrypt_gemini_key(value)
+    if config_key in SENSITIVE_CONFIG_KEYS:
+        if not value.strip():
+            raise HTTPException(status_code=400, detail=f"{config_key} no puede estar vacío")
+        return encrypt_value(value)
+    return value
 
 
 @router.post("/", response_model=ConfigResponse, responses=CONFIG_ERROR_RESPONSES)
@@ -139,7 +155,11 @@ def update_config(
     
     update_data = config.model_dump(exclude_unset=True)
     if "value" in update_data:
-        prepared_value = _prepare_config_value(config_key, update_data["value"])
+        prepared_value = _prepare_config_value(
+            config_key,
+            update_data["value"],
+            is_public=update_data.get("is_public", db_config.is_public),
+        )
         if prepared_value is None and update_data["value"] == MASKED_CONFIG_VALUE:
             update_data.pop("value")
         else:
@@ -230,15 +250,16 @@ def set_google_drive_credentials(credentials: GoogleDriveCredentials, db: Sessio
         )
         db.add(client_id_config)
     
-    # Client Secret
+    # Client Secret (encrypted at rest)
+    encrypted_client_secret = encrypt_value(credentials.client_secret)
     client_secret_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_SECRET").first()
     if client_secret_config:
-        client_secret_config.value = cast(Any, credentials.client_secret)
+        client_secret_config.value = cast(Any, encrypted_client_secret)
         client_secret_config.updated_at = cast(Any, datetime.now())
     else:
         client_secret_config = Config(
             key="GOOGLE_DRIVE_CLIENT_SECRET",
-            value=credentials.client_secret,
+            value=encrypted_client_secret,
             value_type="string",
             description="Google Drive OAuth Client Secret",
             is_public=False
@@ -246,7 +267,6 @@ def set_google_drive_credentials(credentials: GoogleDriveCredentials, db: Sessio
         db.add(client_secret_config)
     
     # Refresh Token (encrypted at rest)
-    from app.utils.crypto import encrypt_value
     encrypted_refresh_token = encrypt_value(credentials.refresh_token)
     refresh_token_config = db.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
     if refresh_token_config:

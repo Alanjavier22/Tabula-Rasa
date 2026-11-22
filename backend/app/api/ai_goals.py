@@ -68,8 +68,8 @@ def get_smart_goal_recommendations(db: Annotated[Session, Depends(get_db)]):
         {
             "id": g.id,
             "name": g.name,
-            "target_amount": g.target_amount,
-            "current_amount": g.current_amount,
+            "target_amount_cents": g.target_amount,
+            "current_amount_cents": g.current_amount,
             "deadline": str(g.target_date) if g.target_date else "None"
         } for g in goals
     ]
@@ -82,8 +82,8 @@ def get_smart_goal_recommendations(db: Annotated[Session, Depends(get_db)]):
         "Eres un Optimizador de Metas Financieras. El usuario tiene un monto 'Safe-to-Spend' (dinero 100% libre de riesgo). "
         "Tu tarea es decidir si sugerir mover parte (o todo) de ese dinero a sus metas financieras activas para acelerarlas. "
         "IMPORTANTE: "
-        "1. Devuelve TODOS los montos en CENTAVOS (multiplica por 100 y quita decimales). "
-        "2. Para cada meta, calcula el monto restante: target_amount - current_amount. "
+        "1. Todos los montos de entrada (`target_amount_cents`, `current_amount_cents`, `Safe-to-Spend`) están expresados en CENTAVOS (enteros) y debes devolver `suggested_transfer_cents` y `total_suggested_cents` también en CENTAVOS enteros (sin multiplicar nuevamente por 100). "
+        "2. Para cada meta, calcula el monto restante en centavos: target_amount_cents - current_amount_cents. "
         "3. Nunca recomiendes más del monto restante para completar una meta. "
         "4. No excedas el monto 'Safe-to-Spend' total. Es mejor sugerir un % conservador (ej. 50% del sobrante). "
         "5. Sé conciso y orientado a datos en tus recomendaciones. "
@@ -91,7 +91,7 @@ def get_smart_goal_recommendations(db: Annotated[Session, Depends(get_db)]):
     )
 
     user_prompt = f"""
-    Safe-to-Spend actual: ${safe_to_spend_cents / 100:.2f}
+    Safe-to-Spend actual: {safe_to_spend_cents} centavos (${safe_to_spend_cents / 100:.2f})
     
     Metas Activas:
     {json.dumps(goals_data, indent=2)}

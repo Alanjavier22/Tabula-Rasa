@@ -18,10 +18,13 @@ def _enum_value(value: Any) -> str:
 
 def _date_key(value: Any) -> str:
     if isinstance(value, datetime):
-        return value.isoformat()
+        return value.date().isoformat()
     if isinstance(value, date):
         return value.isoformat()
-    return str(value or "")
+    raw = str(value or "").strip()
+    if len(raw) >= 10 and raw[4] == "-" and raw[7] == "-":
+        return raw[:10]
+    return raw
 
 
 def _normalize_description(value: str) -> str:
@@ -37,24 +40,26 @@ def calculate_transaction_fingerprint(
     account_id: Optional[str],
     running_balance: Optional[int] = None,
     occurrence_index: int = 0,
+    extra_key: str = "",
 ) -> str:
     """Build the canonical v2 fingerprint used by new write paths.
 
     ``occurrence_index`` preserves legitimate identical movements while keeping
     the database unique constraint useful for imported rows.
     """
-    payload = "|".join(
-        (
-            "v2",
-            account_id or "",
-            _date_key(date_value),
-            str(int(amount)),
-            _enum_value(transaction_type),
-            _normalize_description(description),
-            "" if running_balance is None else str(int(running_balance)),
-            str(occurrence_index),
-        )
-    )
+    parts = [
+        "v2",
+        account_id or "",
+        _date_key(date_value),
+        str(int(amount)),
+        _enum_value(transaction_type),
+        _normalize_description(description),
+        "" if running_balance is None else str(int(running_balance)),
+        str(occurrence_index),
+    ]
+    if extra_key:
+        parts.append(extra_key.strip().upper())
+    payload = "|".join(parts)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 

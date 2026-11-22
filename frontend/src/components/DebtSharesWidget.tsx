@@ -1,4 +1,5 @@
 import Modal from './common/Modal';
+import ConfirmDialog from './ConfirmDialog';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { statementsAPI } from '../services/api';
@@ -41,6 +42,10 @@ const DebtSharesWidget = ({
     status: 'pending',
   });
   const [adding, setAdding] = useState(false);
+  const [deleteShareConfirm, setDeleteShareConfirm] = useState<{
+    isOpen: boolean;
+    id: string | null;
+  }>({ isOpen: false, id: null });
 
   const allDebtShares: Array<DebtShare & { statement: CreditCardStatement }> =
     [];
@@ -59,6 +64,9 @@ const DebtSharesWidget = ({
     void queryClient.invalidateQueries({ queryKey: ['statements'] });
     void queryClient.invalidateQueries({ queryKey: ['accounts'] });
     void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+    void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+    void queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
+    void queryClient.invalidateQueries({ queryKey: ['paymentAlerts'] });
   };
 
   const handleAddDebtShare = () => {
@@ -125,10 +133,14 @@ const DebtSharesWidget = ({
     }
   };
 
-  const handleDeleteShare = async (shareId: string) => {
-    if (!confirm('¿Estás seguro de eliminar esta deuda compartida?')) return;
+  const handleDeleteShare = (shareId: string) => {
+    setDeleteShareConfirm({ isOpen: true, id: shareId });
+  };
+
+  const confirmDeleteShare = async () => {
+    if (!deleteShareConfirm.id) return;
     try {
-      await statementsAPI.deleteDebtShare(shareId);
+      await statementsAPI.deleteDebtShare(deleteShareConfirm.id);
       setToast({ message: 'Deuda compartida eliminada', type: 'success' });
       invalidateStatements();
     } catch (error) {
@@ -139,6 +151,8 @@ const DebtSharesWidget = ({
           'Error al eliminar deuda compartida',
         type: 'error',
       });
+    } finally {
+      setDeleteShareConfirm({ isOpen: false, id: null });
     }
   };
 
@@ -263,6 +277,14 @@ const DebtSharesWidget = ({
           onClose={() => setToast(null)}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={deleteShareConfirm.isOpen}
+        title="Eliminar deuda compartida"
+        message="¿Estás seguro de eliminar esta deuda compartida? Esta acción no se puede deshacer."
+        onConfirm={confirmDeleteShare}
+        onCancel={() => setDeleteShareConfirm({ isOpen: false, id: null })}
+      />
 
       {showAddModal.isOpen && (
         <Modal

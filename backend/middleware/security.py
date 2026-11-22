@@ -14,6 +14,13 @@ from app.security_config import get_allowed_origins
 # the browser-CSRF vector.
 ALLOWED_ORIGINS = set(get_allowed_origins())
 
+def _apply_security_headers(response):
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
+
+
 class SecurityMiddleware:
     """
     Middleware to enforce local-only access while multi-device pairing is
@@ -49,7 +56,7 @@ class SecurityMiddleware:
 
         # Exempt public endpoints
         if path in self.EXEMPT_PATHS:
-            return await call_next(request)
+            return _apply_security_headers(await call_next(request))
 
         # The application is intentionally local-only for now. The old
         # multi-device pairing flow has been removed, so LAN requests must not

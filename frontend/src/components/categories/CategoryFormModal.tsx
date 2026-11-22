@@ -1,7 +1,8 @@
+import FormActions from '../common/FormActions';
 import Modal from '../common/Modal';
-import type { Dispatch, SetStateAction } from 'react';
+import { useId, type Dispatch, type SetStateAction } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, Edit, X, AlignLeft, Palette, RefreshCw } from 'lucide-react';
+import { Tag, Edit, X, AlignLeft, Palette } from 'lucide-react';
 
 export interface CategoryFormData {
   name: string;
@@ -20,6 +21,7 @@ interface CategoryFormModalProps {
 }
 
 const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, onSubmit }: CategoryFormModalProps) => {
+  const formId = useId();
   const iconWrapperClass = isCreate
     ? 'w-10 h-10 rounded-xl bg-info-soft flex items-center justify-center border border-line'
     : 'w-10 h-10 rounded-xl bg-accent-soft flex items-center justify-center border border-line';
@@ -29,7 +31,7 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
   return (
     <AnimatePresence>
       {isOpen && (
-        <Modal onClose={onClose} label={isCreate ? 'Nueva categoría' : 'Editar categoría'}>
+        <Modal onClose={onClose} preventClose={saving} label={isCreate ? 'Nueva categoría' : 'Editar categoría'}>
           <motion.div
             initial={false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -45,12 +47,12 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
                 </div>
                 {isCreate ? 'Nueva Categoría' : 'Editar Categoría'}
               </h2>
-              <button aria-label="Cerrar diálogo" onClick={onClose} className="w-10 h-10 rounded-full hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all border border-transparent hover:border-line">
+              <button aria-label="Cerrar diálogo" disabled={saving} onClick={onClose} className="w-10 h-10 rounded-full hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all border border-transparent hover:border-line disabled:opacity-50">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={onSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
+            <form id={formId} onSubmit={onSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
 
               {/* VISTA PREVIA DINÁMICA */}
               <div className="space-y-3">
@@ -143,30 +145,7 @@ const CategoryFormModal = ({ isOpen, isCreate, form, setForm, saving, onClose, o
             </form>
 
             {/* Footer */}
-            <div className="p-7 border-t border-line bg-canvas flex items-center gap-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 py-4 rounded-2xl border border-line text-muted hover:text-primary hover:bg-surface-soft transition-all text-xs font-black uppercase tracking-widest"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                onClick={onSubmit}
-                disabled={saving}
-                className="app-btn app-btn-primary flex-[2]"
-              >
-                {saving ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Guardando...
-                  </div>
-                ) : (
-                  submitLabel
-                )}
-              </button>
-            </div>
+            <FormActions saving={saving} onClose={onClose} formId={formId} submitLabel={submitLabel} />
           </motion.div>
         </Modal>
       )}

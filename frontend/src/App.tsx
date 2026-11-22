@@ -1,11 +1,9 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useEffect, useState, lazy, Suspense } from 'react';
-import { AnimatePresence, MotionConfig } from 'framer-motion';
+import { MotionConfig } from 'framer-motion';
 import Layout from './components/Layout';
 import { AuthGuard } from './components/AuthGuard';
 import { GlobalErrorBoundary } from './components/common/GlobalErrorBoundary';
-import { validateCacheIntegrity } from './services/AICategorizationService';
-import { checkStorageQuota } from './utils/storage';
 import { snapshotsAPI } from './services/api';
 
 // Lazy load pages for chunking optimization
@@ -41,35 +39,13 @@ function App() {
   useEffect(() => {
     const runIntegrityHeartbeat = async () => {
       try {
-        console.log('🛡️ Pulso de Integridad: Iniciando...');
-
-        // 1. Validate AI cache integrity
-        const integrityResult = await validateCacheIntegrity();
-        console.log(`🧠 Integridad de caché de IA: ${integrityResult.deleted} entradas huérfanas eliminadas`);
-
-        // 2. Check storage health
-        const storage = await checkStorageQuota();
-        console.log(`💾 Salud del almacenamiento: ${storage.usagePercent.toFixed(2)}% (${storage.status === 'healthy' ? 'Saludable' : storage.status})`);
-
-        // 3. Check stale snapshots and reconcile if >5
-        // Thin Client: Use backend API instead of IndexedDB
-        try {
-          const snapshots = await snapshotsAPI.getAll();
-          const staleCount = snapshots.data.filter((s) => s.is_stale).length;
-          if (staleCount > 5) {
-            console.log(`🔍 Se encontraron ${staleCount} snapshots obsoletos, iniciando reconciliación...`);
-            await snapshotsAPI.reconcile();
-            console.log('✅ Reconciliación completada');
-          } else {
-            console.log(`📊 Integridad de Snapshots: ${staleCount} snapshots obsoletos (OK)`);
-          }
-        } catch (error) {
-          console.warn('⚠️ No se pudo verificar la integridad de snapshots vía API:', error);
+        const snapshots = await snapshotsAPI.getAll();
+        const staleCount = snapshots.data.filter((s) => s.is_stale).length;
+        if (staleCount > 5) {
+          await snapshotsAPI.reconcile();
         }
-
-        console.log('🏁 Pulso de Integridad: Completado');
       } catch (error) {
-        console.error('❌ Pulso de Integridad: Error:', error);
+        console.warn('No se pudo verificar la integridad de snapshots vía API:', error);
       }
     };
 
@@ -117,23 +93,21 @@ function App() {
             theme={theme}
             onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
           >
-            <AnimatePresence mode="wait">
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/transactions" element={<Transactions />} />
-                  <Route path="/categories" element={<Categories />} />
-                  <Route path="/accounts" element={<Accounts />} />
-                  <Route path="/budgets" element={<Budgets />} />
-                  <Route path="/goals" element={<Goals />} />
-                  <Route path="/reminders" element={<Reminders />} />
-                  <Route path="/subscriptions" element={<Subscriptions />} />
-                  <Route path="/snapshots" element={<Snapshots />} />
-                  <Route path="/fiscal" element={<Fiscal />} />
-                  <Route path="/settings" element={<Settings />} />
-                </Routes>
-              </Suspense>
-            </AnimatePresence>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/transactions" element={<Transactions />} />
+                <Route path="/categories" element={<Categories />} />
+                <Route path="/accounts" element={<Accounts />} />
+                <Route path="/budgets" element={<Budgets />} />
+                <Route path="/goals" element={<Goals />} />
+                <Route path="/reminders" element={<Reminders />} />
+                <Route path="/subscriptions" element={<Subscriptions />} />
+                <Route path="/snapshots" element={<Snapshots />} />
+                <Route path="/fiscal" element={<Fiscal />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </Suspense>
           </Layout>
         </AuthGuard>
       </Router>

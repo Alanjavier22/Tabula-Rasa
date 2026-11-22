@@ -21,7 +21,7 @@ router = APIRouter(
 
 def recalculate_goal_progress(goal_id: str, db: Session):
     """Recalcula el current_amount de una meta basado en las transacciones asignadas"""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = db.query(Goal).filter(Goal.id == goal_id, Goal.is_deleted == False).first()
     if not goal:
         return
     
@@ -85,7 +85,7 @@ def get_goals(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 
 @router.get("/{goal_id}", response_model=GoalResponse, responses=NOT_FOUND_RESPONSE)
 def get_goal(goal_id: str, db: Session = Depends(get_db)):
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = db.query(Goal).filter(Goal.id == goal_id, Goal.is_deleted == False).first()
     if not goal:
         raise HTTPException(status_code=404, detail=GOAL_NOT_FOUND)
     return goal
@@ -93,7 +93,7 @@ def get_goal(goal_id: str, db: Session = Depends(get_db)):
 
 @router.put("/{goal_id}", response_model=GoalResponse, responses=NOT_FOUND_RESPONSE)
 def update_goal(goal_id: str, goal: GoalUpdate, db: Session = Depends(get_db)):
-    db_goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    db_goal = db.query(Goal).filter(Goal.id == goal_id, Goal.is_deleted == False).first()
     if not db_goal:
         raise HTTPException(status_code=404, detail=GOAL_NOT_FOUND)
     
@@ -108,7 +108,7 @@ def update_goal(goal_id: str, goal: GoalUpdate, db: Session = Depends(get_db)):
 
 @router.delete("/{goal_id}", responses=NOT_FOUND_RESPONSE)
 def delete_goal(goal_id: str, db: Session = Depends(get_db)):
-    db_goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    db_goal = db.query(Goal).filter(Goal.id == goal_id, Goal.is_deleted == False).first()
     if not db_goal:
         raise HTTPException(status_code=404, detail=GOAL_NOT_FOUND)
     
@@ -125,16 +125,27 @@ def delete_goal(goal_id: str, db: Session = Depends(get_db)):
         ).first()
         
         if savings_account:
+            from app.services.transaction_identity import unique_transaction_fingerprint
+            now = datetime.now(timezone.utc)
+            refund_desc = f"Devolución de meta eliminada: {db_goal.name}"
             # Create refund transaction
             refund_transaction = Transaction(
-                description=f"Devolución de meta eliminada: {db_goal.name}",
+                description=refund_desc,
                 amount=db_goal.current_amount,
                 transaction_type="income",
                 payment_method="transfer",
-                date=datetime.now(timezone.utc),
+                date=now,
                 account_id=savings_account.id,
                 goal_id=None,
-                is_deleted=False
+                is_deleted=False,
+                fingerprint=unique_transaction_fingerprint(
+                    db,
+                    description=refund_desc,
+                    amount=cast(int, db_goal.current_amount),
+                    date_value=now,
+                    transaction_type="income",
+                    account_id=cast(str, savings_account.id),
+                ),
             )
             db.add(refund_transaction)
             db.flush()

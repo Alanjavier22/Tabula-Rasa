@@ -231,15 +231,24 @@ def process_cross_payment(
         return None
 
     # Create mirror INCOME transaction on the credit card
-    mirror_desc = f"Pago desde {source_account.name}: {transaction.description}"
+    from app.services.transaction_identity import unique_transaction_fingerprint
+    mirror_desc = f"Pago desde {source_account.name}: {transaction.description}"[:255]
     mirror_txn = Transaction(
-        description=mirror_desc[:255],
+        description=mirror_desc,
         amount=transaction.amount,
         transaction_type=TransactionType.INCOME,
         payment_method=PaymentMethod.TRANSFER,
         date=transaction.date,
         account_id=target_card.id,
         category_id=transaction.category_id,
+        fingerprint=unique_transaction_fingerprint(
+            db,
+            description=mirror_desc,
+            amount=cast(int, transaction.amount),
+            date_value=transaction.date,
+            transaction_type=TransactionType.INCOME,
+            account_id=cast(str, target_card.id),
+        ),
     )
     db.add(mirror_txn)
     db.flush()

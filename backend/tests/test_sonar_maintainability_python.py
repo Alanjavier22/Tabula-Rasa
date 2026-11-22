@@ -21,8 +21,11 @@ def test_sanitize_pii_covers_ssn_and_address_patterns():
 
 
 def test_rollback_logs_success_after_deleting_pre_restore_backup(monkeypatch, tmp_path):
-    backup_path = tmp_path / "pre_restore_backup_test.db"
+    backups_dir = tmp_path / "backups"
+    backups_dir.mkdir()
+    backup_path = backups_dir / "pre_restore_backup_test.db"
     backup_path.write_bytes(b"backup")
+    monkeypatch.setattr(backup, "_DB_PATH", str(tmp_path / "finance.db"))
     monkeypatch.setattr(
         backup,
         "restore_from_backup",
@@ -206,7 +209,7 @@ def test_cleanup_duplicates_unpacks_duplicate_count_without_using_it(monkeypatch
     db = MagicMock()
     duplicate_query = MagicMock()
     duplicate_query.filter.return_value.group_by.return_value.having.return_value.all.return_value = [
-        (100, "2026-09-01", "account-id", "expense", 2)
+        (100, "2026-09-01", "account-id", "expense", "compra", 2)
     ]
     matching_query = MagicMock()
     matching_query.filter.return_value.order_by.return_value.all.return_value = [

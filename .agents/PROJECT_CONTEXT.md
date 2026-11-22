@@ -1,6 +1,6 @@
 # Tabula Rasa — contexto operativo del proyecto
 
-Última actualización: 2026-10-31
+Última actualización: 2026-11-22
 
 Este archivo es la fuente operativa única para reanudar el trabajo. Los documentos de trabajo `TECH_DEBT.md` y `PLAN_LLM.md` fueron retirados del nivel raíz después de consolidar sus decisiones vigentes aquí; `HISTORIAL.md` conserva la cronología del proyecto.
 
@@ -37,11 +37,11 @@ El proyecto está listo para continuar. No hay fallos bloqueantes conocidos.
 
 Verificaciones vigentes:
 
-- Backend: `130 passed`, sin warnings de pytest.
+- Backend: `145 passed`, sin warnings nuevos de pytest.
 - Dependencias backend: `pip check` sin dependencias rotas.
 - Esquema: `alembic check` sin operaciones nuevas.
 - Frontend: TypeScript, lint con `--max-warnings 0` y build de producción correctos.
-- Frontend: `npm test` verifica 15 regresiones: estados del disponible, filtros combinados y fecha final inclusiva, calendario sin conversión horaria, categorías ordenadas, rutas compartidas, formatos temporales de gráficos, errores de importación y contraste AA de textos en ambos temas. Usa Vite SSR con caché independiente del servidor de desarrollo; no consulta el backend ni Gemini.
+- Frontend: `npm test` verifica 16 regresiones: estados del disponible, filtros combinados y fecha final inclusiva, calendario sin conversión horaria, categorías ordenadas, rutas compartidas, formatos temporales de gráficos, errores de importación, cálculo unificado de liquidez/deuda de tarjetas y contraste AA de textos en ambos temas. Usa Vite SSR con caché independiente del servidor de desarrollo; no consulta el backend ni Gemini.
 - Runtime: `/health` devuelve `healthy` y la base devuelve `healthy`.
 - Integridad local revisada: 197 transacciones, 0 fingerprints nulos y 0 fingerprints duplicados.
 
@@ -64,7 +64,7 @@ Verificaciones vigentes:
 ### Datos y migraciones
 
 - La base local actual ya está reconciliada y migrada.
-- Se agregaron las migraciones `c1f4a7b8e9d0_reconcile_schema_and_fingerprints.py` y `c2d5e8f9a0b1_align_legacy_constraints.py`.
+- Se agregaron las migraciones `c1f4a7b8e9d0_reconcile_schema_and_fingerprints.py`, `c2d5e8f9a0b1_align_legacy_constraints.py` y `c3e6f9a1b2c4_normalize_deposit_transactions.py`.
 - Al restaurar una copia en otro computador, instalar dependencias, configurar el entorno y ejecutar Alembic sobre esa copia antes de levantar la aplicación.
 - No compartir ni versionar `finance.db`, backups, `.env`, logs o certificados privados.
 
@@ -151,5 +151,14 @@ El usuario confirmó que el producto es web de escritorio. Se priorizan ventanas
 
 - El PR #68 pasó de 494 hallazgos abiertos a 0; SonarCloud midió 94,1 % de cobertura del código nuevo y 0,0 % de duplicación, con Quality Gate aprobado. El frontend conserva la exclusión de cobertura preexistente porque sus pruebas SSR aún no generan LCOV; no se ampliaron exclusiones para resolver los hallazgos.
 - La cascada CSS se consolidó, se retiraron las prioridades forzadas y el desplazamiento suave solo se activa sin preferencia de movimiento reducido. Se compararon estilos de las once rutas en claro y cuatro rutas en oscuro.
-- Modal usa dialog nativo para foco, fondo inerte y apilado. ActionMenu conserva Escape; FormActions, FormModalFrame e ImportResult comparten controles de formularios e importaciones. Los gráficos comparten chartFormatters.
-- La suite backend incluye nueve regresiones financieras nuevas con SQLite aislado; no se consultó Gemini durante la revisión. Las validaciones vigentes son 130 pruebas backend, 15 frontend, Alembic, lint y build.
+- Modal usa dialog nativo con `closedby="any"` y contención de scroll en `::backdrop` (sin alterar `body.overflow`) para foco, fondo inerte y apilado. ActionMenu cierra con Escape, clic fuera y selección de opción; FormActions, FormModalFrame e ImportResult comparten controles de formularios e importaciones. Los gráficos comparten chartFormatters y las métricas de cuentas comparten `utils/accountMetrics.ts`.
+- La suite backend incluye regresiones financieras para filtros fiscales, anomalías, deuda y exclusión de transacciones internas en el dashboard (`131 passed`); no se consultó Gemini durante la revisión. Las validaciones vigentes son 131 pruebas backend, 16 frontend, Alembic, lint y build.
+- La skill `modern-web-guidance` quedó instalada localmente en `C:\Users\Alan\.codex\skills\modern-web-guidance` como referencia estándar para cambios de HTML, CSS y UI de cliente.
+
+## Auditoría integral de sistemas, backend y frontend — 2026-11-22
+
+- **Arranque y scripts (`menu.ps1`, `menu.sh`, `main.py`, `generate_certs.py`):** Logs backend alineados (`backend/backend.log` y `uvicorn_stdout.log`), `alembic upgrade head` automático al arrancar, hash SHA-256 de `requirements.txt` en `.venv_hash` para Linux/macOS, persistencia de `JWT_SECRET` y `CONFIG_ENCRYPTION_KEY` en `backend/.env` fuera de pytest, escucha HTTP por defecto salvo `USE_HTTPS=1` y versión OCC extendida a `Goal`.
+- **Seguridad y respaldos:** Detección estricta del prefijo Fernet `"gAAAAAB"` en `decrypt_value_with_status` para impedir tratar tokens ilegibles como texto plano; bloqueo de re-cifrado recursivo en `backup_gdrive.py`, filtrado `trashed=false`, rotación automática en Drive y saneamiento de nombres de archivo; validación `realpath` dentro de `backend/backups/` en restauración/rollback local; escape HTML y timeout de 15s en OAuth; aceleración/throttling de 5 minutos en `device.last_sync`.
+- **Cálculos financieros, IA e importaciones:** Migración `c3e6f9a1b2c4_normalize_deposit_transactions.py` (`deposit` -> `income`) con recálculo de saldos; unificación de fingerprints `v2`, coincidencia de cuotas diferidas sin exigir igualdad de cuota actual y preservación del saldo más reciente en estados de cuenta; corrección de dirección en `settle_iou`, deuda de tarjetas en liquidez, cálculo de `budget.spent`, doble conteo de IVA en disponible, depreciación previa a la compra en exportación y ocultamiento PII (`mask_description`) antes de llamar a Gemini.
+- **Frontend:** Conexión end-to-end de `splits` y conservación de `expense_type`, reparación de validación HTML5 con `formId` en `<FormActions>`, bloqueo de cierre de modales durante guardado (`preventClose`), homologación de escala en centavos en `WhatIfModal`/`AIAgentService`/`Dashboard`, generación de `debt_shares` reales sin `"Dennis"` hardcodeado ni `NaN` en importación de estados de cuenta, reemplazo de fechas UTC por `utils/dateUtils.ts`, invalidación completa de React Query, eliminación de 17 archivos muertos y `importAPI`, corrección de 4 tokens CSS indefinidos, contraste de `CloudTab` y consolidación de `prefers-reduced-motion` y `@media (min-width: 980px)`.
+- **Validación:** Backend `145 passed`, `alembic check` y `pip check` limpios; frontend `16 passed`, `eslint --max-warnings 0` y `npm run build` limpios.

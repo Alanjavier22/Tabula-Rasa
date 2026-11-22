@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { parseLocalDate } from '../utils/dateUtils';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { snapshotsAPI } from '../services/api';
@@ -97,7 +98,7 @@ const Snapshots = () => {
             <p className="text-muted text-sm lg:text-base font-medium mt-2 max-w-md">
               Visualiza la evolución de tu patrimonio neto a través de cierres contables mensuales precisos.
             </p>
-            <Link to="/" className="app-btn">Ir al resumen para cerrar un mes</Link>
+            <Link to="/" className="app-btn mt-4">Ir al resumen para cerrar un mes</Link>
           </motion.div>
 
           <motion.div
@@ -150,12 +151,10 @@ const Snapshots = () => {
                   >
                     {/* Timeline Line Decor */}
                     {index !== snapshots.length - 1 && (
-                      <div className="absolute left-10 top-full h-10 w-[1px] bg-surface-soft  "></div>
+                      <div className="absolute left-10 top-full h-10 w-[1px] bg-line"></div>
                     )}
 
-                    <div className="compact-card bg-surface  border border-line rounded-2xl p-8 lg:p-10 transition-all hover:border-line relative overflow-hidden">
-                      {/* Subdued Glow Background */}
-                      <div className="hidden" aria-hidden="true" />
+                    <div className="compact-card bg-surface border border-line rounded-2xl p-8 lg:p-10 transition-all hover:border-line relative overflow-hidden">
 
                       <div className="snapshot-layout relative z-10 flex flex-col lg:flex-row gap-10">
                         {/* Left: Date & Main Info */}
@@ -180,7 +179,7 @@ const Snapshots = () => {
                               <span>REGISTRADO EL:</span>
                             </div>
                             <p className="text-muted text-sm font-medium">
-                              {new Date(snapshot.snapshot_date).toLocaleDateString('es-ES', {
+                              {parseLocalDate(snapshot.snapshot_date).toLocaleDateString('es-ES', {
                                 day: 'numeric',
                                 month: 'long',
                                 year: 'numeric'

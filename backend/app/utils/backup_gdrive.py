@@ -49,15 +49,23 @@ def get_google_drive_credentials() -> Optional[tuple[str, str, str]]:
             backup_logger.warning("[GOOGLE_DRIVE] Google Drive credentials contain empty values.")
             return None
 
-        from app.utils.crypto import decrypt_value_with_status, encrypt_value
+        from app.utils.crypto import decrypt_value, decrypt_value_with_status, encrypt_value
+        decrypted_secret = decrypt_value(str(client_secret))
+        if not decrypted_secret:
+            backup_logger.warning("[GOOGLE_DRIVE] Client secret could not be decrypted with active key.")
+            return None
+
         refresh_token, was_encrypted = decrypt_value_with_status(str(raw_refresh_token))
+        if not refresh_token:
+            backup_logger.warning("[GOOGLE_DRIVE] Refresh token could not be decrypted; re-authentication required.")
+            return None
         if not was_encrypted:
             # Valor legacy en texto plano (instalación previa a este cambio):
             # se re-escribe cifrado para que la próxima lectura ya lo encuentre así.
             refresh_token_config.value = encrypt_value(refresh_token)
             db.commit()
 
-        return (str(client_id), str(client_secret), str(refresh_token))
+        return (str(client_id), decrypted_secret, str(refresh_token))
     except Exception:  # pragma: no cover
         backup_logger.exception("[GOOGLE_DRIVE] Error retrieving credentials from database")  # pragma: no cover
         return None
@@ -126,7 +134,7 @@ def get_or_create_drive_folder(drive_service) -> Optional[str]:
         # Search for existing folder
         ds = cast(Any, drive_service)
         results = ds.files().list(
-            q="name='tabula_rasa_backup' and mimeType='application/vnd.google-apps.folder'",
+            q="name='tabula_rasa_backup' and mimeType='application/vnd.google-apps.folder' and trashed=false",
             spaces='drive',
             fields='files(id, name)'
         ).execute()
@@ -253,6 +261,8 @@ def create_external_backup() -> Optional[str]:
             _cleanup_local_backup(local_backup_path)
             return None
 
+        rotate_google_drive_backups(drive_service, folder_id)
+
         try:
             rotate_local_backups(keep_count=2)
         except Exception as cleanup_error:
@@ -282,7 +292,7 @@ def rotate_google_drive_backups(drive_service, folder_id: str) -> None:
         # List all backup files in the folder
         ds = cast(Any, drive_service)
         results = ds.files().list(
-            q=f"'{folder_id}' in parents and name contains 'tabula_rasa_backup_'",
+            q=f"'{folder_id}' in parents and name contains 'tabula_rasa_backup_' and trashed=false",
             spaces='drive',
             fields='files(id, name, createdTime)',
             orderBy='createdTime'
@@ -364,7 +374,7 @@ def list_external_backups() -> list[dict]:
         # List backup files in the folder
         ds = cast(Any, drive_service)
         results = ds.files().list(
-            q=f"'{folder_id}' in parents and name contains 'tabula_rasa_backup_'",
+            q=f"'{folder_id}' in parents and name contains 'tabula_rasa_backup_' and trashed=false",
             spaces='drive',
             fields='files(id, name, createdTime, size)',
             orderBy='createdTime desc'
@@ -422,14 +432,17 @@ def download_backup_from_drive(backup_id: str) -> Optional[str]:
             fields='name, createdTime, size'
         ).execute()
 
-        backup_filename = file_metadata.get('name')
+        raw_filename = file_metadata.get('name') or f"{backup_id}.sqlite3"
+        backup_filename = os.path.basename(raw_filename)
         backup_logger.info(f"[GOOGLE_DRIVE] Downloading backup: {backup_filename}")
 
         # Create temp directory for download
         backend_dir = os.path.dirname(_DB_PATH)
         temp_dir = os.path.join(backend_dir, "temp_restore")
         os.makedirs(temp_dir, exist_ok=True)
-        download_path = os.path.join(temp_dir, backup_filename)
+        download_path = os.path.realpath(os.path.join(temp_dir, backup_filename))
+        if not download_path.startswith(os.path.realpath(temp_dir) + os.sep):
+            raise ValueError("Invalid backup filename path")
 
         # Download file
         request = ds.files().get_media(fileId=backup_id)

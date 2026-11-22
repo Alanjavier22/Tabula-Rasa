@@ -12,7 +12,8 @@ if (-not $script:scriptPath) { $script:scriptPath = "." } # Fallback al director
 
 $script:backendPath = Join-Path $script:scriptPath "backend"
 $script:frontendPath = Join-Path $script:scriptPath "frontend"
-$script:backendLog = Join-Path $script:scriptPath "backend.log"
+$script:backendLog = Join-Path $script:backendPath "backend.log"
+$script:backendStdoutLog = Join-Path $script:scriptPath "uvicorn_stdout.log"
 $script:frontendLog = Join-Path $script:scriptPath "frontend.log"
 $script:backendErrorLog = Join-Path $script:scriptPath "backend_error.log"
 $script:frontendErrorLog = Join-Path $script:scriptPath "frontend_error.log"
@@ -46,6 +47,26 @@ function Get-UsableCommand {
     return Get-Command $Name -CommandType Application -All -ErrorAction SilentlyContinue |
         Where-Object { $_.Source -notlike "$windowsApps\*" } |
         Select-Object -First 1
+}
+
+function Invoke-NativeCommandQuiet {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+        [Parameter(Mandatory = $false)]
+        [string[]]$ArgumentList = @()
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $FilePath @ArgumentList *> $null
+        return $LASTEXITCODE
+    } catch {
+        return 1
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
 }
 
 function Reset-LogFile {
@@ -499,7 +520,7 @@ function Start-ApplicationCore {
     # 2. Rotación de Logs (Limpieza en frío)
     Write-Host "[2/5] Limpiando archivos de log anteriores..." -ForegroundColor Yellow
     try {
-        Reset-LogFile $script:backendLog
+        Reset-LogFile $script:backendStdoutLog
         Reset-LogFile $script:frontendLog
         Reset-LogFile $script:backendErrorLog
         Reset-LogFile $script:frontendErrorLog
@@ -518,13 +539,7 @@ function Start-ApplicationCore {
         # Un venv puede conservar python.exe aunque su instalación base haya
         # sido eliminada o actualizada. En ese caso hay que recrearlo; instalar
         # paquetes sobre un ejecutable roto nunca lo reparará.
-        $venvRuntimeHealthy = $false
-        try {
-            & $script:venvPython -c "import sys; print(sys.executable)" 2>&1 | Out-Null
-            $venvRuntimeHealthy = ($LASTEXITCODE -eq 0)
-        } catch {
-            $venvRuntimeHealthy = $false
-        }
+        $venvRuntimeHealthy = ((Invoke-NativeCommandQuiet -FilePath $script:venvPython -ArgumentList @("-c", "import sys; print(sys.executable)")) -eq 0)
 
         if (-not $venvRuntimeHealthy) {
             Write-Host "  El entorno virtual no es ejecutable. Recreando..." -ForegroundColor Magenta
@@ -539,14 +554,14 @@ function Start-ApplicationCore {
             }
         } else {
             # Check if critical packages and app can be imported
-            & $script:venvPython -c "import fastapi, sqlalchemy, pydantic, cryptography, jwt" 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
+            $depsExitCode = Invoke-NativeCommandQuiet -FilePath $script:venvPython -ArgumentList @("-c", "import fastapi, sqlalchemy, pydantic, cryptography, jwt")
+            if ($depsExitCode -ne 0) {
                 Write-Host "  Faltan dependencias del entorno virtual. Reparando sin eliminarlo..." -ForegroundColor Magenta
                 $venvNeedsInstall = $true
             } else {
                 # Try to import the main app module
-                & $script:venvPython -c "import sys; sys.path.insert(0, r'$script:backendPath'); from main import app" 2>&1 | Out-Null
-                if ($LASTEXITCODE -ne 0) {
+                $appImportExitCode = Invoke-NativeCommandQuiet -FilePath $script:venvPython -ArgumentList @("-c", "import sys; sys.path.insert(0, r'$script:backendPath'); from main import app")
+                if ($appImportExitCode -ne 0) {
                     Write-Host "  La aplicación no pudo importarse. Reparando dependencias sin eliminar el entorno..." -ForegroundColor Magenta
                     $venvNeedsInstall = $true
                 } else {
@@ -592,8 +607,7 @@ function Start-ApplicationCore {
 
         # Intentar instalación ultra-rápida con uv, con fallback a pip
         $uvInstalled = $false
-        & $script:venvPython -m pip install uv --quiet 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
+        if ((Invoke-NativeCommandQuiet -FilePath $script:venvPython -ArgumentList @("-m", "pip", "install", "uv", "--quiet")) -eq 0) {
             & $script:venvPython -m uv pip install -r (Join-Path $script:backendPath "requirements.txt")
             if ($LASTEXITCODE -eq 0) { $uvInstalled = $true }
         }
@@ -609,8 +623,7 @@ function Start-ApplicationCore {
             return
         }
 
-        & $script:venvPython -c "import sys; sys.path.insert(0, r'$script:backendPath'); from main import app" 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
+        if ((Invoke-NativeCommandQuiet -FilePath $script:venvPython -ArgumentList @("-c", "import sys; sys.path.insert(0, r'$script:backendPath'); from main import app")) -ne 0) {
             Write-Host "  ERROR: La aplicación sigue sin poder importarse después de reparar dependencias." -ForegroundColor Red
             Write-Host "  Revisa la configuración de backend/.env y los logs del backend." -ForegroundColor Yellow
             Read-Host "Presiona Enter para continuar..."
@@ -620,6 +633,18 @@ function Start-ApplicationCore {
 
     # 4. Iniciar Backend
     Write-Host "[4/5] Iniciando Backend..."  -ForegroundColor Yellow
+
+    if (Test-Path (Join-Path $script:backendPath "alembic.ini")) {
+        Push-Location $script:backendPath
+        try {
+            $alembicExitCode = Invoke-NativeCommandQuiet -FilePath $script:venvPython -ArgumentList @("-m", "alembic", "upgrade", "head")
+            if ($alembicExitCode -ne 0) {
+                Write-Host "  ADVERTENCIA: alembic upgrade head devolvió código $alembicExitCode. Revisa el esquema si es una base antigua." -ForegroundColor Yellow
+            }
+        } finally {
+            Pop-Location
+        }
+    }
 
     $backendArguments = @(
         "-m", "uvicorn", "main:app",
@@ -633,7 +658,7 @@ function Start-ApplicationCore {
 
     # Inicia como proceso oculto, enrutando StdOut y StdErr al Log.
     try {
-        $backendProcess = Start-Process -FilePath $script:venvPython -ArgumentList $backendArguments -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendLog -RedirectStandardError $script:backendErrorLog -PassThru
+        $backendProcess = Start-Process -FilePath $script:venvPython -ArgumentList $backendArguments -WorkingDirectory $script:backendPath -WindowStyle Hidden -RedirectStandardOutput $script:backendStdoutLog -RedirectStandardError $script:backendErrorLog -PassThru
         $backendProcess.Id | Set-Content -Path $script:backendPidFile -Encoding ascii
     } catch {
         Write-Host "  ERROR: No se pudo iniciar el backend: $($_.Exception.Message)" -ForegroundColor Red

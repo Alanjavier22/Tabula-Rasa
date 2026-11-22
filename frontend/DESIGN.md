@@ -51,7 +51,9 @@ El modo claro es el valor inicial. La migración `editorial-light-v1` adopta ese
 
 ## Componentes compartidos y cascada
 
-- Modal utiliza dialog nativo. FormModalFrame conserva la animación y estructura de los formularios compactos; FormActions unifica cancelación y guardado; ImportResult presenta el resultado como estado accesible.
-- ActionMenu conserva el cierre con Escape y devuelve el foco al resumen del menú.
+- Modal utiliza dialog nativo con `closedby="any"`, contención de scroll en `::backdrop` (`overscroll-behavior: contain`) y sin bloquear `document.body.style.overflow`. FormModalFrame conserva la animación y estructura de los formularios compactos; FormActions unifica cancelación y guardado; ImportResult presenta el resultado como estado accesible.
+- ActionMenu conserva el cierre con Escape (devolviendo el foco al resumen), cierre al hacer clic fuera y cierre automático al seleccionar una acción.
+- `utils/accountMetrics.ts` unifica el cálculo de liquidez activa, último estado de cuenta y deuda total de tarjetas entre Resumen y Cuentas.
 - Los estilos definen una sola regla por selector y contexto. Resolver conflictos mediante orden de variantes y especificidad contextual; conservar los ajustes de movimiento reducido.
 - chartFormatters comparte nombres de meses e importes entre las gráficas.
+- Las referencias de plataforma web moderna siguen `modern-web-guidance` (instalada en `~/.codex/skills/modern-web-guidance`).

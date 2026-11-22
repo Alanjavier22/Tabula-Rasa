@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   configAPI,
@@ -20,6 +21,7 @@ import AITab from '../components/Settings/AITab';
 import LabsTab from '../components/Settings/LabsTab';
 import CloudTab from '../components/Settings/CloudTab';
 import Toast from '../components/Toast';
+import ConfirmDialog from '../components/ConfirmDialog';
 import type { Category, BackupFile, Config } from '../types';
 import type { AxiosError } from 'axios';
 import type { ConfigData, GoogleDriveCredentials, GoogleDriveStatus } from '../components/Settings/types';
@@ -27,11 +29,16 @@ import type { ConfigData, GoogleDriveCredentials, GoogleDriveStatus } from '../c
 type SettingsTab = 'general' | 'ai' | 'labs' | 'cloud';
 
 const Settings = () => {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
+  const [restoreConfirm, setRestoreConfirm] = useState<{
+    isOpen: boolean;
+    backupId: string | null;
+  }>({ isOpen: false, backupId: null });
   const [config, setConfig] = useState<ConfigData>({
     vehicle_categories: [],
     safe_to_spend_buffer: 0,
@@ -174,6 +181,9 @@ const Settings = () => {
       });
 
       setToast({ message: 'Configuración guardada exitosamente', type: 'success' });
+      void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+      void queryClient.invalidateQueries({ queryKey: ['vehicleTelemetry'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
     } catch (error) {
       console.error('Error saving settings:', error);
       setToast({ message: 'Error al guardar configuración', type: 'error' });
@@ -199,6 +209,9 @@ const Settings = () => {
         await configAPI.create(data);
       }
       setToast({ message: 'Cambio guardado automáticamente', type: 'success' });
+      void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+      void queryClient.invalidateQueries({ queryKey: ['vehicleTelemetry'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
     } catch (error) {
       console.error(`Error auto-saving ${key}:`, error);
       setToast({ message: 'Error al guardar automáticamente', type: 'error' });
@@ -287,12 +300,14 @@ const Settings = () => {
 
 
 
-  const handleRestoreBackup = async (backupId: string) => {
-    if (!window.confirm('¿Estás seguro de que quieres restaurar este backup? El servidor necesitará reiniciarse.')) {
-      return;
-    }
+  const handleRestoreBackup = (backupId: string) => {
+    setRestoreConfirm({ isOpen: true, backupId });
+  };
+
+  const confirmRestoreBackup = async () => {
+    if (!restoreConfirm.backupId) return;
     try {
-      const res = await backupAPI.restoreBackup(backupId);
+      const res = await backupAPI.restoreBackup(restoreConfirm.backupId);
       if (res.data.success) {
         setToast({ message: res.data.message, type: 'success' });
       } else {
@@ -301,6 +316,8 @@ const Settings = () => {
     } catch (e) {
       console.error('Error restoring backup:', e);
       setToast({ message: 'Error al restaurar backup', type: 'error' });
+    } finally {
+      setRestoreConfirm({ isOpen: false, backupId: null });
     }
   };
 
@@ -438,6 +455,16 @@ const Settings = () => {
           onClose={() => setToast(null)}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={restoreConfirm.isOpen}
+        title="Restaurar respaldo"
+        message="¿Estás seguro de que quieres restaurar este respaldo? El servidor necesitará reiniciarse."
+        confirmLabel="Restaurar"
+        submittingLabel="Restaurando…"
+        onConfirm={confirmRestoreBackup}
+        onCancel={() => setRestoreConfirm({ isOpen: false, backupId: null })}
+      />
     </div>
   );
 };

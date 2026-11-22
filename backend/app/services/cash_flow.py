@@ -32,7 +32,8 @@ DEFAULT_INCOME_BLACKLIST = [
 def _get_current_liquid_balance(db: Session) -> int:
     accounts = db.query(Account).filter(
         Account.is_deleted == False,
-        Account.account_type.in_(["checking", "savings"]),
+        Account.is_active == 1,
+        Account.account_type.in_(["checking", "savings", "cash"]),
     ).all()
     return sum(account.balance or 0 for account in accounts)
 
@@ -169,6 +170,7 @@ def _is_subscription_due(next_billing: Optional[datetime], now: datetime, future
 def _calculate_subscription_cost(db: Session, now: datetime, future_date: datetime) -> int:
     subscriptions = db.query(Subscription).filter(
         Subscription.is_deleted == False,
+        Subscription.is_active == True,
         Subscription.next_billing_date.isnot(None),
     ).all()
     subscription_cost = 0
@@ -201,7 +203,10 @@ def _get_credit_card_debt(db: Session, future_date: datetime) -> int:
 
 
 def _get_debt_recovery(db: Session) -> int:
-    debt_shares = db.query(DebtShare).filter(DebtShare.status == "pending").all()
+    debt_shares = db.query(DebtShare).filter(
+        DebtShare.status == "pending",
+        DebtShare.is_deleted == False,
+    ).all()
     return sum(debt_share.amount for debt_share in debt_shares)
 
 
@@ -295,6 +300,7 @@ class CashFlowService:
             month_income_sum = (
                 db.query(func.sum(Transaction.amount))
                 .filter(Transaction.is_deleted == False)
+                .filter(Transaction.is_internal == False)
                 .filter(Transaction.transaction_type == "income")
                 .filter(Transaction.date >= month_start)
                 .filter(Transaction.date <= month_end)
@@ -309,6 +315,7 @@ class CashFlowService:
             recent_income_sum = (
                 db.query(func.sum(Transaction.amount))
                 .filter(Transaction.is_deleted == False)
+                .filter(Transaction.is_internal == False)
                 .filter(Transaction.transaction_type == "income")
                 .filter(Transaction.date >= ninety_days_ago)
                 .scalar()

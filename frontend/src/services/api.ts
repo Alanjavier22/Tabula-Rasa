@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { prepareForAI } from '../utils/privacy';
-import { parseCSVAsync } from '../utils/csvParsers';
 import type {
   Transaction,
   Category,
@@ -39,7 +38,6 @@ import type {
   ConfirmAccountImportResponse,
   AnalyzeSnapshotResponse,
   ReconcileStaleSnapshotsResponse,
-  ImportBatchResponse,
   Config,
   GoogleDriveCredentials,
   AccountPayload,
@@ -306,30 +304,6 @@ export const snapshotsAPI = {
   delete: (id: string) => api.delete<{ message: string }>(`/snapshots/${id}`),
   analyze: (id: string) => api.post<AnalyzeSnapshotResponse>(`/snapshots/${id}/analyze`),
   reconcile: () => api.post<ReconcileStaleSnapshotsResponse>('/snapshots/reconcile'), // FASE 6: Manual reconciliation endpoint
-};
-
-export const importAPI = {
-  // Heavy request: uses 15 min timeout (900000ms)
-  uploadCSV: async (file: File, accountId: string, onProgress?: (progress: number) => void) => {
-    // Read CSV locally
-    const text = await file.text();
-    
-    // Parse using async chunked parser (prevents RAM overflow with 50k+ records)
-    // Deduplication now happens inside parseCSVAsync via backend check
-    const parsedTransactions = await parseCSVAsync(text, accountId, onProgress);
-    
-    if (parsedTransactions.length === 0) {
-      return { imported: 0, message: 'No valid transactions found' };
-    }
-
-    // Send to backend for processing
-    const response = await api.post<ImportBatchResponse>('/transactions/import-batch', {
-      transactions: parsedTransactions,
-      skip_duplicates: true,
-    }, { timeout: 900000 });
-
-    return response.data;
-  },
 };
 
 export const configAPI = {

@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { CreditCard } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Decimal from 'decimal.js-light';
 import type { Account, CreditCardStatement } from '../../types';
+import { getLatestStatementByAccount } from '../../utils/accountMetrics';
 import { formatMoney, toDecimal, clampZero } from '../../utils/money';
 
 interface CreditCardSummaryProps {
@@ -25,6 +27,11 @@ export default function CreditCardSummary({
   statements,
   cards,
 }: CreditCardSummaryProps) {
+  const latestStatementByAccount = useMemo(
+    () => getLatestStatementByAccount(statements),
+    [statements],
+  );
+
   if (cards.length === 0) {
     return (
       <section className="app-surface p-5">
@@ -54,7 +61,7 @@ export default function CreditCardSummary({
       </div>
       <div className="credit-summary-grid">
         {cards.map((card) => {
-          const stmt = statements.find((s) => s.account_id === card.id);
+          const stmt = latestStatementByAccount.get(card.id);
           const pending = stmt
             ? clampZero(
                 toDecimal(stmt.user_share).minus(toDecimal(stmt.amount_paid)),

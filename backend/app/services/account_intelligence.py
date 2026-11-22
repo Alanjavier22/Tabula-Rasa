@@ -11,6 +11,7 @@ from database import SessionLocal
 from app.models.transaction import Transaction
 from app.models.category import Category
 from app.services.account_statement_parser import convert_to_csv_string, local_extract_transactions
+from app.services.transaction_identity import calculate_transaction_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +41,31 @@ class AccountIntelligenceService:
     def _get_api_key(self) -> Optional[str]:
         return get_configured_gemini_key(self.db)
 
-    def generate_fingerprint(self, date: str, description: str, amount_cents: int, account_id: str, balance_cents: Optional[int] = None, suffix: str = "") -> str:
-        """Generates a unique hash to prevent duplicates, including balance to disambiguate identical transactions."""
-        raw_str = f"{date}|{description.strip().upper()}|{amount_cents}|{account_id}|{balance_cents or ''}|{suffix}"
-        return hashlib.sha256(raw_str.encode()).hexdigest()
+    def generate_fingerprint(
+        self,
+        date: str,
+        description: str,
+        amount_cents: int,
+        account_id: str,
+        balance_cents: Optional[int] = None,
+        suffix: str = "",
+        transaction_type: str = "",
+    ) -> str:
+        """Generates a canonical v2 hash to prevent duplicates, including balance to disambiguate identical transactions."""
+        occurrence = 0
+        if suffix:
+            cleaned = suffix.lstrip("_")
+            if cleaned.isdigit():
+                occurrence = int(cleaned)
+        return calculate_transaction_fingerprint(
+            description=description,
+            amount=abs(int(amount_cents)),
+            date_value=date,
+            transaction_type=transaction_type,
+            account_id=account_id,
+            running_balance=balance_cents,
+            occurrence_index=occurrence,
+        )
 
     @staticmethod
     def _build_system_instruction(expected_bank_name: Optional[str]) -> str:
@@ -116,7 +138,7 @@ class AccountIntelligenceService:
             suffix = f"_{occurrence_count}" if occurrence_count > 0 else ""
             fingerprint = self.generate_fingerprint(
                 tx['date'], tx['description'], tx['amount_cents'], account_id,
-                tx.get('balance_cents'), suffix,
+                tx.get('balance_cents'), suffix, tx.get('transaction_type', ''),
             )
             tx_dict = tx.copy()
             tx_dict['fingerprint'] = fingerprint
@@ -173,7 +195,10 @@ class AccountIntelligenceService:
         ]
         
         cat_results = categorize_batch(batch_input, self.db)
-        categories_dict = {str(c.id): c.name for c in self.db.query(Category).all()}
+        categories_dict = {
+            str(c.id): c.name
+            for c in self.db.query(Category).filter(Category.is_deleted == False).all()
+        }
         enriched_transactions = self._enrich_transactions(
             parsed_data['transactions'], cat_results, categories_dict, account_id
         )

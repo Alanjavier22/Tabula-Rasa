@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Any, cast
 from datetime import datetime
 from database import get_db
 from app.api.auth import get_current_device
@@ -104,6 +104,7 @@ def serialize_statement(stmt):
                 "version": getattr(ds, 'version', 1),  # FASE 7: OCC versioning
             }
             for ds in stmt.debt_shares
+            if not getattr(ds, "is_deleted", False)
         ]
     }
 
@@ -118,12 +119,26 @@ def get_statements(account_id: Optional[str] = None, db: Session = Depends(get_d
     return [serialize_statement(s) for s in statements]
 
 
+def _recalculate_statement_user_share(db: Session, stmt: CreditCardStatement) -> None:
+    active_shares = db.query(DebtShare).filter(
+        DebtShare.statement_id == stmt.id,
+        DebtShare.is_deleted == False,
+    ).all()
+    shared_total = sum(int(ds.amount or 0) for ds in active_shares)
+    stmt.user_share = cast(Any, max(0, int(stmt.statement_balance or 0) - shared_total))
+
+
 @router.get("/{statement_id}", responses=NOT_FOUND_RESPONSE)
 def get_statement(statement_id: str, db: Session = Depends(get_db)):
     from sqlalchemy.orm import joinedload
-    stmt = db.query(CreditCardStatement).options(joinedload(CreditCardStatement.debt_shares), joinedload(CreditCardStatement.account)).filter(CreditCardStatement.id == statement_id).first()
+    stmt = (
+        db.query(CreditCardStatement)
+        .options(joinedload(CreditCardStatement.debt_shares), joinedload(CreditCardStatement.account))
+        .filter(CreditCardStatement.id == statement_id, CreditCardStatement.is_deleted == False)
+        .first()
+    )
     if not stmt:
-            raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
+        raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     return serialize_statement(stmt)
 
 
@@ -140,14 +155,22 @@ def create_statement(data: StatementCreate, db: Session = Depends(get_db)):
     for share in (data.debt_shares or []):
         ds = DebtShare(statement_id=stmt.id, **share.model_dump())
         db.add(ds)
+    if data.debt_shares:
+        db.flush()
+        _recalculate_statement_user_share(db, stmt)
     db.commit()
     db.refresh(stmt)
+    from app.services.balance import recalculate_account_balance
+    recalculate_account_balance(db, cast(str, stmt.account_id))
     return serialize_statement(stmt)
 
 
 @router.put("/{statement_id}", responses=NOT_FOUND_RESPONSE)
 def update_statement(statement_id: str, data: StatementUpdate, db: Session = Depends(get_db)):
-    stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
+    stmt = db.query(CreditCardStatement).filter(
+        CreditCardStatement.id == statement_id,
+        CreditCardStatement.is_deleted == False,
+    ).first()
     if not stmt:
         raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     update_data = data.model_dump(exclude_unset=True)
@@ -159,26 +182,39 @@ def update_statement(statement_id: str, data: StatementUpdate, db: Session = Dep
         setattr(stmt, key, value)
     db.commit()
     db.refresh(stmt)
+    from app.services.balance import recalculate_account_balance
+    recalculate_account_balance(db, cast(str, stmt.account_id))
     return serialize_statement(stmt)
 
 
 @router.delete("/{statement_id}", responses=NOT_FOUND_RESPONSE)
 def delete_statement(statement_id: str, db: Session = Depends(get_db)):
-    stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
+    stmt = db.query(CreditCardStatement).filter(
+        CreditCardStatement.id == statement_id,
+        CreditCardStatement.is_deleted == False,
+    ).first()
     if not stmt:
         raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
-    db.delete(stmt)
+    account_id = cast(str, stmt.account_id)
+    stmt.is_deleted = cast(Any, True)
     db.commit()
+    from app.services.balance import recalculate_account_balance
+    recalculate_account_balance(db, account_id)
     return {"message": "Statement deleted"}
 
 
 @router.post("/{statement_id}/shares", responses=NOT_FOUND_RESPONSE)
 def add_debt_share(statement_id: str, data: DebtShareBase, db: Session = Depends(get_db)):
-    stmt = db.query(CreditCardStatement).filter(CreditCardStatement.id == statement_id).first()
+    stmt = db.query(CreditCardStatement).filter(
+        CreditCardStatement.id == statement_id,
+        CreditCardStatement.is_deleted == False,
+    ).first()
     if not stmt:
         raise HTTPException(status_code=404, detail=STATEMENT_NOT_FOUND)
     ds = DebtShare(statement_id=statement_id, **data.model_dump())
     db.add(ds)
+    db.flush()
+    _recalculate_statement_user_share(db, stmt)
     db.commit()
     db.refresh(ds)
     return {
@@ -191,11 +227,18 @@ def add_debt_share(statement_id: str, data: DebtShareBase, db: Session = Depends
 
 @router.put("/shares/{share_id}", responses=NOT_FOUND_RESPONSE)
 def update_debt_share(share_id: str, data: DebtShareBase, db: Session = Depends(get_db)):
-    ds = db.query(DebtShare).filter(DebtShare.id == share_id).first()
+    ds = db.query(DebtShare).filter(DebtShare.id == share_id, DebtShare.is_deleted == False).first()
     if not ds:
         raise HTTPException(status_code=404, detail="Debt share not found")
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(ds, key, value)
+    stmt = db.query(CreditCardStatement).filter(
+        CreditCardStatement.id == ds.statement_id,
+        CreditCardStatement.is_deleted == False,
+    ).first()
+    if stmt:
+        db.flush()
+        _recalculate_statement_user_share(db, stmt)
     db.commit()
     db.refresh(ds)
     return {
@@ -208,9 +251,16 @@ def update_debt_share(share_id: str, data: DebtShareBase, db: Session = Depends(
 
 @router.delete("/shares/{share_id}", responses=NOT_FOUND_RESPONSE)
 def delete_debt_share(share_id: str, db: Session = Depends(get_db)):
-    ds = db.query(DebtShare).filter(DebtShare.id == share_id).first()
+    ds = db.query(DebtShare).filter(DebtShare.id == share_id, DebtShare.is_deleted == False).first()
     if not ds:
         raise HTTPException(status_code=404, detail="Debt share not found")
-    db.delete(ds)
+    ds.is_deleted = cast(Any, True)
+    stmt = db.query(CreditCardStatement).filter(
+        CreditCardStatement.id == ds.statement_id,
+        CreditCardStatement.is_deleted == False,
+    ).first()
+    if stmt:
+        db.flush()
+        _recalculate_statement_user_share(db, stmt)
     db.commit()
     return {"message": "Debt share deleted"}

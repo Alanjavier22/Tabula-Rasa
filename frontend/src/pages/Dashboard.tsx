@@ -10,7 +10,7 @@ import {
   lazy,
   Suspense,
 } from "react";
-import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import Decimal from "decimal.js-light";
 import {
   accountsAPI,
@@ -27,6 +27,12 @@ import {
   maintenanceAPI,
 } from "../services/api";
 import { formatMoney, toDecimal, clampZero } from "../utils/money";
+import {
+  calculateCreditCardDebt,
+  calculateLiquidBalance,
+  getLatestStatementByAccount,
+} from "../utils/accountMetrics";
+import ConfirmDialog from "../components/ConfirmDialog";
 import Toast from "../components/Toast";
 import type {
   Account,
@@ -44,7 +50,6 @@ import type {
   Goal,
   DebtShare,
 } from "../types";
-import type { EcuadorFiscalRules } from "../services/ReportingService";
 import type { AxiosError } from "axios";
 import { AnimatePresence } from "framer-motion";
 import {
@@ -95,6 +100,7 @@ const EMPTY_ARRAY: never[] = [];
 type DashboardSectionTab = "actividad" | "tendencias" | "compromisos" | "ia";
 
 const Dashboard = () => {
+  const queryClient = useQueryClient();
   const [insights, setInsights] = useState<string[] | null>(null);
   const [aiAlerts, setAiAlerts] = useState<string[]>([]);
   const [aiPatterns, setAiPatterns] = useState<string[]>([]);
@@ -107,6 +113,12 @@ const Dashboard = () => {
   const [showWhatIfModal, setShowWhatIfModal] = useState(false);
   const [showAnomalyScanner, setShowAnomalyScanner] = useState(false);
   const [activeTab, setActiveTab] = useState<DashboardSectionTab>("actividad");
+  const [snapshotConfirm, setSnapshotConfirm] = useState<{
+    isOpen: boolean;
+    month: number;
+    year: number;
+    monthName: string;
+  }>({ isOpen: false, month: 1, year: 2026, monthName: "" });
 
   // Guards to prevent infinite loops and concurrent operations
   const isRefetchingRef = useRef(false);
@@ -219,44 +231,6 @@ const Dashboard = () => {
         refetchOnWindowFocus: false,
       },
       {
-        queryKey: ["configIVA"],
-        queryFn: async () => {
-          try {
-            const { configAPI } = await import("../services/api");
-            const { reportingService } =
-              await import("../services/ReportingService");
-
-            // Parallel fetch for all fiscal rates
-            const [ivaRes, retSrcRes, retIvaRes] = await Promise.all([
-              configAPI.getByKey("iva_rate"),
-              configAPI.getByKey("retencion_source_rate"),
-              configAPI.getByKey("retencion_iva_rate"),
-            ]);
-
-            const rules: Partial<EcuadorFiscalRules> = {};
-            if (ivaRes.data?.value)
-              rules.iva_rate = Number.parseFloat(ivaRes.data.value);
-            if (retSrcRes.data?.value)
-              rules.retencion_source_rate = Number.parseFloat(
-                retSrcRes.data.value,
-              );
-            if (retIvaRes.data?.value)
-              rules.retencion_iva_rate = Number.parseFloat(
-                retIvaRes.data.value,
-              );
-
-            if (Object.keys(rules).length > 0) {
-              reportingService.setFiscalRules(rules);
-            }
-            return rules;
-          } catch {
-            return null;
-          }
-        },
-        staleTime: 600000, // 10 minutes cache for static config rates
-        refetchOnWindowFocus: false,
-      },
-      {
         queryKey: ["goals"],
         queryFn: () => goalsAPI.getAll().then((res) => res.data),
         staleTime: 30000,
@@ -281,7 +255,7 @@ const Dashboard = () => {
   const transactions = (results[8].data as Transaction[]) || EMPTY_ARRAY;
   const subscriptions = (results[9].data as Subscription[]) || EMPTY_ARRAY;
   const categories = (results[10].data as Category[]) || EMPTY_ARRAY;
-  const goals = (results[13].data as Goal[]) || EMPTY_ARRAY;
+  const goals = (results[12].data as Goal[]) || EMPTY_ARRAY;
   const dashboardSummary = results[11].data as
     | DashboardSummaryResponse
     | undefined;
@@ -326,7 +300,10 @@ const Dashboard = () => {
           type: "warning",
         });
       } else {
-        setToast({ message: "Error generando análisis", type: "error" });
+        setToast({
+          message: detail || "Error generando análisis",
+          type: "error",
+        });
       }
     },
   });
@@ -340,13 +317,16 @@ const Dashboard = () => {
       });
       results[1].refetch(); // accounts
       results[11].refetch(); // summary
+      void queryClient.invalidateQueries({ queryKey: ["safeToSpend"] });
+      void queryClient.invalidateQueries({ queryKey: ["netWorth"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashFlowForecast"] });
     },
     onError: () => {
       setToast({ message: "Error al sincronizar balances", type: "error" });
     },
   });
 
-  const handleCreateSnapshot = useCallback(async () => {
+  const handleCreateSnapshot = useCallback(() => {
     if (creatingSnapshot || isRefetchingRef.current) {
       return;
     }
@@ -363,10 +343,15 @@ const Dashboard = () => {
     const monthName = new Intl.DateTimeFormat("es-ES", {
       month: "long",
     }).format(new Date(year, month - 1));
-    const confirmMessage = `¿Deseas cerrar el mes de ${monthName.toUpperCase()} ${year}?\n\nSe guardará un cierre mensual protegido en tu historial patrimonial.`;
+    setSnapshotConfirm({ isOpen: true, month, year, monthName });
+  }, [creatingSnapshot]);
 
-    if (!window.confirm(confirmMessage)) return;
+  const confirmCreateSnapshot = useCallback(async () => {
+    if (creatingSnapshot || isRefetchingRef.current) {
+      return;
+    }
 
+    const { month, year, monthName } = snapshotConfirm;
     setCreatingSnapshot(true);
     isRefetchingRef.current = true;
 
@@ -378,49 +363,34 @@ const Dashboard = () => {
       });
 
       results[11].refetch();
-      results[13].refetch();
+      results[12].refetch();
+      void queryClient.invalidateQueries({ queryKey: ["snapshots"] });
+      void queryClient.invalidateQueries({ queryKey: ["netWorth"] });
+      void queryClient.invalidateQueries({ queryKey: ["safeToSpend"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashFlowForecast"] });
     } catch (error) {
       console.error("Error creating snapshot:", error);
       setToast({ message: "Error al cerrar mes contable", type: "error" });
     } finally {
       setCreatingSnapshot(false);
       isRefetchingRef.current = false;
+      setSnapshotConfirm((prev) => ({ ...prev, isOpen: false }));
     }
-  }, [creatingSnapshot, results]);
+  }, [creatingSnapshot, queryClient, results, snapshotConfirm]);
 
   const totalBalance = useMemo(
-    () =>
-      accounts
-        .filter(
-          (acc) =>
-            acc.account_type === "checking" || acc.account_type === "savings",
-        )
-        .reduce((sum, acc) => sum.plus(toDecimal(acc.balance)), new Decimal(0)),
+    () => calculateLiquidBalance(accounts),
     [accounts],
   );
 
-  const latestStatements = useMemo(() => {
-    const latestMap = new Map<string, CreditCardStatement>();
-    statements.forEach((s) => {
-      const current = latestMap.get(s.account_id);
-      if (
-        !current ||
-        s.year > current.year ||
-        (s.year === current.year && s.month > current.month)
-      ) {
-        latestMap.set(s.account_id, s);
-      }
-    });
-    return Array.from(latestMap.values());
-  }, [statements]);
+  const latestStatements = useMemo(
+    () => Array.from(getLatestStatementByAccount(statements).values()),
+    [statements],
+  );
 
   const totalCreditCardDebt = useMemo(
-    () =>
-      latestStatements.reduce(
-        (sum, s) => sum.plus(toDecimal(s.statement_balance)),
-        new Decimal(0),
-      ),
-    [latestStatements],
+    () => calculateCreditCardDebt(accounts, statements),
+    [accounts, statements],
   );
 
   const totalIncome = useMemo(
@@ -914,25 +884,40 @@ return (
         />
       )}
 
+      <ConfirmDialog
+        isOpen={snapshotConfirm.isOpen}
+        title={`Cerrar ${snapshotConfirm.monthName} ${snapshotConfirm.year}`}
+        message="Se guardará un cierre mensual protegido en tu historial patrimonial."
+        confirmLabel="Cerrar mes"
+        submittingLabel="Cerrando…"
+        variant="primary"
+        onConfirm={confirmCreateSnapshot}
+        onCancel={() =>
+          setSnapshotConfirm((prev) => ({ ...prev, isOpen: false }))
+        }
+      />
+
       {/* WhatIf Modal */}
       <WhatIfModal
         isOpen={showWhatIfModal}
         onClose={() => setShowWhatIfModal(false)}
         transactions={transactions}
-        currentNetWorth={totalBalance.toNumber()}
-        monthlyIncome={
-          safeToSpend?.monthly_income ||
-          (dashboardSummary?.total_income
-            ? dashboardSummary.total_income / 100
-            : 0)
-        }
-        fixedExpenses={safeToSpend?.projected_fixed_expenses || 0}
-        totalDebt={totalStatementDue.toNumber()}
+        currentNetWorth={Math.round(totalBalance.toNumber())}
+        monthlyIncome={Math.round(
+          Number(safeToSpend?.monthly_income || 0) > 0
+            ? Number(safeToSpend?.monthly_income)
+            : (dashboardSummary?.total_income || 0),
+        )}
+        fixedExpenses={Math.round(Number(safeToSpend?.projected_fixed_expenses || 0))}
+        totalDebt={Math.round(totalStatementDue.toNumber())}
         avgMonthlySpend={Math.max(
           0,
-          totalExpenses.toNumber() / 100 -
-            (safeToSpend?.projected_fixed_expenses || 0),
+          Math.round(
+            totalExpenses.toNumber() -
+              Number(safeToSpend?.projected_fixed_expenses || 0),
+          ),
         )}
+        goals={goals}
       />
 
       {/* AnomalyScanner Modal */}

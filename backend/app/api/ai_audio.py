@@ -13,6 +13,7 @@ from app.api.auth import get_current_device
 from app.models.category import Category
 from app.api.ai_shared import get_gemini_key
 from app.services.gemini_gateway import create_gemini_client
+from app.services.privacy import mask_description
 
 router = APIRouter(
     prefix="/api/ai", 
@@ -148,7 +149,7 @@ AVAILABLE ACCOUNTS (Payment Methods):
 
 Rules:
 - Extract ALL individual line items/transactions from the document.
-- Amount should be a positive number.
+- amount: Positive number in USD dollars (e.g. 15.50 for $15.50, NOT cents).
 - transaction_type: "income" or "expense" based on context.
 - category_id: Map to the closest Category ID.
 - account_id: Map to the closest Account ID if mentioned (e.g. card name).
@@ -243,8 +244,8 @@ async def batch_category_mapping(
     individual API calls during CSV import.
     """
     try:
-        # Fetch all categories from DB
-        categories = db.query(Category).all()
+        # Fetch active categories from DB
+        categories = db.query(Category).filter(Category.is_deleted == False).all()
         if not categories:
             raise HTTPException(status_code=404, detail="No categories found in database")
         
@@ -255,8 +256,8 @@ async def batch_category_mapping(
         api_key = get_gemini_key(db)
         client = create_gemini_client(api_key)
         
-        # Prepare prompt
-        descriptions_list = "\n".join([f"- {desc}" for desc in request.descriptions])
+        # Prepare prompt with masked descriptions
+        descriptions_list = "\n".join([f"- {mask_description(desc)}" for desc in request.descriptions])
         prompt = f"""You are a financial transaction categorizer. Map each transaction description to the most appropriate category ID.
 
 Available categories:

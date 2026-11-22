@@ -72,24 +72,32 @@ class AssetDepreciationService:
             raise ValueError(f"Asset not found: {asset_id}")
 
         purchase_date = cast(datetime, parse_date_robustly(asset.purchase_date) if isinstance(asset.purchase_date, str) else asset.purchase_date)
-        months_elapsed = AssetDepreciationService.calculate_months_elapsed(purchase_date, as_of_date)
+        raw_months_elapsed = AssetDepreciationService.calculate_months_elapsed(purchase_date, as_of_date)
 
         # Base depreciable: purchase_price - residual_value
         depreciable_base = cast(int, asset.purchase_price_cents) - cast(int, asset.residual_value_cents)
+        life_months = cast(int, asset.estimated_life_months or 0)
 
         current_value: int
         depreciation_accumulated: int
         is_fully_depreciated = False
 
-        if months_elapsed >= cast(int, asset.estimated_life_months):
-            # Asset fully depreciated - value = residual_value (minimum, never negative)
+        if raw_months_elapsed < 0:
+            # Asset was not yet purchased at as_of_date
+            months_elapsed = 0
+            current_value = 0
+            depreciation_accumulated = 0
+        elif life_months <= 0 or raw_months_elapsed >= life_months:
+            months_elapsed = raw_months_elapsed
+            # Asset zero-life or fully depreciated - value = residual_value (minimum, never negative)
             current_value = cast(int, asset.residual_value_cents)
             depreciation_accumulated = depreciable_base
             is_fully_depreciated = True
         else:
+            months_elapsed = raw_months_elapsed
             # Precision: multiply first, divide later to avoid cent loss
             # depreciation = (depreciable_base * months_elapsed) / estimated_life_months
-            depreciation = (depreciable_base * months_elapsed) // cast(int, asset.estimated_life_months)
+            depreciation = (depreciable_base * months_elapsed) // life_months
             current_value = cast(int, asset.purchase_price_cents) - depreciation
             depreciation_accumulated = depreciation
 

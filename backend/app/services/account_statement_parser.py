@@ -116,7 +116,7 @@ def _forced_transaction_type(raw_type: str) -> str | None:
 
 def _transaction_type_from_label(raw_type: str) -> str:
     if _contains_any(raw_type, ('deposito', DEPOSIT_TERM)):
-        return 'deposit'
+        return 'income'
     if _contains_any(raw_type, ('egreso', 'retiro', 'cargo', DEBIT_TERM, 'debito')):
         return 'expense'
     return 'income'
@@ -242,8 +242,7 @@ def _calculate_totals(
     income_total = 0
     expense_total = 0
     for transaction in transactions:
-        raw_type = str(transaction.get('_raw_type') or '').lower()
-        if transaction['transaction_type'] == 'income' and not _contains_any(raw_type, ('deposito', DEPOSIT_TERM)):
+        if transaction['transaction_type'] == 'income':
             income_total += transaction['amount_cents']
         elif transaction['transaction_type'] != 'income':
             expense_total += transaction['amount_cents']

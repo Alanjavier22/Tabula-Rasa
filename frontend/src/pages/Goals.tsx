@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { goalsAPI, aiGoalsAPI } from '../services/api';
 import type { Goal, GoalStatus, SmartGoalResponse } from '../types';
 import { formatMoney, toCents } from '../utils/money';
+import { parseLocalDate } from '../utils/dateUtils';
 import {
   Plus,
   Trash2,
@@ -88,10 +89,13 @@ const Goals = () => {
       await goalsAPI.delete(deleteConfirm.id);
       setToast({ message: 'Meta eliminada del sistema', type: 'success' });
       void fetchGoals();
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['netWorth'] });
+      queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
     } catch (error) {
       console.error('Error deleting goal:', error);
       setToast({ message: 'Error al eliminar meta', type: 'error' });
@@ -142,6 +146,10 @@ const Goals = () => {
       setToast({ message: 'Nueva meta establecida con éxito', type: 'success' });
       void fetchGoals();
       queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+      queryClient.invalidateQueries({ queryKey: ['netWorth'] });
+      queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
     } catch (error) {
       console.error('Error creating goal:', error);
       setToast({ message: 'Error al establecer meta', type: 'error' });
@@ -168,6 +176,10 @@ const Goals = () => {
       setToast({ message: 'Meta actualizada correctamente', type: 'success' });
       void fetchGoals();
       queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+      queryClient.invalidateQueries({ queryKey: ['netWorth'] });
+      queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
     } catch (error) {
       console.error('Error updating goal:', error);
       setToast({ message: 'Error al actualizar meta', type: 'error' });
@@ -291,7 +303,12 @@ const Goals = () => {
               className="compact-panel bg-surface-soft   border border-line rounded-2xl p-8  relative overflow-hidden group"
             >
               <div className="absolute top-0 right-0 p-6">
-                <button onClick={() => setSmartRecommendations(null)} className="w-10 h-10 rounded-xl bg-surface-soft hover:bg-surface-soft flex items-center justify-center text-success hover:text-primary transition-all">
+                <button
+                  type="button"
+                  aria-label="Cerrar análisis del consejero IA"
+                  onClick={() => setSmartRecommendations(null)}
+                  className="w-10 h-10 rounded-xl bg-surface-soft hover:bg-surface-soft flex items-center justify-center text-success hover:text-primary transition-all"
+                >
                   <X className="w-6 h-6" />
                 </button>
               </div>
@@ -403,7 +420,7 @@ const Goals = () => {
                             {goal.target_date && (
                               <div className="flex items-center gap-1 text-xs font-bold text-muted uppercase tracking-widest">
                                 <Calendar className="w-3 h-3" />
-                                <span>{new Date(goal.target_date).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}</span>
+                                <span>{parseLocalDate(goal.target_date).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}</span>
                               </div>
                             )}
                           </div>
@@ -412,13 +429,19 @@ const Goals = () => {
 
                       <div className="flex gap-1">
                         <button
+                          type="button"
                           onClick={() => handleEdit(goal)}
+                          aria-label={`Editar meta ${goal.name}`}
+                          title="Editar meta"
                           className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-surface-soft text-muted hover:text-primary transition-all"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleDelete(goal.id)}
+                          aria-label={`Eliminar meta ${goal.name}`}
+                          title="Eliminar meta"
                           className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-danger-soft text-muted hover:text-danger transition-all"
                         >
                           <Trash2 className="w-4 h-4" />

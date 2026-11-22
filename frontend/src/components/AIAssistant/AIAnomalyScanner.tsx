@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { CheckCircle, X, RefreshCw, ShieldAlert, Zap, Target, Search, Check, EyeOff, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AIAgentService } from '../../services/AIAgentService';
@@ -21,19 +22,11 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
   goals,
   onClose,
 }) => {
+  const queryClient = useQueryClient();
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState<AnomalyScanResult | null>(null);
   const [syncedZombies, setSyncedZombies] = useState<number[]>([]);
   const [dismissedSpikes, setDismissedSpikes] = useState<number[]>([]);
-
-  // Bloquear el scroll del body de fondo mientras el modal está abierto
-  useEffect(() => {
-    const originalStyle = window.getComputedStyle(document.body).overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalStyle;
-    };
-  }, []);
 
   const handleScan = async () => {
     setIsScanning(true);
@@ -66,6 +59,10 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
         next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       });
       setSyncedZombies(prev => [...prev, idx]);
+      void queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+      void queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
     } catch (error) {
       console.error('Error adding subscription:', error);
     }
@@ -129,7 +126,7 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
         )}
 
         {onClose && (
-          <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all">
+          <button type="button" aria-label="Cerrar diálogo" onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all">
             <X className="w-5 h-5" />
           </button>
         )}
@@ -149,14 +146,12 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
               </p>
             </div>
             <button
+              type="button"
               onClick={handleScan}
-              className="group relative w-full"
+              className="app-btn app-btn-primary group w-full justify-center py-3 rounded-xl"
             >
-              <div className="absolute -inset-1 bg-surface-soft   rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
-              <div className="relative bg-surface-soft   text-primary py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest transition-all hover:scale-[1.01] active:scale-[0.99]">
-                <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-700" />
-                Comenzar Auditoría
-              </div>
+              <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-700" />
+              Comenzar Auditoría
             </button>
           </div>
         )}
@@ -300,9 +295,11 @@ export const AIAnomalyScanner: React.FC<AIAnomalyScannerProps> = ({
                             >
                               {/* Botón de descartar/justificar en la esquina superior */}
                               <button
+                                type="button"
                                 onClick={() => dismissSpike(idx)}
                                 className="absolute top-4 right-4 w-7 h-7 bg-surface hover:bg-surface text-muted hover:text-primary rounded-lg flex items-center justify-center border border-line hover:border-line transition-all"
                                 title="Marcar como gasto justificado / planeado"
+                                aria-label={`Descartar alerta de ${getCategoryName(spike.category_id)}`}
                               >
                                 <EyeOff className="w-3.5 h-3.5" />
                               </button>

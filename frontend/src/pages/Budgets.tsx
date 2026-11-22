@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { budgetsAPI, categoriesAPI, transactionsAPI, accountsAPI } from '../services/api';
 import type { Budget, Category, Account, TransactionType, PaymentMethod, ExpenseType } from '../types';
 import { formatMoney, toCents } from '../utils/money';
+import { getLocalTodayIso } from '../utils/dateUtils';
 import {
   Plus,
   Trash2,
@@ -28,12 +29,6 @@ const emptyForm: BudgetFormData = {
   month: new Date().getMonth() + 1,
   year: new Date().getFullYear(),
   category_id: '',
-};
-
-const getBudgetGlowClass = (isOverBudget: boolean, percentage: number) => {
-  if (isOverBudget) return 'bg-danger';
-  if (percentage > 80) return 'bg-warning';
-  return 'bg-info';
 };
 
 const getBudgetProgressClass = (isOverBudget: boolean, percentage: number) => {
@@ -64,7 +59,7 @@ const Budgets = () => {
     amount: '',
     transaction_type: 'expense' as TransactionType,
     payment_method: 'transfer' as PaymentMethod,
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalTodayIso(),
     category_id: '',
     account_id: '',
     expense_type: 'fixed' as ExpenseType,
@@ -118,12 +113,27 @@ const Budgets = () => {
     setDeleteConfirm({ isOpen: true, id });
   };
 
+  const invalidateBudgetQueries = (includeTransactions = false) => {
+    void queryClient.invalidateQueries({ queryKey: ['budgets'] });
+    void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+    void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+    void queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
+    void queryClient.invalidateQueries({ queryKey: ['netWorth'] });
+    if (includeTransactions) {
+      void queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      void queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      void queryClient.invalidateQueries({ queryKey: ['vehicleTelemetry'] });
+      void queryClient.invalidateQueries({ queryKey: ['goals'] });
+    }
+  };
+
   const confirmDelete = async () => {
     if (deleteConfirm.id === null) return;
     try {
       await budgetsAPI.delete(deleteConfirm.id);
       setToast({ message: 'Presupuesto eliminado', type: 'success' });
       void fetchBudgets();
+      invalidateBudgetQueries();
     } catch (error) {
       console.error('Error deleting budget:', error);
       setToast({ message: 'Error al eliminar presupuesto', type: 'error' });
@@ -159,8 +169,7 @@ const Budgets = () => {
       setForm(emptyForm);
       setToast({ message: 'Presupuesto creado con éxito', type: 'success' });
       void fetchBudgets();
-      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      invalidateBudgetQueries();
     } catch (error) {
       console.error('Error creating budget:', error);
       setToast({ message: 'Error al crear presupuesto', type: 'error' });
@@ -186,6 +195,7 @@ const Budgets = () => {
       setEditForm(emptyForm);
       setToast({ message: 'Presupuesto actualizado', type: 'success' });
       void fetchBudgets();
+      invalidateBudgetQueries();
     } catch (error) {
       console.error('Error updating budget:', error);
       setToast({ message: 'Error al actualizar presupuesto', type: 'error' });
@@ -202,7 +212,7 @@ const Budgets = () => {
       amount: remaining > 0 ? (remaining / 100).toString() : (budget.amount / 100).toString(),
       transaction_type: 'expense' as TransactionType,
       payment_method: 'transfer' as PaymentMethod,
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalTodayIso(),
       category_id: budget.category_id?.toString() || '',
       account_id: '',
       expense_type: 'fixed' as ExpenseType,
@@ -210,9 +220,17 @@ const Budgets = () => {
     setShowPaymentModal(true);
   };
 
-  const handlePaymentSubmit = async (data: TransactionFormData) => {
+  const handlePaymentSubmit = async (
+    data: TransactionFormData,
+    splits?: Array<{ amount: string; category_id: string; description: string }>,
+  ) => {
     setSaving(true);
     try {
+      const splitsPayload = splits?.map((s) => ({
+        amount: toCents(s.amount.replace(',', '.')),
+        category_id: s.category_id || null,
+        description: s.description || null,
+      }));
       await transactionsAPI.create({
         description: data.description,
         amount: toCents(data.amount),
@@ -222,14 +240,13 @@ const Budgets = () => {
         category_id: data.category_id || null,
         account_id: data.account_id || null,
         expense_type: data.transaction_type === 'expense' ? data.expense_type : null,
+        ...(splitsPayload ? { splits: splitsPayload } : {}),
       });
       setShowPaymentModal(false);
       setPaymentBudget(null);
       setToast({ message: 'Pago registrado y presupuesto actualizado', type: 'success' });
       void fetchBudgets();
-      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
-      queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      invalidateBudgetQueries(true);
     } catch (error) {
       console.error('Error creating payment transaction:', error);
       setToast({ message: 'Error al registrar pago', type: 'error' });
@@ -246,6 +263,7 @@ const Budgets = () => {
       setToast({ message: 'Ecosistema de presupuestos sincronizado', type: 'success' });
       setShowRecurringModal(false);
       void fetchBudgets();
+      invalidateBudgetQueries();
     } catch (error) {
       console.error('Error generating recurring budgets:', error);
       const errorMessage = (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al generar recurrentes';
@@ -386,9 +404,6 @@ const Budgets = () => {
                     transition={{ delay: index * 0.05 }}
                     className="compact-card group bg-surface  rounded-2xl border border-line hover:border-line transition-all p-8 relative overflow-hidden"
                   >
-                    {/* Background Visual Decor */}
-                    <div className={`hidden ${getBudgetGlowClass(isOverBudget, percentage)}`} aria-hidden="true" />
-
                     <div className="flex items-start justify-between mb-8 relative z-10">
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all ${
@@ -408,21 +423,29 @@ const Budgets = () => {
 
                       <div className="flex gap-1">
                         <button
+                          type="button"
                           onClick={() => handleQuickPayment(budget)}
                           className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-success-soft text-muted hover:text-success transition-all"
                           title="Registrar Gasto"
+                          aria-label={`Registrar gasto en ${budget.name}`}
                         >
                           <Check className="w-4 h-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleEdit(budget)}
                           className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-info-soft text-muted hover:text-info transition-all"
+                          title="Editar presupuesto"
+                          aria-label={`Editar presupuesto ${budget.name}`}
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleDelete(budget.id)}
                           className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-danger-soft text-muted hover:text-danger transition-all"
+                          title="Eliminar presupuesto"
+                          aria-label={`Eliminar presupuesto ${budget.name}`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

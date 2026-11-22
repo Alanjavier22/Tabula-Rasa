@@ -71,16 +71,21 @@ class SentinelService:
         
         # 0. Burn Rate Analysis (Proactive Alarms)
         from app.models.budget import Budget
-        from app.services.budget_service import compute_budget_pacing
+        from app.services.budget_service import compute_budget_pacing, compute_budget_spent
         
-        budgets = self.db.query(Budget).filter(Budget.month == now.month, Budget.year == now.year).all()
+        budgets = self.db.query(Budget).filter(
+            Budget.month == now.month,
+            Budget.year == now.year,
+            Budget.is_deleted == False,
+        ).all()
         burn_rate_alarms = []
         for b in budgets:
-            pacing = compute_budget_pacing(b, now)
+            spent = compute_budget_spent(self.db, b)
+            pacing = compute_budget_pacing(b, now, spent_override=spent)
             if pacing["is_over_pacing"]:
                 burn_rate_alarms.append({
                     "category": b.name,
-                    "spent": b.spent / 100,
+                    "spent": spent / 100,
                     "expected": pacing["expected_spend"] / 100,
                     "remaining": pacing["remaining"] / 100,
                     "pacing_status": pacing["pacing_status"]
@@ -205,9 +210,8 @@ class SentinelService:
         """Calculate the stable score used by both Gemini and offline mode."""
         score = 100
         liquidity = float(context.get("liquidez_neta", 0) or 0)
-        fiscal_debt = float(context.get("iva_proyectado_mes", 0) or 0)
-        fiscal_debt += float(context.get("retenciones_proyectadas", 0) or 0)
-        debt = float(context.get("deuda_tarjetas", 0) or 0) + fiscal_debt
+        # Tax metrics reflect VAT already paid on historical expenses, not extra debt.
+        debt = float(context.get("deuda_tarjetas", 0) or 0)
         runway = float(context.get("runway_meses", 0) or 0)
 
         if debt > liquidity:
@@ -238,11 +242,7 @@ class SentinelService:
         
         # 1. Evaluate Liquidity vs Debt
         liquidez = context["liquidez_neta"]
-        deuda = (
-            context["deuda_tarjetas"]
-            + context["iva_proyectado_mes"]
-            + context.get("retenciones_proyectadas", 0)
-        )
+        deuda = context["deuda_tarjetas"]
         
         if deuda > liquidez:
             concerns.append("La deuda inmediata supera la liquidez disponible")

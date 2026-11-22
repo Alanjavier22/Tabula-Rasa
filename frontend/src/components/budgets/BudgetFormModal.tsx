@@ -65,7 +65,7 @@ const BudgetFormModal = ({
   return (
     <AnimatePresence>
       {(showCreateModal || showEditModal || showRecurringModal) && (
-        <Modal onClose={onClose} label={modalTitle}>
+        <Modal onClose={onClose} preventClose={saving} label={modalTitle}>
           <motion.div
             initial={false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -86,9 +86,11 @@ const BudgetFormModal = ({
                 </div>
               </div>
               <button
+                type="button"
                 aria-label="Cerrar diálogo"
+                disabled={saving}
                 onClick={onClose}
-                className="w-9 h-9 rounded-lg hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all"
+                className="w-9 h-9 rounded-lg hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>

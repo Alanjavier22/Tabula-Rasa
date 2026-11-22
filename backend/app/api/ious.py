@@ -99,33 +99,54 @@ class IOUSettle(BaseModel):
 @router.post("/{iou_id}/settle", responses=IOU_ERROR_RESPONSES)
 def settle_iou(iou_id: str, settle_data: IOUSettle, db: Session = Depends(get_db)):
     try:
-        db_iou = db.query(IOU).filter(IOU.id == iou_id).first()
+        db_iou = db.query(IOU).filter(IOU.id == iou_id, IOU.is_deleted == False).first()
         if not db_iou:
             raise HTTPException(status_code=404, detail="IOU not found")
         if db_iou.status == IOUStatus.SETTLED:
             raise HTTPException(status_code=400, detail="IOU is already settled")
         from app.models.account import Account
-        account = db.query(Account).filter(Account.id == settle_data.account_id).first()
+        account = db.query(Account).filter(Account.id == settle_data.account_id, Account.is_deleted == False).first()
         if not account:
             raise HTTPException(status_code=404, detail="Account not found")
         db_iou.status = cast(Any, IOUStatus.SETTLED)
         from app.models.transaction import Transaction as Txn, TransactionType, PaymentMethod
         from datetime import timezone
         from app.services.balance import apply_transaction_to_balance
-        income_txn = Txn(
-            amount=db_iou.amount,
-            description=f"Devolución de IOU: {db_iou.person_name} - {db_iou.description or 'Sin descripción'}",
-            transaction_type=TransactionType.INCOME,
-            payment_method=PaymentMethod.TRANSFER,
-            date=datetime.now(timezone.utc),
-            account_id=settle_data.account_id,
+        from app.services.transaction_identity import unique_transaction_fingerprint
+
+        is_i_owe = db_iou.iou_type == IOUType.I_OWE
+        txn_type = TransactionType.EXPENSE if is_i_owe else TransactionType.INCOME
+        txn_desc = (
+            f"Pago de IOU: {db_iou.person_name} - {db_iou.description or 'Sin descripción'}"
+            if is_i_owe
+            else f"Devolución de IOU: {db_iou.person_name} - {db_iou.description or 'Sin descripción'}"
         )
-        db.add(income_txn)
+        now = datetime.now(timezone.utc)
+        settlement_txn = Txn(
+            amount=db_iou.amount,
+            description=txn_desc,
+            transaction_type=txn_type,
+            payment_method=PaymentMethod.TRANSFER,
+            date=now,
+            account_id=settle_data.account_id,
+            fingerprint=unique_transaction_fingerprint(
+                db,
+                description=txn_desc,
+                amount=cast(int, db_iou.amount),
+                date_value=now,
+                transaction_type=txn_type,
+                account_id=settle_data.account_id,
+            ),
+        )
+        db.add(settlement_txn)
         db.flush()
-        apply_transaction_to_balance(db, income_txn, reverse=False)
+        apply_transaction_to_balance(db, settlement_txn, reverse=False)
         db.commit()
         db.refresh(db_iou)
-        return {"message": "IOU settled and income transaction created", "transaction_id": income_txn.id}
+        return {
+            "message": f"IOU settled and {txn_type.value} transaction created",
+            "transaction_id": settlement_txn.id,
+        }
     except HTTPException:
         raise
     except Exception as e:

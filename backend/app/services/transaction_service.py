@@ -214,6 +214,21 @@ def create_transaction_with_splits(
         raise HTTPException(status_code=500, detail=f"Error creating transaction: {str(e)}")
 
 
+def _recalculate_updated_transaction_goals(
+    db: Session,
+    old_goal_id: Optional[str],
+    current_goal_id: Optional[str],
+    old_amount: Any,
+    current_amount: Any,
+) -> None:
+    from app.api.goals import recalculate_goal_progress
+
+    if old_goal_id and old_goal_id != current_goal_id:
+        recalculate_goal_progress(old_goal_id, db)
+    if current_goal_id and (current_goal_id != old_goal_id or current_amount != old_amount):
+        recalculate_goal_progress(current_goal_id, db)
+
+
 def update_transaction_with_splits(
     db: Session,
     transaction_id: str,
@@ -236,7 +251,10 @@ def update_transaction_with_splits(
         HTTPException: If validation fails or transaction not found
     """
     try:
-        db_transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+        db_transaction = db.query(Transaction).filter(
+            Transaction.id == transaction_id,
+            Transaction.is_deleted == False,
+        ).first()
         if not db_transaction:
             raise HTTPException(status_code=404, detail="Transaction not found")
 
@@ -248,9 +266,11 @@ def update_transaction_with_splits(
         # Reverse old transaction effect on balance
         apply_transaction_to_balance(db, db_transaction, reverse=True)
 
-        # --- Detect category change and learn pattern ---
+        # --- Capture previous attributes before setattr overwrites them ---
         old_category_id = db_transaction.category_id
         new_category_id = transaction_data.get('category_id')
+        old_goal_id = cast(Optional[str], db_transaction.goal_id)
+        old_amount = db_transaction.amount
         
         # Update transaction fields
         for key, value in transaction_data.items():
@@ -295,16 +315,13 @@ def update_transaction_with_splits(
         apply_transaction_to_balance(db, db_transaction, reverse=False)
 
         # Recalculate goal progress if transaction is assigned to a goal
-        # Recalculate both old goal (if changed) and new goal
-        old_goal_id = db_transaction.goal_id
-        new_goal_id = transaction_data.get("goal_id")
-        
-        if old_goal_id and old_goal_id != new_goal_id:
-            from app.api.goals import recalculate_goal_progress
-            recalculate_goal_progress(cast(str, old_goal_id), db)
-        if new_goal_id and new_goal_id != old_goal_id:
-            from app.api.goals import recalculate_goal_progress
-            recalculate_goal_progress(cast(str, new_goal_id), db)
+        _recalculate_updated_transaction_goals(
+            db,
+            old_goal_id,
+            cast(Optional[str], db_transaction.goal_id),
+            old_amount,
+            db_transaction.amount,
+        )
 
         # Disparamos la sanación de snapshots para el mes de la transacción
         from app.services.snapshot_service import mark_snapshots_as_stale
@@ -335,7 +352,10 @@ def delete_transaction_with_balance(db: Session, transaction_id: str) -> dict:
     Raises:
         HTTPException: If transaction not found
     """
-    db_transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    db_transaction = db.query(Transaction).filter(
+        Transaction.id == transaction_id,
+        Transaction.is_deleted == False,
+    ).first()
     if not db_transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
@@ -376,7 +396,10 @@ def get_existing_hashes(db: Session, hashes: List[str]) -> List[str]:
         return []
 
     # Seleccionamos SOLO la columna hash para máxima eficiencia de memoria
-    results = db.query(Transaction.hash).filter(Transaction.hash.in_(hashes)).all()
+    results = db.query(Transaction.hash).filter(
+        Transaction.hash.in_(hashes),
+        Transaction.is_deleted == False,
+    ).all()
 
     # results es una lista de tuplas ej: [("hash1",), ("hash2",)]
     return [result[0] for result in results]

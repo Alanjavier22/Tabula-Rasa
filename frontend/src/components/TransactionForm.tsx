@@ -130,12 +130,17 @@ const TransactionForm = ({
     setSplits(newSplits);
   };
 
+  const parseDecimal = (raw: string) => {
+    const parsed = Number.parseFloat((raw || '0').replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   const getSplitTotal = () => {
-    return splits.reduce((sum, s) => sum + Number.parseFloat(s.amount || '0'), 0);
+    return splits.reduce((sum, s) => sum + parseDecimal(s.amount), 0);
   };
 
   return (
-    <Modal onClose={() => { if (!saving && !submitting) onCancel(); }} label={title}>
+    <Modal onClose={() => { if (!saving && !submitting) onCancel(); }} preventClose={saving || submitting} label={title}>
       <motion.div
         initial={false}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -390,8 +395,8 @@ const TransactionForm = ({
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-xs font-black text-muted uppercase tracking-widest">Divisiones</span>
                   <div className="px-3 py-1 bg-surface-soft rounded-full border border-line">
-                    <span className={`text-xs font-bold ${Math.abs(getSplitTotal() - Number.parseFloat(form.amount || '0')) < 0.01 ? 'text-success' : 'text-warning'}`}>
-                      ${getSplitTotal().toFixed(2)} / ${Number.parseFloat(form.amount || '0').toFixed(2)}
+                    <span className={`text-xs font-bold ${Math.abs(getSplitTotal() - parseDecimal(form.amount)) < 0.01 ? 'text-success' : 'text-warning'}`}>
+                      ${getSplitTotal().toFixed(2)} / ${parseDecimal(form.amount).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -445,10 +450,11 @@ const TransactionForm = ({
                     {splits.length > 1 && (
                       <button
                         type="button"
+                        aria-label={`Eliminar división ${index + 1}`}
                         onClick={() => removeSplitRow(index)}
                         className="absolute -top-2 -right-2 w-7 h-7 bg-danger text-on-color rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                     )}
                   </div>
@@ -472,8 +478,9 @@ const TransactionForm = ({
         <div className="p-7 border-t border-line bg-canvas flex items-center gap-4">
           <button
             type="button"
+            disabled={saving || submitting}
             onClick={onCancel}
-            className="flex-1 py-4 rounded-2xl border border-line text-muted hover:text-primary hover:bg-surface-soft transition-all text-xs font-black uppercase tracking-widest"
+            className="app-btn app-btn-ghost flex-1"
           >
             Cancelar
           </button>

@@ -78,13 +78,14 @@ const StatementUploadStep = ({
 
           {file && (
             <button
+              type="button"
               onClick={onProcess}
               disabled={processing}
-              className="w-full py-3 rounded-xl bg-surface-soft   text-primary font-bold text-sm hover:shadow-lg  hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+              className="app-btn app-btn-primary w-full justify-center py-3 rounded-xl disabled:opacity-50"
             >
               {processing ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin"></div>
                   Auditando Estado de Cuenta...
                 </>
               ) : (

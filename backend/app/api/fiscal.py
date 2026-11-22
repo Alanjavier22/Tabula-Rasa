@@ -219,7 +219,7 @@ def _build_category_breakdown(category_totals: dict) -> list[CategoryBreakdownIt
             category_id=category_id,
             category_name=data["name"],
             amount=data["amount"],
-            formatted=f"${data['amount']:.2f}",
+            formatted=f"${data['amount'] / Decimal('100'):.2f}",
         )
         for category_id, data in sorted(
             category_totals.items(), key=lambda item: item[1]["amount"], reverse=True

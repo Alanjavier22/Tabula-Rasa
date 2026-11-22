@@ -57,11 +57,6 @@ const CommandPalette = () => {
         e.preventDefault();
         setIsOpen((prev) => !prev);
       }
-      if (e.key === 'Escape' && isOpen) {
-        setIsOpen(false);
-        setQuery('');
-        setAiResponse('');
-      }
     };
     const handleOpenRequest = () => {
       setIsOpen(true);
@@ -75,7 +70,7 @@ const CommandPalette = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('tabula:open-command-palette', handleOpenRequest);
     };
-  }, [isOpen]);
+  }, []);
 
   const closePalette = () => {
     setIsOpen(false);
@@ -108,7 +103,7 @@ const CommandPalette = () => {
         id: 'action-new-txn',
         name: 'Registrar nuevo movimiento',
         subtitle: 'Abrir el libro de movimientos para anotar un ingreso o gasto',
-        path: '/transactions?action=new',
+        path: '/transactions?new=1',
         icon: PlusCircle,
         kind: 'action',
       },
@@ -146,6 +141,11 @@ const CommandPalette = () => {
         queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
         queryClient.invalidateQueries({ queryKey: ['accounts'] });
         queryClient.invalidateQueries({ queryKey: ['budgets'] });
+        queryClient.invalidateQueries({ queryKey: ['netWorth'] });
+        queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
+        queryClient.invalidateQueries({ queryKey: ['goals'] });
+        queryClient.invalidateQueries({ queryKey: ['pendingIOUs'] });
+        queryClient.invalidateQueries({ queryKey: ['paymentAlerts'] });
       }
     },
     onError: () => {

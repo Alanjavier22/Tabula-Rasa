@@ -8,6 +8,7 @@ from typing import Annotated, List
 from sqlalchemy.orm import Session
 from database import get_db
 from app.services.ai_prompts import get_current_time_context, CORE_RULES
+from app.services.privacy import mask_description
 from app.api.ai_shared import get_gemini_key, call_gemini_json, CategoryInput, TransactionInput
 
 router = APIRouter()
@@ -36,7 +37,10 @@ async def suggest_categories(
     api_key = get_gemini_key(db)
 
     category_context = "\n".join([f"- {cat.id}: {cat.name}" for cat in request.categories])
-    transaction_context = "\n".join([f"ID: {txn.id} | Description: {txn.description} | Amount: {txn.amount}" for txn in request.transactions])
+    transaction_context = "\n".join([
+        f"ID: {txn.id} | Description: {mask_description(txn.description)} | Amount: {txn.amount}"
+        for txn in request.transactions
+    ])
 
     time_context = get_current_time_context()
     system_prompt = f"""{time_context}

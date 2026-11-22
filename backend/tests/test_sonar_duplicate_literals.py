@@ -45,7 +45,7 @@ def test_account_statement_parser_handles_summary_deposits_and_invalid_rows():
 
     assert [item["transaction_type"] for item in parsed["transactions"]] == [
         "income",
-        "deposit",
+        "income",
     ]
     assert parsed["transactions"][0]["amount_cents"] == 123456
     assert parsed["transactions"][0]["balance_cents"] == 200000

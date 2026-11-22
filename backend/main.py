@@ -17,7 +17,7 @@ def ensure_jwt_secret():
         new_secret = secrets.token_hex(32)
         os.environ["JWT_SECRET"] = new_secret
         security_config.JWT_SECRET = new_secret
-        
+
 
 def ensure_encryption_key():
     from cryptography.fernet import Fernet
@@ -77,7 +77,7 @@ def setup_logging():
     file_handler.addFilter(NetworkErrorFilter())
     
     # Setup console handler
-    console_handler = logging.StreamHandler()
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     console_handler.setLevel(logging.INFO)
     console_handler.addFilter(NetworkErrorFilter())
@@ -119,17 +119,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"[STARTUP] Error in autonomous snapshot: {e}")
         
-    yield
-    # Shutdown
-    logger.info("Application shutting down gracefully...")
     try:
-        # Close database connections
-        engine.dispose()
-        logger.info("Database connections closed")
-        
-        logger.info("Graceful shutdown complete")
-    except Exception as e:
-        logger.error(f"Error during graceful shutdown: {e}")
+        yield
+    finally:
+        # Shutdown
+        logger.info("Application shutting down gracefully...")
+        try:
+            # Close database connections
+            engine.dispose()
+            logger.info("Database connections closed")
+
+            logger.info("Graceful shutdown complete")
+        except Exception as e:
+            logger.error(f"Error during graceful shutdown: {e}")
 
 # Import models explicitly to register them with Base (fixes circular import)
 from app.models.transaction import Transaction
@@ -143,6 +145,7 @@ from app.models.subscription import Subscription
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.debt_share import DebtShare
 from app.models.deferred_payment import DeferredPayment
+from app.models.goal import Goal
 
 
 # Register event listeners for auto-increment version on UPDATE (OCC conflict resolution)
@@ -152,6 +155,7 @@ from app.models.deferred_payment import DeferredPayment
 @event.listens_for(IOU, 'before_update')
 @event.listens_for(Category, 'before_update')
 @event.listens_for(Budget, 'before_update')
+@event.listens_for(Goal, 'before_update')
 @event.listens_for(Reminder, 'before_update')
 @event.listens_for(Subscription, 'before_update')
 @event.listens_for(CreditCardStatement, 'before_update')
@@ -265,7 +269,7 @@ def health_check():
                 memory_status = "critical"
             
             # Check disk usage
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage(os.path.dirname(os.path.abspath(__file__)))
             disk_percent = disk.percent
             if disk_percent < 90:
                 disk_status = "healthy"
@@ -308,33 +312,38 @@ def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    import ssl_setup
-    
-    # FASE 8: Check if TLS certificates exist, generate if needed
-    cert_dir = os.path.dirname(os.path.abspath(__file__))
-    cert_path = os.path.join(cert_dir, "cert.pem")
-    key_path = os.path.join(cert_dir, "key.pem")
-    
-    if not os.path.exists(cert_path) or not os.path.exists(key_path):
-        logger.info("[FASE-8] TLS certificates not found, generating...")
-        from scripts.generate_certs import generate_self_signed_cert
-        generate_self_signed_cert()
-    
-    # 1. Asegurar CA y certificados para IP local
-    ssl_setup.ensure_certs()
     uvicorn_host = os.getenv("UVICORN_HOST", "127.0.0.1")
     display_host = "localhost" if uvicorn_host == "127.0.0.1" else uvicorn_host
-    print("\n=======================================================")
-    print(f"Servidor Local-First Iniciado: https://{display_host}:8001")
-    print("=======================================================\n")
-    
-    # 2. Iniciar Uvicorn con SSL (FASE 8: Use generated certificates)
-    uvicorn.run(
-        "main:app", 
-        host=uvicorn_host,
-        port=8001,
-        ssl_keyfile=key_path,
-        ssl_certfile=cert_path,
-        reload=True
-    )
-# Force reload: 1
+    use_https = os.getenv("USE_HTTPS", "").strip().lower() in ("1", "true", "yes")
+
+    if use_https:
+        import ssl_setup
+        cert_dir = os.path.dirname(os.path.abspath(__file__))
+        cert_path = os.path.join(cert_dir, "cert.pem")
+        key_path = os.path.join(cert_dir, "key.pem")
+        if not os.path.exists(cert_path) or not os.path.exists(key_path):
+            logger.info("[FASE-8] TLS certificates not found, generating...")
+            from scripts.generate_certs import generate_self_signed_cert
+            generate_self_signed_cert()
+        ssl_setup.ensure_certs()
+        print("\n=======================================================")
+        print(f"Servidor Local-First Iniciado: https://{display_host}:8001")
+        print("=======================================================\n")
+        uvicorn.run(
+            "main:app",
+            host=uvicorn_host,
+            port=8001,
+            ssl_keyfile=key_path,
+            ssl_certfile=cert_path,
+            reload=True,
+        )
+    else:
+        print("\n=======================================================")
+        print(f"Servidor Local-First Iniciado: http://{display_host}:8001")
+        print("=======================================================\n")
+        uvicorn.run(
+            "main:app",
+            host=uvicorn_host,
+            port=8001,
+            reload=True,
+        )

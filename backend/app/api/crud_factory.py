@@ -66,7 +66,10 @@ def _register_get_route(
 ) -> None:
     @router.get("/{item_id}", response_model=response_schema, responses=CRUD_NOT_FOUND_RESPONSE)
     def get_one(item_id: str, db: Session = Depends(get_db)):
-        obj = db.query(model).filter(model.id == item_id).first()
+        query = db.query(model).filter(model.id == item_id)
+        if hasattr(model, "is_deleted"):
+            query = query.filter(model.is_deleted == False)  # noqa: E712
+        obj = query.first()
         if not obj:
             raise HTTPException(status_code=404, detail=f"{entity_name} not found")
         return obj
@@ -82,7 +85,10 @@ def _register_update_route(
 ) -> None:
     @router.put("/{item_id}", response_model=response_schema, responses=CRUD_NOT_FOUND_RESPONSE)
     def update(item_id: str, payload: update_schema, db: Session = Depends(get_db)):  # type: ignore[valid-type]
-        obj = db.query(model).filter(model.id == item_id).first()
+        query = db.query(model).filter(model.id == item_id)
+        if hasattr(model, "is_deleted"):
+            query = query.filter(model.is_deleted == False)  # noqa: E712
+        obj = query.first()
         if not obj:
             raise HTTPException(status_code=404, detail=f"{entity_name} not found")
         if pre_update:
@@ -97,10 +103,16 @@ def _register_update_route(
 def _register_delete_route(router: APIRouter, model: Type[Any], entity_name: str) -> None:
     @router.delete("/{item_id}", responses=CRUD_NOT_FOUND_RESPONSE)
     def delete(item_id: str, db: Session = Depends(get_db)):
-        obj = db.query(model).filter(model.id == item_id).first()
+        query = db.query(model).filter(model.id == item_id)
+        if hasattr(model, "is_deleted"):
+            query = query.filter(model.is_deleted == False)  # noqa: E712
+        obj = query.first()
         if not obj:
             raise HTTPException(status_code=404, detail=f"{entity_name} not found")
-        db.delete(obj)
+        if hasattr(model, "is_deleted"):
+            obj.is_deleted = True
+        else:
+            db.delete(obj)
         db.commit()
         return {"message": f"{entity_name} deleted successfully"}
 
