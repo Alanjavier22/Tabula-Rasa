@@ -156,3 +156,52 @@ def test_sentinel_intermediate_reserve_is_informational(db_session):
     assert report["health_score"] == 90
     assert report["analysis_source"] == "heuristic"
     assert report["warnings"] == [{"level": "info", "message": "Reserva estimada: 3.0 meses."}]
+
+
+def test_dashboard_metrics_exclude_internal_transactions(db_session):
+    from decimal import Decimal
+    from app.api.metrics_dashboard import (
+        _get_daily_spending,
+        _get_expense_breakdown,
+        _get_monthly_comparison,
+        _get_sankey_totals,
+    )
+
+    food = Category(id="food", name="Comida")
+    db_session.add(food)
+    db_session.add_all([
+        Transaction(id="inc", category_id="food", amount=50000, description="Salario",
+                    transaction_type="income", payment_method="transfer",
+                    date=datetime(2026, 10, 5), is_internal=False),
+        Transaction(id="exp-op", category_id="food", amount=12000, description="Mercado",
+                    transaction_type="expense", payment_method="cash",
+                    date=datetime(2026, 10, 10), is_internal=False),
+        Transaction(id="exp-null", category_id=None, amount=3000, description="Varios",
+                    transaction_type="expense", payment_method="cash",
+                    date=datetime(2026, 10, 12), is_internal=False),
+        Transaction(id="exp-int", category_id="food", amount=90000, description="Interno",
+                    transaction_type="expense", payment_method="transfer",
+                    date=datetime(2026, 10, 10), is_internal=True),
+    ])
+    db_session.commit()
+
+    end_date = datetime(2026, 11, 1)
+
+    breakdown = _get_expense_breakdown(db_session, 2026, 10, end_date)
+    assert breakdown == [
+        {"name": "Comida", "value": Decimal("12000")},
+        {"name": "Sin Categoría", "value": Decimal("3000")},
+    ]
+
+    daily = _get_daily_spending(db_session, 2026, 10, end_date)
+    assert daily == [
+        {"date": "10-10", "gasto": Decimal("12000")},
+        {"date": "10-12", "gasto": Decimal("3000")},
+    ]
+
+    comparison = _get_monthly_comparison(db_session)
+    assert comparison == [{"mes": "2026-10", "Ingresos": 50000, "Gastos": 15000}]
+
+    sankey_income, sankey_expenses = _get_sankey_totals(db_session, "2026-10")
+    assert sankey_income == 50000
+    assert sankey_expenses == {"Comida": 12000, "Sin Categoría": 3000}

@@ -99,6 +99,7 @@ def get_vehicle_telemetry(db: Annotated[Session, Depends(get_db)]):
         Transaction.category_id.in_(vehicle_category_ids),
         Transaction.date >= datetime(now.year, now.month, 1),
         Transaction.is_deleted == False,
+        Transaction.is_internal == False,
     ).all()
 
     total_vehicle_cost = sum((Decimal(str(t.amount)) for t in current_month_txns), Decimal("0"))
@@ -108,6 +109,7 @@ def get_vehicle_telemetry(db: Annotated[Session, Depends(get_db)]):
         Transaction.transaction_type == "expense",
         Transaction.category_id.in_(vehicle_category_ids),
         Transaction.is_deleted == False,
+        Transaction.is_internal == False,
     ).order_by(Transaction.date.asc()).all()
 
     odometer_readings, total_historical_cost = _get_odometer_readings(all_vehicle_txns)
@@ -242,6 +244,7 @@ def _get_expense_breakdown(db: Session, current_year: int, current_month: int, e
     ).outerjoin(Category, Transaction.category_id == Category.id).filter(
         Transaction.transaction_type == "expense",
         Transaction.is_deleted == False,
+        Transaction.is_internal == False,
         Transaction.date >= datetime(current_year, current_month, 1),
         Transaction.date < end_date,
     ).group_by(
@@ -260,6 +263,7 @@ def _get_daily_spending(db: Session, current_year: int, current_month: int, end_
     ).filter(
         Transaction.transaction_type == "expense",
         Transaction.is_deleted == False,
+        Transaction.is_internal == False,
         Transaction.date >= datetime(current_year, current_month, 1),
         Transaction.date < end_date,
     ).group_by(func.date(Transaction.date)).order_by("date").all()
@@ -279,6 +283,7 @@ def _get_monthly_comparison(db: Session) -> list[dict]:
         func.sum(case((Transaction.transaction_type == "expense", Transaction.amount), else_=0)).label("Gastos")
     ).filter(
         Transaction.is_deleted == False,
+        Transaction.is_internal == False,
         ~Transaction.id.in_(db.query(TransactionSplit.transaction_id)),
     ).group_by("mes").all()
     split_txns = db.query(
@@ -286,7 +291,8 @@ def _get_monthly_comparison(db: Session) -> list[dict]:
         func.sum(case((Transaction.transaction_type == "income", TransactionSplit.amount), else_=0)).label("Ingresos"),
         func.sum(case((Transaction.transaction_type == "expense", TransactionSplit.amount), else_=0)).label("Gastos")
     ).join(TransactionSplit, Transaction.id == TransactionSplit.transaction_id).filter(
-        Transaction.is_deleted == False
+        Transaction.is_deleted == False,
+        Transaction.is_internal == False,
     ).group_by("mes").all()
 
     monthly_map = {}
@@ -311,6 +317,7 @@ def _get_sankey_transactions(db: Session, current_month_str: str) -> list[Transa
     ).filter(
         func.strftime("%Y-%m", Transaction.date) == current_month_str,
         Transaction.is_deleted == False,
+        Transaction.is_internal == False,
     ).all()
 
 
@@ -378,6 +385,7 @@ def _get_vehicle_cost(db: Session, current_year: int, current_month: int, end_da
     ).filter(
         Transaction.transaction_type == "expense",
         Transaction.is_deleted == False,
+        Transaction.is_internal == False,
         Transaction.category_id.in_(vehicle_category_ids),
         Transaction.date >= datetime(current_year, current_month, 1),
         Transaction.date < end_date,
