@@ -37,7 +37,7 @@ El proyecto está listo para continuar. No hay fallos bloqueantes conocidos.
 
 Verificaciones vigentes:
 
-- Backend: `141 passed`, sin warnings nuevos de pytest.
+- Backend: `144 passed`, sin warnings nuevos de pytest.
 - Dependencias backend: `pip check` sin dependencias rotas.
 - Esquema: `alembic check` sin operaciones nuevas.
 - Frontend: TypeScript, lint con `--max-warnings 0` y build de producción correctos.
@@ -161,4 +161,4 @@ El usuario confirmó que el producto es web de escritorio. Se priorizan ventanas
 - **Seguridad y respaldos:** Detección estricta del prefijo Fernet `"gAAAAAB"` en `decrypt_value_with_status` para impedir tratar tokens ilegibles como texto plano; bloqueo de re-cifrado recursivo en `backup_gdrive.py`, filtrado `trashed=false`, rotación automática en Drive y saneamiento de nombres de archivo; validación `realpath` dentro de `backend/backups/` en restauración/rollback local; escape HTML y timeout de 15s en OAuth; aceleración/throttling de 5 minutos en `device.last_sync`.
 - **Cálculos financieros, IA e importaciones:** Migración `c3e6f9a1b2c4_normalize_deposit_transactions.py` (`deposit` -> `income`) con recálculo de saldos; unificación de fingerprints `v2`, coincidencia de cuotas diferidas sin exigir igualdad de cuota actual y preservación del saldo más reciente en estados de cuenta; corrección de dirección en `settle_iou`, deuda de tarjetas en liquidez, cálculo de `budget.spent`, doble conteo de IVA en disponible, depreciación previa a la compra en exportación y ocultamiento PII (`mask_description`) antes de llamar a Gemini.
 - **Frontend:** Conexión end-to-end de `splits` y conservación de `expense_type`, reparación de validación HTML5 con `formId` en `<FormActions>`, bloqueo de cierre de modales durante guardado (`preventClose`), homologación de escala en centavos en `WhatIfModal`/`AIAgentService`/`Dashboard`, generación de `debt_shares` reales sin `"Dennis"` hardcodeado ni `NaN` en importación de estados de cuenta, reemplazo de fechas UTC por `utils/dateUtils.ts`, invalidación completa de React Query, eliminación de 17 archivos muertos y `importAPI`, corrección de 4 tokens CSS indefinidos, contraste de `CloudTab` y consolidación de `prefers-reduced-motion` y `@media (min-width: 980px)`.
-- **Validación:** Backend `141 passed`, `alembic check` y `pip check` limpios; frontend `16 passed`, `eslint --max-warnings 0` y `npm run build` limpios.
+- **Validación:** Backend `144 passed`, `alembic check` y `pip check` limpios; frontend `16 passed`, `eslint --max-warnings 0` y `npm run build` limpios.
