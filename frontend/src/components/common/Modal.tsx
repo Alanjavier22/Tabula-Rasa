@@ -26,6 +26,16 @@ export default function Modal({ children, label, onClose, className = '' }: Read
     };
   }, []);
 
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    const closeOnBackdrop = (event: MouseEvent) => {
+      if (event.target === dialog) onClose();
+    };
+    dialog.addEventListener('click', closeOnBackdrop);
+    return () => dialog.removeEventListener('click', closeOnBackdrop);
+  }, [onClose]);
+
   const cancel = (event: SyntheticEvent<HTMLDialogElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -39,9 +49,6 @@ export default function Modal({ children, label, onClose, className = '' }: Read
       className={`app-modal-layer ${className}`}
       {...({ closedby: 'any' } as Record<string, string>)}
       onCancel={cancel}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
     >
       {children}
     </dialog>,

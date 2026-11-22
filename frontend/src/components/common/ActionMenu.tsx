@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 export default function ActionMenu({ children }: Readonly<{ children: ReactNode }>) {
   const ref = useRef<HTMLDetailsElement>(null);
@@ -21,24 +21,26 @@ export default function ActionMenu({ children }: Readonly<{ children: ReactNode 
       }
     };
 
+    const closeOnItemClick = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      const menuItem = target?.closest('.app-action-menu-content button:not(:disabled), .app-action-menu-content a');
+      if (menuItem) {
+        menu.open = false;
+      }
+    };
+
     menu.addEventListener('keydown', closeOnEscape);
+    menu.addEventListener('click', closeOnItemClick);
     document.addEventListener('pointerdown', closeOnOutsideClick);
     return () => {
       menu.removeEventListener('keydown', closeOnEscape);
+      menu.removeEventListener('click', closeOnItemClick);
       document.removeEventListener('pointerdown', closeOnOutsideClick);
     };
   }, []);
 
-  const handleClick = (event: MouseEvent<HTMLDetailsElement>) => {
-    const target = event.target as Element | null;
-    const menuItem = target?.closest('.app-action-menu-content button:not(:disabled), .app-action-menu-content a');
-    if (menuItem && ref.current) {
-      ref.current.open = false;
-    }
-  };
-
   return (
-    <details ref={ref} className="app-action-menu" onClick={handleClick}>
+    <details ref={ref} className="app-action-menu">
       {children}
     </details>
   );
