@@ -401,6 +401,18 @@ def list_pre_restore_backups() -> list[dict]:
     return backups
 
 
+def _is_valid_pre_restore_path(backup_path: str) -> tuple[bool, str, str]:
+    """Validate that backup_path resolves inside backend/backups and uses pre_restore_backup_ prefix."""
+    local_backup_dir = os.path.realpath(os.path.join(os.path.dirname(_DB_PATH), "backups"))
+    resolved_path = os.path.realpath(backup_path)
+    filename = os.path.basename(resolved_path)
+    if not resolved_path.startswith(local_backup_dir + os.sep):
+        return False, resolved_path, filename
+    if not filename.startswith("pre_restore_backup_"):
+        return False, resolved_path, filename
+    return True, resolved_path, filename
+
+
 def delete_pre_restore_backup(backup_path: str) -> dict:
     """
     Delete a specific pre-restore backup file.
@@ -411,23 +423,22 @@ def delete_pre_restore_backup(backup_path: str) -> dict:
     Returns:
         Dict with success status and message
     """
-    if not os.path.exists(backup_path):
+    is_valid, resolved_path, filename = _is_valid_pre_restore_path(backup_path)
+    if not is_valid:
         return {
             "success": False,
-            "message": f"Archivo de backup no encontrado: {backup_path}"
+            "message": "Ruta de backup pre-restauración inválida o fuera del directorio permitido"
         }
 
-    # Safety check: only allow deleting files that start with "pre_restore_backup_"
-    filename = os.path.basename(backup_path)
-    if not filename.startswith("pre_restore_backup_"):
+    if not os.path.exists(resolved_path):
         return {
             "success": False,
-            "message": "Solo se pueden eliminar archivos de backup pre-restauración (que empiezan con 'pre_restore_backup_')"
+            "message": f"Archivo de backup no encontrado: {filename}"
         }
 
     try:
-        os.remove(backup_path)
-        backup_logger.info(f"[PRE_RESTORE] Deleted pre-restore backup: {backup_path}")
+        os.remove(resolved_path)
+        backup_logger.info(f"[PRE_RESTORE] Deleted pre-restore backup: {resolved_path}")
         return {
             "success": True,
             "message": f"Backup pre-restauración eliminado: {filename}"
@@ -450,25 +461,24 @@ def rollback_to_pre_restore(backup_path: str) -> dict:
     Returns:
         Dict with success status and message
     """
-    if not os.path.exists(backup_path):
+    is_valid, resolved_path, filename = _is_valid_pre_restore_path(backup_path)
+    if not is_valid:
         return {
             "success": False,
-            "message": f"Archivo de backup no encontrado: {backup_path}"
+            "message": "Ruta de backup pre-restauración inválida o fuera del directorio permitido"
         }
 
-    # Safety check: only allow rolling back to files that start with "pre_restore_backup_"
-    filename = os.path.basename(backup_path)
-    if not filename.startswith("pre_restore_backup_"):
+    if not os.path.exists(resolved_path):
         return {
             "success": False,
-            "message": "Solo se puede hacer rollback desde archivos de backup pre-restauración (que empiezan con 'pre_restore_backup_')"
+            "message": f"Archivo de backup no encontrado: {filename}"
         }
 
     try:
-        backup_logger.info(f"[ROLLBACK] Starting rollback to: {backup_path}")
+        backup_logger.info(f"[ROLLBACK] Starting rollback to: {resolved_path}")
 
         # Restore from the pre-restore backup (without creating another pre-restore backup)
-        result = restore_from_backup(backup_path, create_pre_restore_backup=False)
+        result = restore_from_backup(resolved_path, create_pre_restore_backup=False)
 
         if result["success"]:
             # Delete the pre-restore backup after successful rollback

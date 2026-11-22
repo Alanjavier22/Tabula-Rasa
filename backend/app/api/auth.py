@@ -67,9 +67,15 @@ def get_current_device(request: Request, db: Session = Depends(get_db)):
 
     device = validate_device_token(token, db)
 
-    # Update last_sync
-    device.last_sync = cast(Any, datetime.now(timezone.utc))
-    db.commit()
+    # Throttle last_sync writes (5 min) so concurrent GET bursts on SQLite do
+    # not serialize behind unnecessary write locks.
+    now = datetime.now(timezone.utc)
+    last_sync = device.last_sync
+    if last_sync is not None and last_sync.tzinfo is None:
+        last_sync = last_sync.replace(tzinfo=timezone.utc)
+    if last_sync is None or (now - last_sync) >= timedelta(minutes=5):
+        device.last_sync = cast(Any, now)
+        db.commit()
 
     return device
 

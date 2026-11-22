@@ -1,5 +1,9 @@
+import logging
 from cryptography.fernet import Fernet, InvalidToken
 from app import security_config
+
+crypto_logger = logging.getLogger(__name__)
+FERNET_TOKEN_PREFIX = "gAAAAAB"
 
 
 def _get_fernet() -> Fernet:
@@ -20,9 +24,15 @@ def decrypt_value(token: str) -> str:
 
 def decrypt_value_with_status(token: str) -> tuple[str, bool]:
     """Igual que decrypt_value, pero además indica si `token` ya estaba cifrado.
-    Útil para self-healing: si `was_encrypted` es False, el caller puede
-    re-escribir el valor cifrado para que la próxima lectura ya lo encuentre así."""
+    Si el valor ya parece un token Fernet (`gAAAAAB...`) pero no puede descifrarse
+    con la clave activa, NO se trata como texto plano legacy para evitar
+    re-cifrados recursivos sobre un ciphertext previo."""
     try:
         return _get_fernet().decrypt(token.encode()).decode(), True
     except (InvalidToken, ValueError):
+        if token.startswith(FERNET_TOKEN_PREFIX):
+            crypto_logger.warning(
+                "[CRYPTO] Token Fernet no pudo descifrarse con la CONFIG_ENCRYPTION_KEY activa"
+            )
+            return "", True
         return token, False
