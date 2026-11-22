@@ -87,14 +87,9 @@ class AssetDepreciationService:
             months_elapsed = 0
             current_value = 0
             depreciation_accumulated = 0
-        elif life_months <= 0:
+        elif life_months <= 0 or raw_months_elapsed >= life_months:
             months_elapsed = raw_months_elapsed
-            current_value = cast(int, asset.residual_value_cents)
-            depreciation_accumulated = depreciable_base
-            is_fully_depreciated = True
-        elif raw_months_elapsed >= life_months:
-            months_elapsed = raw_months_elapsed
-            # Asset fully depreciated - value = residual_value (minimum, never negative)
+            # Asset zero-life or fully depreciated - value = residual_value (minimum, never negative)
             current_value = cast(int, asset.residual_value_cents)
             depreciation_accumulated = depreciable_base
             is_fully_depreciated = True

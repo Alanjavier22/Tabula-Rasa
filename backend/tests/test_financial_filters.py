@@ -290,3 +290,267 @@ def test_decrypt_value_with_status_never_treats_foreign_fernet_as_plaintext(monk
     plaintext, was_encrypted = decrypt_value_with_status(token_from_a)
     assert plaintext == ""
     assert was_encrypted is True
+
+
+def test_statements_and_debt_shares_recalculate_user_share_and_card_balance(client, db_session):
+    from app.models.account import Account
+
+    card = Account(name="Visa Test", account_type="credit_card", balance=0)
+    db_session.add(card)
+    db_session.commit()
+
+    created = client.post("/statements/", json={
+        "account_id": card.id,
+        "statement_balance": 10000,
+        "user_share": 10000,
+        "payment_due_date": "2026-11-25",
+        "cut_off_date": "2026-11-10",
+        "month": 11,
+        "year": 2026,
+        "debt_shares": [{"person_name": "Ana", "amount": 3000, "description": "Cena"}],
+    })
+    assert created.status_code == 200
+    stmt = created.json()
+    assert stmt["user_share"] == 7000
+
+    listed = client.get(f"/statements/?account_id={card.id}")
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+
+    fetched = client.get(f"/statements/{stmt['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["id"] == stmt["id"]
+
+    added_share = client.post(f"/statements/{stmt['id']}/shares", json={
+        "person_name": "Luis",
+        "amount": 2000,
+        "description": "Cine",
+    })
+    assert added_share.status_code == 200
+    share_id = added_share.json()["id"]
+
+    updated_share = client.put(f"/statements/shares/{share_id}", json={
+        "person_name": "Luis",
+        "amount": 1000,
+        "description": "Cine ajuste",
+    })
+    assert updated_share.status_code == 200
+    assert client.get(f"/statements/{stmt['id']}").json()["user_share"] == 6000
+
+    updated_stmt = client.put(f"/statements/{stmt['id']}", json={
+        "amount_paid": 2000,
+        "payment_due_date": "2026-11-28",
+        "cut_off_date": "2026-11-11",
+    })
+    assert updated_stmt.status_code == 200
+    assert updated_stmt.json()["amount_paid"] == 2000
+
+    assert client.delete(f"/statements/shares/{share_id}").status_code == 200
+    assert client.get(f"/statements/{stmt['id']}").json()["user_share"] == 7000
+    assert client.delete(f"/statements/{stmt['id']}").status_code == 200
+
+
+def test_asset_depreciation_and_export_csv(client, db_session):
+    from app.models.asset import Asset
+    from app.services.asset_depreciation import AssetDepreciationService
+
+    laptop = Asset(
+        name="Laptop Pro",
+        purchase_price_cents=120000,
+        residual_value_cents=0,
+        purchase_date=datetime(2026, 6, 1),
+        estimated_life_months=12,
+    )
+    zero_life = Asset(
+        name="Licencia",
+        purchase_price_cents=5000,
+        residual_value_cents=1000,
+        purchase_date=datetime(2026, 1, 1),
+        estimated_life_months=0,
+    )
+    db_session.add_all([laptop, zero_life])
+    db_session.commit()
+
+    before = AssetDepreciationService.calculate_current_value(db_session, laptop.id, datetime(2026, 5, 1))
+    assert before.current_value_cents == 0
+
+    mid = AssetDepreciationService.calculate_current_value(db_session, laptop.id, datetime(2026, 12, 1))
+    assert mid.current_value_cents == 60000
+
+    after = AssetDepreciationService.calculate_current_value(db_session, laptop.id, datetime(2027, 8, 1))
+    assert after.current_value_cents == 0
+    assert after.is_fully_depreciated is True
+
+    z_val = AssetDepreciationService.calculate_current_value(db_session, zero_life.id, datetime(2026, 6, 1))
+    assert z_val.current_value_cents == 1000
+    assert z_val.is_fully_depreciated is True
+
+    exported = client.get("/api/export/assets")
+    assert exported.status_code == 200
+    assert "Laptop Pro" in exported.text
+
+
+def test_budget_service_spent_and_pacing_across_periods(client, db_session):
+    from app.models.budget import Budget
+    from app.models.transaction_split import TransactionSplit
+    from app.services.budget_service import compute_budget_pacing, compute_budget_spent
+
+    food = Category(name="Mercado")
+    db_session.add(food)
+    db_session.flush()
+
+    tx = Transaction(
+        description="Compra",
+        amount=4000,
+        transaction_type="expense",
+        payment_method="cash",
+        date=datetime(2026, 11, 5),
+        category_id=food.id,
+    )
+    parent = Transaction(
+        description="Dividida",
+        amount=3000,
+        transaction_type="expense",
+        payment_method="cash",
+        date=datetime(2026, 11, 10),
+    )
+    db_session.add_all([tx, parent])
+    db_session.flush()
+    db_session.add(TransactionSplit(transaction_id=parent.id, amount=1500, category_id=food.id))
+
+    budget = Budget(name="Mercado Nov", amount=10000, spent=0, month=11, year=2026, category_id=food.id)
+    zero_budget = Budget(name="Cero", amount=0, spent=0, month=12, year=2026, category_id=food.id)
+    db_session.add_all([budget, zero_budget])
+    db_session.commit()
+
+    assert compute_budget_spent(db_session, budget) == 5500
+    assert compute_budget_pacing(budget, now=datetime(2026, 12, 1))["month_progress_percentage"] == 100
+    assert compute_budget_pacing(budget, now=datetime(2026, 10, 1))["month_progress_percentage"] == 0
+    assert compute_budget_pacing(budget, now=datetime(2026, 11, 15), spent_override=9000)["pacing_status"] == "over_pacing"
+    assert compute_budget_pacing(budget, now=datetime(2026, 11, 15), spent_override=1000)["pacing_status"] == "under_pacing"
+    assert compute_budget_pacing(budget, now=datetime(2026, 11, 15), spent_override=5000)["pacing_status"] == "on_track"
+    assert compute_budget_pacing(zero_budget, now=datetime(2026, 11, 15), spent_override=100)["is_over_pacing"] is True
+    assert compute_budget_pacing(zero_budget, now=datetime(2026, 11, 15), spent_override=0)["pacing_status"] == "on_track"
+
+    res = client.get("/budgets/")
+    assert res.status_code == 200
+    assert any(item["spent"] == 5500 for item in res.json())
+
+
+def test_ai_assistant_tools_import_history_and_recent_transactions(db_session):
+    from app.models.account import Account
+    from app.models.import_log import ImportLog
+    from app.services.ai_assistant_tools import get_import_history, get_recent_transactions
+
+    acc = Account(name="Ahorros", account_type="savings", balance=12000)
+    db_session.add(acc)
+    db_session.flush()
+    db_session.add(ImportLog(account_id=acc.id, file_hash="hash-estado-1", filename="estado.pdf", status="processed"))
+    db_session.add(Transaction(
+        description="Farmacia",
+        amount=1800,
+        transaction_type="expense",
+        payment_method="cash",
+        account_id=acc.id,
+        date=datetime(2026, 11, 12),
+    ))
+    db_session.commit()
+
+    imports = get_import_history(db_session)
+    assert len(imports) == 1
+    assert imports[0]["filename"] == "estado.pdf"
+
+    recent = get_recent_transactions(db_session)
+    assert len(recent["transactions"]) >= 1
+    assert recent["transactions"][0]["type"] == "expense"
+
+
+def test_backup_path_validation_gdrive_credentials_and_config_masking(client, db_session, tmp_path, monkeypatch):
+    from cryptography.fernet import Fernet
+    from app import security_config
+    from app.models.config import Config
+    from app.utils import backup_gdrive, backup_local
+    from app.utils.crypto import encrypt_value
+
+    backups_dir = tmp_path / "backups"
+    backups_dir.mkdir()
+    monkeypatch.setattr(backup_local, "_DB_PATH", str(tmp_path / "finance.db"))
+
+    outside = tmp_path / "outside.db"
+    outside.write_text("x", encoding="utf-8")
+    assert backup_local.delete_pre_restore_backup(str(outside))["success"] is False
+
+    missing = backups_dir / "pre_restore_backup_20990101_000000.db"
+    assert backup_local.delete_pre_restore_backup(str(missing))["success"] is False
+    assert backup_local.rollback_to_pre_restore(str(missing))["success"] is False
+
+    valid = backups_dir / "pre_restore_backup_20260101_000000.db"
+    valid.write_text("db", encoding="utf-8")
+    monkeypatch.setattr(backup_local, "restore_from_backup", lambda *_args, **_kwargs: {"success": True})
+    rollback = backup_local.rollback_to_pre_restore(str(valid))
+    assert rollback["success"] is True
+    assert not valid.exists()
+
+    key_a = Fernet.generate_key().decode()
+    key_b = Fernet.generate_key().decode()
+    foreign_token = Fernet(key_a.encode()).encrypt(b"refresh-token-123").decode()
+    monkeypatch.setattr(security_config, "ENCRYPTION_KEY", key_b)
+
+    db_session.add_all([
+        Config(key="GOOGLE_DRIVE_CLIENT_ID", value="client-1", value_type="string", is_public=False),
+        Config(key="GOOGLE_DRIVE_CLIENT_SECRET", value=encrypt_value("sec-1"), value_type="string", is_public=False),
+        Config(key="GOOGLE_DRIVE_REFRESH_TOKEN", value=foreign_token, value_type="string", is_public=False),
+    ])
+    db_session.commit()
+
+    class SessionProxy:
+        def query(self, *args, **kwargs):
+            return db_session.query(*args, **kwargs)
+
+        def commit(self):
+            db_session.commit()
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr("database.SessionLocal", lambda: SessionProxy())
+    assert backup_gdrive.get_google_drive_credentials() is None
+    stored_token = db_session.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
+    assert stored_token.value == foreign_token
+
+    mask_res = client.put("/config/GOOGLE_DRIVE_CLIENT_SECRET", json={"value": "********"})
+    assert mask_res.status_code == 200
+    secret_res = client.put("/config/GOOGLE_DRIVE_CLIENT_SECRET", json={"value": "nuevo-secreto"})
+    assert secret_res.status_code == 200
+    refreshed = db_session.query(Config).filter(Config.key == "GOOGLE_DRIVE_CLIENT_SECRET").first()
+    assert str(refreshed.value).startswith("gAAAAAB")
+
+
+def test_recalculate_stale_snapshots_background_clears_is_stale(db_session, monkeypatch):
+    from app.models.net_worth_snapshot import NetWorthSnapshot
+    from app.services.snapshot_service import recalculate_stale_snapshots_background
+
+    snap = NetWorthSnapshot(
+        month=11,
+        year=2026,
+        snapshot_date=datetime(2026, 11, 30),
+        total_assets=0,
+        total_liabilities=0,
+        net_worth=0,
+        is_stale=True,
+    )
+    db_session.add(snap)
+    db_session.commit()
+
+    class SessionProxy:
+        def __getattr__(self, name):
+            return getattr(db_session, name)
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr("database.SessionLocal", lambda: SessionProxy())
+    updated = recalculate_stale_snapshots_background()
+    assert updated == 1
+    db_session.refresh(snap)
+    assert bool(snap.is_stale) is False

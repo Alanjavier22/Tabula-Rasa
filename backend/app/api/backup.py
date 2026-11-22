@@ -425,6 +425,6 @@ def google_oauth_callback(code: str, db: Session = Depends(get_db)):
                 </body>
             </html>
         """)
-    except Exception as e:
+    except Exception:
         logger.exception("[GOOGLE_AUTH] Error")  # pragma: no cover
-        return HTMLResponse(content=f"Error interno: {html.escape(str(e))}")
+        return HTMLResponse(content="Error interno al procesar la autorización de Google Drive.", status_code=500)

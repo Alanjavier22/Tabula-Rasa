@@ -80,6 +80,16 @@ _OVER_PACING_THRESHOLD = Decimal("1.05")   # 5 % above expected (Decimal for fra
 # Core calculation
 # ---------------------------------------------------------------------------
 
+def _classify_budget_pacing(spent: int, expected_spend: int) -> tuple[bool, str]:
+    if expected_spend == 0:
+        return (True, "over_pacing") if spent > 0 else (False, "on_track")
+    if Decimal(spent) > Decimal(expected_spend) * _OVER_PACING_THRESHOLD:
+        return True, "over_pacing"
+    if Decimal(spent) < Decimal(expected_spend) * Decimal("0.95"):
+        return False, "under_pacing"
+    return False, "on_track"
+
+
 def compute_budget_pacing(
     budget: Budget,
     now: Optional[datetime] = None,
@@ -129,24 +139,7 @@ def compute_budget_pacing(
         ))
 
     # --- pacing status ----------------------------------------------------
-    if expected_spend == 0:
-        # Nothing expected yet (future month or zero-amount budget)
-        if spent > 0:
-            is_over_pacing = True
-            pacing_status = "over_pacing"
-        else:
-            is_over_pacing = False
-            pacing_status = "on_track"
-    else:
-        if Decimal(cast(Any, spent)) > Decimal(expected_spend) * _OVER_PACING_THRESHOLD:
-            is_over_pacing = True
-            pacing_status = "over_pacing"
-        elif Decimal(cast(Any, spent)) < Decimal(expected_spend) * Decimal("0.95"):
-            is_over_pacing = False
-            pacing_status = "under_pacing"
-        else:
-            is_over_pacing = False
-            pacing_status = "on_track"
+    is_over_pacing, pacing_status = _classify_budget_pacing(int(spent or 0), expected_spend)
 
     remaining = amount - spent
 

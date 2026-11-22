@@ -401,16 +401,20 @@ def list_pre_restore_backups() -> list[dict]:
     return backups
 
 
-def _is_valid_pre_restore_path(backup_path: str) -> tuple[bool, str, str]:
-    """Validate that backup_path resolves inside backend/backups and uses pre_restore_backup_ prefix."""
+def _resolve_pre_restore_backup(backup_path: str) -> tuple[Optional[str], str]:
+    """Validate and resolve a pre-restore backup strictly from entries inside backend/backups."""
     local_backup_dir = os.path.realpath(os.path.join(os.path.dirname(_DB_PATH), "backups"))
-    resolved_path = os.path.realpath(backup_path)
-    filename = os.path.basename(resolved_path)
-    if not resolved_path.startswith(local_backup_dir + os.sep):
-        return False, resolved_path, filename
-    if not filename.startswith("pre_restore_backup_"):
-        return False, resolved_path, filename
-    return True, resolved_path, filename
+    candidate = os.path.basename(str(backup_path or "")).replace("\r", "").replace("\n", "")
+    if not candidate.startswith("pre_restore_backup_") or not candidate.endswith(".db"):
+        return None, ""
+    if os.path.dirname(os.path.realpath(backup_path)) != local_backup_dir:
+        return None, ""
+    if not os.path.isdir(local_backup_dir):
+        return None, candidate
+    for entry in os.listdir(local_backup_dir):
+        if entry == candidate:
+            return os.path.join(local_backup_dir, entry), entry
+    return None, candidate
 
 
 def delete_pre_restore_backup(backup_path: str) -> dict:
@@ -423,25 +427,25 @@ def delete_pre_restore_backup(backup_path: str) -> dict:
     Returns:
         Dict with success status and message
     """
-    is_valid, resolved_path, filename = _is_valid_pre_restore_path(backup_path)
-    if not is_valid:
+    resolved_path, safe_name = _resolve_pre_restore_backup(backup_path)
+    if not safe_name:
         return {
             "success": False,
             "message": "Ruta de backup pre-restauración inválida o fuera del directorio permitido"
         }
 
-    if not os.path.exists(resolved_path):
+    if resolved_path is None:
         return {
             "success": False,
-            "message": f"Archivo de backup no encontrado: {filename}"
+            "message": f"Archivo de backup no encontrado: {safe_name}"
         }
 
     try:
         os.remove(resolved_path)
-        backup_logger.info(f"[PRE_RESTORE] Deleted pre-restore backup: {resolved_path}")
+        backup_logger.info("[PRE_RESTORE] Deleted pre-restore backup: %s", safe_name)
         return {
             "success": True,
-            "message": f"Backup pre-restauración eliminado: {filename}"
+            "message": f"Backup pre-restauración eliminado: {safe_name}"
         }
     except Exception as e:
         backup_logger.exception("[PRE_RESTORE] Error deleting backup")  # pragma: no cover
@@ -461,28 +465,28 @@ def rollback_to_pre_restore(backup_path: str) -> dict:
     Returns:
         Dict with success status and message
     """
-    is_valid, resolved_path, filename = _is_valid_pre_restore_path(backup_path)
-    if not is_valid:
+    resolved_path, safe_name = _resolve_pre_restore_backup(backup_path)
+    if not safe_name:
         return {
             "success": False,
             "message": "Ruta de backup pre-restauración inválida o fuera del directorio permitido"
         }
 
-    if not os.path.exists(resolved_path):
+    if resolved_path is None:
         return {
             "success": False,
-            "message": f"Archivo de backup no encontrado: {filename}"
+            "message": f"Archivo de backup no encontrado: {safe_name}"
         }
 
     try:
-        backup_logger.info(f"[ROLLBACK] Starting rollback to: {resolved_path}")
+        backup_logger.info("[ROLLBACK] Starting rollback to: %s", safe_name)
 
         # Restore from the pre-restore backup (without creating another pre-restore backup)
         result = restore_from_backup(resolved_path, create_pre_restore_backup=False)
 
         if result["success"]:
             # Delete the pre-restore backup after successful rollback
-            delete_result = delete_pre_restore_backup(backup_path)
+            delete_result = delete_pre_restore_backup(resolved_path)
             if delete_result["success"]:
                 backup_logger.info("[ROLLBACK] Pre-restore backup deleted after successful rollback")
                 return {

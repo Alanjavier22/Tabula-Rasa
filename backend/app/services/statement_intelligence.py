@@ -410,6 +410,14 @@ class StatementIntelligenceService:
                 description=share.get('description', 'Parte proporcional del estado de cuenta'),
             ))
 
+    def _update_account_credit_limit_from_metadata(self, account_id: str, statement_metadata: Dict) -> None:
+        if not statement_metadata.get('credit_limit_cents'):
+            return
+        account = self.db.query(Account).filter(Account.id == account_id).first()
+        if account:
+            account.credit_limit = cast(Any, int(statement_metadata['credit_limit_cents']))
+        self.db.flush()
+
     def _upsert_credit_card_statement(self, log: ImportLog, statement_metadata: Optional[Dict]) -> None:
         if not statement_metadata or not statement_metadata.get('statement_month') or not statement_metadata.get('statement_year'):
             return
@@ -447,11 +455,7 @@ class StatementIntelligenceService:
             )
             self.db.add(statement)
 
-        if statement_metadata.get('credit_limit_cents'):
-            account = self.db.query(Account).filter(Account.id == log.account_id).first()
-            if account:
-                account.credit_limit = cast(Any, int(statement_metadata['credit_limit_cents']))
-            self.db.flush()
+        self._update_account_credit_limit_from_metadata(cast(str, log.account_id), statement_metadata)
 
         debt_shares = list(statement_metadata.get('debt_shares') or [])
         if not debt_shares and statement_metadata.get('_derived_debt_shares'):

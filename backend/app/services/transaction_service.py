@@ -214,6 +214,21 @@ def create_transaction_with_splits(
         raise HTTPException(status_code=500, detail=f"Error creating transaction: {str(e)}")
 
 
+def _recalculate_updated_transaction_goals(
+    db: Session,
+    old_goal_id: Optional[str],
+    current_goal_id: Optional[str],
+    old_amount: Any,
+    current_amount: Any,
+) -> None:
+    from app.api.goals import recalculate_goal_progress
+
+    if old_goal_id and old_goal_id != current_goal_id:
+        recalculate_goal_progress(old_goal_id, db)
+    if current_goal_id and (current_goal_id != old_goal_id or current_amount != old_amount):
+        recalculate_goal_progress(current_goal_id, db)
+
+
 def update_transaction_with_splits(
     db: Session,
     transaction_id: str,
@@ -300,14 +315,13 @@ def update_transaction_with_splits(
         apply_transaction_to_balance(db, db_transaction, reverse=False)
 
         # Recalculate goal progress if transaction is assigned to a goal
-        # Recalculate both old goal (if changed) and active goal if amount changed
-        current_goal_id = cast(Optional[str], db_transaction.goal_id)
-        from app.api.goals import recalculate_goal_progress
-
-        if old_goal_id and old_goal_id != current_goal_id:
-            recalculate_goal_progress(old_goal_id, db)
-        if current_goal_id and (current_goal_id != old_goal_id or db_transaction.amount != old_amount):
-            recalculate_goal_progress(current_goal_id, db)
+        _recalculate_updated_transaction_goals(
+            db,
+            old_goal_id,
+            cast(Optional[str], db_transaction.goal_id),
+            old_amount,
+            db_transaction.amount,
+        )
 
         # Disparamos la sanación de snapshots para el mes de la transacción
         from app.services.snapshot_service import mark_snapshots_as_stale

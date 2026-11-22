@@ -7,25 +7,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from dotenv import load_dotenv
 load_dotenv()
 
-def _persist_env_var(key: str, value: str) -> None:
-    """Persist auto-generated runtime secrets into backend/.env outside pytest."""
-    if "pytest" in sys.modules:
-        return
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-    try:
-        lines: list[str] = []
-        if os.path.exists(env_path):
-            with open(env_path, "r", encoding="utf-8") as handle:
-                lines = handle.read().splitlines()
-        prefix = f"{key}="
-        filtered = [line for line in lines if not line.startswith(prefix)]
-        filtered.append(f"{key}={value}")
-        with open(env_path, "w", encoding="utf-8") as handle:
-            handle.write("\n".join(filtered) + "\n")
-    except OSError:
-        pass
-
-
 def ensure_jwt_secret():
     import secrets
     from app import security_config
@@ -36,7 +17,6 @@ def ensure_jwt_secret():
         new_secret = secrets.token_hex(32)
         os.environ["JWT_SECRET"] = new_secret
         security_config.JWT_SECRET = new_secret
-        _persist_env_var("JWT_SECRET", new_secret)
 
 
 def ensure_encryption_key():
@@ -48,7 +28,6 @@ def ensure_encryption_key():
         new_key = Fernet.generate_key().decode()
         os.environ["CONFIG_ENCRYPTION_KEY"] = new_key
         encryption_key = new_key
-        _persist_env_var("CONFIG_ENCRYPTION_KEY", new_key)
 
     # security_config may have been imported by ensure_jwt_secret before the
     # environment variable was generated. Keep the runtime configuration in
@@ -140,17 +119,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"[STARTUP] Error in autonomous snapshot: {e}")
         
-    yield
-    # Shutdown
-    logger.info("Application shutting down gracefully...")
     try:
-        # Close database connections
-        engine.dispose()
-        logger.info("Database connections closed")
-        
-        logger.info("Graceful shutdown complete")
-    except Exception as e:
-        logger.error(f"Error during graceful shutdown: {e}")
+        yield
+    finally:
+        # Shutdown
+        logger.info("Application shutting down gracefully...")
+        try:
+            # Close database connections
+            engine.dispose()
+            logger.info("Database connections closed")
+
+            logger.info("Graceful shutdown complete")
+        except Exception as e:
+            logger.error(f"Error during graceful shutdown: {e}")
 
 # Import models explicitly to register them with Base (fixes circular import)
 from app.models.transaction import Transaction
