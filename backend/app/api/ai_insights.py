@@ -259,7 +259,7 @@ def _build_local_insights_fallback(data: dict) -> dict:
     if burn_rate_ratio > 1.3:
         patterns.append("Tu velocidad de gasto actual supera en más de 30% tu promedio mensual habitual.")
 
-    return {"insights": insights[:3], "alerts": alerts[:3], "patterns": patterns[:2]}
+    return {"insights": insights, "alerts": alerts, "patterns": patterns}
 
 
 def _is_model_fallback_error(error: Exception) -> bool:

@@ -639,7 +639,8 @@ def test_google_oauth_callback_and_drive_backup_helpers(client, db_session, tmp_
     assert ok_res.status_code == 200
     assert "Autorización Exitosa" in ok_res.text
     saved = db_session.query(Config).filter(Config.key == "GOOGLE_DRIVE_REFRESH_TOKEN").first()
-    assert saved is not None and str(saved.value).startswith("gAAAAAB")
+    assert saved is not None
+    assert str(saved.value).startswith("gAAAAAB")
 
     def fake_post_boom(*_args, **_kwargs):
         raise RuntimeError("sensitive-boom-detail")
