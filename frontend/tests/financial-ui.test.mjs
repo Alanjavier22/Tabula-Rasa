@@ -230,6 +230,31 @@ test("todas las secciones siguen disponibles desde la navegación compartida", (
   );
 });
 
+test("la liquidez y deuda de tarjetas excluyen cuentas inactivas y priorizan el último estado de cuenta", async () => {
+  const {
+    calculateCreditCardDebt,
+    calculateLiquidBalance,
+    getLatestStatementByAccount,
+  } = await server.ssrLoadModule("/src/utils/accountMetrics.ts");
+
+  const sampleAccounts = [
+    { id: "chk", account_type: "checking", balance: 15000, is_active: true },
+    { id: "sav", account_type: "savings", balance: 25000, is_active: true },
+    { id: "off", account_type: "savings", balance: 99999, is_active: false },
+    { id: "cc1", account_type: "credit_card", balance: -30000, is_active: true },
+    { id: "cc2", account_type: "credit_card", balance: -5000, is_active: true },
+  ];
+  const sampleStatements = [
+    { id: "old", account_id: "cc2", year: 2026, month: 8, statement_balance: 8000, user_share: 8000, amount_paid: 0, status: "paid" },
+    { id: "cur", account_id: "cc2", year: 2026, month: 10, statement_balance: 20000, user_share: 18000, amount_paid: 3000, status: "partial" },
+    { id: "cc1s", account_id: "cc1", year: 2026, month: 10, statement_balance: 10000, user_share: 10000, amount_paid: 2000, status: "pending" },
+  ];
+
+  assert.equal(calculateLiquidBalance(sampleAccounts).toNumber(), 40000);
+  assert.equal(getLatestStatementByAccount(sampleStatements).get("cc2")?.id, "cur");
+  assert.equal(calculateCreditCardDebt(sampleAccounts, sampleStatements).toNumber(), 45000);
+});
+
 test("los textos de ambos temas conservan contraste AA en las superficies principales", () => {
   const css = readFileSync(
     new URL("../src/index.css", import.meta.url),

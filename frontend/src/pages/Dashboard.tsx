@@ -27,6 +27,12 @@ import {
   maintenanceAPI,
 } from "../services/api";
 import { formatMoney, toDecimal, clampZero } from "../utils/money";
+import {
+  calculateCreditCardDebt,
+  calculateLiquidBalance,
+  getLatestStatementByAccount,
+} from "../utils/accountMetrics";
+import ConfirmDialog from "../components/ConfirmDialog";
 import Toast from "../components/Toast";
 import type {
   Account,
@@ -107,6 +113,12 @@ const Dashboard = () => {
   const [showWhatIfModal, setShowWhatIfModal] = useState(false);
   const [showAnomalyScanner, setShowAnomalyScanner] = useState(false);
   const [activeTab, setActiveTab] = useState<DashboardSectionTab>("actividad");
+  const [snapshotConfirm, setSnapshotConfirm] = useState<{
+    isOpen: boolean;
+    month: number;
+    year: number;
+    monthName: string;
+  }>({ isOpen: false, month: 1, year: 2026, monthName: "" });
 
   // Guards to prevent infinite loops and concurrent operations
   const isRefetchingRef = useRef(false);
@@ -346,7 +358,7 @@ const Dashboard = () => {
     },
   });
 
-  const handleCreateSnapshot = useCallback(async () => {
+  const handleCreateSnapshot = useCallback(() => {
     if (creatingSnapshot || isRefetchingRef.current) {
       return;
     }
@@ -363,10 +375,15 @@ const Dashboard = () => {
     const monthName = new Intl.DateTimeFormat("es-ES", {
       month: "long",
     }).format(new Date(year, month - 1));
-    const confirmMessage = `¿Deseas cerrar el mes de ${monthName.toUpperCase()} ${year}?\n\nSe guardará un cierre mensual protegido en tu historial patrimonial.`;
+    setSnapshotConfirm({ isOpen: true, month, year, monthName });
+  }, [creatingSnapshot]);
 
-    if (!window.confirm(confirmMessage)) return;
+  const confirmCreateSnapshot = useCallback(async () => {
+    if (creatingSnapshot || isRefetchingRef.current) {
+      return;
+    }
 
+    const { month, year, monthName } = snapshotConfirm;
     setCreatingSnapshot(true);
     isRefetchingRef.current = true;
 
@@ -385,42 +402,23 @@ const Dashboard = () => {
     } finally {
       setCreatingSnapshot(false);
       isRefetchingRef.current = false;
+      setSnapshotConfirm((prev) => ({ ...prev, isOpen: false }));
     }
-  }, [creatingSnapshot, results]);
+  }, [creatingSnapshot, results, snapshotConfirm]);
 
   const totalBalance = useMemo(
-    () =>
-      accounts
-        .filter(
-          (acc) =>
-            acc.account_type === "checking" || acc.account_type === "savings",
-        )
-        .reduce((sum, acc) => sum.plus(toDecimal(acc.balance)), new Decimal(0)),
+    () => calculateLiquidBalance(accounts),
     [accounts],
   );
 
-  const latestStatements = useMemo(() => {
-    const latestMap = new Map<string, CreditCardStatement>();
-    statements.forEach((s) => {
-      const current = latestMap.get(s.account_id);
-      if (
-        !current ||
-        s.year > current.year ||
-        (s.year === current.year && s.month > current.month)
-      ) {
-        latestMap.set(s.account_id, s);
-      }
-    });
-    return Array.from(latestMap.values());
-  }, [statements]);
+  const latestStatements = useMemo(
+    () => Array.from(getLatestStatementByAccount(statements).values()),
+    [statements],
+  );
 
   const totalCreditCardDebt = useMemo(
-    () =>
-      latestStatements.reduce(
-        (sum, s) => sum.plus(toDecimal(s.statement_balance)),
-        new Decimal(0),
-      ),
-    [latestStatements],
+    () => calculateCreditCardDebt(accounts, statements),
+    [accounts, statements],
   );
 
   const totalIncome = useMemo(
@@ -913,6 +911,19 @@ return (
           onClose={() => setToast(null)}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={snapshotConfirm.isOpen}
+        title={`Cerrar ${snapshotConfirm.monthName} ${snapshotConfirm.year}`}
+        message="Se guardará un cierre mensual protegido en tu historial patrimonial."
+        confirmLabel="Cerrar mes"
+        submittingLabel="Cerrando…"
+        variant="primary"
+        onConfirm={confirmCreateSnapshot}
+        onCancel={() =>
+          setSnapshotConfirm((prev) => ({ ...prev, isOpen: false }))
+        }
+      />
 
       {/* WhatIf Modal */}
       <WhatIfModal
