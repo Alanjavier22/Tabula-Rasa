@@ -5,6 +5,7 @@ import { subscriptionsAPI, categoriesAPI, accountsAPI } from '../services/api';
 import type { Subscription, Category, Account, SubscriptionFrequency } from '../types';
 import type { AxiosError } from 'axios';
 import { formatMoney, toCents } from '../utils/money';
+import { parseLocalDate } from '../utils/dateUtils';
 import {
   Plus,
   Trash2,
@@ -23,16 +24,6 @@ import {
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SubscriptionFormModal, { type SubscriptionFormData } from '../components/subscriptions/SubscriptionFormModal';
-
-const parseLocalDate = (raw: string): Date => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
-  if (match) {
-    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  }
-  const fallback = new Date(raw);
-  fallback.setHours(0, 0, 0, 0);
-  return fallback;
-};
 
 const emptyForm: SubscriptionFormData = {
   name: '',
@@ -84,12 +75,26 @@ const Subscriptions = () => {
     setDeleteConfirm({ isOpen: true, id });
   };
 
+  const invalidateSubscriptionQueries = (includeTransactions = false) => {
+    void queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+    void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+    void queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
+    void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+    void queryClient.invalidateQueries({ queryKey: ['paymentAlerts'] });
+    if (includeTransactions) {
+      void queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      void queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      void queryClient.invalidateQueries({ queryKey: ['netWorth'] });
+    }
+  };
+
   const confirmDelete = async () => {
     if (deleteConfirm.id === null) return;
     try {
       await subscriptionsAPI.delete(deleteConfirm.id);
       setToast({ message: 'Suscripción removida del ecosistema', type: 'success' });
       void fetchAll();
+      invalidateSubscriptionQueries();
     } catch (error) {
       console.error('Error deleting subscription:', error);
       setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al eliminar suscripción', type: 'error' });
@@ -121,8 +126,7 @@ const Subscriptions = () => {
         type: 'success'
       });
       void fetchAll();
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      invalidateSubscriptionQueries(true);
     } catch (error) {
       console.error('Error paying subscription:', error);
       setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error al registrar pago', type: 'error' });
@@ -174,6 +178,7 @@ const Subscriptions = () => {
       setEditingSubscription(null);
       setForm(emptyForm);
       void fetchAll();
+      invalidateSubscriptionQueries();
     } catch (error) {
       console.error('Error saving subscription:', error);
       setToast({ message: (error as AxiosError<{ detail?: string }>).response?.data?.detail || 'Error en la operación', type: 'error' });

@@ -7,6 +7,7 @@ import { AIAgentService } from '../../services/AIAgentService';
 import api from '../../services/api';
 import type { WhatIfScenario } from '../../services/AIAgentService';
 import type { Transaction, Goal, SuggestedScenario } from '../../types';
+import { getLocalTodayIso } from '../../utils/dateUtils';
 
 /** Sugerencias hardcodeadas de fallback traen icon/color; las de la API no. */
 type ScenarioSuggestion = SuggestedScenario & { icon?: string; color?: string };
@@ -42,19 +43,14 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
   const [dynamicSuggestions, setDynamicSuggestions] = useState<SuggestedScenario[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
-  // Reset state when modal closes
+  // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = 'hidden';
       void fetchSuggestions();
     } else {
-      document.body.style.overflow = 'unset';
       setWhatIfPrompt('');
       setWhatIfScenario(null);
     }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
   }, [isOpen]);
 
   const handleSimulateWhatIf = useCallback(async () => {
@@ -64,20 +60,20 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
 
     setLoadingWhatIf(true);
     try {
-      // Deep Context: Send 150 transactions with proper schema mapping to avoid 422
-      const categoryTransactions = transactions.slice(0, 150).map((txn, index) => ({
+      const expenseTransactions = transactions.filter((txn) => txn.transaction_type === 'expense');
+      const categoryTransactions = expenseTransactions.slice(0, 150).map((txn, index) => ({
         id: txn.id || `temp-${index}`,
         description: txn.description || 'Unknown',
         amount: Math.round(txn.amount || 0),
-        date: txn.date || new Date().toISOString().split('T')[0],
+        date: txn.date || getLocalTodayIso(),
         category_id: txn.category?.name || 'Uncategorized', // nombre de categoría como contexto, no un ID real
       }));
 
-      // Use provided props or fall back to 0
+      // All numeric amounts arrive in cents
       const income = monthlyIncome || 0;
       const expenses = fixedExpenses || 0;
       const debt = totalDebt || 0;
-      const debtPayment = monthlyDebtPayment || (debt * 0.05);
+      const debtPayment = monthlyDebtPayment || Math.round(debt * 0.05);
       const cashFlow = income - expenses - debtPayment - (avgMonthlySpend || 0);
 
       const scenario = await AIAgentService.simulateWhatIfScenario(
@@ -90,6 +86,7 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
           totalDebt: debt,
           monthlyDebtPayment: debtPayment,
           monthlyCashFlow: cashFlow,
+          avgMonthlySpend,
           goals,
         }
       );
@@ -102,10 +99,11 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
   }, [whatIfPrompt, transactions, currentNetWorth, monthlyIncome, fixedExpenses, totalDebt, monthlyDebtPayment, avgMonthlySpend, goals]);
 
   const handleClose = useCallback(() => {
+    if (loadingWhatIf) return;
     setWhatIfPrompt('');
     setWhatIfScenario(null);
     onClose();
-  }, [onClose]);
+  }, [loadingWhatIf, onClose]);
 
   const fetchSuggestions = async () => {
     setLoadingSuggestions(true);
@@ -124,19 +122,19 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
   }
 
   const suggestionsToUse: ScenarioSuggestion[] = dynamicSuggestions.length > 0 ? dynamicSuggestions : [
-    { user_prompt: "¿Qué pasaría si me compro una laptop de $1500?", title: "Compra Laptop", description: "Simular gasto puntual", icon: "💻", color: " " },
-    { user_prompt: "¿Cómo afectaría si aumento mi ahorro en $200?", title: "Ahorro Extra", description: "Mejorar capacidad de ahorro", icon: "💰", color: " " },
-    { user_prompt: "¿Y si reduzco mis gastos de comida un 30%?", title: "Comida en Casa", description: "Optimizar gastos variables", icon: "🍕", color: " " }
+    { user_prompt: "¿Qué pasaría si me compro una laptop de $1500?", title: "Compra Laptop", description: "Simular gasto puntual", icon: "💻", color: "" },
+    { user_prompt: "¿Cómo afectaría si aumento mi ahorro en $200?", title: "Ahorro Extra", description: "Mejorar capacidad de ahorro", icon: "💰", color: "" },
+    { user_prompt: "¿Y si reduzco mis gastos de comida un 30%?", title: "Comida en Casa", description: "Optimizar gastos variables", icon: "🍕", color: "" }
   ];
 
   const colors = [
-    " ",
-    " ",
-    " "
+    "",
+    "",
+    ""
   ];
 
   return (
-    <Modal onClose={onClose} label={'Simular escenario'}>
+    <Modal onClose={handleClose} preventClose={loadingWhatIf} label={'Simular escenario'}>
       <motion.div
         initial={false}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -154,8 +152,11 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
             <h2 className="text-xl md:text-2xl font-black text-primary tracking-tight leading-none">Simulador <span className="text-primary  ">WhatIf</span></h2>
           </div>
           <button
+            type="button"
+            aria-label="Cerrar diálogo"
+            disabled={loadingWhatIf}
             onClick={handleClose}
-            className="w-10 h-10 rounded-xl hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all"
+            className="w-10 h-10 rounded-xl hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all disabled:opacity-50"
           >
             <X className="w-6 h-6" />
           </button>
@@ -207,17 +208,19 @@ export const WhatIfModal = React.memo<WhatIfModalProps>(({
                 <div className="relative flex gap-3 p-2.5 bg-canvas  border border-line rounded-3xl shadow-2xl">
                   <input
                     type="text"
+                    aria-label="Describe tu escenario financiero"
                     value={whatIfPrompt}
                     onChange={(e) => setWhatIfPrompt(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSimulateWhatIf()}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void handleSimulateWhatIf(); }}
                     placeholder="Escribe tu escenario financiero aquí..."
                     disabled={loadingWhatIf}
                     className="flex-1 bg-transparent border-none px-5 py-4 text-primary text-lg placeholder-muted focus:ring-0 disabled:opacity-50 font-semibold"
                   />
                   <button
+                    type="button"
                     onClick={handleSimulateWhatIf}
                     disabled={loadingWhatIf || !whatIfPrompt.trim()}
-                    className="bg-surface-soft   hover:shadow-xl  disabled: disabled: disabled:cursor-not-allowed text-primary px-8 rounded-2xl transition-all flex items-center gap-2.5 font-black text-xs uppercase tracking-widest"
+                    className="app-btn app-btn-primary px-8 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2.5"
                   >
                     {loadingWhatIf ? (
                       <Loader2 className="w-4.5 h-4.5 animate-spin" />

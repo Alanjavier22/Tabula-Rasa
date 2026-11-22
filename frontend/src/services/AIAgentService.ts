@@ -27,6 +27,7 @@ export interface SimulateWhatIfScenarioInput {
   totalDebt?: number;
   monthlyDebtPayment?: number;
   monthlyCashFlow?: number;
+  avgMonthlySpend?: number;
   goals?: Goal[];
 }
 
@@ -109,18 +110,22 @@ export class AIAgentService {
     totalDebt = 0,
     monthlyDebtPayment = 0,
     monthlyCashFlow = 0,
+    avgMonthlySpend,
     goals = [],
   }: SimulateWhatIfScenarioInput): Promise<WhatIfScenario> {
     const { sanitized: sanitizedTxns, hydrationMap } = prepareForAI(categoryTransactions);
 
-    const avgMonthlySpend = Math.round(categoryTransactions.reduce((sum, t) => sum + t.amount, 0) / 12);
+    const computedAvgSpend =
+      avgMonthlySpend !== undefined
+        ? Math.round(avgMonthlySpend)
+        : Math.round(categoryTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0) / 12);
 
     const response = await api.post<WhatIfScenario>(
       '/api/ai/simulate-what-if',
       {
         user_prompt: userPrompt,
-        avg_monthly_spend: Math.round(avgMonthlySpend),
-        current_net_worth: currentNetWorth,
+        avg_monthly_spend: computedAvgSpend,
+        current_net_worth: Math.round(currentNetWorth),
         transactions: sanitizedTxns,
         monthly_income: Math.round(monthlyIncome),
         fixed_expenses: Math.round(fixedExpenses),

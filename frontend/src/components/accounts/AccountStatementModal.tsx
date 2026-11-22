@@ -1,6 +1,6 @@
 import FormActions from '../common/FormActions';
 import Modal from '../common/Modal';
-import type { Dispatch, SetStateAction } from 'react';
+import { useId, type Dispatch, type SetStateAction } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layers, DollarSign, ShieldCheck, CheckCircle2, Calendar, AlignLeft, X } from 'lucide-react';
 import type { CreditCardStatement } from '../../types';
@@ -30,10 +30,11 @@ interface AccountStatementModalProps {
 }
 
 const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editingStatement, saving, onClose, onSubmit }: AccountStatementModalProps) => {
+  const formId = useId();
   return (
     <AnimatePresence>
       {isOpen && (
-        <Modal onClose={onClose} label={'Estado de cuenta'}>
+        <Modal onClose={onClose} preventClose={saving} label={'Estado de cuenta'}>
           <motion.div
             initial={false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -49,12 +50,12 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                 </div>
                 {editingStatement ? 'Editar Estado' : 'Nuevo Estado'}
               </h2>
-              <button aria-label="Cerrar diálogo" onClick={onClose} className="w-10 h-10 rounded-full hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all border border-transparent hover:border-line">
+              <button aria-label="Cerrar diálogo" disabled={saving} onClick={onClose} className="w-10 h-10 rounded-full hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all border border-transparent hover:border-line disabled:opacity-50">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={onSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
+            <form id={formId} onSubmit={onSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -183,7 +184,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                     type="date"
                     value={statementForm.cut_off_date}
                     onChange={e => setStatementForm({...statementForm, cut_off_date: e.target.value})}
-                    className="w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-medium [color-scheme:dark]"
+                    className="w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-medium"
                   />
                 </div>
                 <div>
@@ -195,7 +196,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
                     type="date"
                     value={statementForm.payment_due_date}
                     onChange={e => setStatementForm({...statementForm, payment_due_date: e.target.value})}
-                    className="w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-medium [color-scheme:dark]"
+                    className="w-full bg-surface-soft border border-line rounded-2xl px-5 py-4 text-primary text-sm focus:outline-none focus:border-line transition-all font-medium"
                   />
                 </div>
               </div>
@@ -217,9 +218,7 @@ const AccountStatementModal = ({ isOpen, statementForm, setStatementForm, editin
             </form>
 
             {/* Footer */}
-            <FormActions saving={saving} onClose={onClose} onSubmit={onSubmit} submitLabel={(
-                  'Registrar Corte'
-                )} />
+            <FormActions saving={saving} onClose={onClose} formId={formId} submitLabel={'Registrar Corte'} />
           </motion.div>
         </Modal>
       )}

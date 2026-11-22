@@ -401,6 +401,10 @@ const Accounts = () => {
     queryClient.invalidateQueries({ queryKey: ['accounts'] });
     queryClient.invalidateQueries({ queryKey: ['statements'] });
     queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+    queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+    queryClient.invalidateQueries({ queryKey: ['netWorth'] });
+    queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
+    queryClient.invalidateQueries({ queryKey: ['paymentAlerts'] });
   };
 
   const createMutation = useMutation({

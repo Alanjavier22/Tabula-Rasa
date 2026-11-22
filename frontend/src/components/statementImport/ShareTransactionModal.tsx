@@ -36,23 +36,34 @@ const ShareTransactionModal = ({ sharingTransaction, transactionDescription, onC
             <input
               id="share-transaction-amount"
               type="number"
-              value={sharingTransaction.amount / 100}
-              onChange={(e) => onChange({...sharingTransaction, amount: Number.parseFloat(e.target.value) * 100})}
+              min="0.01"
+              step="0.01"
+              value={Number.isFinite(sharingTransaction.amount) && sharingTransaction.amount > 0 ? sharingTransaction.amount / 100 : ''}
+              onChange={(e) => {
+                const parsed = Number.parseFloat(e.target.value);
+                onChange({
+                  ...sharingTransaction,
+                  amount: Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed * 100) : 0,
+                });
+              }}
               className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-primary text-sm focus:border-line outline-none"
             />
           </div>
         </div>
 
         <div className="flex gap-2 mt-6">
-          <button aria-label="Cerrar diálogo"
+          <button
+            type="button"
             onClick={onCancel}
-            className="flex-1 px-3 py-2 rounded-lg border border-line text-muted text-sm font-bold hover:bg-surface"
+            className="app-btn app-btn-ghost flex-1"
           >
             Cancelar
           </button>
           <button
+            type="button"
             onClick={onConfirm}
-            className="flex-1 px-3 py-2 rounded-lg bg-accent-strong text-on-color text-sm font-bold hover:bg-accent-strong"
+            disabled={!sharingTransaction.name.trim() || !Number.isFinite(sharingTransaction.amount) || sharingTransaction.amount <= 0}
+            className="app-btn app-btn-primary flex-1 disabled:opacity-50"
           >
             Confirmar
           </button>

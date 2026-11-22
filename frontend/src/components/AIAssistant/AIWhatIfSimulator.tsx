@@ -276,37 +276,37 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
         </div>
       )}
 
-      <div className="bg-canvas p-4 md:p-6 rounded-3xl border border-line  relative min-h-[300px] w-full min-w-0 mt-2">
-        <div className="absolute top-10 left-10 z-20">
+      <div className="bg-canvas p-4 md:p-6 rounded-3xl border border-line relative min-h-[300px] w-full min-w-0 mt-2">
+        <div className="mb-3">
           <p className="text-xs font-black text-muted uppercase tracking-[0.3em]">Evolución del Patrimonio (12 Meses)</p>
-          <p className="text-xs text-muted mt-2 font-medium italic">Análisis comparativo entre tu tendencia actual y el escenario simulado.</p>
+          <p className="text-xs text-muted mt-1 font-medium italic">Análisis comparativo entre tu tendencia actual y el escenario simulado.</p>
         </div>
         <ResponsiveContainer width="100%" height={240}>
-          <AreaChart data={scenario.projection} margin={{ top: 40, right: 30, left: 10, bottom: 20 }}>
+          <AreaChart data={scenario.projection} margin={{ top: 16, right: 24, left: 10, bottom: 20 }}>
             <defs>
               <linearGradient id="colorBaseline" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#64748b" stopOpacity={0.1}/>
-                <stop offset="95%" stopColor="#64748b" stopOpacity={0}/>
+                <stop offset="5%" stopColor="var(--app-muted)" stopOpacity={0.14}/>
+                <stop offset="95%" stopColor="var(--app-muted)" stopOpacity={0}/>
               </linearGradient>
               <linearGradient id="colorProjected" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                <stop offset="5%" stopColor="var(--app-accent-strong)" stopOpacity={0.28}/>
+                <stop offset="95%" stopColor="var(--app-accent-strong)" stopOpacity={0}/>
               </linearGradient>
             </defs>
 
-            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--app-border)" vertical={false} />
 
             <XAxis
               dataKey="month"
-              tick={{ fill: '#64748b', fontSize: 11 }}
-              axisLine={{ stroke: '#ffffff10' }}
+              tick={{ fill: 'var(--app-muted)', fontSize: 11 }}
+              axisLine={{ stroke: 'var(--app-border)' }}
               tickLine={false}
               dy={10}
             />
 
             <YAxis
               tickFormatter={formatYAxis}
-              tick={{ fill: '#64748b', fontSize: 11 }}
+              tick={{ fill: 'var(--app-muted)', fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               domain={[minValue - padding, maxValue + padding]}
@@ -322,12 +322,12 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
               content={WhatIfLegendContent}
             />
 
-            <ReferenceLine y={0} stroke="#ef444450" strokeWidth={1} strokeDasharray="5 5" />
+            <ReferenceLine y={0} stroke="var(--app-danger)" strokeOpacity={0.45} strokeWidth={1} strokeDasharray="5 5" />
 
             <Area
               type="monotone"
               dataKey="baseline_net_worth"
-              stroke="#64748b"
+              stroke="var(--app-muted)"
               strokeWidth={2}
               strokeDasharray="4 4"
               fillOpacity={1}
@@ -339,7 +339,7 @@ export const AIWhatIfSimulator: React.FC<AIWhatIfSimulatorProps> = ({
             <Area
               type="monotone"
               dataKey="projected_net_worth"
-              stroke="#3b82f6"
+              stroke="var(--app-accent-strong)"
               strokeWidth={3}
               fillOpacity={1}
               fill="url(#colorProjected)"

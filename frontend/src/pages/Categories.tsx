@@ -1,6 +1,8 @@
 import { type CSSProperties, useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { categoriesAPI } from '../services/api';
+import { getLocalTodayIso } from '../utils/dateUtils';
 import type { Category } from '../types';
 import { Plus, Trash2, Edit, Download, Upload, Tag } from 'lucide-react';
 import Toast from '../components/Toast';
@@ -16,6 +18,7 @@ const emptyForm: CategoryFormData = {
 };
 
 const Categories = () => {
+  const queryClient = useQueryClient();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -35,6 +38,14 @@ const Categories = () => {
     id: string | null;
   }>({ isOpen: false, id: null });
   const [importing, setImporting] = useState(false);
+
+  const invalidateCategoryQueries = () => {
+    void queryClient.invalidateQueries({ queryKey: ['categories'] });
+    void queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    void queryClient.invalidateQueries({ queryKey: ['budgets'] });
+    void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+    void queryClient.invalidateQueries({ queryKey: ['vehicleTelemetry'] });
+  };
 
   const fetchCategories = async () => {
     try {
@@ -62,7 +73,7 @@ const Categories = () => {
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `categorias_${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `categorias_${getLocalTodayIso()}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -91,6 +102,7 @@ const Categories = () => {
         type: 'success',
       });
       void fetchCategories();
+      invalidateCategoryQueries();
     } catch (error) {
       console.error('Error importing categories:', error);
       setToast({ message: 'Error al importar categorías', type: 'error' });
@@ -110,6 +122,7 @@ const Categories = () => {
       await categoriesAPI.delete(deleteConfirm.id);
       setToast({ message: 'Categoría eliminada', type: 'success' });
       void fetchCategories();
+      invalidateCategoryQueries();
     } catch (error) {
       console.error('Error deleting category:', error);
       setToast({ message: 'Error al eliminar categoría', type: 'error' });
@@ -141,6 +154,7 @@ const Categories = () => {
       setForm(emptyForm);
       setToast({ message: 'Categoría creada', type: 'success' });
       void fetchCategories();
+      invalidateCategoryQueries();
     } catch (error) {
       console.error('Error creating category:', error);
       setToast({ message: 'Error al crear categoría', type: 'error' });
@@ -164,6 +178,7 @@ const Categories = () => {
       setEditForm(emptyForm);
       setToast({ message: 'Categoría actualizada', type: 'success' });
       void fetchCategories();
+      invalidateCategoryQueries();
     } catch (error) {
       console.error('Error updating category:', error);
       setToast({ message: 'Error al actualizar categoría', type: 'error' });

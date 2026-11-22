@@ -10,7 +10,7 @@ import {
   lazy,
   Suspense,
 } from "react";
-import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import Decimal from "decimal.js-light";
 import {
   accountsAPI,
@@ -50,7 +50,6 @@ import type {
   Goal,
   DebtShare,
 } from "../types";
-import type { EcuadorFiscalRules } from "../services/ReportingService";
 import type { AxiosError } from "axios";
 import { AnimatePresence } from "framer-motion";
 import {
@@ -101,6 +100,7 @@ const EMPTY_ARRAY: never[] = [];
 type DashboardSectionTab = "actividad" | "tendencias" | "compromisos" | "ia";
 
 const Dashboard = () => {
+  const queryClient = useQueryClient();
   const [insights, setInsights] = useState<string[] | null>(null);
   const [aiAlerts, setAiAlerts] = useState<string[]>([]);
   const [aiPatterns, setAiPatterns] = useState<string[]>([]);
@@ -231,44 +231,6 @@ const Dashboard = () => {
         refetchOnWindowFocus: false,
       },
       {
-        queryKey: ["configIVA"],
-        queryFn: async () => {
-          try {
-            const { configAPI } = await import("../services/api");
-            const { reportingService } =
-              await import("../services/ReportingService");
-
-            // Parallel fetch for all fiscal rates
-            const [ivaRes, retSrcRes, retIvaRes] = await Promise.all([
-              configAPI.getByKey("iva_rate"),
-              configAPI.getByKey("retencion_source_rate"),
-              configAPI.getByKey("retencion_iva_rate"),
-            ]);
-
-            const rules: Partial<EcuadorFiscalRules> = {};
-            if (ivaRes.data?.value)
-              rules.iva_rate = Number.parseFloat(ivaRes.data.value);
-            if (retSrcRes.data?.value)
-              rules.retencion_source_rate = Number.parseFloat(
-                retSrcRes.data.value,
-              );
-            if (retIvaRes.data?.value)
-              rules.retencion_iva_rate = Number.parseFloat(
-                retIvaRes.data.value,
-              );
-
-            if (Object.keys(rules).length > 0) {
-              reportingService.setFiscalRules(rules);
-            }
-            return rules;
-          } catch {
-            return null;
-          }
-        },
-        staleTime: 600000, // 10 minutes cache for static config rates
-        refetchOnWindowFocus: false,
-      },
-      {
         queryKey: ["goals"],
         queryFn: () => goalsAPI.getAll().then((res) => res.data),
         staleTime: 30000,
@@ -293,7 +255,7 @@ const Dashboard = () => {
   const transactions = (results[8].data as Transaction[]) || EMPTY_ARRAY;
   const subscriptions = (results[9].data as Subscription[]) || EMPTY_ARRAY;
   const categories = (results[10].data as Category[]) || EMPTY_ARRAY;
-  const goals = (results[13].data as Goal[]) || EMPTY_ARRAY;
+  const goals = (results[12].data as Goal[]) || EMPTY_ARRAY;
   const dashboardSummary = results[11].data as
     | DashboardSummaryResponse
     | undefined;
@@ -352,6 +314,9 @@ const Dashboard = () => {
       });
       results[1].refetch(); // accounts
       results[11].refetch(); // summary
+      void queryClient.invalidateQueries({ queryKey: ["safeToSpend"] });
+      void queryClient.invalidateQueries({ queryKey: ["netWorth"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashFlowForecast"] });
     },
     onError: () => {
       setToast({ message: "Error al sincronizar balances", type: "error" });
@@ -395,7 +360,11 @@ const Dashboard = () => {
       });
 
       results[11].refetch();
-      results[13].refetch();
+      results[12].refetch();
+      void queryClient.invalidateQueries({ queryKey: ["snapshots"] });
+      void queryClient.invalidateQueries({ queryKey: ["netWorth"] });
+      void queryClient.invalidateQueries({ queryKey: ["safeToSpend"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashFlowForecast"] });
     } catch (error) {
       console.error("Error creating snapshot:", error);
       setToast({ message: "Error al cerrar mes contable", type: "error" });
@@ -404,7 +373,7 @@ const Dashboard = () => {
       isRefetchingRef.current = false;
       setSnapshotConfirm((prev) => ({ ...prev, isOpen: false }));
     }
-  }, [creatingSnapshot, results, snapshotConfirm]);
+  }, [creatingSnapshot, queryClient, results, snapshotConfirm]);
 
   const totalBalance = useMemo(
     () => calculateLiquidBalance(accounts),
@@ -930,20 +899,22 @@ return (
         isOpen={showWhatIfModal}
         onClose={() => setShowWhatIfModal(false)}
         transactions={transactions}
-        currentNetWorth={totalBalance.toNumber()}
-        monthlyIncome={
-          safeToSpend?.monthly_income ||
-          (dashboardSummary?.total_income
-            ? dashboardSummary.total_income / 100
-            : 0)
-        }
-        fixedExpenses={safeToSpend?.projected_fixed_expenses || 0}
-        totalDebt={totalStatementDue.toNumber()}
+        currentNetWorth={Math.round(totalBalance.toNumber())}
+        monthlyIncome={Math.round(
+          Number(safeToSpend?.monthly_income || 0) > 0
+            ? Number(safeToSpend?.monthly_income)
+            : (dashboardSummary?.total_income || 0),
+        )}
+        fixedExpenses={Math.round(Number(safeToSpend?.projected_fixed_expenses || 0))}
+        totalDebt={Math.round(totalStatementDue.toNumber())}
         avgMonthlySpend={Math.max(
           0,
-          totalExpenses.toNumber() / 100 -
-            (safeToSpend?.projected_fixed_expenses || 0),
+          Math.round(
+            totalExpenses.toNumber() -
+              Number(safeToSpend?.projected_fixed_expenses || 0),
+          ),
         )}
+        goals={goals}
       />
 
       {/* AnomalyScanner Modal */}

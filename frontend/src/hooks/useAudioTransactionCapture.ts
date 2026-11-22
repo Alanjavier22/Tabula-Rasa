@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { AxiosError } from 'axios';
 import { aiAPI } from '../services/api';
 import { formatMoney } from '../utils/money';
+import { getLocalTodayIso } from '../utils/dateUtils';
 import type { TransactionType, PaymentMethod, ExpenseType } from '../types';
 import type { TransactionFormData } from '../components/TransactionForm';
 
@@ -42,7 +43,7 @@ export function useAudioTransactionCapture(onExtracted: (formData: TransactionFo
           amount: formatMoney(firstTxn.amount),
           transaction_type: firstTxn.transaction_type as TransactionType,
           payment_method: 'transfer' as PaymentMethod,
-          date: new Date().toISOString().split('T')[0],
+          date: getLocalTodayIso(),
           category_id: firstTxn.category_id?.toString() || '',
           account_id: '',
           expense_type: 'variable' as ExpenseType,

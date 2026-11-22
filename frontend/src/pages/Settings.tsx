@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   configAPI,
@@ -28,6 +29,7 @@ import type { ConfigData, GoogleDriveCredentials, GoogleDriveStatus } from '../c
 type SettingsTab = 'general' | 'ai' | 'labs' | 'cloud';
 
 const Settings = () => {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,6 +181,9 @@ const Settings = () => {
       });
 
       setToast({ message: 'Configuración guardada exitosamente', type: 'success' });
+      void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+      void queryClient.invalidateQueries({ queryKey: ['vehicleTelemetry'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
     } catch (error) {
       console.error('Error saving settings:', error);
       setToast({ message: 'Error al guardar configuración', type: 'error' });
@@ -204,6 +209,9 @@ const Settings = () => {
         await configAPI.create(data);
       }
       setToast({ message: 'Cambio guardado automáticamente', type: 'success' });
+      void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+      void queryClient.invalidateQueries({ queryKey: ['vehicleTelemetry'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
     } catch (error) {
       console.error(`Error auto-saving ${key}:`, error);
       setToast({ message: 'Error al guardar automáticamente', type: 'error' });

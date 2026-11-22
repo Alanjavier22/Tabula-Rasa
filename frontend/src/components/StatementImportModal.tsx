@@ -146,12 +146,24 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
 
     setSaving(true);
     try {
+      const derivedDebtShares = selectedTransactions
+        .filter((t) => !t.is_duplicate && t.shared_with?.trim() && (t.shared_amount ?? 0) > 0)
+        .map((t) => ({
+          person_name: t.shared_with!.trim(),
+          amount_cents: Math.round(t.shared_amount!),
+          description: `Compartido de: ${t.description || 'Consumo'}`,
+        }));
+
       // Enviamos al backend la confirmación junto con los metadatos de deuda para crear el CreditCardStatement
       const response = await intelligenceAPI.confirmImport(
         importLogId,
         selectedTransactions,
         statementMetadata
-          ? { ...statementMetadata, user_share_cents: userShareCents }
+          ? {
+              ...statementMetadata,
+              user_share_cents: userShareCents,
+              debt_shares: derivedDebtShares,
+            }
           : undefined
       );
 
@@ -186,7 +198,11 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
 
   return (
     <>
-      <Modal onClose={onClose} label={'Importar estado de cuenta'}>
+      <Modal
+        onClose={() => { if (!saving && !processing) onClose(); }}
+        preventClose={saving || processing}
+        label={'Importar estado de cuenta'}
+      >
       <motion.div
         initial={false}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -201,7 +217,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
               </div>
               <h2 className="text-lg font-black text-primary tracking-tight">Importador IA <span className="text-accent-strong font-medium text-xs ml-2 px-2 py-0.5 bg-accent-soft rounded-full">Estados de Cuenta</span></h2>
             </div>
-            <button aria-label="Cerrar diálogo" onClick={onClose} className="text-muted hover:text-primary transition-colors">
+            <button type="button" aria-label="Cerrar diálogo" disabled={saving || processing} onClick={onClose} className="text-muted hover:text-primary transition-colors disabled:opacity-50">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -262,7 +278,9 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                         <div className="w-full h-1.5 bg-accent-soft rounded-lg overflow-hidden relative">
                           <div
                             className="h-full bg-accent-strong transition-all duration-300"
-                            style={{ width: `${(userShareCents / statementMetadata.statement_balance_cents) * 100}%` }}
+                            style={{
+                              width: `${statementMetadata.statement_balance_cents > 0 ? Math.min(100, Math.max(0, (userShareCents / statementMetadata.statement_balance_cents) * 100)) : 0}%`,
+                            }}
                           />
                         </div>
 
@@ -354,7 +372,8 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                           <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">
                             <input
                               type="checkbox"
-                              checked={extractedTransactions.every(t => t.selected)}
+                              aria-label="Seleccionar todas las transacciones no duplicadas"
+                              checked={extractedTransactions.some(t => !t.is_duplicate) && extractedTransactions.filter(t => !t.is_duplicate).every(t => t.selected)}
                               onChange={(e) => {
                                 setExtractedTransactions(prev =>
                                   prev.map(txn => ({ ...txn, selected: e.target.checked && !txn.is_duplicate }))
@@ -378,6 +397,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                                <div className="flex items-center gap-2">
                                  <input
                                    type="checkbox"
+                                   aria-label={`Seleccionar transacción ${txn.description}`}
                                    checked={txn.selected}
                                    disabled={txn.is_duplicate}
                                    onChange={() => {
@@ -414,6 +434,8 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                              <td className="px-4 py-3">
                                <div className="flex items-center gap-2">
                                  <button
+                                   type="button"
+                                   aria-label={txn.shared_with ? `Quitar gasto compartido con ${txn.shared_with}` : `Compartir consumo ${txn.description}`}
                                    onClick={() => {
                                      if (txn.shared_with) {
                                        // Unshare directly if already shared
@@ -422,7 +444,7 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                                        );
                                        setExtractedTransactions(newTransactions);
                                      } else {
-                                       setSharingTransaction({ index, name: "Dennis", amount: txn.amount_cents / 2 });
+                                       setSharingTransaction({ index, name: "", amount: Math.round(txn.amount_cents / 2) });
                                      }
                                    }}
 
@@ -457,20 +479,23 @@ const StatementImportModal = ({ onClose, onSuccess }: StatementImportModalProps)
                     Se importarán <strong className="text-primary">{extractedTransactions.filter(t => t.selected).length}</strong> transacciones y se actualizará el balance de la tarjeta.
                   </p>
                   <div className="flex gap-3">
-                    <button aria-label="Cerrar diálogo"
+                    <button
+                      type="button"
+                      disabled={saving}
                       onClick={onClose}
-                      className="px-6 py-3 rounded-xl border border-line text-muted hover:bg-surface hover:text-primary transition-colors font-semibold"
+                      className="app-btn app-btn-ghost px-6 py-3 rounded-xl"
                     >
                       Cancelar
                     </button>
                     <button
+                      type="button"
                       onClick={handleSave}
                       disabled={saving || !extractedTransactions.some(t => t.selected)}
-                      className="px-8 py-3 rounded-xl bg-surface-soft   text-primary   font-bold shadow-lg  transition-all disabled:opacity-50 flex items-center gap-2"
+                      className="app-btn app-btn-primary px-8 py-3 rounded-xl disabled:opacity-50 flex items-center gap-2"
                     >
                       {saving ? (
                         <>
-                          <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
+                          <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin"></div>
                           Aplicando...
                         </>
                       ) : 'Confirmar Importación'}

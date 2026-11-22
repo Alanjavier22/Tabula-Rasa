@@ -1,6 +1,6 @@
 import FormActions from '../common/FormActions';
 import Modal from '../common/Modal';
-import type { Dispatch, SetStateAction } from 'react';
+import { useId, type Dispatch, type SetStateAction } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Edit, PiggyBank, DollarSign, Building2, Link, CheckCircle2, X } from 'lucide-react';
 import type { Account } from '../../types';
@@ -19,10 +19,11 @@ interface EditAccountModalProps {
 }
 
 const EditAccountModal = ({ isOpen, editForm, setEditForm, editingAccount, accounts, saving, onClose, onSubmit }: EditAccountModalProps) => {
+  const formId = useId();
   return (
     <AnimatePresence>
       {isOpen && editingAccount && (
-        <Modal onClose={onClose} label={'Editar cuenta'}>
+        <Modal onClose={onClose} preventClose={saving} label={'Editar cuenta'}>
           <motion.div
             initial={false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -38,12 +39,12 @@ const EditAccountModal = ({ isOpen, editForm, setEditForm, editingAccount, accou
                 </div>
                 Editar Cuenta
               </h2>
-              <button aria-label="Cerrar diálogo" onClick={onClose} className="w-10 h-10 rounded-full hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all border border-transparent hover:border-line">
+              <button aria-label="Cerrar diálogo" disabled={saving} onClick={onClose} className="w-10 h-10 rounded-full hover:bg-surface-soft flex items-center justify-center text-muted hover:text-primary transition-all border border-transparent hover:border-line disabled:opacity-50">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={onSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
+            <form id={formId} onSubmit={onSubmit} className="flex-1 overflow-y-auto p-6 md:p-7 space-y-8 custom-scrollbar overscroll-contain">
 
               {/* VISTA PREVIA DE TARJETA VIRTUAL */}
               <div className="space-y-3">
@@ -248,9 +249,7 @@ const EditAccountModal = ({ isOpen, editForm, setEditForm, editingAccount, accou
             </form>
 
             {/* Footer */}
-            <FormActions saving={saving} onClose={onClose} onSubmit={onSubmit} submitLabel={(
-                  'Actualizar Datos'
-                )} />
+            <FormActions saving={saving} onClose={onClose} formId={formId} submitLabel={'Actualizar Datos'} />
           </motion.div>
         </Modal>
       )}

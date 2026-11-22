@@ -1,6 +1,7 @@
 import { importFailure } from '../utils/importOutcome';
 import ImportResult from './common/ImportResult';
 import Modal from './common/Modal';
+import { getLocalTodayIso } from '../utils/dateUtils';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { aiAPI, accountsAPI, categoriesAPI, transactionsAPI } from '../services/api';
@@ -126,7 +127,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
           amount: txn.amount as Cents,
           transaction_type: txn.transaction_type as TransactionType,
           payment_method: 'transfer' as PaymentMethod,
-          date: new Date().toISOString().split('T')[0],
+          date: getLocalTodayIso(),
           category_id: txn.category_id || undefined,
           account_id: accountId,
           expense_type: txn.transaction_type === 'expense' ? 'variable' as ExpenseType : undefined,
@@ -229,13 +230,14 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
           {/* Process Button */}
           {file && !extractedTransactions.length && (
             <button
+              type="button"
               onClick={handleProcess}
               disabled={processing}
-              className="w-full py-3 rounded-xl bg-surface-soft   text-primary font-bold text-sm hover:shadow-lg  hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+              className="app-btn app-btn-primary w-full justify-center py-3 rounded-xl disabled:opacity-50"
             >
               {processing ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin"></div>
                   Procesando con IA...
                 </>
               ) : (
@@ -273,7 +275,8 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                       <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">
                         <input
                           type="checkbox"
-                          checked={extractedTransactions.every(t => t.selected)}
+                          aria-label="Seleccionar todas las transacciones extraídas"
+                          checked={extractedTransactions.length > 0 && extractedTransactions.every(t => t.selected)}
                           onChange={(e) => {
                             setExtractedTransactions(prev =>
                               prev.map(txn => ({ ...txn, selected: e.target.checked }))
@@ -294,6 +297,7 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                         <td className="px-4 py-3">
                           <input
                             type="checkbox"
+                            aria-label={`Seleccionar ${txn.description}`}
                             checked={txn.selected}
                             onChange={() => toggleTransactionSelection(index)}
                             className="accent-info rounded"
@@ -326,20 +330,23 @@ const DocumentImportModal = ({ onClose, onSuccess }: DocumentImportModalProps) =
                   Se importarán <strong className="text-primary">{extractedTransactions.filter(t => t.selected).length}</strong> transacciones.
                 </p>
                 <div className="flex gap-3">
-                  <button aria-label="Cerrar diálogo"
+                  <button
+                    type="button"
+                    disabled={saving}
                     onClick={onClose}
-                    className="px-6 py-3 rounded-xl border border-line text-muted hover:bg-surface hover:text-primary transition-colors font-semibold"
+                    className="app-btn app-btn-ghost px-6 py-3 rounded-xl"
                   >
                     Cancelar
                   </button>
                   <button
+                    type="button"
                     onClick={handleSave}
                     disabled={saving || !extractedTransactions.some(t => t.selected)}
-                    className="px-8 py-3 rounded-xl bg-surface-soft   text-primary   font-bold shadow-lg  transition-all disabled:opacity-50 flex items-center gap-2"
+                    className="app-btn app-btn-primary px-8 py-3 rounded-xl disabled:opacity-50 flex items-center gap-2"
                   >
                     {saving ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin"></div>
                         Guardando...
                       </>
                     ) : 'Confirmar Importación'}

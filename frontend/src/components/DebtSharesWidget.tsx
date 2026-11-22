@@ -64,6 +64,9 @@ const DebtSharesWidget = ({
     void queryClient.invalidateQueries({ queryKey: ['statements'] });
     void queryClient.invalidateQueries({ queryKey: ['accounts'] });
     void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+    void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+    void queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
+    void queryClient.invalidateQueries({ queryKey: ['paymentAlerts'] });
   };
 
   const handleAddDebtShare = () => {

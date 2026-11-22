@@ -215,13 +215,14 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
 
                   {file && (
                     <button
+                      type="button"
                       onClick={handleProcess}
                       disabled={processing}
-                      className="w-full py-3 rounded-xl bg-surface-soft   text-primary font-bold text-sm hover:shadow-lg  hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2"
+                      className="app-btn app-btn-primary w-full justify-center py-3 rounded-xl disabled:opacity-50"
                     >
                       {processing ? (
                         <>
-                          <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
+                          <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin"></div>
                           Analizando con IA...
                         </>
                       ) : (
@@ -302,7 +303,8 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                         <th className="px-4 py-3 text-left text-xs font-bold text-muted uppercase">
                           <input
                             type="checkbox"
-                            checked={extractedTransactions.filter(t => !t.is_duplicate).every(t => t.selected)}
+                            aria-label="Seleccionar todos los movimientos no duplicados"
+                            checked={extractedTransactions.some(t => !t.is_duplicate) && extractedTransactions.filter(t => !t.is_duplicate).every(t => t.selected)}
                             onChange={(e) => {
                               setExtractedTransactions(prev =>
                                 prev.map(txn => ({ ...txn, selected: e.target.checked && !txn.is_duplicate }))
@@ -323,6 +325,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                           <td className="px-4 py-3">
                             <input
                               type="checkbox"
+                              aria-label={`Seleccionar movimiento ${txn.description}`}
                               checked={txn.selected}
                               disabled={txn.is_duplicate}
                               onChange={() => {
@@ -349,6 +352,7 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                           </td>
                           <td className="px-4 py-3 text-sm">
                             <select
+                              aria-label={`Categoría para ${txn.description}`}
                               value={txn.category_id || ''}
                               onChange={(e) => {
                                 const newCategoryId = e.target.value;
@@ -381,20 +385,23 @@ const AccountImportModal = ({ onClose, onSuccess }: AccountImportModalProps) => 
                   Se importarán <strong className="text-primary">{extractedTransactions.filter(t => t.selected).length}</strong> nuevos movimientos a tu cuenta.
                 </p>
                 <div className="flex gap-3">
-                  <button aria-label="Cerrar diálogo"
+                  <button
+                    type="button"
+                    disabled={saving}
                     onClick={onClose}
-                    className="px-6 py-3 rounded-xl border border-line text-muted hover:bg-surface hover:text-primary transition-colors font-semibold"
+                    className="app-btn app-btn-ghost px-6 py-3 rounded-xl"
                   >
                     Cancelar
                   </button>
                   <button
+                    type="button"
                     onClick={handleSave}
                     disabled={saving || !extractedTransactions.some(t => t.selected)}
-                    className="px-8 py-3 rounded-xl bg-surface-soft   text-primary   font-bold shadow-lg  transition-all disabled:opacity-50 flex items-center gap-2"
+                    className="app-btn app-btn-primary px-8 py-3 rounded-xl disabled:opacity-50 flex items-center gap-2"
                   >
                     {saving ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-line border-t-white rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin"></div>
                         Aplicando...
                       </>
                     ) : 'Confirmar Importación'}

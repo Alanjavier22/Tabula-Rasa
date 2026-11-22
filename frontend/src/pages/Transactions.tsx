@@ -18,6 +18,7 @@ import type {
   Transaction,
 } from "../types";
 import { formatMoney, toCents } from "../utils/money";
+import { getLocalTodayIso } from "../utils/dateUtils";
 import {
   Plus,
   Upload,
@@ -44,7 +45,7 @@ const emptyForm: TransactionFormData = {
   amount: "",
   transaction_type: "expense" as TransactionType,
   payment_method: "transfer" as PaymentMethod,
-  date: new Date().toISOString(),
+  date: getLocalTodayIso(),
   category_id: "",
   account_id: "",
   expense_type: "variable" as ExpenseType,
@@ -162,6 +163,8 @@ const Transactions = () => {
       queryClient.invalidateQueries({ queryKey: ["cashFlowForecast"] });
       queryClient.invalidateQueries({ queryKey: ["netWorth"] });
       queryClient.invalidateQueries({ queryKey: ["vehicleTelemetry"] });
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
     } catch (error) {
       console.error("Error deleting transaction:", error);
       setToast({ message: "Error al eliminar transacción", type: "error" });
@@ -177,10 +180,10 @@ const Transactions = () => {
       transaction_type: transaction.transaction_type as TransactionType,
       payment_method:
         transaction.payment_method || ("transfer" as PaymentMethod),
-      date: transaction.date || new Date().toISOString(),
+      date: transaction.date || getLocalTodayIso(),
       category_id: transaction.category_id || "",
       account_id: transaction.account_id || "",
-      expense_type: "variable" as ExpenseType,
+      expense_type: transaction.expense_type || ("variable" as ExpenseType),
       goal_id: transaction.goal_id || "",
       beneficiary: transaction.beneficiary || "",
     });
@@ -190,7 +193,7 @@ const Transactions = () => {
   const closeModal = () => {
     setShowModal(false);
     setEditingTransaction(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, date: getLocalTodayIso() });
     if (wantsNewModal) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete("new");
@@ -199,39 +202,36 @@ const Transactions = () => {
     }
   };
 
-  const handleSubmit = async (formData: TransactionFormData) => {
+  const handleSubmit = async (
+    formData: TransactionFormData,
+    splits?: Array<{ amount: string; category_id: string; description: string }>,
+  ) => {
     try {
+      const amountCents = toCents(
+        Number.parseFloat(formData.amount.replace(/[^0-9.,-]/g, "").replace(",", ".")),
+      );
+      const splitsPayload = splits?.map((s) => ({
+        amount: toCents(s.amount.replace(",", ".")),
+        category_id: s.category_id || null,
+        description: s.description || null,
+      }));
+      const payload = {
+        description: formData.description,
+        amount: amountCents,
+        transaction_type: formData.transaction_type,
+        date: formData.date,
+        category_id: formData.category_id || null,
+        account_id: formData.account_id || null,
+        payment_method: formData.payment_method,
+        expense_type: formData.expense_type,
+        goal_id: formData.goal_id || null,
+        splits: splitsPayload ?? [],
+      };
       if (editingTransaction) {
-        const amountCents = toCents(
-          Number.parseFloat(formData.amount.replace(/[^0-9.-]/g, "")),
-        );
-        await transactionsAPI.update(editingTransaction.id, {
-          description: formData.description,
-          amount: amountCents,
-          transaction_type: formData.transaction_type,
-          date: formData.date,
-          category_id: formData.category_id || null,
-          account_id: formData.account_id || null,
-          payment_method: formData.payment_method,
-          expense_type: formData.expense_type,
-          goal_id: formData.goal_id || null,
-        });
+        await transactionsAPI.update(editingTransaction.id, payload);
         setToast({ message: "Transacción actualizada", type: "success" });
       } else {
-        const amountCents = toCents(
-          Number.parseFloat(formData.amount.replace(/[^0-9.-]/g, "")),
-        );
-        await transactionsAPI.create({
-          description: formData.description,
-          amount: amountCents,
-          transaction_type: formData.transaction_type,
-          date: formData.date,
-          category_id: formData.category_id || null,
-          account_id: formData.account_id || null,
-          payment_method: formData.payment_method,
-          expense_type: formData.expense_type,
-          goal_id: formData.goal_id || null,
-        });
+        await transactionsAPI.create(payload);
         setToast({ message: "Transacción creada", type: "success" });
       }
 
@@ -246,6 +246,10 @@ const Transactions = () => {
       queryClient.invalidateQueries({ queryKey: ["cashFlowForecast"] });
       queryClient.invalidateQueries({ queryKey: ["netWorth"] });
       queryClient.invalidateQueries({ queryKey: ["vehicleTelemetry"] });
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
     } catch (error) {
       console.error("Error saving transaction:", error);
       setToast({
@@ -274,7 +278,8 @@ const Transactions = () => {
           queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
           queryClient.invalidateQueries({ queryKey: ["safeToSpend"] });
           queryClient.invalidateQueries({ queryKey: ["accounts"] });
-          queryClient.invalidateQueries({ queryKey: ["expenseBreakdown"] });
+          queryClient.invalidateQueries({ queryKey: ["budgets"] });
+          queryClient.invalidateQueries({ queryKey: ["goals"] });
         }, 30000),
       );
 
@@ -287,6 +292,8 @@ const Transactions = () => {
       queryClient.invalidateQueries({ queryKey: ["cashFlowForecast"] });
       queryClient.invalidateQueries({ queryKey: ["netWorth"] });
       queryClient.invalidateQueries({ queryKey: ["vehicleTelemetry"] });
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
     }
   };
 
@@ -435,7 +442,7 @@ return (
             className="app-btn app-btn-primary"
             onClick={() => {
               setEditingTransaction(null);
-              setForm({ ...emptyForm, date: new Date().toISOString() });
+              setForm({ ...emptyForm, date: getLocalTodayIso() });
               setShowModal(true);
             }}
           >
@@ -615,6 +622,13 @@ return (
                 type: "success",
               });
               refetchTransactions();
+              queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+              queryClient.invalidateQueries({ queryKey: ["safeToSpend"] });
+              queryClient.invalidateQueries({ queryKey: ["accounts"] });
+              queryClient.invalidateQueries({ queryKey: ["cashFlowForecast"] });
+              queryClient.invalidateQueries({ queryKey: ["netWorth"] });
+              queryClient.invalidateQueries({ queryKey: ["budgets"] });
+              queryClient.invalidateQueries({ queryKey: ["goals"] });
             }}
           />
         )}
@@ -633,6 +647,11 @@ return (
               queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
               queryClient.invalidateQueries({ queryKey: ["statements"] });
               queryClient.invalidateQueries({ queryKey: ["accounts"] });
+              queryClient.invalidateQueries({ queryKey: ["safeToSpend"] });
+              queryClient.invalidateQueries({ queryKey: ["cashFlowForecast"] });
+              queryClient.invalidateQueries({ queryKey: ["netWorth"] });
+              queryClient.invalidateQueries({ queryKey: ["budgets"] });
+              queryClient.invalidateQueries({ queryKey: ["paymentAlerts"] });
             }}
           />
         )}

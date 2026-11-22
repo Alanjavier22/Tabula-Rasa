@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { remindersAPI } from '../services/api';
 import type { Reminder, ReminderFrequency, ReminderStatus } from '../types';
@@ -6,6 +7,7 @@ import type { AxiosError } from 'axios';
 
 type ValidationErrorResponse = AxiosError<{ detail?: string | Array<{ msg: string }> }>;
 import { formatMoney, toCents } from '../utils/money';
+import { getLocalTodayIso, parseLocalDate } from '../utils/dateUtils';
 import {
   Plus,
   Trash2,
@@ -23,24 +25,6 @@ import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ReminderFormModal, { type ReminderFormData } from '../components/reminders/ReminderFormModal';
 
-const getLocalTodayIso = (): string => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const parseLocalDate = (raw: string): Date => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
-  if (match) {
-    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  }
-  const fallback = new Date(raw);
-  fallback.setHours(0, 0, 0, 0);
-  return fallback;
-};
-
 const emptyForm: ReminderFormData = {
   name: '',
   amount: '',
@@ -52,6 +36,7 @@ const emptyForm: ReminderFormData = {
 };
 
 const Reminders = () => {
+  const queryClient = useQueryClient();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -82,12 +67,20 @@ const Reminders = () => {
     setDeleteConfirm({ isOpen: true, id });
   };
 
+  const invalidateReminderQueries = () => {
+    void queryClient.invalidateQueries({ queryKey: ['paymentAlerts'] });
+    void queryClient.invalidateQueries({ queryKey: ['safeToSpend'] });
+    void queryClient.invalidateQueries({ queryKey: ['cashFlowForecast'] });
+    void queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+  };
+
   const confirmDelete = async () => {
     if (deleteConfirm.id === null) return;
     try {
       await remindersAPI.delete(deleteConfirm.id);
       setToast({ message: 'Alerta eliminada del sistema', type: 'success' });
       void fetchReminders();
+      invalidateReminderQueries();
     } catch (error) {
       console.error('Error deleting reminder:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
@@ -131,6 +124,7 @@ const Reminders = () => {
       setForm({ ...emptyForm, due_date: getLocalTodayIso() });
       setToast({ message: 'Nueva alerta programada', type: 'success' });
       void fetchReminders();
+      invalidateReminderQueries();
     } catch (error) {
       console.error('Error creating reminder:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
@@ -162,6 +156,7 @@ const Reminders = () => {
       setEditForm({ ...emptyForm, due_date: getLocalTodayIso() });
       setToast({ message: 'Configuración de alerta actualizada', type: 'success' });
       void fetchReminders();
+      invalidateReminderQueries();
     } catch (error) {
       console.error('Error updating reminder:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
@@ -179,6 +174,7 @@ const Reminders = () => {
       await remindersAPI.update(id, { status: 'completed' });
       setToast({ message: 'Recordatorio marcado como completado', type: 'success' });
       void fetchReminders();
+      invalidateReminderQueries();
     } catch (error) {
       console.error('Error marking reminder as complete:', error);
       const detail = (error as ValidationErrorResponse).response?.data?.detail;
