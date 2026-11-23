@@ -354,8 +354,8 @@ function Stop-SpecificPorts {
         # Procesos de este proyecto por ruta/comando. Nunca se mata un PID
         # únicamente porque escuche en uno de los puertos configurados.
         foreach ($processId in (Get-ProjectProcessIds)) {
-            & taskkill /F /T /PID $processId 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            $taskkillExitCode = Invoke-NativeCommandQuiet -FilePath "taskkill" -ArgumentList @("/F", "/T", "/PID", "$processId")
+            if ($taskkillExitCode -eq 0) {
                 Write-Host "  PID $processId (árbol del proyecto) detenido." -ForegroundColor Green
                 $anyThisPass = $true
             }
