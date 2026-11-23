@@ -8,7 +8,12 @@ from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 import google.genai as genai
 from google.genai import types
-from app.services.ai_models import MULTIMODAL_MODEL, with_gemini_retry_async
+from app.services.ai_models import (
+    MULTIMODAL_MODEL,
+    REASONING_MODEL,
+    is_transient_gemini_error,
+    with_gemini_retry_async,
+)
 from app.services.gemini_gateway import create_gemini_client, get_configured_gemini_key
 from datetime import date, datetime, timezone
 
@@ -87,29 +92,44 @@ class StatementIntelligenceService:
         system_instruction: str,
         prompt: str,
     ) -> Dict:
-        def request_and_parse() -> Dict[str, Any]:
-            response = client.models.generate_content(
-                model=MULTIMODAL_MODEL,
-                contents=cast(Any, [
-                    types.Part.from_bytes(data=file_data, mime_type=mime_type),
-                    types.Part.from_text(text=prompt),
-                ]),
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    response_mime_type="application/json",
-                    response_schema=StatementParsingResponse,
-                ),
-            )
-            return json.loads((response.text or "{}").strip())
+        candidates = list(dict.fromkeys([MULTIMODAL_MODEL, REASONING_MODEL]))
+        last_error: Exception | None = None
 
-        try:
-            return await with_gemini_retry_async(request_and_parse, max_retries=5)
-        except Exception as error:
-            logger.exception(
-                "[StatementIntelligence] Gemini parsing failed after retries: %s",
-                type(error).__name__,
-            )
-            raise ValueError("IA no disponible después de varios intentos.") from error
+        for idx, model_name in enumerate(candidates):
+            def request_and_parse(active_model: str = model_name) -> Dict[str, Any]:
+                response = client.models.generate_content(
+                    model=active_model,
+                    contents=cast(Any, [
+                        types.Part.from_bytes(data=file_data, mime_type=mime_type),
+                        types.Part.from_text(text=prompt),
+                    ]),
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=StatementParsingResponse,
+                    ),
+                )
+                return json.loads((response.text or "{}").strip())
+
+            try:
+                return await with_gemini_retry_async(request_and_parse, max_retries=2)
+            except Exception as error:
+                last_error = error
+                has_next_model = idx + 1 < len(candidates)
+                if has_next_model and is_transient_gemini_error(error):
+                    logger.warning(
+                        "[StatementIntelligence] %s no disponible (%s); probando modelo alternativo",
+                        model_name,
+                        type(error).__name__,
+                    )
+                    continue
+                break
+
+        logger.exception(
+            "[StatementIntelligence] Gemini parsing failed after retries: %s",
+            type(last_error).__name__ if last_error else "UnknownError",
+        )
+        raise ValueError("IA no disponible después de varios intentos.") from last_error
 
     def _enrich_transactions(
         self,

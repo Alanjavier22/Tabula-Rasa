@@ -5,7 +5,12 @@ import asyncio
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from google.genai import types
-from app.services.ai_models import LITE_MODEL, with_gemini_retry_async
+from app.services.ai_models import (
+    LITE_MODEL,
+    REASONING_MODEL,
+    is_transient_gemini_error,
+    with_gemini_retry_async,
+)
 from app.services.gemini_gateway import create_gemini_client, get_configured_gemini_key
 from database import SessionLocal
 from app.models.transaction import Transaction
@@ -98,29 +103,44 @@ class AccountIntelligenceService:
         raw_csv_text = convert_to_csv_string(file_data, filename)
         prompt = "Analiza el siguiente extracto bancario en crudo y extrae todas las transacciones financieras reales.\n\n" + raw_csv_text
         system_instruction = self._build_system_instruction(expected_bank_name)
-        def request_and_parse() -> Dict[str, Any]:
-            response = client.models.generate_content(
-                model=LITE_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    response_mime_type="application/json",
-                    response_schema=AccountParsingResponse,
-                    temperature=0.1,
-                ),
-            )
-            if not response.text:
-                raise ValueError("Gemini returned an empty response")
-            return json.loads(response.text)
+        candidates = list(dict.fromkeys([LITE_MODEL, REASONING_MODEL]))
+        last_error: Exception | None = None
 
-        try:
-            return await with_gemini_retry_async(request_and_parse, max_retries=8)
-        except Exception as error:
-            logger.exception(
-                "[AccountIntelligence] Gemini parsing failed after retries: %s",
-                type(error).__name__,
-            )
-            raise ValueError("IA no disponible después de varios intentos.") from error
+        for idx, model_name in enumerate(candidates):
+            def request_and_parse(active_model: str = model_name) -> Dict[str, Any]:
+                response = client.models.generate_content(
+                    model=active_model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=AccountParsingResponse,
+                        temperature=0.1,
+                    ),
+                )
+                if not response.text:
+                    raise ValueError("Gemini returned an empty response")
+                return json.loads(response.text)
+
+            try:
+                return await with_gemini_retry_async(request_and_parse, max_retries=2)
+            except Exception as error:
+                last_error = error
+                has_next_model = idx + 1 < len(candidates)
+                if has_next_model and is_transient_gemini_error(error):
+                    logger.warning(
+                        "[AccountIntelligence] %s no disponible (%s); probando modelo alternativo",
+                        model_name,
+                        type(error).__name__,
+                    )
+                    continue
+                break
+
+        logger.exception(
+            "[AccountIntelligence] Gemini parsing failed after retries: %s",
+            type(last_error).__name__ if last_error else "UnknownError",
+        )
+        raise ValueError("IA no disponible después de varios intentos.") from last_error
 
     def _enrich_transactions(
         self,
