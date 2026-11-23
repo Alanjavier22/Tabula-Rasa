@@ -8,7 +8,12 @@ from typing import List, Optional, Dict, Any, cast
 from pydantic import BaseModel, Field
 import google.genai as genai
 from google.genai import types
-from app.services.ai_models import MULTIMODAL_MODEL, with_gemini_retry_async
+from app.services.ai_models import (
+    MULTIMODAL_MODEL,
+    REASONING_MODEL,
+    is_transient_gemini_error,
+    with_gemini_retry_async,
+)
 from app.services.gemini_gateway import create_gemini_client, get_configured_gemini_key
 from datetime import date, datetime, timezone
 
@@ -87,29 +92,44 @@ class StatementIntelligenceService:
         system_instruction: str,
         prompt: str,
     ) -> Dict:
-        def request_and_parse() -> Dict[str, Any]:
-            response = client.models.generate_content(
-                model=MULTIMODAL_MODEL,
-                contents=cast(Any, [
-                    types.Part.from_bytes(data=file_data, mime_type=mime_type),
-                    types.Part.from_text(text=prompt),
-                ]),
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    response_mime_type="application/json",
-                    response_schema=StatementParsingResponse,
-                ),
-            )
-            return json.loads((response.text or "{}").strip())
+        candidates = list(dict.fromkeys([MULTIMODAL_MODEL, REASONING_MODEL]))
+        last_error: Exception | None = None
 
-        try:
-            return await with_gemini_retry_async(request_and_parse, max_retries=5)
-        except Exception as error:
-            logger.exception(
-                "[StatementIntelligence] Gemini parsing failed after retries: %s",
-                type(error).__name__,
-            )
-            raise ValueError("IA no disponible después de varios intentos.") from error
+        for idx, model_name in enumerate(candidates):
+            def request_and_parse(active_model: str = model_name) -> Dict[str, Any]:
+                response = client.models.generate_content(
+                    model=active_model,
+                    contents=cast(Any, [
+                        types.Part.from_bytes(data=file_data, mime_type=mime_type),
+                        types.Part.from_text(text=prompt),
+                    ]),
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=StatementParsingResponse,
+                    ),
+                )
+                return json.loads((response.text or "{}").strip())
+
+            try:
+                return await with_gemini_retry_async(request_and_parse, max_retries=2)
+            except Exception as error:
+                last_error = error
+                has_next_model = idx + 1 < len(candidates)
+                if has_next_model and is_transient_gemini_error(error):
+                    logger.warning(
+                        "[StatementIntelligence] %s no disponible (%s); probando modelo alternativo",
+                        model_name,
+                        type(error).__name__,
+                    )
+                    continue
+                break
+
+        logger.exception(
+            "[StatementIntelligence] Gemini parsing failed after retries: %s",
+            type(last_error).__name__ if last_error else "UnknownError",
+        )
+        raise ValueError("IA no disponible después de varios intentos.") from last_error
 
     def _enrich_transactions(
         self,
@@ -181,26 +201,27 @@ class StatementIntelligenceService:
         CATEGORÍAS DISPONIBLES: {", ".join(cat_list)}
 
         REGLAS CRÍTICAS:
-        1. MONTO: Extrae el monto exacto. Multiplica por 100 para convertir a centavos (ej: 15.20 -> 1520).
-        2. DEUDA TOTAL: Asegúrate de extraer el `statement_balance_cents` correcto (pago contado).
+        1. MONTO: Extrae el monto exacto. Multiplica por 100 para convertir a centavos (ej: 15.20 -> 1520). Acepta formato con coma decimal y signo menos a la derecha (ej: `117,28-` -> `-11728` como `income`; `83,78` -> `8378` como `expense`). Si una fila tiene columna `IVA` aparte (ej: Valor $0.31, IVA $0.05), suma ese IVA dentro de `amount_cents` (`36`).
+        2. DEUDA TOTAL: Asegúrate de extraer el `statement_balance_cents` correcto (pago contado / Total a pagar).
         3. FECHAS Y RAZONAMIENTO TEMPORAL:
            - Para consumos normales: Usa la fecha que aparece en el documento dentro del periodo actual.
-           - PARA DIFERIDOS (DEDUCCIÓN INTELIGENTE): Si encuentras un consumo con cuotas (ej: 'Cuota 9/12') y una fecha que parece "fuera de lugar" (ej: Julio en un estado de cuenta de Abril), RAZONA:
+           - PARA DIFERIDOS (DEDUCCIÓN INTELIGENTE): Si encuentras un consumo con cuotas (ej: 'Cuota 9/12', 'DIF. 4/12' o '(FINAL)') y una fecha que parece "fuera de lugar" (ej: Julio en un estado de cuenta de Abril), RAZONA:
              a) Si la cuota es 9/12 y estamos en Abril 2026, deduce que el consumo original fue en Julio 2025.
              b) Devuelve la fecha del registro como el periodo de facturación actual (ej: Abril 2026) para permitir la conciliación bancaria.
              c) No ignores la fecha original; la IA debe usarla para validar que el diferido es coherente, pero el 'date' resultante debe ser el del cobro actual.
            - NUNCA devuelvas una fecha futura respecto al 'statement_period'.
         4. TIPO: 
-           - Consumos/Compras/Intereses -> transaction_type: 'expense' (Monto positivo).
+           - Consumos/Compras/Intereses/Notas de débito -> transaction_type: 'expense' (Monto positivo).
            - Pagos/Abonos/Notas de Crédito -> transaction_type: 'income' (Monto negativo para el balance de deuda).
         5. CATEGORIZACIÓN: Elige la mejor categoría de la lista proporcionada.
-        6. DIFERIDOS: Identifica si la descripción indica una cuota (ej: 'Cuota 2 de 6', '3/12').
+        6. DIFERIDOS: Identifica si la descripción o columna indica una cuota (ej: 'Cuota 2 de 6', '3/12', '(FINAL)').
         7. AUDITORÍA DE COSTOS (CRÍTICO): Identifica específicamente cobros por:
            - Seguros (ej: 'Seguro de Desgravamen', 'Protección Fraude').
            - Comisiones (ej: 'Mantenimiento de cuenta', 'Emisión de estado de cuenta').
            - Intereses (ej: 'Interés por mora', 'Interés de financiamiento').
+           - Contribuciones o costos de servicio (ej: 'CONTRIBUCION PARA EL FINANCIAMIENTO SO', 'COSTO SERV RECAUD').
            Si encuentras alguno, asegúrate de extraerlo con su descripción literal exacta.
-        8. INTEGRIDAD: No inventes transacciones ni balances. Extrae el mes y año contable precisos.
+        8. INTEGRIDAD Y FILTRADO: No inventes transacciones ni balances. Ignora tablas informativas de tarifarios, simuladores de pago mínimo y el cuadro final de 'Comprobante de venta'. Extrae el mes y año contable precisos.
         """
 
         prompt = "Analiza este documento y extrae todas las transacciones del periodo. Asegúrate de incluir pagos y consumos."
@@ -227,7 +248,7 @@ class StatementIntelligenceService:
             for tx in parsed_data['transactions']
         ]
         
-        cat_results = categorize_batch(batch_input, self.db)
+        cat_results = await asyncio.to_thread(categorize_batch, batch_input, self.db)
         categories_dict = {
             c.id: c.name
             for c in self.db.query(Category).filter(Category.is_deleted == False).all()
@@ -312,13 +333,33 @@ class StatementIntelligenceService:
                 pass
         return current_installment, total_installments
 
+    def _close_final_deferred_payment(self, log: ImportLog, tx_data: Dict, amount: int) -> None:
+        from app.models.deferred_payment import DeferredPayment
+
+        existing_deferred = self.db.query(DeferredPayment).filter(
+            DeferredPayment.account_id == log.account_id,
+            DeferredPayment.installment_amount == amount,
+            DeferredPayment.is_active == True,
+            DeferredPayment.is_deleted == False,
+        ).filter(DeferredPayment.name.ilike(f"%{tx_data['description'][:10]}%")).first()
+
+        if existing_deferred:
+            existing_deferred.current_installment = cast(
+                Any, existing_deferred.total_installments or existing_deferred.current_installment or 1
+            )
+            existing_deferred.remaining_balance = cast(Any, 0)
+            existing_deferred.is_active = cast(Any, False)
+
     def _sync_deferred_payment(self, log: ImportLog, tx_data: Dict, transaction_date: datetime) -> None:
         from app.models.deferred_payment import DeferredPayment
 
-        current_installment, total_installments = self._deferred_installments(
-            tx_data.get('deferred_info', '')
-        )
+        deferred_info = (tx_data.get('deferred_info') or '').strip()
         amount = abs(tx_data['amount_cents'])
+        if 'final' in deferred_info.lower() and '/' not in deferred_info:
+            self._close_final_deferred_payment(log, tx_data, amount)
+            return
+
+        current_installment, total_installments = self._deferred_installments(deferred_info)
         existing_deferred = self.db.query(DeferredPayment).filter(
             DeferredPayment.account_id == log.account_id,
             DeferredPayment.installment_amount == amount,

@@ -268,7 +268,7 @@ def _is_model_fallback_error(error: Exception) -> bool:
 
 
 def _generate_insights_with_model_fallback(client: Any, user_prompt: str) -> Any:
-    candidates = list(dict.fromkeys([REASONING_MODEL, LITE_MODEL, "gemini-2.5-flash", "gemini-2.5-flash-lite"]))
+    candidates = list(dict.fromkeys([REASONING_MODEL, LITE_MODEL]))
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         response_schema=_INSIGHTS_RESPONSE_SCHEMA,

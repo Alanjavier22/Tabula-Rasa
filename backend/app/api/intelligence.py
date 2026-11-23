@@ -28,7 +28,30 @@ INTELLIGENCE_ERROR_RESPONSES = {
     400: {"description": "Invalid intelligence request."},
     413: {"description": "Uploaded file is too large."},
     500: {"description": "Intelligence processing failed."},
+    503: {"description": "AI service temporarily unavailable."},
 }
+
+
+def _raise_intelligence_api_error(
+    db: Session,
+    log_id: str,
+    error: Exception,
+    log_message: str,
+    fallback_detail: str,
+) -> None:
+    log = db.query(ImportLog).filter(ImportLog.id == log_id).first()
+    if log:
+        log.status = cast(Any, 'error')
+        log.error_message = cast(Any, str(error))
+    db.commit()
+    if isinstance(error, ValueError) and "IA no disponible" in str(error):
+        logger.warning("%s: %s", log_message, error)
+        raise HTTPException(
+            status_code=503,
+            detail="El servicio de IA (Gemini) está temporalmente saturado. Intenta nuevamente en unos segundos.",
+        ) from error
+    logger.exception(log_message)
+    raise HTTPException(status_code=500, detail=fallback_detail) from error
 logger = logging.getLogger(__name__)
 MAX_IMPORT_FILE_BYTES = 12 * 1024 * 1024
 
@@ -95,13 +118,13 @@ async def upload_statement(
     except HTTPException:
         raise
     except Exception as error:
-        log = db.query(ImportLog).filter(ImportLog.id == log_id).first()
-        if log:
-            log.status = cast(Any, 'error')
-            log.error_message = cast(Any, str(error))
-        db.commit()
-        logger.exception("AI statement import failed")
-        raise HTTPException(status_code=500, detail="No se pudo procesar el estado de cuenta con IA.") from error
+        _raise_intelligence_api_error(
+            db,
+            log_id,
+            error,
+            "AI statement import failed",
+            "No se pudo procesar el estado de cuenta con IA.",
+        )
     finally:
         # Limpieza: Eliminamos el archivo temporal tras el procesamiento inicial
         if os.path.exists(temp_path):
@@ -178,13 +201,13 @@ async def parse_account_document(
     except HTTPException:
         raise
     except Exception as error:
-        log = db.query(ImportLog).filter(ImportLog.id == log_id).first()
-        if log:
-            log.status = cast(Any, 'error')
-            log.error_message = cast(Any, str(error))
-        db.commit()
-        logger.exception("AI account import failed")
-        raise HTTPException(status_code=500, detail="No se pudo procesar el documento de cuenta con IA.") from error
+        _raise_intelligence_api_error(
+            db,
+            log_id,
+            error,
+            "AI account import failed",
+            "No se pudo procesar el documento de cuenta con IA.",
+        )
 
 class ConfirmAccountImportPayload(BaseModel):
     confirmed_transactions: List[Dict]

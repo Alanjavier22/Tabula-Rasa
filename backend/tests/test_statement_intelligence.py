@@ -190,3 +190,91 @@ def test_finalize_import_syncs_statement_sharing_and_deferred_state(db_session):
         assert account.balance == -12000
     finally:
         verify.close()
+
+
+def test_sync_deferred_payment_closes_final_without_creating_new(db_session):
+    from datetime import datetime
+
+    account, log = _make_log(db_session)
+    service = StatementIntelligenceService(db_session=db_session)
+    final_tx = {
+        "description": "DIFERIDO NACIONAL ONLINE",
+        "amount_cents": 2303,
+        "deferred_info": "FINAL",
+    }
+
+    service._sync_deferred_payment(log, final_tx, datetime(2026, 11, 19))
+    db_session.flush()
+    assert db_session.query(DeferredPayment).filter(DeferredPayment.account_id == account.id).count() == 0
+
+    existing = DeferredPayment(
+        account_id=account.id,
+        name="DIFERIDO NACIONAL ONLINE",
+        total_amount=2303 * 6,
+        installment_amount=2303,
+        total_installments=6,
+        current_installment=5,
+        remaining_balance=4606,
+        is_active=True,
+    )
+    db_session.add(existing)
+    db_session.flush()
+
+    service._sync_deferred_payment(log, final_tx, datetime(2026, 11, 19))
+    db_session.flush()
+
+    assert db_session.query(DeferredPayment).filter(DeferredPayment.account_id == account.id).count() == 1
+    assert existing.remaining_balance == 0
+    assert existing.is_active is False
+    assert existing.current_installment == 6
+
+
+def test_request_parsed_data_falls_back_to_reasoning_model(db_session, monkeypatch):
+    import json
+    from types import SimpleNamespace
+    import anyio
+    from app.services import ai_models
+
+    service = StatementIntelligenceService(db_session=db_session)
+    called_models = []
+
+    class FallbackModels:
+        def generate_content(self, model=None, **_kwargs):
+            called_models.append(model)
+            if model == ai_models.MULTIMODAL_MODEL:
+                raise RuntimeError("503 UNAVAILABLE")
+            return SimpleNamespace(text=json.dumps({
+                "issuer_identity": "Banco Guayaquil Amex",
+                "issuer_confidence": 0.99,
+                "bank_name": "Banco Guayaquil",
+                "card_type": "Amex",
+                "statement_period": "Noviembre 2026",
+                "statement_month": 11,
+                "statement_year": 2026,
+                "statement_balance_cents": 43182,
+                "total_new_consumos_cents": 53164,
+                "total_pagos_cents": 28650,
+                "transactions": [],
+            }))
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(ai_models.asyncio, "sleep", no_sleep)
+    fake_client = SimpleNamespace(models=FallbackModels())
+
+    parsed = anyio.run(
+        service._request_parsed_data,
+        fake_client,
+        b"%PDF-1.4",
+        "application/pdf",
+        "system",
+        "prompt",
+    )
+
+    assert parsed["statement_balance_cents"] == 43182
+    assert called_models == [
+        ai_models.MULTIMODAL_MODEL,
+        ai_models.MULTIMODAL_MODEL,
+        ai_models.REASONING_MODEL,
+    ]

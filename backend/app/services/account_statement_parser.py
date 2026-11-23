@@ -17,12 +17,12 @@ DEPOSIT_TERM = 'depósito'
 _HEADER_PATTERNS = (
     ('date', ('fecha',)),
     ('description', ('detalle', 'descrip', 'concepto')),
+    ('type', ('tipo', 'transacción', 'clase')),
     ('amount', ('monto', 'valor')),
     ('balance', ('saldo', 'balance')),
     ('debit', ('cargo', DEBIT_TERM, 'retiro', 'egreso')),
     ('credit', ('abono', 'crédito', DEPOSIT_TERM, 'ingreso')),
     ('beneficiary', ('beneficiario', 'destinatario', 'nombre')),
-    ('type', ('tipo', 'transacción', 'clase')),
 )
 
 
@@ -89,6 +89,9 @@ def _header_column_indexes(row: Any) -> dict[str, int]:
         if pd.isna(value):
             continue
         column_name = str(value).lower()
+        if columns['type'] == -1 and 'ingreso' in column_name and 'egreso' in column_name:
+            columns['type'] = index
+            continue
         for name, patterns in _HEADER_PATTERNS:
             if columns[name] == -1 and _contains_any(column_name, patterns):
                 columns[name] = index
