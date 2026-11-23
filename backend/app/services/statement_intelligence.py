@@ -228,7 +228,7 @@ class StatementIntelligenceService:
             for tx in parsed_data['transactions']
         ]
         
-        cat_results = categorize_batch(batch_input, self.db)
+        cat_results = await asyncio.to_thread(categorize_batch, batch_input, self.db)
         categories_dict = {
             c.id: c.name
             for c in self.db.query(Category).filter(Category.is_deleted == False).all()

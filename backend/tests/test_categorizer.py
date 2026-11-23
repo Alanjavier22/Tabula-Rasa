@@ -159,3 +159,64 @@ def test_categorize_batch_fallbacks_on_error_no_transitorio(db_session, monkeypa
     ], db_session=db_session, throttle=False)
 
     assert result == {0: (category.id, True)}
+
+
+def test_categorize_batch_falls_back_to_secondary_model_and_local_fallback(db_session, monkeypatch):
+    food_category = Category(name="Alimentación")
+    fallback_category = Category(name="Otros (🔄)")
+    db_session.add_all([
+        food_category,
+        fallback_category,
+        Config(key="gemini_api_key", value="test-key"),
+    ])
+    db_session.commit()
+    db_session.refresh(food_category)
+    db_session.refresh(fallback_category)
+
+    called_models = []
+
+    class SecondaryFallbackModels:
+        def generate_content(self, model=None, **_kwargs):
+            called_models.append(model)
+            if model == categorizer.LITE_MODEL:
+                raise RuntimeError("504 gateway timeout")
+            return SimpleNamespace(text=json.dumps({
+                "items": [{
+                    "index": 0,
+                    "category_id": food_category.id,
+                    "confidence": 0.92,
+                    "needs_clarification": False,
+                }]
+            }))
+
+    waits = []
+    monkeypatch.setattr(categorizer, "AI_ENABLED", True)
+    monkeypatch.setattr(categorizer.time, "sleep", lambda seconds: waits.append(seconds))
+    monkeypatch.setattr(
+        categorizer.genai,
+        "Client",
+        lambda **_kwargs: SimpleNamespace(models=SecondaryFallbackModels()),
+    )
+
+    result = categorizer.categorize_batch([
+        {"description": "Comercio remoto", "amount": 1500, "transaction_type": "expense"},
+    ], db_session=db_session, throttle=False)
+
+    assert result == {0: (food_category.id, False)}
+    assert called_models == [categorizer.LITE_MODEL, categorizer.LITE_MODEL, "gemini-2.5-flash-lite"]
+    assert waits == [8]
+
+    class AllUnavailableModels:
+        def generate_content(self, **_kwargs):
+            raise RuntimeError("503 service unavailable")
+
+    monkeypatch.setattr(
+        categorizer.genai,
+        "Client",
+        lambda **_kwargs: SimpleNamespace(models=AllUnavailableModels()),
+    )
+    fallback_result = categorizer.categorize_batch([
+        {"description": "Comercio caído", "amount": 1500, "transaction_type": "expense"},
+    ], db_session=db_session, throttle=False)
+
+    assert fallback_result == {0: (fallback_category.id, True)}

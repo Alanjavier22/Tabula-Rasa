@@ -170,7 +170,7 @@ class AccountIntelligenceService:
         client = create_gemini_client(api_key)
         
         logger.info("[AccountIntelligence] Intentando extracción heurística local...")
-        local_transactions = local_extract_transactions(file_data, filename)
+        local_transactions = await asyncio.to_thread(local_extract_transactions, file_data, filename)
         
         if isinstance(local_transactions, dict) and local_transactions.get("transactions"):
             tx_count = len(local_transactions["transactions"])
@@ -194,7 +194,7 @@ class AccountIntelligenceService:
             for tx in parsed_data['transactions']
         ]
         
-        cat_results = categorize_batch(batch_input, self.db)
+        cat_results = await asyncio.to_thread(categorize_batch, batch_input, self.db)
         categories_dict = {
             str(c.id): c.name
             for c in self.db.query(Category).filter(Category.is_deleted == False).all()

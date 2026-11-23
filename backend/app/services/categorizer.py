@@ -328,46 +328,73 @@ def _apply_batch_results(
             results[index] = (other_category_id, True)
 
 
-def _categorize_chunk_with_ai(
+def _candidate_batch_models() -> tuple[str, ...]:
+    models: list[str] = []
+    for candidate in (LITE_MODEL, "gemini-2.5-flash-lite"):
+        if candidate and candidate not in models:
+            models.append(candidate)
+    return tuple(models)
+
+
+def _request_chunk_with_model(
     client,
-    categories: list,
-    chunk: list,
-    system_instruction: str,
-    transaction_text: str,
-    results: dict,
-) -> None:
-    max_retries = 5
-    retry_count = 0
-    while retry_count < max_retries:
+    model_name: str,
+    prompt_text: str,
+) -> dict | None:
+    max_attempts = 2
+    for attempt in range(max_attempts):
         try:
             response = client.models.generate_content(
-                model=LITE_MODEL,
-                contents=system_instruction + "\n\nLISTA A PROCESAR:\n" + transaction_text,
+                model=model_name,
+                contents=prompt_text,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=AICategorizationBatchResponse,
                     temperature=0.1,
                 ),
             )
-            batch_results = json.loads((response.text or "{}").strip())
-            category_by_id = {str(category.id): category for category in categories}
-            other_category_id = _other_category_id(categories)
-            _apply_batch_results(results, batch_results, category_by_id, other_category_id)
-            break
+            return json.loads((response.text or "{}").strip())
         except Exception as error:
-            is_retryable = is_transient_gemini_error(error) and retry_count < max_retries
-            if is_retryable:
-                retry_count += 1
-                wait_time = (retry_count + 1) * 4
-                logger.warning(f"[Categorizer] Gemini ocupado (503). Reintentando en {wait_time}s... ({retry_count}/{max_retries})")
+            if not is_transient_gemini_error(error):
+                raise
+            if attempt + 1 < max_attempts:
+                wait_time = (attempt + 2) * 4
+                logger.warning(
+                    "[Categorizer] Gemini ocupado (%s) en %s. Reintentando en %ss... (%s/%s)",
+                    type(error).__name__,
+                    model_name,
+                    wait_time,
+                    attempt + 1,
+                    max_attempts,
+                )
                 time.sleep(wait_time)
-                continue
+    return None
 
-            logger.exception("[Categorizer] Error en Batch AI")  # pragma: no cover
-            _assign_fallback_categories(results, chunk, _other_category_id(categories))
-            break
 
-    other_category_id = _other_category_id(categories)
+def _categorize_chunk_with_ai(
+    client,
+    category_by_id: dict,
+    other_category_id: str,
+    chunk: list,
+    system_instruction: str,
+    transaction_text: str,
+    results: dict,
+) -> None:
+    prompt_text = system_instruction + "\n\nLISTA A PROCESAR:\n" + transaction_text
+    batch_results = None
+    try:
+        for model_name in _candidate_batch_models():
+            batch_results = _request_chunk_with_model(client, model_name, prompt_text)
+            if batch_results is not None:
+                break
+    except Exception:
+        logger.exception("[Categorizer] Error en Batch AI")  # pragma: no cover
+
+    if batch_results is not None:
+        _apply_batch_results(results, batch_results, category_by_id, other_category_id)
+    else:
+        _assign_fallback_categories(results, chunk, other_category_id)
+
     for index, _ in chunk:
         if index not in results:
             results[index] = (other_category_id, True)
@@ -375,15 +402,13 @@ def _categorize_chunk_with_ai(
 
 def _categorize_pending_with_ai(
     client,
-    categories: list,
+    category_map: list[dict],
+    other_category_id: str,
     pending_ai: list,
     results: dict,
     throttle: bool,
 ) -> dict:
-    category_map = [
-        {'id': str(category.id), 'name': category.name, 'description': category.description or ''}
-        for category in categories
-    ]
+    category_by_id = {item['id']: item for item in category_map}
     system_instruction = _build_ai_instruction(category_map)
     chunks = [pending_ai[index:index + 80] for index in range(0, len(pending_ai), 80)]
     logger.info(f"[Categorizer] Iniciando procesamiento de {len(pending_ai)} transacciones en {len(chunks)} lotes...")
@@ -400,13 +425,21 @@ def _categorize_pending_with_ai(
         ])
         _categorize_chunk_with_ai(
             client,
-            categories,
+            category_by_id,
+            other_category_id,
             chunk,
             system_instruction,
             transaction_text,
             results,
         )
     return results
+
+
+def _release_local_write_lock(db) -> None:
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def categorize_batch(transactions: list, db_session=None, throttle: bool = True) -> dict:
@@ -419,6 +452,7 @@ def categorize_batch(transactions: list, db_session=None, throttle: bool = True)
     db = db_session or SessionLocal()
     try:
         results, pending_ai = _categorize_locally(transactions, db)
+        _release_local_write_lock(db)
         if not pending_ai or not AI_ENABLED:
             if not AI_ENABLED and pending_ai:
                 otros_cat = db.query(Category).filter(
@@ -433,17 +467,29 @@ def categorize_batch(transactions: list, db_session=None, throttle: bool = True)
         if not categories:
             return results
 
+        category_map = [
+            {'id': str(category.id), 'name': category.name, 'description': category.description or ''}
+            for category in categories
+        ]
+        other_category_id = _other_category_id(categories)
         api_key = get_configured_gemini_key(db)
-
-        if not api_key:
-            _assign_fallback_categories(results, pending_ai, _other_category_id(categories))
-            return results
-
-        client = create_gemini_client(api_key, client_cls=genai.Client)
-        return _categorize_pending_with_ai(client, categories, pending_ai, results, throttle)
     finally:
         if not db_session:
             db.close()
+
+    if not api_key:
+        _assign_fallback_categories(results, pending_ai, other_category_id)
+        return results
+
+    client = create_gemini_client(api_key, client_cls=genai.Client)
+    return _categorize_pending_with_ai(
+        client,
+        category_map,
+        other_category_id,
+        pending_ai,
+        results,
+        throttle,
+    )
 
 
 def calculate_fingerprint(description: str, amount: int, date: str, transaction_type: Optional[str] = None, account_id: Optional[str] = None) -> str:
