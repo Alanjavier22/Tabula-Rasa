@@ -57,6 +57,40 @@ def test_account_statement_parser_handles_summary_deposits_and_invalid_rows():
     assert local_extract_transactions(b"Fecha,Detalle\n2026-09-01,Compra\n", "sin-monto.csv") == {}
 
 
+def test_account_statement_parser_supports_both_bank_export_variants():
+    from app.services.account_statement_parser import local_extract_transactions
+
+    legacy_variant = (
+        "Fecha,Tipo,Monto,Detalle,Beneficiario,Fecha contable,Saldo efectivo\n"
+        "31/08/2026,Ingreso,786.98,Sueldo Viamatica,,31/08/2026,1127.69\n"
+        "29/08/2026,Egreso,-20.23,Primax Kennedy,Primax Kennedy,31/08/2026,99.51\n"
+        "20/08/2026,DEPOSITO,30.00,Efectivo,Atm,20/08/2026,220.22\n"
+    ).encode("utf-8")
+    parsed_legacy = local_extract_transactions(legacy_variant, "legacy.csv")
+    assert [item["transaction_type"] for item in parsed_legacy["transactions"]] == [
+        "income",
+        "expense",
+        "income",
+    ]
+    assert parsed_legacy["total_income_cents"] == 81698
+    assert parsed_legacy["total_expense_cents"] == 2023
+
+    new_variant = (
+        "Fecha,Tipo (ingreso y egreso),Monto,Detalle,Beneficiario,Fecha contable,Saldo efectivo,Categoría\n"
+        "22/11/2026,Egreso,11.99,Netflix.com,,23/11/2026,76.00,\n"
+        "14/11/2026,Ingreso,20.00,Cedeo Alay,,16/11/2026,216.82,\n"
+        "13/11/2026,Egreso,123.25,Aporte a Tu Meta,,13/11/2026,201.82,\n"
+    ).encode("utf-8")
+    parsed_new = local_extract_transactions(new_variant, "nuevo.csv")
+    assert [item["transaction_type"] for item in parsed_new["transactions"]] == [
+        "expense",
+        "income",
+        "expense",
+    ]
+    assert parsed_new["total_income_cents"] == 2000
+    assert parsed_new["total_expense_cents"] == 13524
+
+
 def test_transaction_summary_uses_shared_uncategorized_label(db_session):
     from app.models.transaction import Transaction
     from app.services.insights_builders import (
