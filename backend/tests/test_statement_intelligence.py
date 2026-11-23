@@ -190,3 +190,40 @@ def test_finalize_import_syncs_statement_sharing_and_deferred_state(db_session):
         assert account.balance == -12000
     finally:
         verify.close()
+
+
+def test_sync_deferred_payment_closes_final_without_creating_new(db_session):
+    from datetime import datetime
+
+    account, log = _make_log(db_session)
+    service = StatementIntelligenceService(db_session=db_session)
+    final_tx = {
+        "description": "DIFERIDO NACIONAL ONLINE",
+        "amount_cents": 2303,
+        "deferred_info": "FINAL",
+    }
+
+    service._sync_deferred_payment(log, final_tx, datetime(2026, 11, 19))
+    db_session.flush()
+    assert db_session.query(DeferredPayment).filter(DeferredPayment.account_id == account.id).count() == 0
+
+    existing = DeferredPayment(
+        account_id=account.id,
+        name="DIFERIDO NACIONAL ONLINE",
+        total_amount=2303 * 6,
+        installment_amount=2303,
+        total_installments=6,
+        current_installment=5,
+        remaining_balance=4606,
+        is_active=True,
+    )
+    db_session.add(existing)
+    db_session.flush()
+
+    service._sync_deferred_payment(log, final_tx, datetime(2026, 11, 19))
+    db_session.flush()
+
+    assert db_session.query(DeferredPayment).filter(DeferredPayment.account_id == account.id).count() == 1
+    assert existing.remaining_balance == 0
+    assert existing.is_active is False
+    assert existing.current_installment == 6
