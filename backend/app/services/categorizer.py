@@ -9,7 +9,7 @@ from database import SessionLocal
 import google.genai as genai
 from google.genai import types
 from app.services.gemini_gateway import create_gemini_client, get_configured_gemini_key
-from app.services.ai_models import LITE_MODEL, is_transient_gemini_error
+from app.services.ai_models import LITE_MODEL, REASONING_MODEL, is_transient_gemini_error
 from pydantic import BaseModel, Field
 from app.models.category import Category
 from app.models.transaction import Transaction, TransactionType, PaymentMethod, ExpenseType
@@ -330,7 +330,7 @@ def _apply_batch_results(
 
 def _candidate_batch_models() -> tuple[str, ...]:
     models: list[str] = []
-    for candidate in (LITE_MODEL, "gemini-2.5-flash-lite"):
+    for candidate in (LITE_MODEL, REASONING_MODEL):
         if candidate and candidate not in models:
             models.append(candidate)
     return tuple(models)

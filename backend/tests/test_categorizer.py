@@ -203,7 +203,7 @@ def test_categorize_batch_falls_back_to_secondary_model_and_local_fallback(db_se
     ], db_session=db_session, throttle=False)
 
     assert result == {0: (food_category.id, False)}
-    assert called_models == [categorizer.LITE_MODEL, categorizer.LITE_MODEL, "gemini-2.5-flash-lite"]
+    assert called_models == [categorizer.LITE_MODEL, categorizer.LITE_MODEL, categorizer.REASONING_MODEL]
     assert waits == [8]
 
     class AllUnavailableModels:
